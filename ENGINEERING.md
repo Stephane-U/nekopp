@@ -7681,3 +7681,164 @@ open, read off screenshots of the strip row:
   in the third slot.
 
 `cargo fmt` was not run.
+
+## Fifty-ninth pass: a plugin can be put down and picked up again
+
+### Seven host functions is a list, not an interface
+
+The ABI had seven imports: log a line, read the text, replace the text, insert at
+an offset, ask where the caret is, move it, ask how long the text is. That is
+enough to write a plugin that rewrites the whole document and nothing else, and
+not enough to write any of the commands a plugin repository is actually full of,
+because those are all about a *range*: surround this selection, align these lines
+on a separator, convert the width of this run. With seven functions each of them
+has to copy the document in, find its own range in the copy, rebuild the whole
+string and push it back -- which loses the selection, loses the caret, and turns
+a three-character edit into a full-document replacement in the undo stack.
+
+The list is fifteen now, and the eight additions are chosen by what the ports
+needed rather than by what was easy to expose: `text_replace_range` for an edit
+that is not a whole-document rewrite, `line_count`, `line_start`, `line_len` and
+`line_of_pos` so a line-oriented command does not have to copy the document to
+find out where a line begins, and `sel_start`, `sel_end` and `set_sel` so a
+command can work on the selection and leave a selection behind.
+
+They are additions and nothing else. A module compiled last month imports the
+names it was built against, and WebAssembly instantiation fails if a single
+import is missing -- there is no version negotiation here, and adding one would
+mean every plugin carries a version check that the host could do for it. So the
+rule the file states is the rule the code keeps: the import list is append-only,
+and a name in it never changes meaning.
+
+### The offsets are bytes, converted at one boundary
+
+Everything crossing the boundary is a byte offset, because a plugin written in
+Rust, C or Zig can measure the UTF-8 it is handed in bytes and nothing in the ABI
+promises a character. The editor counts characters. `Document::char_to_byte` is
+the mirror of the `byte_to_char` that was already there, and it is the only
+conversion: the window and the benchmark build their `Context` through it, so a
+plugin cannot be handed a character offset by one caller and a byte offset by
+another. Line indices stay line indices, as the names say, and the offsets the
+line functions return are bytes again.
+
+### The three ports are the argument that the ABI is enough
+
+`plugins/` is a second workspace, so a plugin builds without the editor and the
+editor does not link a plugin. Three ports ship with it: `align` (Align on
+Equals, on Colon, on Comma), `halfwidth` (To Half Width, To Full Width) and
+`surround` (quotes, brackets, parentheses, and Select Quoted Text). They are what
+the `nn-plugin` SDK is for: `plugin!` generates the four exports, and the `host`
+module is the fifteen imports as typed Rust functions, so a port is a function
+from `&str` to `String` plus a decision about which range it applies to.
+
+They are clean-room reimplementations of commands whose behaviour is described in
+the feature reference, not ports of anyone's source. The repository has no
+`LICENSE` file, so there is no licence under which GPL-derived code could be
+taken in; the README says so, and says why, rather than leaving the question to
+be asked later.
+
+### Unloading drops the module and keeps the path
+
+Load and unload are not a restart. `Plugins` keeps the running set, and `unload`
+takes a plugin out of it, drops the `Instance` and keeps only its name and the
+path it came from; `load` reads that file again and instantiates it. Re-reading
+is the point: a plugin that was rebuilt while the editor was open comes back as
+the new build, where keeping the bytes would bring back the old one and make
+"reload" mean two different things in two places.
+
+Nothing about this is persisted. The directory is the list of what is installed
+and the session is the list of what is running, so unload is a decision about
+this window, not a configuration change, and the next start loads everything
+again. `Reload Plugins` re-scans the folder, which is also how a hand-copied
+`.wasm` gets picked up and how an unloaded plugin comes back.
+
+A file that has disappeared since it was unloaded is the one case that has to
+answer rather than act: `load` reports the error, the plugin stays in the unloaded
+list, and the menu keeps offering to load it. Forgetting it would be tidier to
+write and worse to use -- the row that vanishes is the only explanation the user
+would get.
+
+### The verb is translated and the plugin's name is not
+
+`Unload Half Width` is two strings from two sources: `Unload`, which is prose and
+belongs to the catalog, and `Half Width`, which is a plugin's own name and
+belongs to nobody else. `Item::composed` keeps both, the English one for
+`english_labels` and tests, the joined one for drawing. It also means the rows are
+*rebuilt* when the language changes rather than relabelled by lookup, because a
+label of two halves has no single key to look up. `MenuBar::set_catalog`
+regenerates the plugin menu from the last `PluginSource` it was given, and
+`sync_plugin_menu` is the only place one is built, so the menu cannot drift from
+the running set.
+
+The unload and load actions carry an index and are deliberately not bindable: a
+keyboard shortcut to "unload the third plugin" is a shortcut to the wrong plugin
+the moment one is added. The index is checked against the list on arrival, so a
+stale one is ignored rather than panicking.
+
+Three strings were added to all twenty-three catalogs -- `Reload Plugins`, `Load`,
+`Unload` -- and the completeness test that walks every catalog still passes, which
+is what keeps a half-translated menu from shipping.
+
+### The rows are built translated, because a relabel cannot rebuild them
+
+The completeness test was not enough, and the reason is the interesting part: it
+builds a bar with no plugins, so the composed rows never enter the list it walks.
+Adding a test that loads the *real* `italian.xml` and installs a plugin under it
+found the menu drawing `Unload Half Width` inside an otherwise Italian menu.
+
+The bug was ordering. `set_plugins` assigned the fresh rows and then called
+`relabel`, which walks every item and sets each label from its English text --
+correct for a row whose label is a translation, destructive for one whose label is
+a verb plus a name, because its English text is the untranslated row. The
+synthetic test called `set_plugins` before `set_catalog` and so never took that
+path; the application calls `set_catalog` first, from the saved language, and then
+imports plugins, which is exactly the order that broke.
+
+So the plugin menu is now built translated and nothing relabels it: `plugin_items`
+takes `row(english, action)` for its prose (`Item::composed` with the catalog's
+text), and `set_plugins` no longer calls `relabel` at all. `set_catalog` still
+regenerates the whole menu from the stored `PluginSource`, which is what a
+language change needs. Two tests hold this down:
+`every_bundled_catalog_translates_the_plugin_rows` walks all twenty-three bundled
+catalogs for the three composed labels, and
+`the_italian_catalog_translates_the_unload_verb` drives the startup order with the
+real file and asserts the row reads `Scarica Half Width`.
+
+### Verification
+
+`cargo build --offline --release`: clean, `nn-mcp` included.
+
+`cargo test --offline --release`: 974 passed in `nn-app`, 816 in `nn-core`, 51 in
+`nn-mcp`, 1841 in all, no failures. Ten tests are new for this pass: in `plugin`,
+`unloading_a_plugin_takes_it_out_of_the_menu`,
+`a_plugin_loads_back_from_its_file`, `a_plugin_whose_file_is_gone_stays_unloaded`
+and `loading_a_plugin_that_was_never_unloaded_is_refused`; in `menu`,
+`an_empty_plugins_menu_says_so`, `a_plugin_command_becomes_a_row`,
+`an_unloaded_plugin_gets_a_row_that_loads_it_back`,
+`the_unload_verb_follows_the_language_but_the_name_does_not`, which checks that
+switching to French changes the verb and leaves `Half Width` alone, and the two
+real-catalog tests above.
+
+`cd plugins && cargo test --offline --release`: 23 passed -- 6 in `align`, 7 in
+`halfwidth`, 8 in `surround`, 2 in `sdk`.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+Flows, driven with the mouse at 1100x750 on a 1400x1000 Xvfb on `:9`, read off
+screenshots:
+
+- The `Plugins` menu with three plugins installed: `Open Plugins Folder...`,
+  `Reload Plugins`, a separator, nine command rows, a separator, three
+  `Unload <name>` rows.
+- `Unload Half Width` clicked: the status bar reads `Unloaded Half Width`, that
+  plugin's two command rows and its unload row are gone, and a `Load Half Width`
+  row is at the end of the menu.
+- `Load Half Width` clicked: the status bar reads `Loaded Half Width`, the two
+  command rows and the unload row are back, in their original order.
+
+The Italian menu was read off a screenshot too, and it is where the ordering bug
+above was first seen: `Apri cartella dei plugin...` and `Ricarica i plugin` beside
+`Unload Align Columns`. It is not repeated as a flow, because the fix is checked
+by the real-catalog tests rather than by the picture that exposed it.
+
+`cargo fmt` was not run.

@@ -294,6 +294,9 @@
                 <Item id="Open File" name="Открыть файл"/>
                 <Item id="Open Folder as Workspace..." name="Открыть папку как рабочую область..."/>
                 <Item id="Open Plugins Folder..." name="Открыть папку плагинов..."/>
+                <Item id="Reload Plugins" name="Перезагрузить плагины"/>
+                <Item id="Load" name="Загрузить"/>
+                <Item id="Unload" name="Выгрузить"/>
                 <Item id="Open Shortcut Mapper..." name="Открыть сопоставление сочетаний клавиш..."/>
                 <Item id="Open User Defined Language folder..." name="Открыть папку пользовательских языков..."/>
                 <Item id="Open in New Instance" name="Открыть в новом экземпляре"/>

@@ -294,6 +294,9 @@
                 <Item id="Open File" name="Bestand openen"/>
                 <Item id="Open Folder as Workspace..." name="Map als werkruimte openen..."/>
                 <Item id="Open Plugins Folder..." name="Plug-inmap openen..."/>
+                <Item id="Reload Plugins" name="Plug-ins herladen"/>
+                <Item id="Load" name="Laden"/>
+                <Item id="Unload" name="Verwijderen"/>
                 <Item id="Open Shortcut Mapper..." name="Sneltoetsenoverzicht openen..."/>
                 <Item id="Open User Defined Language folder..." name="Map met door gebruiker gedefinieerde talen openen..."/>
                 <Item id="Open in New Instance" name="Openen in nieuwe instantie"/>

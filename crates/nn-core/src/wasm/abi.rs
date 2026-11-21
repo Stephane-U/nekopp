@@ -33,14 +33,38 @@
 //! | `text_read` | `(offset, ptr, len) -> i32` | copy document bytes into plugin memory |
 //! | `text_replace` | `(ptr, len) -> i32` | replace the whole document |
 //! | `text_insert` | `(pos, ptr, len) -> i32` | insert at a byte offset |
+//! | `text_replace_range` | `(pos, len, ptr, len) -> i32` | replace `len` bytes at `pos` |
 //! | `caret` | `() -> i32` | the caret's byte offset |
 //! | `set_caret` | `(pos)` | move the caret |
+//! | `line_count` | `() -> i32` | how many lines the document has |
+//! | `line_start` | `(line) -> i32` | the byte offset of line `line`'s first byte |
+//! | `line_len` | `(line) -> i32` | line `line`'s length in bytes, without its terminator |
+//! | `line_of_pos` | `(pos) -> i32` | which line byte `pos` is on |
+//! | `sel_start` | `() -> i32` | the selection's lower byte offset |
+//! | `sel_end` | `() -> i32` | the selection's upper byte offset |
+//! | `set_sel` | `(start, end)` | select from `start` to `end` |
 //!
 //! `text_read` returns how many bytes it copied, which is fewer than asked for
-//! at the end of the document. `text_replace` and `text_insert` return zero on
-//! success and non-zero on refusal -- a read-only document, or an offset past
-//! the end -- so a plugin can tell the difference between "done" and "the
-//! editor said no" without a second call.
+//! at the end of the document. `text_replace`, `text_insert` and
+//! `text_replace_range` return zero on success and non-zero on refusal -- a
+//! read-only document, or an offset past the end -- so a plugin can tell the
+//! difference between "done" and "the editor said no" without a second call.
+//!
+//! # Everything is a byte offset
+//!
+//! Lengths and offsets are bytes, not characters, because that is what a plugin
+//! written in C, Rust or Zig can measure for the UTF-8 it is handed. The editor
+//! works in characters internally and converts at the boundary, which is the
+//! one place that knowledge belongs: a plugin that mixed the two would corrupt
+//! a document on its first non-ASCII line, and every port would have to get the
+//! same conversion right.
+//!
+//! The line functions are the exception in the way they read: a *line index*
+//! counts lines, as the name says. `line_start`, `line_len` and `line_of_pos`
+//! are offered because a line-oriented command -- align this column, find the
+//! shortest line -- should not have to copy the whole document to find out
+//! where a line begins, and the intraline offsets those functions return are
+//! bytes again.
 
 use super::{Error, Host, Instance, Module, Value};
 
@@ -52,20 +76,42 @@ pub const TEXT_LEN: &str = "text_len";
 pub const TEXT_READ: &str = "text_read";
 pub const TEXT_REPLACE: &str = "text_replace";
 pub const TEXT_INSERT: &str = "text_insert";
+pub const TEXT_REPLACE_RANGE: &str = "text_replace_range";
 pub const CARET: &str = "caret";
 pub const SET_CARET: &str = "set_caret";
+pub const LINE_COUNT: &str = "line_count";
+pub const LINE_START: &str = "line_start";
+pub const LINE_LEN: &str = "line_len";
+pub const LINE_OF_POS: &str = "line_of_pos";
+pub const SEL_START: &str = "sel_start";
+pub const SEL_END: &str = "sel_end";
+pub const SET_SEL: &str = "set_sel";
 
 /// Every host function, in the order the documentation lists them. The app's
 /// host implementation matches on these, and a test asserts the list and the
 /// implementation agree.
+///
+/// Additions are made for a plugin that exists, not in anticipation of one: the
+/// list is a promise the host has to keep, and a function nothing calls is a
+/// function whose behaviour will be discovered by the first plugin that tries
+/// it. The line and selection calls are here because the three ports that came
+/// with this version needed them, and for no other reason.
 pub const HOST_FUNCTIONS: &[&str] = &[
     LOG,
     TEXT_LEN,
     TEXT_READ,
     TEXT_REPLACE,
     TEXT_INSERT,
+    TEXT_REPLACE_RANGE,
     CARET,
     SET_CARET,
+    LINE_COUNT,
+    LINE_START,
+    LINE_LEN,
+    LINE_OF_POS,
+    SEL_START,
+    SEL_END,
+    SET_SEL,
 ];
 
 pub const EXPORT_NAME: &str = "npp_name";
@@ -445,8 +491,11 @@ mod tests {
 
     #[test]
     fn the_host_function_list_is_the_documented_one() {
-        assert_eq!(HOST_FUNCTIONS.len(), 7);
+        assert_eq!(HOST_FUNCTIONS.len(), 15);
         assert!(HOST_FUNCTIONS.contains(&LOG));
         assert!(HOST_FUNCTIONS.contains(&SET_CARET));
+        assert!(HOST_FUNCTIONS.contains(&TEXT_REPLACE_RANGE));
+        assert!(HOST_FUNCTIONS.contains(&SET_SEL));
+        assert!(HOST_FUNCTIONS.contains(&LINE_OF_POS));
     }
 }

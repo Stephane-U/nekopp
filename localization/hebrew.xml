@@ -297,6 +297,9 @@
                 <Item id="Open File" name="פתיחת קובץ"/>
                 <Item id="Open Folder as Workspace..." name="פתיחת תיקייה כסביבת עבודה..."/>
                 <Item id="Open Plugins Folder..." name="פתיחת תיקיית התוספים..."/>
+                <Item id="Reload Plugins" name="טעינה מחדש של תוספים"/>
+                <Item id="Load" name="טעינה"/>
+                <Item id="Unload" name="פריקה"/>
                 <Item id="Open Shortcut Mapper..." name="פתיחת מיפוי קיצורי הדרך..."/>
                 <Item id="Open User Defined Language folder..." name="פתיחת תיקיית השפות המוגדרות על ידי המשתמש..."/>
                 <Item id="Open in New Instance" name="פתיחה במופע חדש"/>

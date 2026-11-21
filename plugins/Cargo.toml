@@ -1,0 +1,27 @@
+# The plugins are their own workspace because they are built for a different
+# target: `wasm32-unknown-unknown`, into `.wasm` files the editor loads at run
+# time. Keeping them out of the editor's workspace is what lets `cargo build` at
+# the root build an editor without a wasm toolchain, and lets a user who only
+# wants to edit text ignore this directory entirely.
+#
+# `build.sh` builds all of them and copies the modules into the plugins
+# directory the editor reads.
+[workspace]
+resolver = "2"
+members = ["sdk", "surround", "align", "halfwidth"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[profile.release]
+# A plugin is a file the editor parses at startup and a user may well read, so
+# it is built small. Panics abort because the host runs the module in an
+# interpreter that refuses to continue after a trap anyway, and unwinding tables
+# would be the larger half of the file.
+panic = "abort"
+lto = true
+codegen-units = 1
+opt-level = "z"
+strip = true

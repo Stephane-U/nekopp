@@ -294,6 +294,9 @@
                 <Item id="Open File" name="Abrir ficheiro"/>
                 <Item id="Open Folder as Workspace..." name="Abrir pasta como área de trabalho..."/>
                 <Item id="Open Plugins Folder..." name="Abrir pasta de extensões..."/>
+                <Item id="Reload Plugins" name="Recarregar extensões"/>
+                <Item id="Load" name="Carregar"/>
+                <Item id="Unload" name="Descarregar"/>
                 <Item id="Open Shortcut Mapper..." name="Abrir mapeador de atalhos..."/>
                 <Item id="Open User Defined Language folder..." name="Abrir pasta das linguagens definidas pelo utilizador..."/>
                 <Item id="Open in New Instance" name="Abrir numa nova instância"/>

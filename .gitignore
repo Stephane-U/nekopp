@@ -2,6 +2,14 @@
 /target/
 /dist/
 
+# The plugins are their own workspace, so they get their own target directory.
+# It is 49 MB of wasm object code and none of it is source.
+/plugins/target/
+
+# The PDF is built from the markdown by a script; both are source, the
+# interpreter's cache is not.
+/docs/__pycache__/
+
 # dpkg-buildpackage leaves its staging area and bookkeeping in debian/. None of
 # it is source: `debian/npp/` is the package being assembled, and the rest is
 # debhelper's record of what it has already done.

@@ -25,6 +25,7 @@ use nn_app::{
     TabBar, TabColour, TabInfo, TabLayout, Theme, ThemeChoice, Toolbar, Tooltip, WindowSort,
 };
 use nn_app::context;
+use nn_app::plugin::Context;
 use nn_app::renderer::{UI_FONT_SIZE, UI_LINE_HEIGHT};
 use nn_app::layout::{self, Rect};
 use nn_app::nppimport;
@@ -5822,6 +5823,9 @@ impl State {
                 self.prompt.open(PromptKind::HashFile, "");
             }
             Action::OpenPluginsFolder => self.open_plugins_folder(),
+            Action::ReloadPlugins => self.reload_plugins(),
+            Action::UnloadPlugin(index) => self.unload_plugin(index),
+            Action::LoadPlugin(index) => self.load_plugin(index),
             Action::ValidateShortcuts => {
                 self.prompt.open(PromptKind::ValidateShortcuts, "");
             }
@@ -6470,6 +6474,57 @@ impl State {
         }
     }
 
+    /// Reads the plugins directory again, without a restart.
+    ///
+    /// The directory is the list of what is installed, so this is also the way
+    /// to pick up a `.wasm` that was copied in by hand -- and the way back for
+    /// a plugin that was unloaded earlier in the session.
+    fn reload_plugins(&mut self) {
+        self.plugins = load_plugins();
+        self.sync_plugin_menu();
+        let loaded = self.plugins.len();
+        let failures = self.plugins.failures().len();
+        self.status.set_message(Some(if failures == 0 {
+            format!("{loaded} plugin(s) loaded")
+        } else {
+            format!("{loaded} plugin(s) loaded, {failures} failed")
+        }));
+        self.window.request_redraw();
+    }
+
+    /// Takes one plugin out of the menu and drops its module.
+    ///
+    /// The choice lasts for the session; the file is untouched, so the plugin
+    /// is back after a restart unless it leaves the folder. Deleting it is the
+    /// other way, and the one that persists -- which is why the row says
+    /// "Unload" and not "Remove".
+    fn unload_plugin(&mut self, index: usize) {
+        let Some(name) = self.plugins.unload(index) else {
+            return;
+        };
+        self.sync_plugin_menu();
+        self.status
+            .set_message(Some(format!("Unloaded {name}")));
+        self.window.request_redraw();
+    }
+
+    /// Reads an unloaded plugin back in.
+    fn load_plugin(&mut self, index: usize) {
+        match self.plugins.load(index) {
+            Ok(name) => {
+                self.sync_plugin_menu();
+                self.status.set_message(Some(format!("Loaded {name}")));
+            }
+            Err(error) => {
+                // The row stays where it was, so a file that was replaced
+                // while the editor was running can simply be tried again.
+                self.status
+                    .set_message(Some(format!("Cannot load the plugin: {error}")));
+            }
+        }
+        self.window.request_redraw();
+    }
+
     /// Stops the recorder, if it is running.
     fn stop_recording(&mut self) {
         if !self.recorder.is_recording() {
@@ -6714,12 +6769,12 @@ impl State {
             return;
         }
         self.plugins = load_plugins();
-        let commands = self.plugins.commands();
-        self.menu.set_plugins(&commands);
+        self.sync_plugin_menu();
+        let commands = self.plugins.commands().len();
         self.status.set_message(Some(format!(
             "Imported {}: {} command(s)",
             name.to_string_lossy(),
-            commands.len()
+            commands
         )));
     }
 
@@ -7434,8 +7489,12 @@ impl State {
 
     /// Rewrites the Plugins menu from the loaded plugins.
     fn sync_plugin_menu(&mut self) {
-        let commands = self.plugins.commands();
-        self.menu.set_plugins(&commands);
+        let source = nn_app::menu::PluginSource {
+            commands: self.plugins.commands(),
+            loaded: self.plugins.names(),
+            unloaded: self.plugins.unloaded(),
+        };
+        self.menu.set_plugins(source);
     }
 
     /// Runs one command of one plugin against the active document.
@@ -7449,9 +7508,19 @@ impl State {
             return;
         };
         let text = tab.editor.doc.text();
-        let caret = tab.editor.caret();
-        let read_only = tab.editor.doc.is_read_only();
-        let outcome = match self.plugins.run(plugin, command, &text, caret, read_only) {
+        // The editor counts characters and a plugin counts bytes, so the whole
+        // crossing is converted here: in one place, once per command, rather
+        // than in every plugin that has to open a document.
+        let context = Context {
+            text: &text,
+            caret: tab.editor.doc.char_to_byte(tab.editor.caret()),
+            selection: (
+                tab.editor.doc.char_to_byte(tab.editor.selection_start()),
+                tab.editor.doc.char_to_byte(tab.editor.selection_end()),
+            ),
+            read_only: tab.editor.doc.is_read_only(),
+        };
+        let outcome = match self.plugins.run(plugin, command, &context) {
             Ok(outcome) => outcome,
             Err(error) => {
                 self.status.set_message(Some(format!("Plugin failed: {error}")));
@@ -7470,7 +7539,18 @@ impl State {
                 });
             }
         }
-        if let Some(caret) = outcome.caret {
+        // A selection *is* a caret with an anchor, so a command that sets one
+        // has said where the user now is and a separate caret would contradict
+        // it. `set_caret` alone still works for a command that only moves.
+        if let Some((start, end)) = outcome.selection {
+            let (start, end) = {
+                let doc = &self.tab().editor.doc;
+                (doc.byte_to_char(start), doc.byte_to_char(end))
+            };
+            self.tab_mut().editor.select_range(start..end);
+            self.tab_mut().editor.ensure_caret_visible();
+        } else if let Some(caret) = outcome.caret {
+            let caret = self.tab().editor.doc.byte_to_char(caret);
             self.tab_mut().editor.set_caret(caret);
             self.tab_mut().editor.ensure_caret_visible();
         }

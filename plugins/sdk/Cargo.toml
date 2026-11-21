@@ -1,0 +1,12 @@
+[package]
+name = "nn-plugin"
+description = "The SDK for Neko++ WebAssembly plugins."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+
+[lib]
+# An `rlib` as well as a `cdylib`: the `.wasm` is the artifact, and the rlib is
+# what lets a plugin's own tests build and run on the host machine.
+crate-type = ["cdylib", "rlib"]

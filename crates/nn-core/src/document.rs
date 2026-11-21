@@ -323,6 +323,16 @@ impl Document {
         self.rope.byte_to_char(byte.min(self.rope.len_bytes()))
     }
 
+    /// The byte offset of character index `char`.
+    ///
+    /// The mirror of [`Self::byte_to_char`], for the one caller that has to
+    /// hand the editor's character offsets to something outside it: the plugin
+    /// host, whose every offset is a byte because the plugin measures the UTF-8
+    /// it is given.
+    pub fn char_to_byte(&self, char_idx: usize) -> usize {
+        self.rope.char_to_byte(char_idx.min(self.rope.len_chars()))
+    }
+
     /// The first character index of `line`.
     pub fn line_to_char(&self, line: usize) -> usize {
         self.rope.line_to_char(line.min(self.rope.len_lines() - 1))

@@ -294,6 +294,9 @@
                 <Item id="Open File" name="ファイルを開く"/>
                 <Item id="Open Folder as Workspace..." name="フォルダをワークスペースとして開く..."/>
                 <Item id="Open Plugins Folder..." name="プラグインフォルダを開く..."/>
+                <Item id="Reload Plugins" name="プラグインを再読み込み"/>
+                <Item id="Load" name="読み込み"/>
+                <Item id="Unload" name="アンロード"/>
                 <Item id="Open Shortcut Mapper..." name="ショートカットマッパーを開く..."/>
                 <Item id="Open User Defined Language folder..." name="ユーザー定義言語フォルダを開く..."/>
                 <Item id="Open in New Instance" name="新しいインスタンスで開く"/>

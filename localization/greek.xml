@@ -294,6 +294,9 @@
                 <Item id="Open File" name="Άνοιγμα αρχείου"/>
                 <Item id="Open Folder as Workspace..." name="Άνοιγμα φακέλου ως χώρου εργασίας..."/>
                 <Item id="Open Plugins Folder..." name="Άνοιγμα φακέλου πρόσθετων..."/>
+                <Item id="Reload Plugins" name="Επαναφόρτωση πρόσθετων"/>
+                <Item id="Load" name="Φόρτωση"/>
+                <Item id="Unload" name="Εκφόρτωση"/>
                 <Item id="Open Shortcut Mapper..." name="Άνοιγμα αντιστοίχισης συντομεύσεων..."/>
                 <Item id="Open User Defined Language folder..." name="Άνοιγμα φακέλου γλωσσών καθορισμένων από τον χρήστη..."/>
                 <Item id="Open in New Instance" name="Άνοιγμα σε νέα παρουσία"/>

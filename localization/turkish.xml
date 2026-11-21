@@ -294,6 +294,9 @@
                 <Item id="Open File" name="Dosya aç"/>
                 <Item id="Open Folder as Workspace..." name="Klasörü çalışma alanı olarak aç..."/>
                 <Item id="Open Plugins Folder..." name="Eklentiler klasörünü aç..."/>
+                <Item id="Reload Plugins" name="Eklentileri yeniden yükle"/>
+                <Item id="Load" name="Yükle"/>
+                <Item id="Unload" name="Kaldır"/>
                 <Item id="Open Shortcut Mapper..." name="Kısayol eşleyiciyi aç..."/>
                 <Item id="Open User Defined Language folder..." name="Kullanıcı tanımlı diller klasörünü aç..."/>
                 <Item id="Open in New Instance" name="Yeni örnekte aç"/>

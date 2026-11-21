@@ -294,6 +294,9 @@
                 <Item id="Open File" name="打开文件"/>
                 <Item id="Open Folder as Workspace..." name="打开文件夹作为工作区..."/>
                 <Item id="Open Plugins Folder..." name="打开插件文件夹..."/>
+                <Item id="Reload Plugins" name="重新加载插件"/>
+                <Item id="Load" name="加载"/>
+                <Item id="Unload" name="卸载"/>
                 <Item id="Open Shortcut Mapper..." name="打开快捷键映射器..."/>
                 <Item id="Open User Defined Language folder..." name="打开用户自定义语言文件夹..."/>
                 <Item id="Open in New Instance" name="在新实例中打开"/>

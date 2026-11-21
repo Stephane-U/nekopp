@@ -294,6 +294,9 @@
                 <Item id="Open File" name="開啟檔案"/>
                 <Item id="Open Folder as Workspace..." name="開啟資料夾作為工作區..."/>
                 <Item id="Open Plugins Folder..." name="開啟外掛資料夾..."/>
+                <Item id="Reload Plugins" name="重新載入外掛"/>
+                <Item id="Load" name="載入"/>
+                <Item id="Unload" name="卸載"/>
                 <Item id="Open Shortcut Mapper..." name="開啟快速鍵對應表..."/>
                 <Item id="Open User Defined Language folder..." name="開啟使用者自訂語言資料夾..."/>
                 <Item id="Open in New Instance" name="在新執行個體中開啟"/>

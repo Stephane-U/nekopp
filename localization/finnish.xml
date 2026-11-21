@@ -294,6 +294,9 @@
                 <Item id="Open File" name="Avaa tiedosto"/>
                 <Item id="Open Folder as Workspace..." name="Avaa kansio työtilana..."/>
                 <Item id="Open Plugins Folder..." name="Avaa liitännäiskansio..."/>
+                <Item id="Reload Plugins" name="Lataa liitännäiset uudelleen"/>
+                <Item id="Load" name="Lataa"/>
+                <Item id="Unload" name="Poista"/>
                 <Item id="Open Shortcut Mapper..." name="Avaa pikakuvakekartta..."/>
                 <Item id="Open User Defined Language folder..." name="Avaa käyttäjän määrittämien kielten kansio..."/>
                 <Item id="Open in New Instance" name="Avaa uudessa ilmentymässä"/>

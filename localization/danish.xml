@@ -294,6 +294,9 @@
                 <Item id="Open File" name="Åbn fil"/>
                 <Item id="Open Folder as Workspace..." name="Åbn mappe som arbejdsområde..."/>
                 <Item id="Open Plugins Folder..." name="Åbn udvidelsesmappe..."/>
+                <Item id="Reload Plugins" name="Genindlæs udvidelser"/>
+                <Item id="Load" name="Indlæs"/>
+                <Item id="Unload" name="Fjern"/>
                 <Item id="Open Shortcut Mapper..." name="Åbn genvejstildeling..."/>
                 <Item id="Open User Defined Language folder..." name="Åbn mappen for brugerdefinerede sprog..."/>
                 <Item id="Open in New Instance" name="Åbn i ny instans"/>

@@ -294,6 +294,9 @@
                 <Item id="Open File" name="파일 열기"/>
                 <Item id="Open Folder as Workspace..." name="폴더를 작업 공간으로 열기..."/>
                 <Item id="Open Plugins Folder..." name="플러그인 폴더 열기..."/>
+                <Item id="Reload Plugins" name="플러그인 다시 불러오기"/>
+                <Item id="Load" name="불러오기"/>
+                <Item id="Unload" name="해제"/>
                 <Item id="Open Shortcut Mapper..." name="단축키 매퍼 열기..."/>
                 <Item id="Open User Defined Language folder..." name="사용자 정의 언어 폴더 열기..."/>
                 <Item id="Open in New Instance" name="새 인스턴스에서 열기"/>

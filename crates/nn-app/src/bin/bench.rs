@@ -89,6 +89,7 @@ struct Flags {
 }
 use std::time::Instant;
 
+use nn_app::plugin::Context;
 use nn_app::{
     Browser, Catalog, ChangeHistory, ChangeRow, CharPanel, Chrome, CompletionPopup, ContextMenu,
     AboutBox, DocumentPeeker,
@@ -1035,7 +1036,11 @@ fn main() {
         for line in plugins.describe() {
             println!("plugin: {line}");
         }
-        menu.set_plugins(&plugins.commands());
+        menu.set_plugins(nn_app::menu::PluginSource {
+            commands: plugins.commands(),
+            loaded: plugins.names(),
+            unloaded: plugins.unloaded(),
+        });
         if let Some(spec) = &flags.plugin_run {
             // `plugin:command`, so one flag can reach any command of any
             // plugin without a second flag to say which plugin.
@@ -1043,8 +1048,16 @@ fn main() {
             let p: usize = p.parse().unwrap_or(0);
             let c: usize = c.parse().unwrap_or(0);
             let text = editor.doc.text();
-            let caret = editor.caret();
-            match plugins.run(p, c, &text, caret, false) {
+            let context = Context {
+                text: &text,
+                caret: editor.doc.char_to_byte(editor.caret()),
+                selection: (
+                    editor.doc.char_to_byte(editor.selection_start()),
+                    editor.doc.char_to_byte(editor.selection_end()),
+                ),
+                read_only: false,
+            };
+            match plugins.run(p, c, &context) {
                 Ok(outcome) => {
                     for line in &outcome.log {
                         println!("plugin log: {line}");

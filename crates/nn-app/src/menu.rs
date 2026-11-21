@@ -558,6 +558,16 @@ pub enum Action {
     HashToClipboard(nn_core::hash::Hash),
     /// Open the plugins directory in the file manager.
     OpenPluginsFolder,
+    /// Re-read the plugins directory, picking up files added since startup.
+    ReloadPlugins,
+    /// Take a loaded plugin out of the menu, by index into the loaded list.
+    ///
+    /// An index, like [`Plugin`](Action::Plugin), and for the same reason: the
+    /// plug-in name is the row's label, and a chord bound to "the second
+    /// plugin" would mean a different plugin after every install.
+    UnloadPlugin(usize),
+    /// Read an unloaded plugin back in, by index into the unloaded list.
+    LoadPlugin(usize),
     /// Check the keymap against a `shortcuts.xml`.
     ValidateShortcuts,
     /// Stop the macro recorder and keep what it has.
@@ -911,6 +921,9 @@ impl Action {
             Action::InverseBookmarks => "inverse_bookmarks",
             Action::FindCharInRange => "find_char_in_range",
             Action::OpenPluginsFolder => "open_plugins_folder",
+            Action::ReloadPlugins => "reload_plugins",
+            Action::UnloadPlugin(_) => "unload_plugin",
+            Action::LoadPlugin(_) => "load_plugin",
             Action::ValidateShortcuts => "validate_shortcuts",
             Action::StopRecording => "stop_recording",
             Action::SaveMacro => "save_macro",
@@ -1245,6 +1258,7 @@ impl Action {
             "inverse_bookmarks" => Action::InverseBookmarks,
             "find_char_in_range" => Action::FindCharInRange,
             "open_plugins_folder" => Action::OpenPluginsFolder,
+            "reload_plugins" => Action::ReloadPlugins,
             "validate_shortcuts" => Action::ValidateShortcuts,
             "stop_recording" => Action::StopRecording,
             "save_macro" => Action::SaveMacro,
@@ -1418,8 +1432,25 @@ impl Action {
         Action::RotateSplit,
         Action::MoveToOtherView,
         Action::CloneToOtherView,
+        Action::ReloadPlugins,
         Action::About,
     ];
+}
+
+/// The three lists the Plugins dropdown is built from.
+///
+/// Kept on the bar rather than thrown away after one build, because the rows
+/// carry a translated verb around a plugin name that is not translatable: a
+/// language change rebuilds them instead of relabelling them, and it can only
+/// do that if it still knows what they said.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PluginSource {
+    /// Every command of every loaded plugin, in menu order.
+    pub commands: Vec<Command>,
+    /// The name of every loaded plugin.
+    pub loaded: Vec<String>,
+    /// The name of every plugin that has been unloaded.
+    pub unloaded: Vec<String>,
 }
 
 /// One row of a dropdown.
@@ -1468,6 +1499,23 @@ impl Item {
             shortcut: String::new(),
             action: Action::About,
             separator: true,
+            children: Vec::new(),
+        }
+    }
+
+    /// A row whose label is not a translation of its English text.
+    ///
+    /// The load and unload rows are the only ones: "Unload Half Width" has to
+    /// name one plugin in every language, so only the verb is translated and
+    /// the name is appended as the plugin spells it. The English text stays
+    /// beside the label so the row can be recognised across a language change.
+    fn composed(english: String, label: String, action: Action) -> Self {
+        Self {
+            label,
+            english,
+            shortcut: String::new(),
+            action,
+            separator: false,
             children: Vec::new(),
         }
     }
@@ -1584,6 +1632,12 @@ pub struct MenuBar {
     path: Vec<usize>,
     /// The active localization, if one was loaded.
     catalog: Option<Catalog>,
+    /// What the Plugins dropdown was last built from.
+    ///
+    /// The plugin rows cannot be relabelled in place: their labels carry a
+    /// translated verb and a name that has no translation, so a language change
+    /// has to rebuild them, and rebuilding needs the lists.
+    plugin_source: PluginSource,
     shaped: bool,
 }
 
@@ -2124,24 +2178,85 @@ fn run_items(saved: &[String]) -> Vec<Item> {
 ///
 /// With nothing installed the menu still has a row, because an empty dropdown
 /// reads as a bug rather than as an empty list.
-fn plugin_items(commands: &[Command]) -> Vec<Item> {
+///
+/// Below the commands are the rows that load and unload: one per plugin, named
+/// after the plugin itself. Only the verb comes from the localization -- a
+/// plugin's name is its own and is not translated -- so those rows are composed
+/// here rather than relabelled in place, and the bar rebuilds them when the
+/// language changes.
+fn plugin_items(source: &PluginSource, catalog: Option<&Catalog>) -> Vec<Item> {
+    let verb = |english: &'static str| match catalog {
+        Some(catalog) => catalog.tr(english).to_string(),
+        None => english.to_string(),
+    };
+    // Every row here is built translated, prose and all, because the composed
+    // rows beside them cannot survive a relabel: `relabel_items` rebuilds each
+    // label from its English text, which for "Unload Half Width" throws the
+    // translation away. Building them is cheap, so nothing in this menu relies
+    // on being relabelled afterwards.
+    let row = |english: &'static str, action: Action| {
+        Item::composed(english.to_string(), verb(english), action)
+    };
     // The folder row is always there, even with nothing installed: it is how a
-    // user gets from "no plugins" to having one.
-    let mut items = vec![Item::new(
-        "Open Plugins Folder...",
-        Action::OpenPluginsFolder,
-    )];
-    if commands.is_empty() {
+    // user gets from "no plugins" to having one. Reload sits beside it so a
+    // plugin dropped into the folder by hand does not need a restart.
+    let mut items = vec![
+        row("Open Plugins Folder...", Action::OpenPluginsFolder),
+        row("Reload Plugins", Action::ReloadPlugins),
+    ];
+    let mut groups: Vec<Vec<Item>> = Vec::new();
+    groups.push(
+        source
+            .commands
+            .iter()
+            .map(|command| {
+                Item::new(
+                    command.label.clone(),
+                    Action::Plugin(command.plugin, command.index),
+                )
+            })
+            .collect(),
+    );
+    groups.push(
+        source
+            .loaded
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                Item::composed(
+                    format!("Unload {name}"),
+                    format!("{} {name}", verb("Unload")),
+                    Action::UnloadPlugin(index),
+                )
+            })
+            .collect(),
+    );
+    groups.push(
+        source
+            .unloaded
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                Item::composed(
+                    format!("Load {name}"),
+                    format!("{} {name}", verb("Load")),
+                    Action::LoadPlugin(index),
+                )
+            })
+            .collect(),
+    );
+    let mut any = false;
+    for group in groups {
+        if group.is_empty() {
+            continue;
+        }
         items.push(Item::separator());
-        items.push(Item::new("No Plugins Installed", Action::NoOp));
-        return items;
+        items.extend(group);
+        any = true;
     }
-    items.push(Item::separator());
-    for command in commands {
-        items.push(Item::new(
-            command.label.clone(),
-            Action::Plugin(command.plugin, command.index),
-        ));
+    if !any {
+        items.push(Item::separator());
+        items.push(row("No Plugins Installed", Action::NoOp));
     }
     items
 }
@@ -2778,7 +2893,7 @@ impl MenuBar {
             Menu {
                 title: "Plugins".to_string(),
                 english: "Plugins",
-                items: plugin_items(&[]),
+                items: plugin_items(&PluginSource::default(), None),
             },
             Menu {
                 title: "Window".to_string(),
@@ -2812,6 +2927,7 @@ impl MenuBar {
             arrow: Buffer::new_empty(metrics),
             path: Vec::new(),
             catalog: None,
+            plugin_source: PluginSource::default(),
             shaped: false,
         };
         bar.refresh_shortcuts();
@@ -2834,6 +2950,10 @@ impl MenuBar {
     pub fn set_catalog(&mut self, catalog: Option<Catalog>) {
         self.catalog = catalog;
         relabel(self.catalog.as_ref(), &mut self.menus);
+        // The plugin rows are composed rather than translated -- "Unload" comes
+        // from the catalog, the name after it cannot -- so they are built again
+        // here instead of being relabelled above.
+        self.menus[PLUGIN_MENU].items = plugin_items(&self.plugin_source, self.catalog.as_ref());
         self.refresh_shortcuts();
         self.close();
     }
@@ -2928,14 +3048,22 @@ impl MenuBar {
         self.close();
     }
 
-    /// Replaces the commands shown in the Plugins menu.
-    pub fn set_plugins(&mut self, commands: &[Command]) {
-        let items = plugin_items(commands);
+    /// Replaces the rows shown in the Plugins menu.
+    ///
+    /// The source is kept even when the rows come out identical, because the
+    /// next language change rebuilds them from it.
+    ///
+    /// Nothing is relabelled here. `plugin_items` builds every row already
+    /// translated, and `relabel_items` would undo exactly the rows it cannot
+    /// rebuild: it derives a label from the English text, which for
+    /// "Unload Half Width" is the untranslated row.
+    pub fn set_plugins(&mut self, source: PluginSource) {
+        self.plugin_source = source;
+        let items = plugin_items(&self.plugin_source, self.catalog.as_ref());
         if same_rows(&self.menus[PLUGIN_MENU].items, &items) {
             return;
         }
         self.menus[PLUGIN_MENU].items = items;
-        relabel(self.catalog.as_ref(), &mut self.menus);
         self.refresh_shortcuts();
         self.close();
     }
@@ -4746,25 +4874,110 @@ mod tests {
         // from a menu that has nothing in it.
         assert_eq!(items[0].label, "Open Plugins Folder...");
         assert_eq!(items[0].action, Action::OpenPluginsFolder);
-        assert!(items[1].separator);
-        assert_eq!(items[2].label, "No Plugins Installed");
-        assert_eq!(items[2].action, Action::NoOp);
-        assert_eq!(items.len(), 3);
+        assert_eq!(items[1].label, "Reload Plugins");
+        assert_eq!(items[1].action, Action::ReloadPlugins);
+        assert!(items[2].separator);
+        assert_eq!(items[3].label, "No Plugins Installed");
+        assert_eq!(items[3].action, Action::NoOp);
+        assert_eq!(items.len(), 4);
     }
 
     #[test]
     fn a_plugin_command_becomes_a_row() {
         let mut b = bar();
-        b.set_plugins(&[
-            Command { plugin: 0, index: 0, label: "Logfile - Sort".into() },
-            Command { plugin: 1, index: 2, label: "Ini - Tidy".into() },
-        ]);
+        b.set_plugins(PluginSource {
+            commands: vec![
+                Command { plugin: 0, index: 0, label: "Logfile - Sort".into() },
+                Command { plugin: 1, index: 2, label: "Ini - Tidy".into() },
+            ],
+            loaded: vec!["Logfile".into(), "Ini".into()],
+            unloaded: Vec::new(),
+        });
         let items = &b.menus[PLUGIN_MENU].items;
-        // Folder row, separator, then one row per command.
+        // Folder and reload rows, separator, one row per command, separator,
+        // one unload row per loaded plugin.
+        assert_eq!(items.len(), 8);
+        assert_eq!(items[3].label, "Logfile - Sort");
+        assert_eq!(items[3].action, Action::Plugin(0, 0));
+        assert_eq!(items[4].action, Action::Plugin(1, 2));
+        assert_eq!(items[6].label, "Unload Logfile");
+        assert_eq!(items[6].action, Action::UnloadPlugin(0));
+        assert_eq!(items[7].action, Action::UnloadPlugin(1));
+    }
+
+    #[test]
+    fn an_unloaded_plugin_gets_a_row_that_loads_it_back() {
+        let mut b = bar();
+        b.set_plugins(PluginSource {
+            commands: Vec::new(),
+            loaded: Vec::new(),
+            unloaded: vec!["Half Width".into()],
+        });
+        let items = &b.menus[PLUGIN_MENU].items;
+        // Nothing is loaded, so there are no command rows and no "none
+        // installed" row either: a plugin that can be loaded back is a plugin
+        // the menu has something to offer for.
         assert_eq!(items.len(), 4);
-        assert_eq!(items[2].label, "Logfile - Sort");
-        assert_eq!(items[2].action, Action::Plugin(0, 0));
-        assert_eq!(items[3].action, Action::Plugin(1, 2));
+        assert_eq!(items[3].label, "Load Half Width");
+        assert_eq!(items[3].action, Action::LoadPlugin(0));
+        assert!(items.iter().all(|item| item.label != "No Plugins Installed"));
+    }
+
+    #[test]
+    fn the_unload_verb_follows_the_language_but_the_name_does_not() {
+        let mut b = bar();
+        b.set_plugins(PluginSource {
+            commands: Vec::new(),
+            loaded: vec!["Half Width".into()],
+            unloaded: Vec::new(),
+        });
+        assert_eq!(b.menus[PLUGIN_MENU].items[3].label, "Unload Half Width");
+        b.set_catalog(Some(catalog()));
+        let row = &b.menus[PLUGIN_MENU].items[3];
+        assert_eq!(
+            row.label,
+            format!("{} Half Width", catalog().tr("Unload")),
+            "the verb comes from the catalog and the plugin name does not"
+        );
+        // The English text is unchanged, so the row is still recognisable as
+        // the same row by anything comparing one build of the bar to another.
+        assert_eq!(row.english, "Unload Half Width");
+    }
+
+    #[test]
+    fn every_bundled_catalog_translates_the_plugin_rows() {
+        // The completeness test builds a bar with no plugins, so the composed
+        // plugin labels never reach the list it walks -- and a catalog that
+        // missed one would put an English verb inside an otherwise translated
+        // menu, which is the mixing these tests exist to prevent.
+        let languages = crate::i18n::Catalog::languages(None);
+        assert_eq!(languages.len(), 23, "every bundled catalog");
+        for language in &languages {
+            let catalog = crate::i18n::Catalog::load(None, &language.file)
+                .unwrap_or_else(|error| panic!("{}: {error}", language.file));
+            for english in ["Reload Plugins", "Load", "Unload"] {
+                assert!(
+                    catalog.translates(english),
+                    "{} has no row for {english}",
+                    language.file
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_italian_catalog_translates_the_unload_verb() {
+        // The same path the menu takes at startup: a real catalog, loaded
+        // from the bundled copy, with a plugin installed underneath it.
+        let italian = crate::i18n::Catalog::load(None, "italian.xml").expect("italian.xml");
+        let mut b = bar();
+        b.set_catalog(Some(italian));
+        b.set_plugins(PluginSource {
+            commands: Vec::new(),
+            loaded: vec!["Half Width".into()],
+            unloaded: Vec::new(),
+        });
+        assert_eq!(b.menus[PLUGIN_MENU].items[3].label, "Scarica Half Width");
     }
 
     #[test]
@@ -4773,6 +4986,13 @@ mod tests {
         // a saved chord would point at whatever happened to be second.
         assert!(!Action::BINDABLE.contains(&Action::Plugin(0, 0)));
         assert_eq!(Action::from_name("plugin"), None);
+        assert!(!Action::BINDABLE.contains(&Action::UnloadPlugin(0)));
+        assert!(!Action::BINDABLE.contains(&Action::LoadPlugin(0)));
+        assert_eq!(Action::from_name("unload_plugin"), None);
+        assert_eq!(Action::from_name("load_plugin"), None);
+        // Reloading takes no index, so it can be bound like anything else.
+        assert!(Action::BINDABLE.contains(&Action::ReloadPlugins));
+        assert_eq!(Action::from_name("reload_plugins"), Some(Action::ReloadPlugins));
     }
 
     #[test]

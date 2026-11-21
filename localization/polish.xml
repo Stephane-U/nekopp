@@ -294,6 +294,9 @@
                 <Item id="Open File" name="Otwórz plik"/>
                 <Item id="Open Folder as Workspace..." name="Otwórz folder jako obszar roboczy..."/>
                 <Item id="Open Plugins Folder..." name="Otwórz folder wtyczek..."/>
+                <Item id="Reload Plugins" name="Wczytaj wtyczki ponownie"/>
+                <Item id="Load" name="Wczytaj"/>
+                <Item id="Unload" name="Wyładuj"/>
                 <Item id="Open Shortcut Mapper..." name="Otwórz mapowanie skrótów..."/>
                 <Item id="Open User Defined Language folder..." name="Otwórz folder języków użytkownika..."/>
                 <Item id="Open in New Instance" name="Otwórz w nowej instancji"/>
