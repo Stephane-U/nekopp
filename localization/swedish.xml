@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Swedish (Svenska).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="Svenska" english="Swedish" filename="swedish.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="Arkiv"/>
+                <Item id="Edit" name="Redigera"/>
+                <Item id="Search" name="Sök"/>
+                <Item id="View" name="Visa"/>
+                <Item id="Encoding" name="Kodning"/>
+                <Item id="Language" name="Språk"/>
+                <Item id="Settings" name="Inställningar"/>
+                <Item id="Tools" name="Verktyg"/>
+                <Item id="Macro" name="Makro"/>
+                <Item id="Run" name="Kör"/>
+                <Item id="Plugins" name="Insticksmoduler"/>
+                <Item id="Window" name="Fönster"/>
+                <Item id="Help" name="Hjälp"/>
+                <Item id="New" name="Ny"/>
+                <Item id="Open..." name="Öppna..."/>
+                <Item id="Save" name="Spara"/>
+                <Item id="Save As..." name="Spara som..."/>
+                <Item id="Save All" name="Spara alla"/>
+                <Item id="Close" name="Stäng"/>
+                <Item id="Close All" name="Stäng alla"/>
+                <Item id="Close All to the Left" name="Stäng alla till vänster"/>
+                <Item id="Close All to the Right" name="Stäng alla till höger"/>
+                <Item id="Reload from Disk" name="Läs om från disk"/>
+                <Item id="Load Session..." name="Läs in session..."/>
+                <Item id="Save Session..." name="Spara session..."/>
+                <Item id="Move to Recycle Bin" name="Flytta till papperskorgen"/>
+                <Item id="Print..." name="Skriv ut..."/>
+                <Item id="Print Now" name="Skriv ut nu"/>
+                <Item id="Exit" name="Avsluta"/>
+                <Item id="Undo" name="Ångra"/>
+                <Item id="Redo" name="Gör om"/>
+                <Item id="Cut" name="Klipp ut"/>
+                <Item id="Copy" name="Kopiera"/>
+                <Item id="Paste" name="Klistra in"/>
+                <Item id="Delete" name="Ta bort"/>
+                <Item id="Select All" name="Markera allt"/>
+                <Item id="Duplicate Current Line" name="Duplicera aktuell rad"/>
+                <Item id="Join Lines" name="Sammanfoga rader"/>
+                <Item id="Split Lines" name="Dela rader"/>
+                <Item id="Move Up Current Line" name="Flytta raden uppåt"/>
+                <Item id="Move Down Current Line" name="Flytta raden nedåt"/>
+                <Item id="Insert Blank Line Above Current" name="Infoga tom rad ovanför"/>
+                <Item id="Insert Blank Line Below Current" name="Infoga tom rad nedanför"/>
+                <Item id="Toggle Single Line Comment" name="Växla radkommentar"/>
+                <Item id="Single Line Comment" name="Kommentera rad"/>
+                <Item id="Block Comment" name="Kommentera block"/>
+                <Item id="UPPERCASE" name="VERSALER"/>
+                <Item id="lowercase" name="gemener"/>
+                <Item id="Proper Case" name="Inledande versaler"/>
+                <Item id="Sentence case" name="Meningsversaler"/>
+                <Item id="Increase Line Indent" name="Öka indrag"/>
+                <Item id="Decrease Line Indent" name="Minska indrag"/>
+                <Item id="Find..." name="Sök..."/>
+                <Item id="Find Next" name="Sök nästa"/>
+                <Item id="Find Previous" name="Sök föregående"/>
+                <Item id="Replace..." name="Ersätt..."/>
+                <Item id="Find in Files..." name="Sök i filer..."/>
+                <Item id="Incremental Search" name="Inkrementell sökning"/>
+                <Item id="Go to..." name="Gå till..."/>
+                <Item id="Select and Find Next" name="Markera och sök nästa"/>
+                <Item id="Select and Find Previous" name="Markera och sök föregående"/>
+                <Item id="Mark..." name="Markera..."/>
+                <Item id="Toggle Bookmark" name="Växla bokmärke"/>
+                <Item id="Next Bookmark" name="Nästa bokmärke"/>
+                <Item id="Previous Bookmark" name="Föregående bokmärke"/>
+                <Item id="Clear All Bookmarks" name="Rensa alla bokmärken"/>
+                <Item id="Search Results Window" name="Sökresultatfönster"/>
+                <Item id="Word wrap" name="Radbrytning"/>
+                <Item id="Show All Characters" name="Visa alla tecken"/>
+                <Item id="Show Indent Guide" name="Visa indragslinjer"/>
+                <Item id="Show Wrap Symbol" name="Visa radbrytningstecken"/>
+                <Item id="Show End of Line" name="Visa radslut"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="Zooma in (Ctrl+mushjul upp)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="Zooma ut (Ctrl+mushjul ned)"/>
+                <Item id="Restore Default Zoom" name="Återställ standardzoom"/>
+                <Item id="Toggle Full Screen Mode" name="Växla helskärm"/>
+                <Item id="Distraction Free Mode" name="Störningsfritt läge"/>
+                <Item id="Function List" name="Funktionslista"/>
+                <Item id="Document List" name="Dokumentlista"/>
+                <Item id="Folder as Workspace" name="Mapp som arbetsyta"/>
+                <Item id="Summary..." name="Sammanfattning..."/>
+                <Item id="Monitoring (tail -f)" name="Övervakning (tail -f)"/>
+                <Item id="Always on Top" name="Alltid överst"/>
+                <Item id="Move to Other View" name="Flytta till andra vyn"/>
+                <Item id="Clone to Other View" name="Klona till andra vyn"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="Inställningar..."/>
+                <Item id="Style Configurator..." name="Stilkonfigurator..."/>
+                <Item id="Import style theme(s)..." name="Importera stilteman..."/>
+                <Item id="Import Notepad++ Config..." name="Importera Notepad++-konfiguration..."/>
+                <Item id="Export Shortcuts..." name="Exportera genvägar..."/>
+                <Item id="User-Defined" name="Användardefinierad"/>
+                <Item id="Define your language..." name="Definiera ditt språk..."/>
+                <Item id="None (Normal Text)" name="Ingen (vanlig text)"/>
+                <Item id="Start Recording" name="Starta inspelning"/>
+                <Item id="Stop Recording" name="Stoppa inspelning"/>
+                <Item id="Playback" name="Spela upp"/>
+                <Item id="Run a Macro Multiple Times..." name="Kör ett makro flera gånger..."/>
+                <Item id="Run..." name="Kör..."/>
+                <Item id="Search on Internet" name="Sök på Internet"/>
+                <Item id="Open in Default Viewer" name="Öppna i standardvisare"/>
+                <Item id="Windows..." name="Fönster..."/>
+                <Item id="First Tab" name="Första fliken"/>
+                <Item id="Next Tab" name="Nästa flik"/>
+                <Item id="Previous Tab" name="Föregående flik"/>
+                <Item id="Last Tab" name="Sista fliken"/>
+                <Item id="No Plugins Installed" name="Inga insticksmoduler installerade"/>
+                <Item id="About Neko++" name="Om Neko++"/>
+                <Item id="Neko++ Home" name="Neko++ startsida"/>
+                <Item id="Debug Info..." name="Felsökningsinfo..."/>
+                <Item id="Command Line Arguments..." name="Kommandoradsargument..."/>
+                <Item id="(none installed)" name="(inga installerade)"/>
+                <Item id="1st Style" name="1:a stilen"/>
+                <Item id="1st Tab" name="1:a fliken"/>
+                <Item id="2nd Style" name="2:a stilen"/>
+                <Item id="2nd Tab" name="2:a fliken"/>
+                <Item id="3rd Style" name="3:e stilen"/>
+                <Item id="3rd Tab" name="3:e fliken"/>
+                <Item id="4th Style" name="4:e stilen"/>
+                <Item id="4th Tab" name="4:e fliken"/>
+                <Item id="5th Style" name="5:e stilen"/>
+                <Item id="5th Tab" name="5:e fliken"/>
+                <Item id="6th Tab" name="6:e fliken"/>
+                <Item id="7th Tab" name="7:e fliken"/>
+                <Item id="8th Tab" name="8:e fliken"/>
+                <Item id="9th Tab" name="9:e fliken"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="Alla stilar"/>
+                <Item id="Apply Color 1" name="Använd färg 1"/>
+                <Item id="Apply Color 2" name="Använd färg 2"/>
+                <Item id="Apply Color 3" name="Använd färg 3"/>
+                <Item id="Apply Color 4" name="Använd färg 4"/>
+                <Item id="Apply Color 5" name="Använd färg 5"/>
+                <Item id="Arabic" name="Arabisk"/>
+                <Item id="Auto-Completion" name="Autokomplettering"/>
+                <Item id="Baltic" name="Baltisk"/>
+                <Item id="Begin/End Select" name="Börja/avsluta markering"/>
+                <Item id="Begin/End Select in Column Mode" name="Börja/avsluta markering i kolumnläge"/>
+                <Item id="Blank Operations" name="Blankstegsoperationer"/>
+                <Item id="Block Uncomment" name="Avkommentera block"/>
+                <Item id="Bookmark" name="Bokmärke"/>
+                <Item id="Celtic" name="Keltisk"/>
+                <Item id="Central European" name="Centraleuropeisk"/>
+                <Item id="Change History" name="Ändringshistorik"/>
+                <Item id="Change Search Engine..." name="Byt sökmotor..."/>
+                <Item id="Character Panel" name="Teckenpanel"/>
+                <Item id="Character sets" name="Teckenuppsättningar"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="Rensa 1:a stilen"/>
+                <Item id="Clear 2nd Style" name="Rensa 2:a stilen"/>
+                <Item id="Clear 3rd Style" name="Rensa 3:e stilen"/>
+                <Item id="Clear 4th Style" name="Rensa 4:e stilen"/>
+                <Item id="Clear 5th Style" name="Rensa 5:e stilen"/>
+                <Item id="Clear Change History" name="Rensa ändringshistorik"/>
+                <Item id="Clear Read-Only for All Documents" name="Rensa skrivskyddet för alla dokument"/>
+                <Item id="Clear Style" name="Rensa stil"/>
+                <Item id="Clear all Styles" name="Rensa alla stilar"/>
+                <Item id="Clipboard History" name="Urklippshistorik"/>
+                <Item id="Close All Unchanged" name="Stäng alla oförändrade"/>
+                <Item id="Close All but Active Document" name="Stäng alla utom aktivt dokument"/>
+                <Item id="Close All but Pinned Documents" name="Stäng alla utom fästa dokument"/>
+                <Item id="Close Multiple Documents" name="Stäng flera dokument"/>
+                <Item id="Column Editor..." name="Kolumnredigerare..."/>
+                <Item id="Column Mode..." name="Kolumnläge..."/>
+                <Item id="Comment/Uncomment" name="Kommentera/avkommentera"/>
+                <Item id="Content Length Ascending" name="Innehållslängd stigande"/>
+                <Item id="Content Length Descending" name="Innehållslängd fallande"/>
+                <Item id="Convert Case to" name="Konvertera skiftläge till"/>
+                <Item id="Convert to ANSI" name="Konvertera till ANSI"/>
+                <Item id="Convert to UTF-16 BE BOM" name="Konvertera till UTF-16 BE BOM"/>
+                <Item id="Convert to UTF-16 LE BOM" name="Konvertera till UTF-16 LE BOM"/>
+                <Item id="Convert to UTF-8" name="Konvertera till UTF-8"/>
+                <Item id="Convert to UTF-8-BOM" name="Konvertera till UTF-8-BOM"/>
+                <Item id="Copy All File Paths" name="Kopiera alla filsökvägar"/>
+                <Item id="Copy All Filenames" name="Kopiera alla filnamn"/>
+                <Item id="Copy Bookmarked Lines" name="Kopiera bokmärkta rader"/>
+                <Item id="Copy Current Dir. Path" name="Kopiera aktuell mappsökväg"/>
+                <Item id="Copy Current Filename" name="Kopiera aktuellt filnamn"/>
+                <Item id="Copy Current Full File path" name="Kopiera aktuell fullständig filsökväg"/>
+                <Item id="Copy Styled Text" name="Kopiera formaterad text"/>
+                <Item id="Copy to Clipboard" name="Kopiera till urklipp"/>
+                <Item id="Cut Bookmarked Lines" name="Klipp ut bokmärkta rader"/>
+                <Item id="Cyrillic" name="Kyrillisk"/>
+                <Item id="Dark" name="Mörk"/>
+                <Item id="Date Time (customized)" name="Datum och tid (anpassad)"/>
+                <Item id="Date Time (long)" name="Datum och tid (lång)"/>
+                <Item id="Date Time (short)" name="Datum och tid (kort)"/>
+                <Item id="Document Map" name="Dokumentkarta"/>
+                <Item id="EOL Conversion" name="Radslutskonvertering"/>
+                <Item id="EOL to Space" name="Radslut till blanksteg"/>
+                <Item id="Eastern European" name="Östeuropeisk"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="Redigera popup-kontextmeny"/>
+                <Item id="Explorer" name="Utforskaren"/>
+                <Item id="Find (Volatile) Next" name="Sök (flyktig) nästa"/>
+                <Item id="Find (Volatile) Previous" name="Sök (flyktig) föregående"/>
+                <Item id="Find Mark Style" name="Stil för sökmarkering"/>
+                <Item id="Find characters in range..." name="Sök tecken i intervall..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="Fokusera på andra vyn"/>
+                <Item id="Fold All" name="Fäll ihop alla"/>
+                <Item id="Fold Current Level" name="Fäll ihop aktuell nivå"/>
+                <Item id="Fold Level" name="Fäll ihop nivå"/>
+                <Item id="Function Completion" name="Funktionskomplettering"/>
+                <Item id="Function Parameters Hint" name="Tips om funktionsparametrar"/>
+                <Item id="Function Parameters Next Hint" name="Nästa tips om funktionsparametrar"/>
+                <Item id="Function Parameters Previous Hint" name="Föregående tips om funktionsparametrar"/>
+                <Item id="Generate from files..." name="Generera från filer..."/>
+                <Item id="Generate from selection into clipboard" name="Generera från markering till urklipp"/>
+                <Item id="Generate..." name="Generera..."/>
+                <Item id="Go to Matching Brace" name="Gå till matchande klammer"/>
+                <Item id="Go to Next Change" name="Gå till nästa ändring"/>
+                <Item id="Go to Previous Change" name="Gå till föregående ändring"/>
+                <Item id="Greek" name="Grekisk"/>
+                <Item id="Hebrew" name="Hebreisk"/>
+                <Item id="Hide Lines" name="Dölj rader"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="Ignorera skiftläge &amp; hela ord"/>
+                <Item id="Import" name="Importera"/>
+                <Item id="Import plugin(s)..." name="Importera insticksmodul(er)..."/>
+                <Item id="Indent" name="Indrag"/>
+                <Item id="Insert" name="Infoga"/>
+                <Item id="Inverse Bookmarks" name="Invertera bokmärken"/>
+                <Item id="Jump Down" name="Hoppa ned"/>
+                <Item id="Jump Up" name="Hoppa upp"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="Ljus"/>
+                <Item id="Line Operations" name="Radoperationer"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="Matcha skiftläge &amp; hela ord"/>
+                <Item id="Match Case Only" name="Matcha endast skiftläge"/>
+                <Item id="Match Whole Word Only" name="Matcha endast hela ord"/>
+                <Item id="Modified Time Ascending" name="Ändringstid stigande"/>
+                <Item id="Modified Time Descending" name="Ändringstid fallande"/>
+                <Item id="Move Tab Backward" name="Flytta fliken bakåt"/>
+                <Item id="Move Tab Forward" name="Flytta fliken framåt"/>
+                <Item id="Move to End" name="Flytta till slutet"/>
+                <Item id="Move to New Instance" name="Flytta till ny instans"/>
+                <Item id="Move to Start" name="Flytta till början"/>
+                <Item id="Move/Clone Current Document" name="Flytta/klona aktuellt dokument"/>
+                <Item id="Multi-select All" name="Multimarkera alla"/>
+                <Item id="Multi-select Next" name="Multimarkera nästa"/>
+                <Item id="Name A to Z" name="Namn A till Ö"/>
+                <Item id="Name Z to A" name="Namn Ö till A"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++ gemenskap (forum)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++ användarhandbok online"/>
+                <Item id="Neko++ Project Page" name="Neko++ projektsida"/>
+                <Item id="Next Search Result" name="Nästa sökresultat"/>
+                <Item id="North European" name="Nordeuropeisk"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Notepad++ samling av användardefinierade språk"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : Portugisiska"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : Isländska"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : Franska"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : Nordisk"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="På markering"/>
+                <Item id="Open Containing Folder" name="Öppna den innehållande mappen"/>
+                <Item id="Open Containing Folder in Explorer" name="Öppna den innehållande mappen i Utforskaren"/>
+                <Item id="Open File" name="Öppna fil"/>
+                <Item id="Open Folder as Workspace..." name="Öppna mapp som arbetsyta..."/>
+                <Item id="Open Plugins Folder..." name="Öppna mappen för insticksmoduler..."/>
+                <Item id="Open Shortcut Mapper..." name="Öppna genvägstilldelning..."/>
+                <Item id="Open User Defined Language folder..." name="Öppna mappen för användardefinierade språk..."/>
+                <Item id="Open in New Instance" name="Öppna i ny instans"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="Klistra in i (ersätt) bokmärkta rader"/>
+                <Item id="Path A to Z" name="Sökväg A till Ö"/>
+                <Item id="Path Completion" name="Sökvägskomplettering"/>
+                <Item id="Path Z to A" name="Sökväg Ö till A"/>
+                <Item id="Post-It" name="Komihåglapp"/>
+                <Item id="Previous Search Result" name="Föregående sökresultat"/>
+                <Item id="Project Panel 1" name="Projektpanel 1"/>
+                <Item id="Project Panel 2" name="Projektpanel 2"/>
+                <Item id="Project Panel 3" name="Projektpanel 3"/>
+                <Item id="Project Panels" name="Projektpaneler"/>
+                <Item id="Proper Case (blend)" name="Inledande versaler (blandad)"/>
+                <Item id="Randomize Line Order" name="Slumpad radordning"/>
+                <Item id="Read-Only for All Documents" name="Skrivskyddad för alla dokument"/>
+                <Item id="Read-Only in Neko++" name="Skrivskyddad i Neko++"/>
+                <Item id="Read-Only on Current Document" name="Skrivskyddad på aktuellt dokument"/>
+                <Item id="Recent Window" name="Senaste fönstret"/>
+                <Item id="Redact Selection" name="Maskera markering"/>
+                <Item id="Remove Bookmarked Lines" name="Ta bort bokmärkta rader"/>
+                <Item id="Remove Color" name="Ta bort färg"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="Ta bort intilliggande dubblettrader"/>
+                <Item id="Remove Duplicate Lines" name="Ta bort dubblettrader"/>
+                <Item id="Remove Empty Lines" name="Ta bort tomma rader"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="Ta bort tomma rader (innehåller blanktecken)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="Ta bort rader utan bokmärke"/>
+                <Item id="Rename..." name="Byt namn..."/>
+                <Item id="Reverse Line Order" name="Omvänd radordning"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="Spara aktuellt inspelat makro..."/>
+                <Item id="Save a Copy As..." name="Spara en kopia som..."/>
+                <Item id="Select All In-between {} [] or ()" name="Markera allt mellan {} [] eller ()"/>
+                <Item id="Sentence case (blend)" name="Meningsversaler (blandad)"/>
+                <Item id="Shortcut Mapper" name="Genvägstilldelning"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="Visa styrtecken &amp; Unicode-radslut"/>
+                <Item id="Show Non-Printing Characters" name="Visa icke utskrivbara tecken"/>
+                <Item id="Show Space and Tab" name="Visa blanksteg och tabulator"/>
+                <Item id="Show Symbol" name="Visa symbol"/>
+                <Item id="Single Line Uncomment" name="Avkommentera rad"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="Hoppa över aktuell &amp; gå till nästa multemarkering"/>
+                <Item id="Sort By" name="Sortera efter"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="Sortera rader som decimaltal (komma) stigande"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="Sortera rader som decimaltal (komma) fallande"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="Sortera rader som decimaltal (punkt) stigande"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="Sortera rader som decimaltal (punkt) fallande"/>
+                <Item id="Sort Lines As Integers Ascending" name="Sortera rader som heltal stigande"/>
+                <Item id="Sort Lines As Integers Descending" name="Sortera rader som heltal fallande"/>
+                <Item id="Sort Lines By Length Ascending" name="Sortera rader efter längd stigande"/>
+                <Item id="Sort Lines By Length Descending" name="Sortera rader efter längd fallande"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="Sortera rader i språkordning stigande"/>
+                <Item id="Sort Lines In Locale Order Descending" name="Sortera rader i språkordning fallande"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="Sortera rader lex. stigande oberoende av skiftläge"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="Sortera rader lex. fallande oberoende av skiftläge"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="Sortera rader lexikografiskt stigande"/>
+                <Item id="Sort Lines Lexicographically Descending" name="Sortera rader lexikografiskt fallande"/>
+                <Item id="Space to TAB (All)" name="Blanksteg till TAB (alla)"/>
+                <Item id="Space to TAB (Leading)" name="Blanksteg till TAB (inledande)"/>
+                <Item id="Style All Occurrences of Token" name="Använd stil på alla förekomster av token"/>
+                <Item id="Style One Token" name="Använd stil på en token"/>
+                <Item id="Synchronize Across Views" name="Synkronisera mellan vyer"/>
+                <Item id="Synchronize Horizontal Scrolling" name="Synkronisera vågrät rullning"/>
+                <Item id="Synchronize Vertical Scrolling" name="Synkronisera lodrät rullning"/>
+                <Item id="System" name="System"/>
+                <Item id="TAB to Space" name="TAB till blanksteg"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="Flik"/>
+                <Item id="Thai" name="Thailändsk"/>
+                <Item id="Theme" name="Tema"/>
+                <Item id="Trim Leading Space" name="Ta bort inledande blanksteg"/>
+                <Item id="Trim Leading and Trailing Space" name="Ta bort inledande och avslutande blanksteg"/>
+                <Item id="Trim Trailing Space" name="Ta bort avslutande blanksteg"/>
+                <Item id="Trim both and EOL to Space" name="Ta bort blanksteg i båda ändar och radslut till blanksteg"/>
+                <Item id="Turkish" name="Turkisk"/>
+                <Item id="Type A to Z" name="Typ A till Ö"/>
+                <Item id="Type Z to A" name="Typ Ö till A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="Ångra senast tillagda multemarkering"/>
+                <Item id="Unfold All" name="Fäll ut alla"/>
+                <Item id="Unfold Current Level" name="Fäll ut aktuell nivå"/>
+                <Item id="Unfold Level" name="Fäll ut nivå"/>
+                <Item id="User Defined Language" name="Användardefinierat språk"/>
+                <Item id="Validate shortcuts.xml" name="Validera shortcuts.xml"/>
+                <Item id="Vietnamese" name="Vietnamesisk"/>
+                <Item id="View Current File in" name="Visa aktuell fil i"/>
+                <Item id="Western European" name="Västeuropeisk"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="Ordkomplettering"/>
+                <Item id="Zoom" name="Zoom"/>
+                <Item id="Autosave" name="Automatisk sparning"/>
+                <Item id="Off" name="Av"/>
+                <Item id="Rename to:" name="Byt namn till:"/>
+                <Item id="Date time format:" name="Datum- och tidsformat:"/>
+                <Item id="Split on:" name="Dela på:"/>
+                <Item id="A GPU-rendered text editor" name="En textredigerare som ritas upp av GPU:n"/>
+                <Item id="Simple" name="Enkel"/>
+                <Item id="Replace" name="Ersätt"/>
+                <Item id="Replace:" name="Ersätt:"/>
+                <Item id="Export to:" name="Exportera till:"/>
+                <Item id="File Dialog" name="Fildialog"/>
+                <Item id="Volatile Find" name="Flyktig sökning"/>
+                <Item id="Go to line:" name="Gå till rad:"/>
+                <Item id="Shortcuts" name="Genvägar"/>
+                <Item id="Import from:" name="Importera från:"/>
+                <Item id="Import plugin from:" name="Importera insticksmodul från:"/>
+                <Item id="Import theme from:" name="Importera tema från:"/>
+                <Item id="Built-in browser" name="Inbyggd filbläddrare"/>
+                <Item id="Insert at column:" name="Infoga vid kolumn:"/>
+                <Item id="None" name="Ingen"/>
+                <Item id="no match" name="ingen träff"/>
+                <Item id="Preferences" name="Inställningar"/>
+                <Item id="Col:" name="Kol:"/>
+                <Item id="Hash file:" name="Kontrollsummefil:"/>
+                <Item id="Run Multiple Macros" name="Kör flera makron"/>
+                <Item id="Run:" name="Kör:"/>
+                <Item id="length:" name="längd:"/>
+                <Item id="Load session:" name="Läs in session:"/>
+                <Item id="Folder:" name="Mapp:"/>
+                <Item id="Sel:" name="Mark:"/>
+                <Item id="Minimap" name="Minikarta"/>
+                <Item id="bad regex" name="ogiltigt reguljärt uttryck"/>
+                <Item id="Open" name="Öppna"/>
+                <Item id="Open:" name="Öppna:"/>
+                <Item id="On" name="På"/>
+                <Item id="Ln:" name="Rad:"/>
+                <Item id="lines:" name="rader:"/>
+                <Item id="REC" name="REC"/>
+                <Item id="Edit..." name="Redigera..."/>
+                <Item id="Backup on Save" name="Säkerhetskopiering vid sparning"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Print" name="Skriv ut"/>
+                <Item id="Find" name="Sök"/>
+                <Item id="Find in files:" name="Sök i filer:"/>
+                <Item id="Find in projects:" name="Sök i projekt:"/>
+                <Item id="Search URL:" name="Sök-URL:"/>
+                <Item id="Find:" name="Sök:"/>
+                <Item id="Save Current Macro" name="Spara aktuellt makro"/>
+                <Item id="Save a copy as:" name="Spara en kopia som:"/>
+                <Item id="Save session as:" name="Spara session som:"/>
+                <Item id="Save as:" name="Spara som:"/>
+                <Item id="Play macro times:" name="Spela upp makro antal gånger:"/>
+                <Item id="LARGE" name="STOR"/>
+                <Item id="Sync Vertical Scroll" name="Synkronisera lodrät rullning"/>
+                <Item id="Sync Horizontal Scroll" name="Synkronisera vågrät rullning"/>
+                <Item id="System dialog" name="Systemdialog"/>
+                <Item id="Tab Width" name="Tabulatorbredd"/>
+                <Item id="Character code:" name="Teckenkod:"/>
+                <Item id="Font Size" name="Teckenstorlek"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="Upp/Ner  Vänster/Höger  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Upp/Ner  Vänster/Höger  Enter öppna  Esc stäng"/>
+                <Item id="Verbose" name="Utförlig"/>
+                <Item id="Toolbar" name="Verktygsfält"/>
+                <Item id="Zoom In" name="Zooma in"/>
+                <Item id="Zoom Out" name="Zooma ut"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

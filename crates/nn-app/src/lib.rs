@@ -1,0 +1,100 @@
+//! Neko++ — a GPU-rendered Notepad++ workalike.
+//!
+//! The binary is a thin shell around these modules: `gpu` owns the surface,
+//! `renderer` owns the pipelines, `view` owns layout and the shaping cache, and
+//! `quad` draws every non-glyph rectangle in one instanced call.
+
+pub mod a11y;
+pub mod about;
+pub mod browser;
+pub mod changelog;
+pub mod charset;
+pub mod chrome;
+pub mod cli;
+pub mod complete;
+pub mod context;
+pub mod desktop;
+pub mod findbar;
+pub mod folder;
+pub mod fonts;
+pub mod functionlist;
+pub mod gpu;
+pub mod i18n;
+pub mod icon;
+pub mod iconrender;
+pub mod icons;
+pub mod keymap;
+pub mod layout;
+pub mod menu;
+pub mod minimap;
+pub mod nppimport;
+pub mod palette;
+pub mod plugin;
+pub mod paths;
+pub mod portal;
+pub mod peeker;
+pub mod prefs;
+pub mod print;
+pub mod prompt;
+pub mod quad;
+pub mod renderer;
+pub mod results;
+pub mod session;
+pub mod settings;
+pub mod shortcuts;
+#[cfg(target_os = "linux")]
+pub mod single;
+pub mod snapshot;
+pub mod statusbar;
+pub mod styles;
+pub mod tabbar;
+pub mod text;
+pub mod theme;
+pub mod themes;
+pub mod toolbar;
+pub mod tooltip;
+pub mod vector;
+pub mod view;
+
+pub use about::AboutBox;
+pub use browser::Browser;
+pub use changelog::{ChangeHistory, Row as ChangeRow};
+pub use charset::CharPanel;
+pub use chrome::{Chrome, Mode};
+pub use cli::Args;
+pub use complete::{CompletionMode, CompletionPopup, Item, ParamHint};
+pub use context::{ContextMenu, Entry};
+pub use findbar::{Field, FindBar, Toggle};
+pub use folder::FolderPanel;
+pub use functionlist::FunctionList;
+pub use gpu::Gpu;
+pub use i18n::{Catalog, Language};
+pub use icon::window_icon;
+pub use keymap::{Chord, KeyName, Keymap};
+pub use layout::{Split, DIVIDER, MIN_PANE};
+pub use menu::{Action, BrowserKind, MatchMode, MenuBar, Sort, WindowSort};
+pub use minimap::Minimap;
+pub use nppimport::{Export, Import};
+pub use palette::Palette;
+pub use plugin::{Bridge, Command, DocumentHost, Outcome, Plugins};
+pub use peeker::DocumentPeeker;
+pub use prefs::Preferences;
+pub use print::{Control as PrintControl, PrintPreview};
+pub use prompt::{PromptBar, PromptKind};
+pub use quad::QuadRenderer;
+pub use renderer::{PaneRef, Renderer};
+pub use results::ResultsPanel;
+pub use session::{Session, SessionTab};
+pub use settings::{FileDialog, Settings, ThemeChoice};
+pub use shortcuts::Shortcuts;
+#[cfg(target_os = "linux")]
+pub use single::{Client, Request, Server, Waiter};
+pub use snapshot::{autosave_wait, soonest, Snapshot, SnapshotEntry};
+pub use statusbar::StatusBar;
+pub use styles::{Slot, StyleConfigurator};
+pub use tabbar::{TabBar, TabColour, TabInfo, TabLayout};
+pub use theme::{Rgb, Theme};
+pub use themes::Palette as ThemePalette;
+pub use tooltip::Tooltip;
+pub use toolbar::Toolbar;
+pub use view::EditorView;

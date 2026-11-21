@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Czech (Čeština).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="Čeština" english="Czech" filename="czech.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="Soubor"/>
+                <Item id="Edit" name="Úpravy"/>
+                <Item id="Search" name="Hledat"/>
+                <Item id="View" name="Zobrazit"/>
+                <Item id="Encoding" name="Kódování"/>
+                <Item id="Language" name="Jazyk"/>
+                <Item id="Settings" name="Nastavení"/>
+                <Item id="Tools" name="Nástroje"/>
+                <Item id="Macro" name="Makro"/>
+                <Item id="Run" name="Spustit"/>
+                <Item id="Plugins" name="Zásuvné moduly"/>
+                <Item id="Window" name="Okno"/>
+                <Item id="Help" name="Nápověda"/>
+                <Item id="New" name="Nový"/>
+                <Item id="Open..." name="Otevřít..."/>
+                <Item id="Save" name="Uložit"/>
+                <Item id="Save As..." name="Uložit jako..."/>
+                <Item id="Save All" name="Uložit vše"/>
+                <Item id="Close" name="Zavřít"/>
+                <Item id="Close All" name="Zavřít vše"/>
+                <Item id="Close All to the Left" name="Zavřít vše vlevo"/>
+                <Item id="Close All to the Right" name="Zavřít vše vpravo"/>
+                <Item id="Reload from Disk" name="Načíst znovu z disku"/>
+                <Item id="Load Session..." name="Načíst relaci..."/>
+                <Item id="Save Session..." name="Uložit relaci..."/>
+                <Item id="Move to Recycle Bin" name="Přesunout do koše"/>
+                <Item id="Print..." name="Tisk..."/>
+                <Item id="Print Now" name="Tisknout nyní"/>
+                <Item id="Exit" name="Konec"/>
+                <Item id="Undo" name="Zpět"/>
+                <Item id="Redo" name="Znovu"/>
+                <Item id="Cut" name="Vyjmout"/>
+                <Item id="Copy" name="Kopírovat"/>
+                <Item id="Paste" name="Vložit"/>
+                <Item id="Delete" name="Smazat"/>
+                <Item id="Select All" name="Vybrat vše"/>
+                <Item id="Duplicate Current Line" name="Duplikovat řádek"/>
+                <Item id="Join Lines" name="Spojit řádky"/>
+                <Item id="Split Lines" name="Rozdělit řádky"/>
+                <Item id="Move Up Current Line" name="Posunout řádek nahoru"/>
+                <Item id="Move Down Current Line" name="Posunout řádek dolů"/>
+                <Item id="Insert Blank Line Above Current" name="Vložit prázdný řádek nad"/>
+                <Item id="Insert Blank Line Below Current" name="Vložit prázdný řádek pod"/>
+                <Item id="Toggle Single Line Comment" name="Přepnout komentář řádku"/>
+                <Item id="Single Line Comment" name="Zakomentovat řádek"/>
+                <Item id="Block Comment" name="Zakomentovat blok"/>
+                <Item id="UPPERCASE" name="VELKÁ PÍSMENA"/>
+                <Item id="lowercase" name="malá písmena"/>
+                <Item id="Proper Case" name="První písmena velká"/>
+                <Item id="Sentence case" name="Jako ve větě"/>
+                <Item id="Increase Line Indent" name="Zvětšit odsazení"/>
+                <Item id="Decrease Line Indent" name="Zmenšit odsazení"/>
+                <Item id="Find..." name="Najít..."/>
+                <Item id="Find Next" name="Najít další"/>
+                <Item id="Find Previous" name="Najít předchozí"/>
+                <Item id="Replace..." name="Nahradit..."/>
+                <Item id="Find in Files..." name="Najít v souborech..."/>
+                <Item id="Incremental Search" name="Postupné hledání"/>
+                <Item id="Go to..." name="Přejít na..."/>
+                <Item id="Select and Find Next" name="Vybrat a najít další"/>
+                <Item id="Select and Find Previous" name="Vybrat a najít předchozí"/>
+                <Item id="Mark..." name="Označit..."/>
+                <Item id="Toggle Bookmark" name="Přepnout záložku"/>
+                <Item id="Next Bookmark" name="Další záložka"/>
+                <Item id="Previous Bookmark" name="Předchozí záložka"/>
+                <Item id="Clear All Bookmarks" name="Zrušit všechny záložky"/>
+                <Item id="Search Results Window" name="Okno výsledků"/>
+                <Item id="Word wrap" name="Zalamování řádků"/>
+                <Item id="Show All Characters" name="Zobrazit všechny znaky"/>
+                <Item id="Show Indent Guide" name="Zobrazit vodicí čáry odsazení"/>
+                <Item id="Show Wrap Symbol" name="Zobrazit symbol zalamování"/>
+                <Item id="Show End of Line" name="Zobrazit konec řádku"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="Přiblížit (Ctrl+kolečko nahoru)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="Oddálit (Ctrl+kolečko dolů)"/>
+                <Item id="Restore Default Zoom" name="Obnovit výchozí zoom"/>
+                <Item id="Toggle Full Screen Mode" name="Přepnout celou obrazovku"/>
+                <Item id="Distraction Free Mode" name="Režim bez rozptylování"/>
+                <Item id="Function List" name="Seznam funkcí"/>
+                <Item id="Document List" name="Seznam dokumentů"/>
+                <Item id="Folder as Workspace" name="Složka jako pracovní prostor"/>
+                <Item id="Summary..." name="Přehled..."/>
+                <Item id="Monitoring (tail -f)" name="Sledování (tail -f)"/>
+                <Item id="Always on Top" name="Vždy navrchu"/>
+                <Item id="Move to Other View" name="Přesunout do jiného zobrazení"/>
+                <Item id="Clone to Other View" name="Klonovat do jiného zobrazení"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="Předvolby..."/>
+                <Item id="Style Configurator..." name="Konfigurátor stylu..."/>
+                <Item id="Import style theme(s)..." name="Importovat motivy stylu..."/>
+                <Item id="Import Notepad++ Config..." name="Importovat konfiguraci Notepad++..."/>
+                <Item id="Export Shortcuts..." name="Exportovat zkratky..."/>
+                <Item id="User-Defined" name="Uživatelsky definovaný"/>
+                <Item id="Define your language..." name="Definovat vlastní jazyk..."/>
+                <Item id="None (Normal Text)" name="Žádný (běžný text)"/>
+                <Item id="Start Recording" name="Začít nahrávat"/>
+                <Item id="Stop Recording" name="Zastavit nahrávání"/>
+                <Item id="Playback" name="Přehrát"/>
+                <Item id="Run a Macro Multiple Times..." name="Spustit makro vícekrát..."/>
+                <Item id="Run..." name="Spustit..."/>
+                <Item id="Search on Internet" name="Hledat na internetu"/>
+                <Item id="Open in Default Viewer" name="Otevřít výchozím prohlížečem"/>
+                <Item id="Windows..." name="Okna..."/>
+                <Item id="First Tab" name="První karta"/>
+                <Item id="Next Tab" name="Další karta"/>
+                <Item id="Previous Tab" name="Předchozí karta"/>
+                <Item id="Last Tab" name="Poslední karta"/>
+                <Item id="No Plugins Installed" name="Nejsou nainstalovány žádné moduly"/>
+                <Item id="About Neko++" name="O aplikaci Neko++"/>
+                <Item id="Neko++ Home" name="Domovská stránka Neko++"/>
+                <Item id="Debug Info..." name="Ladící informace..."/>
+                <Item id="Command Line Arguments..." name="Argumenty příkazové řádky..."/>
+                <Item id="(none installed)" name="(žádné nenainstalováno)"/>
+                <Item id="1st Style" name="1. styl"/>
+                <Item id="1st Tab" name="1. karta"/>
+                <Item id="2nd Style" name="2. styl"/>
+                <Item id="2nd Tab" name="2. karta"/>
+                <Item id="3rd Style" name="3. styl"/>
+                <Item id="3rd Tab" name="3. karta"/>
+                <Item id="4th Style" name="4. styl"/>
+                <Item id="4th Tab" name="4. karta"/>
+                <Item id="5th Style" name="5. styl"/>
+                <Item id="5th Tab" name="5. karta"/>
+                <Item id="6th Tab" name="6. karta"/>
+                <Item id="7th Tab" name="7. karta"/>
+                <Item id="8th Tab" name="8. karta"/>
+                <Item id="9th Tab" name="9. karta"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="Všechny styly"/>
+                <Item id="Apply Color 1" name="Použít barvu 1"/>
+                <Item id="Apply Color 2" name="Použít barvu 2"/>
+                <Item id="Apply Color 3" name="Použít barvu 3"/>
+                <Item id="Apply Color 4" name="Použít barvu 4"/>
+                <Item id="Apply Color 5" name="Použít barvu 5"/>
+                <Item id="Arabic" name="Arabština"/>
+                <Item id="Auto-Completion" name="Automatické doplňování"/>
+                <Item id="Baltic" name="Baltština"/>
+                <Item id="Begin/End Select" name="Začátek/konec výběru"/>
+                <Item id="Begin/End Select in Column Mode" name="Začátek/konec výběru v režimu sloupců"/>
+                <Item id="Blank Operations" name="Operace s prázdnými znaky"/>
+                <Item id="Block Uncomment" name="Odzakomentovat blok"/>
+                <Item id="Bookmark" name="Záložka"/>
+                <Item id="Celtic" name="Keltština"/>
+                <Item id="Central European" name="Středoevropské"/>
+                <Item id="Change History" name="Historie změn"/>
+                <Item id="Change Search Engine..." name="Změnit vyhledávač..."/>
+                <Item id="Character Panel" name="Panel znaků"/>
+                <Item id="Character sets" name="Sady znaků"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="Vymazat 1. styl"/>
+                <Item id="Clear 2nd Style" name="Vymazat 2. styl"/>
+                <Item id="Clear 3rd Style" name="Vymazat 3. styl"/>
+                <Item id="Clear 4th Style" name="Vymazat 4. styl"/>
+                <Item id="Clear 5th Style" name="Vymazat 5. styl"/>
+                <Item id="Clear Change History" name="Vymazat historii změn"/>
+                <Item id="Clear Read-Only for All Documents" name="Zrušit jen pro čtení u všech dokumentů"/>
+                <Item id="Clear Style" name="Vymazat styl"/>
+                <Item id="Clear all Styles" name="Vymazat všechny styly"/>
+                <Item id="Clipboard History" name="Historie schránky"/>
+                <Item id="Close All Unchanged" name="Zavřít všechny nezměněné"/>
+                <Item id="Close All but Active Document" name="Zavřít vše kromě aktivního dokumentu"/>
+                <Item id="Close All but Pinned Documents" name="Zavřít vše kromě připnutých dokumentů"/>
+                <Item id="Close Multiple Documents" name="Zavřít více dokumentů"/>
+                <Item id="Column Editor..." name="Editor sloupců..."/>
+                <Item id="Column Mode..." name="Režim sloupců..."/>
+                <Item id="Comment/Uncomment" name="Zakomentovat/odzakomentovat"/>
+                <Item id="Content Length Ascending" name="Délka obsahu vzestupně"/>
+                <Item id="Content Length Descending" name="Délka obsahu sestupně"/>
+                <Item id="Convert Case to" name="Změnit velikost písmen na"/>
+                <Item id="Convert to ANSI" name="Převést na ANSI"/>
+                <Item id="Convert to UTF-16 BE BOM" name="Převést na UTF-16 BE BOM"/>
+                <Item id="Convert to UTF-16 LE BOM" name="Převést na UTF-16 LE BOM"/>
+                <Item id="Convert to UTF-8" name="Převést na UTF-8"/>
+                <Item id="Convert to UTF-8-BOM" name="Převést na UTF-8-BOM"/>
+                <Item id="Copy All File Paths" name="Kopírovat všechny cesty souborů"/>
+                <Item id="Copy All Filenames" name="Kopírovat všechny názvy souborů"/>
+                <Item id="Copy Bookmarked Lines" name="Kopírovat řádky se záložkami"/>
+                <Item id="Copy Current Dir. Path" name="Kopírovat cestu aktuálního adresáře"/>
+                <Item id="Copy Current Filename" name="Kopírovat název aktuálního souboru"/>
+                <Item id="Copy Current Full File path" name="Kopírovat úplnou cestu aktuálního souboru"/>
+                <Item id="Copy Styled Text" name="Kopírovat formátovaný text"/>
+                <Item id="Copy to Clipboard" name="Kopírovat do schránky"/>
+                <Item id="Cut Bookmarked Lines" name="Vyjmout řádky se záložkami"/>
+                <Item id="Cyrillic" name="Cyrilice"/>
+                <Item id="Dark" name="Tmavý"/>
+                <Item id="Date Time (customized)" name="Datum a čas (vlastní)"/>
+                <Item id="Date Time (long)" name="Datum a čas (dlouhý)"/>
+                <Item id="Date Time (short)" name="Datum a čas (krátký)"/>
+                <Item id="Document Map" name="Mapa dokumentu"/>
+                <Item id="EOL Conversion" name="Převod EOL"/>
+                <Item id="EOL to Space" name="EOL na mezeru"/>
+                <Item id="Eastern European" name="Východoevropské"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="Upravit kontextovou nabídku"/>
+                <Item id="Explorer" name="Průzkumník"/>
+                <Item id="Find (Volatile) Next" name="Najít (přechodně) další"/>
+                <Item id="Find (Volatile) Previous" name="Najít (přechodně) předchozí"/>
+                <Item id="Find Mark Style" name="Styl označení hledání"/>
+                <Item id="Find characters in range..." name="Najít znaky v rozsahu..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="Přejít do jiného zobrazení"/>
+                <Item id="Fold All" name="Sbalit vše"/>
+                <Item id="Fold Current Level" name="Sbalit aktuální úroveň"/>
+                <Item id="Fold Level" name="Úroveň sbalení"/>
+                <Item id="Function Completion" name="Doplňování funkcí"/>
+                <Item id="Function Parameters Hint" name="Nápověda parametrů funkce"/>
+                <Item id="Function Parameters Next Hint" name="Další nápověda parametrů funkce"/>
+                <Item id="Function Parameters Previous Hint" name="Předchozí nápověda parametrů funkce"/>
+                <Item id="Generate from files..." name="Generovat ze souborů..."/>
+                <Item id="Generate from selection into clipboard" name="Generovat z výběru do schránky"/>
+                <Item id="Generate..." name="Generovat..."/>
+                <Item id="Go to Matching Brace" name="Přejít na odpovídající závorku"/>
+                <Item id="Go to Next Change" name="Přejít na další změnu"/>
+                <Item id="Go to Previous Change" name="Přejít na předchozí změnu"/>
+                <Item id="Greek" name="Řečtina"/>
+                <Item id="Hebrew" name="Hebrejština"/>
+                <Item id="Hide Lines" name="Skrýt řádky"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="Ignorovat velikost písmen a celá slova"/>
+                <Item id="Import" name="Importovat"/>
+                <Item id="Import plugin(s)..." name="Importovat moduly..."/>
+                <Item id="Indent" name="Odsazení"/>
+                <Item id="Insert" name="Vložit"/>
+                <Item id="Inverse Bookmarks" name="Invertovat záložky"/>
+                <Item id="Jump Down" name="Přejít dolů"/>
+                <Item id="Jump Up" name="Přejít nahoru"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="Světlý"/>
+                <Item id="Line Operations" name="Operace s řádky"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="Rozlišovat velikost písmen a celá slova"/>
+                <Item id="Match Case Only" name="Pouze velikost písmen"/>
+                <Item id="Match Whole Word Only" name="Pouze celá slova"/>
+                <Item id="Modified Time Ascending" name="Čas změny vzestupně"/>
+                <Item id="Modified Time Descending" name="Čas změny sestupně"/>
+                <Item id="Move Tab Backward" name="Přesunout kartu dozadu"/>
+                <Item id="Move Tab Forward" name="Přesunout kartu dopředu"/>
+                <Item id="Move to End" name="Přesunout na konec"/>
+                <Item id="Move to New Instance" name="Přesunout do nové instance"/>
+                <Item id="Move to Start" name="Přesunout na začátek"/>
+                <Item id="Move/Clone Current Document" name="Přesunout/klonovat aktuální dokument"/>
+                <Item id="Multi-select All" name="Vybrat vše vícenásobně"/>
+                <Item id="Multi-select Next" name="Vybrat další vícenásobně"/>
+                <Item id="Name A to Z" name="Název od A do Z"/>
+                <Item id="Name Z to A" name="Název od Z do A"/>
+                <Item id="Neko++ Community (Forum)" name="Komunita Neko++ (fórum)"/>
+                <Item id="Neko++ Online User Manual" name="Uživatelská příručka Neko++ online"/>
+                <Item id="Neko++ Project Page" name="Stránka projektu Neko++"/>
+                <Item id="Next Search Result" name="Další výsledek hledání"/>
+                <Item id="North European" name="Severoevropské"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Sbírka uživatelsky definovaných jazyků Notepad++"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : portugalština"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : islandština"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : francouzština"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : severské jazyky"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="Na výběru"/>
+                <Item id="Open Containing Folder" name="Otevřít nadřazenou složku"/>
+                <Item id="Open Containing Folder in Explorer" name="Otevřít nadřazenou složku v Průzkumníku"/>
+                <Item id="Open File" name="Otevřít soubor"/>
+                <Item id="Open Folder as Workspace..." name="Otevřít složku jako pracovní prostor..."/>
+                <Item id="Open Plugins Folder..." name="Otevřít složku modulů..."/>
+                <Item id="Open Shortcut Mapper..." name="Otevřít mapování zkratek..."/>
+                <Item id="Open User Defined Language folder..." name="Otevřít složku uživatelsky definovaných jazyků..."/>
+                <Item id="Open in New Instance" name="Otevřít v nové instanci"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="Vložit do (nahradit) řádků se záložkami"/>
+                <Item id="Path A to Z" name="Cesta od A do Z"/>
+                <Item id="Path Completion" name="Doplňování cest"/>
+                <Item id="Path Z to A" name="Cesta od Z do A"/>
+                <Item id="Post-It" name="Lepíček"/>
+                <Item id="Previous Search Result" name="Předchozí výsledek hledání"/>
+                <Item id="Project Panel 1" name="Panel projektu 1"/>
+                <Item id="Project Panel 2" name="Panel projektu 2"/>
+                <Item id="Project Panel 3" name="Panel projektu 3"/>
+                <Item id="Project Panels" name="Panely projektu"/>
+                <Item id="Proper Case (blend)" name="První písmena velká (smíšeně)"/>
+                <Item id="Randomize Line Order" name="Náhodné pořadí řádků"/>
+                <Item id="Read-Only for All Documents" name="Jen pro čtení u všech dokumentů"/>
+                <Item id="Read-Only in Neko++" name="Jen pro čtení v Neko++"/>
+                <Item id="Read-Only on Current Document" name="Jen pro čtení u aktuálního dokumentu"/>
+                <Item id="Recent Window" name="Poslední okno"/>
+                <Item id="Redact Selection" name="Skrýt výběr"/>
+                <Item id="Remove Bookmarked Lines" name="Odstranit řádky se záložkami"/>
+                <Item id="Remove Color" name="Odstranit barvu"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="Odstranit po sobě jdoucí duplicitní řádky"/>
+                <Item id="Remove Duplicate Lines" name="Odstranit duplicitní řádky"/>
+                <Item id="Remove Empty Lines" name="Odstranit prázdné řádky"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="Odstranit prázdné řádky (obsahující prázdné znaky)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="Odstranit řádky bez záložek"/>
+                <Item id="Rename..." name="Přejmenovat..."/>
+                <Item id="Reverse Line Order" name="Obrátit pořadí řádků"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="Uložit aktuální zaznamenané makro..."/>
+                <Item id="Save a Copy As..." name="Uložit kopii jako..."/>
+                <Item id="Select All In-between {} [] or ()" name="Vybrat vše mezi {} [] nebo ()"/>
+                <Item id="Sentence case (blend)" name="Jako ve větě (smíšeně)"/>
+                <Item id="Shortcut Mapper" name="Mapování zkratek"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="Zobrazit řídicí znaky a Unicode EOL"/>
+                <Item id="Show Non-Printing Characters" name="Zobrazit netisknutelné znaky"/>
+                <Item id="Show Space and Tab" name="Zobrazit mezery a tabulátory"/>
+                <Item id="Show Symbol" name="Zobrazit symbol"/>
+                <Item id="Single Line Uncomment" name="Odzakomentovat řádek"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="Přeskočit aktuální a přejít na další vícenásobný výběr"/>
+                <Item id="Sort By" name="Seřadit podle"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="Seřadit řádky jako desetinná čísla (čárka) vzestupně"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="Seřadit řádky jako desetinná čísla (čárka) sestupně"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="Seřadit řádky jako desetinná čísla (tečka) vzestupně"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="Seřadit řádky jako desetinná čísla (tečka) sestupně"/>
+                <Item id="Sort Lines As Integers Ascending" name="Seřadit řádky jako celá čísla vzestupně"/>
+                <Item id="Sort Lines As Integers Descending" name="Seřadit řádky jako celá čísla sestupně"/>
+                <Item id="Sort Lines By Length Ascending" name="Seřadit řádky podle délky vzestupně"/>
+                <Item id="Sort Lines By Length Descending" name="Seřadit řádky podle délky sestupně"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="Seřadit řádky v pořadí národního prostředí vzestupně"/>
+                <Item id="Sort Lines In Locale Order Descending" name="Seřadit řádky v pořadí národního prostředí sestupně"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="Seřadit řádky lex. vzestupně bez ohledu na velikost písmen"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="Seřadit řádky lex. sestupně bez ohledu na velikost písmen"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="Seřadit řádky lexikograficky vzestupně"/>
+                <Item id="Sort Lines Lexicographically Descending" name="Seřadit řádky lexikograficky sestupně"/>
+                <Item id="Space to TAB (All)" name="Mezera na TAB (vše)"/>
+                <Item id="Space to TAB (Leading)" name="Mezera na TAB (úvodní)"/>
+                <Item id="Style All Occurrences of Token" name="Stylovat všechny výskyty tokenu"/>
+                <Item id="Style One Token" name="Stylovat jeden token"/>
+                <Item id="Synchronize Across Views" name="Synchronizovat mezi zobrazeními"/>
+                <Item id="Synchronize Horizontal Scrolling" name="Synchronizovat vodorovné posouvání"/>
+                <Item id="Synchronize Vertical Scrolling" name="Synchronizovat svislé posouvání"/>
+                <Item id="System" name="Systémový"/>
+                <Item id="TAB to Space" name="TAB na mezeru"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="Tabulátor"/>
+                <Item id="Thai" name="Thajština"/>
+                <Item id="Theme" name="Motiv"/>
+                <Item id="Trim Leading Space" name="Oříznout úvodní mezery"/>
+                <Item id="Trim Leading and Trailing Space" name="Oříznout úvodní a koncové mezery"/>
+                <Item id="Trim Trailing Space" name="Oříznout koncové mezery"/>
+                <Item id="Trim both and EOL to Space" name="Oříznout oba konce a EOL na mezeru"/>
+                <Item id="Turkish" name="Turečtina"/>
+                <Item id="Type A to Z" name="Typ od A do Z"/>
+                <Item id="Type Z to A" name="Typ od Z do A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="Vrátit posledně přidaný vícenásobný výběr"/>
+                <Item id="Unfold All" name="Rozbalit vše"/>
+                <Item id="Unfold Current Level" name="Rozbalit aktuální úroveň"/>
+                <Item id="Unfold Level" name="Úroveň rozbalení"/>
+                <Item id="User Defined Language" name="Uživatelsky definovaný jazyk"/>
+                <Item id="Validate shortcuts.xml" name="Ověřit shortcuts.xml"/>
+                <Item id="Vietnamese" name="Vietnamština"/>
+                <Item id="View Current File in" name="Zobrazit aktuální soubor v"/>
+                <Item id="Western European" name="Západoevropské"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="Doplňování slov"/>
+                <Item id="Zoom" name="Přiblížení"/>
+                <Item id="Autosave" name="Automatické ukládání"/>
+                <Item id="length:" name="délka:"/>
+                <Item id="File Dialog" name="Dialog souborů"/>
+                <Item id="Export to:" name="Exportovat do:"/>
+                <Item id="Date time format:" name="Formát data a času:"/>
+                <Item id="Import plugin from:" name="Importovat modul z:"/>
+                <Item id="Import theme from:" name="Importovat motiv z:"/>
+                <Item id="Import from:" name="Importovat z:"/>
+                <Item id="Simple" name="Jednoduchý"/>
+                <Item id="Character code:" name="Kódování znaků:"/>
+                <Item id="Minimap" name="Minimapa"/>
+                <Item id="Load session:" name="Načíst relaci:"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="Nahoru/Dolů  Vlevo/Vpravo  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Nahoru/Dolů  Vlevo/Vpravo  Enter otevřít  Esc zavřít"/>
+                <Item id="Replace" name="Nahradit"/>
+                <Item id="Replace:" name="Nahradit:"/>
+                <Item id="Find" name="Najít"/>
+                <Item id="Find in projects:" name="Najít v projektech:"/>
+                <Item id="Find in files:" name="Najít v souborech:"/>
+                <Item id="Find:" name="Najít:"/>
+                <Item id="no match" name="nenalezeno"/>
+                <Item id="bad regex" name="neplatný regulární výraz"/>
+                <Item id="Zoom Out" name="Oddálit"/>
+                <Item id="Open" name="Otevřít"/>
+                <Item id="Open:" name="Otevřít:"/>
+                <Item id="Hash file:" name="Otisk souboru:"/>
+                <Item id="Toolbar" name="Panel nástrojů"/>
+                <Item id="Play macro times:" name="Počet přehrání makra:"/>
+                <Item id="Verbose" name="Podrobný"/>
+                <Item id="Volatile Find" name="Přechodné hledání"/>
+                <Item id="Preferences" name="Předvolby"/>
+                <Item id="Go to line:" name="Přejít na řádek:"/>
+                <Item id="Rename to:" name="Přejmenovat na:"/>
+                <Item id="Zoom In" name="Přiblížit"/>
+                <Item id="Ln:" name="Řádek:"/>
+                <Item id="lines:" name="řádky:"/>
+                <Item id="REC" name="REC"/>
+                <Item id="Split on:" name="Rozdělit podle:"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Tab Width" name="Šířka tabulátoru"/>
+                <Item id="Col:" name="Sloupec:"/>
+                <Item id="Folder:" name="Složka:"/>
+                <Item id="Run Multiple Macros" name="Spustit více maker"/>
+                <Item id="Run:" name="Spustit:"/>
+                <Item id="Sync Vertical Scroll" name="Synchronizovat svislé posouvání"/>
+                <Item id="Sync Horizontal Scroll" name="Synchronizovat vodorovné posouvání"/>
+                <Item id="System dialog" name="Systémový dialog"/>
+                <Item id="A GPU-rendered text editor" name="Textový editor vykreslovaný pomocí GPU"/>
+                <Item id="Print" name="Tisk"/>
+                <Item id="Save Current Macro" name="Uložit aktuální makro"/>
+                <Item id="Save as:" name="Uložit jako:"/>
+                <Item id="Save a copy as:" name="Uložit kopii jako:"/>
+                <Item id="Save session as:" name="Uložit relaci jako:"/>
+                <Item id="Edit..." name="Upravit..."/>
+                <Item id="Search URL:" name="URL hledání:"/>
+                <Item id="Font Size" name="Velikost písma"/>
+                <Item id="LARGE" name="VELKÝ"/>
+                <Item id="Built-in browser" name="Vestavěný prohlížeč"/>
+                <Item id="Insert at column:" name="Vložit na sloupec:"/>
+                <Item id="Sel:" name="Výběr:"/>
+                <Item id="Off" name="Vypnuto"/>
+                <Item id="None" name="Žádný"/>
+                <Item id="Backup on Save" name="Zálohovat při uložení"/>
+                <Item id="On" name="Zapnuto"/>
+                <Item id="Shortcuts" name="Zkratky"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

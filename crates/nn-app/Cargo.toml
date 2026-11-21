@@ -1,0 +1,46 @@
+[package]
+name = "nn-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# The package is `nn-app` but the program is `npp`: the crate name is an
+# internal identifier that appears in `use` statements and in the build log,
+# while the binary name is what the user types and what the desktop entry, the
+# man page and the packages all have to agree on. The two are deliberately not
+# the same word: `nn` names the workspace, `npp` names the program.
+#
+# Both targets are declared rather than discovered. Autodiscovery would name the
+# first one after the package, `nn-app`, which is not the name that gets
+# installed, and an explicit list is the only way to be sure `cargo build --bin
+# npp` keeps working when a second binary is added.
+[[bin]]
+name = "npp"
+path = "src/main.rs"
+
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+
+[dependencies]
+nn-core = { path = "../nn-core" }
+winit = "0.30"
+wgpu = "30"
+glyphon = "0.12"
+cosmic-text = "0.19"
+pollster = "0.4"
+bytemuck = { version = "1", features = ["derive"] }
+arboard = "3.7"
+accesskit = "0.25"
+accesskit_winit = "0.34"
+# Only for the window icon: the drawing is kept as a PNG so the binary, the
+# desktop entry and the packages all show the same mark.
+png = "0.18"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5.19", default-features = false, features = ["async-io", "blocking-api"] }
+serde = { version = "1", features = ["derive"] }
+# Both are already in the graph as zbus dependencies; naming them directly is
+# what lets the portal wait be bounded (see `portal::with_timeout`).
+async-io = "2"
+futures-lite = "2"

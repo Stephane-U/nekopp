@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+# The build is cargo's, not a Makefile's, and it has to be offline: the machine
+# this is built on has no network. Everything debhelper would otherwise guess is
+# therefore spelled out, which also means the package cannot silently start
+# building something else if a Makefile ever appears in the tree.
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Nothing to configure. Cargo reads Cargo.toml and Cargo.lock.
+
+override_dh_auto_build:
+	cargo build --offline --release --bin npp
+
+override_dh_auto_test:
+	cargo test --offline
+
+override_dh_auto_install:
+	install -D -m 755 target/release/npp debian/npp/usr/bin/npp
+	install -D -m 644 packaging/npp.desktop \
+		debian/npp/usr/share/applications/npp.desktop
+	install -D -m 644 packaging/npp-128.png \
+		debian/npp/usr/share/icons/hicolor/128x128/apps/npp.png
+	install -D -m 644 packaging/npp-256.png \
+		debian/npp/usr/share/icons/hicolor/256x256/apps/npp.png
+	install -D -m 644 packaging/npp.svg \
+		debian/npp/usr/share/icons/hicolor/scalable/apps/npp.svg

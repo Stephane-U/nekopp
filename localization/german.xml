@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- German (Deutsch).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="Deutsch" english="German" filename="german.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="Datei"/>
+                <Item id="Edit" name="Bearbeiten"/>
+                <Item id="Search" name="Suchen"/>
+                <Item id="View" name="Ansicht"/>
+                <Item id="Encoding" name="Kodierung"/>
+                <Item id="Language" name="Sprache"/>
+                <Item id="Settings" name="Einstellungen"/>
+                <Item id="Tools" name="Werkzeuge"/>
+                <Item id="Macro" name="Makro"/>
+                <Item id="Run" name="Ausführen"/>
+                <Item id="Plugins" name="Plugins"/>
+                <Item id="Window" name="Fenster"/>
+                <Item id="Help" name="Hilfe"/>
+                <Item id="New" name="Neu"/>
+                <Item id="Open..." name="Öffnen..."/>
+                <Item id="Save" name="Speichern"/>
+                <Item id="Save As..." name="Speichern unter..."/>
+                <Item id="Save All" name="Alles speichern"/>
+                <Item id="Close" name="Schließen"/>
+                <Item id="Close All" name="Alles schließen"/>
+                <Item id="Close All to the Left" name="Alle links schließen"/>
+                <Item id="Close All to the Right" name="Alle rechts schließen"/>
+                <Item id="Reload from Disk" name="Von Datenträger neu laden"/>
+                <Item id="Load Session..." name="Sitzung laden..."/>
+                <Item id="Save Session..." name="Sitzung speichern..."/>
+                <Item id="Move to Recycle Bin" name="In den Papierkorb verschieben"/>
+                <Item id="Print..." name="Drucken..."/>
+                <Item id="Print Now" name="Jetzt drucken"/>
+                <Item id="Exit" name="Beenden"/>
+                <Item id="Undo" name="Rückgängig"/>
+                <Item id="Redo" name="Wiederholen"/>
+                <Item id="Cut" name="Ausschneiden"/>
+                <Item id="Copy" name="Kopieren"/>
+                <Item id="Paste" name="Einfügen"/>
+                <Item id="Delete" name="Löschen"/>
+                <Item id="Select All" name="Alles auswählen"/>
+                <Item id="Duplicate Current Line" name="Aktuelle Zeile duplizieren"/>
+                <Item id="Join Lines" name="Zeilen verbinden"/>
+                <Item id="Split Lines" name="Zeilen teilen"/>
+                <Item id="Move Up Current Line" name="Aktuelle Zeile nach oben"/>
+                <Item id="Move Down Current Line" name="Aktuelle Zeile nach unten"/>
+                <Item id="Insert Blank Line Above Current" name="Leerzeile darüber einfügen"/>
+                <Item id="Insert Blank Line Below Current" name="Leerzeile darunter einfügen"/>
+                <Item id="Toggle Single Line Comment" name="Zeilenkommentar umschalten"/>
+                <Item id="Single Line Comment" name="Zeilenkommentar"/>
+                <Item id="Block Comment" name="Blockkommentar"/>
+                <Item id="UPPERCASE" name="GROSSBUCHSTABEN"/>
+                <Item id="lowercase" name="kleinbuchstaben"/>
+                <Item id="Proper Case" name="Wortanfänge groß"/>
+                <Item id="Sentence case" name="Satzanfang groß"/>
+                <Item id="Increase Line Indent" name="Einzug vergrößern"/>
+                <Item id="Decrease Line Indent" name="Einzug verkleinern"/>
+                <Item id="Find..." name="Suchen..."/>
+                <Item id="Find Next" name="Weitersuchen"/>
+                <Item id="Find Previous" name="Rückwärts suchen"/>
+                <Item id="Replace..." name="Ersetzen..."/>
+                <Item id="Find in Files..." name="In Dateien suchen..."/>
+                <Item id="Incremental Search" name="Inkrementelle Suche"/>
+                <Item id="Go to..." name="Gehe zu..."/>
+                <Item id="Select and Find Next" name="Auswählen und weitersuchen"/>
+                <Item id="Select and Find Previous" name="Auswählen und rückwärts suchen"/>
+                <Item id="Mark..." name="Markieren..."/>
+                <Item id="Toggle Bookmark" name="Lesezeichen umschalten"/>
+                <Item id="Next Bookmark" name="Nächstes Lesezeichen"/>
+                <Item id="Previous Bookmark" name="Vorheriges Lesezeichen"/>
+                <Item id="Clear All Bookmarks" name="Alle Lesezeichen löschen"/>
+                <Item id="Search Results Window" name="Fenster Suchergebnisse"/>
+                <Item id="Word wrap" name="Zeilenumbruch"/>
+                <Item id="Show All Characters" name="Alle Zeichen anzeigen"/>
+                <Item id="Show Indent Guide" name="Einzugslinien anzeigen"/>
+                <Item id="Show Wrap Symbol" name="Umbruchsymbol anzeigen"/>
+                <Item id="Show End of Line" name="Zeilenende anzeigen"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="Vergrößern (Strg+Rad hoch)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="Verkleinern (Strg+Rad runter)"/>
+                <Item id="Restore Default Zoom" name="Standardzoom wiederherstellen"/>
+                <Item id="Toggle Full Screen Mode" name="Vollbild umschalten"/>
+                <Item id="Distraction Free Mode" name="Ablenkungsfreier Modus"/>
+                <Item id="Function List" name="Funktionsliste"/>
+                <Item id="Document List" name="Dokumentenliste"/>
+                <Item id="Folder as Workspace" name="Ordner als Arbeitsbereich"/>
+                <Item id="Summary..." name="Zusammenfassung..."/>
+                <Item id="Monitoring (tail -f)" name="Überwachung (tail -f)"/>
+                <Item id="Always on Top" name="Immer im Vordergrund"/>
+                <Item id="Move to Other View" name="In andere Ansicht verschieben"/>
+                <Item id="Clone to Other View" name="In andere Ansicht klonen"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="Einstellungen..."/>
+                <Item id="Style Configurator..." name="Stil-Konfigurator..."/>
+                <Item id="Import style theme(s)..." name="Stil-Themes importieren..."/>
+                <Item id="Import Notepad++ Config..." name="Notepad++-Konfiguration importieren..."/>
+                <Item id="Export Shortcuts..." name="Tastenkürzel exportieren..."/>
+                <Item id="User-Defined" name="Benutzerdefiniert"/>
+                <Item id="Define your language..." name="Eigene Sprache definieren..."/>
+                <Item id="None (Normal Text)" name="Keine (normaler Text)"/>
+                <Item id="Start Recording" name="Aufzeichnung starten"/>
+                <Item id="Stop Recording" name="Aufzeichnung stoppen"/>
+                <Item id="Playback" name="Wiedergabe"/>
+                <Item id="Run a Macro Multiple Times..." name="Makro mehrfach ausführen..."/>
+                <Item id="Run..." name="Ausführen..."/>
+                <Item id="Search on Internet" name="Im Internet suchen"/>
+                <Item id="Open in Default Viewer" name="In Standardanzeige öffnen"/>
+                <Item id="Windows..." name="Fenster..."/>
+                <Item id="First Tab" name="Erster Tab"/>
+                <Item id="Next Tab" name="Nächster Tab"/>
+                <Item id="Previous Tab" name="Vorheriger Tab"/>
+                <Item id="Last Tab" name="Letzter Tab"/>
+                <Item id="No Plugins Installed" name="Keine Plugins installiert"/>
+                <Item id="About Neko++" name="Über Neko++"/>
+                <Item id="Neko++ Home" name="Neko++-Startseite"/>
+                <Item id="Debug Info..." name="Debug-Informationen..."/>
+                <Item id="Command Line Arguments..." name="Kommandozeilenargumente..."/>
+                <Item id="(none installed)" name="(keine installiert)"/>
+                <Item id="1st Style" name="1. Stil"/>
+                <Item id="1st Tab" name="1. Tab"/>
+                <Item id="2nd Style" name="2. Stil"/>
+                <Item id="2nd Tab" name="2. Tab"/>
+                <Item id="3rd Style" name="3. Stil"/>
+                <Item id="3rd Tab" name="3. Tab"/>
+                <Item id="4th Style" name="4. Stil"/>
+                <Item id="4th Tab" name="4. Tab"/>
+                <Item id="5th Style" name="5. Stil"/>
+                <Item id="5th Tab" name="5. Tab"/>
+                <Item id="6th Tab" name="6. Tab"/>
+                <Item id="7th Tab" name="7. Tab"/>
+                <Item id="8th Tab" name="8. Tab"/>
+                <Item id="9th Tab" name="9. Tab"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="Alle Stile"/>
+                <Item id="Apply Color 1" name="Farbe 1 anwenden"/>
+                <Item id="Apply Color 2" name="Farbe 2 anwenden"/>
+                <Item id="Apply Color 3" name="Farbe 3 anwenden"/>
+                <Item id="Apply Color 4" name="Farbe 4 anwenden"/>
+                <Item id="Apply Color 5" name="Farbe 5 anwenden"/>
+                <Item id="Arabic" name="Arabisch"/>
+                <Item id="Auto-Completion" name="Autovervollständigung"/>
+                <Item id="Baltic" name="Baltisch"/>
+                <Item id="Begin/End Select" name="Auswahl beginnen/beenden"/>
+                <Item id="Begin/End Select in Column Mode" name="Auswahl im Spaltenmodus beginnen/beenden"/>
+                <Item id="Blank Operations" name="Operationen mit Leerzeichen"/>
+                <Item id="Block Uncomment" name="Blockkommentar entfernen"/>
+                <Item id="Bookmark" name="Lesezeichen"/>
+                <Item id="Celtic" name="Keltisch"/>
+                <Item id="Central European" name="Mitteleuropäisch"/>
+                <Item id="Change History" name="Änderungsverlauf"/>
+                <Item id="Change Search Engine..." name="Suchmaschine wechseln..."/>
+                <Item id="Character Panel" name="Zeichenpanel"/>
+                <Item id="Character sets" name="Zeichensätze"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="1. Stil löschen"/>
+                <Item id="Clear 2nd Style" name="2. Stil löschen"/>
+                <Item id="Clear 3rd Style" name="3. Stil löschen"/>
+                <Item id="Clear 4th Style" name="4. Stil löschen"/>
+                <Item id="Clear 5th Style" name="5. Stil löschen"/>
+                <Item id="Clear Change History" name="Änderungsverlauf löschen"/>
+                <Item id="Clear Read-Only for All Documents" name="Schreibschutz für alle Dokumente aufheben"/>
+                <Item id="Clear Style" name="Stil löschen"/>
+                <Item id="Clear all Styles" name="Alle Stile löschen"/>
+                <Item id="Clipboard History" name="Zwischenablageverlauf"/>
+                <Item id="Close All Unchanged" name="Alle unveränderten schließen"/>
+                <Item id="Close All but Active Document" name="Alle außer dem aktiven Dokument schließen"/>
+                <Item id="Close All but Pinned Documents" name="Alle außer angehefteten Dokumenten schließen"/>
+                <Item id="Close Multiple Documents" name="Mehrere Dokumente schließen"/>
+                <Item id="Column Editor..." name="Spalten-Editor..."/>
+                <Item id="Column Mode..." name="Spaltenmodus..."/>
+                <Item id="Comment/Uncomment" name="Kommentieren/Auskommentieren"/>
+                <Item id="Content Length Ascending" name="Inhaltlänge aufsteigend"/>
+                <Item id="Content Length Descending" name="Inhaltlänge absteigend"/>
+                <Item id="Convert Case to" name="Groß-/Kleinschreibung ändern in"/>
+                <Item id="Convert to ANSI" name="In ANSI konvertieren"/>
+                <Item id="Convert to UTF-16 BE BOM" name="In UTF-16 BE BOM konvertieren"/>
+                <Item id="Convert to UTF-16 LE BOM" name="In UTF-16 LE BOM konvertieren"/>
+                <Item id="Convert to UTF-8" name="In UTF-8 konvertieren"/>
+                <Item id="Convert to UTF-8-BOM" name="In UTF-8-BOM konvertieren"/>
+                <Item id="Copy All File Paths" name="Alle Dateipfade kopieren"/>
+                <Item id="Copy All Filenames" name="Alle Dateinamen kopieren"/>
+                <Item id="Copy Bookmarked Lines" name="Zeilen mit Lesezeichen kopieren"/>
+                <Item id="Copy Current Dir. Path" name="Pfad des aktuellen Verzeichnisses kopieren"/>
+                <Item id="Copy Current Filename" name="Aktuellen Dateinamen kopieren"/>
+                <Item id="Copy Current Full File path" name="Vollständigen Pfad der aktuellen Datei kopieren"/>
+                <Item id="Copy Styled Text" name="Formatierten Text kopieren"/>
+                <Item id="Copy to Clipboard" name="In die Zwischenablage kopieren"/>
+                <Item id="Cut Bookmarked Lines" name="Zeilen mit Lesezeichen ausschneiden"/>
+                <Item id="Cyrillic" name="Kyrillisch"/>
+                <Item id="Dark" name="Dunkel"/>
+                <Item id="Date Time (customized)" name="Datum und Uhrzeit (angepasst)"/>
+                <Item id="Date Time (long)" name="Datum und Uhrzeit (lang)"/>
+                <Item id="Date Time (short)" name="Datum und Uhrzeit (kurz)"/>
+                <Item id="Document Map" name="Dokumentenkarte"/>
+                <Item id="EOL Conversion" name="Zeilenende-Konvertierung"/>
+                <Item id="EOL to Space" name="Zeilenende zu Leerzeichen"/>
+                <Item id="Eastern European" name="Osteuropäisch"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="Kontextmenü bearbeiten"/>
+                <Item id="Explorer" name="Datei-Explorer"/>
+                <Item id="Find (Volatile) Next" name="(Flüchtig) weitersuchen"/>
+                <Item id="Find (Volatile) Previous" name="(Flüchtig) rückwärts suchen"/>
+                <Item id="Find Mark Style" name="Suchmarkierungsstil"/>
+                <Item id="Find characters in range..." name="Zeichen im Bereich suchen..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="Fokus auf andere Ansicht setzen"/>
+                <Item id="Fold All" name="Alle einklappen"/>
+                <Item id="Fold Current Level" name="Aktuelle Ebene einklappen"/>
+                <Item id="Fold Level" name="Ebene einklappen"/>
+                <Item id="Function Completion" name="Funktionsvervollständigung"/>
+                <Item id="Function Parameters Hint" name="Hinweis zu Funktionsparametern"/>
+                <Item id="Function Parameters Next Hint" name="Nächster Hinweis zu Funktionsparametern"/>
+                <Item id="Function Parameters Previous Hint" name="Vorheriger Hinweis zu Funktionsparametern"/>
+                <Item id="Generate from files..." name="Aus Dateien generieren..."/>
+                <Item id="Generate from selection into clipboard" name="Aus Auswahl in die Zwischenablage generieren"/>
+                <Item id="Generate..." name="Generieren..."/>
+                <Item id="Go to Matching Brace" name="Zur passenden Klammer springen"/>
+                <Item id="Go to Next Change" name="Zur nächsten Änderung springen"/>
+                <Item id="Go to Previous Change" name="Zur vorherigen Änderung springen"/>
+                <Item id="Greek" name="Griechisch"/>
+                <Item id="Hebrew" name="Hebräisch"/>
+                <Item id="Hide Lines" name="Zeilen ausblenden"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="Groß-/Kleinschreibung und ganzes Wort ignorieren"/>
+                <Item id="Import" name="Importieren"/>
+                <Item id="Import plugin(s)..." name="Plugin(s) importieren..."/>
+                <Item id="Indent" name="Einrücken"/>
+                <Item id="Insert" name="Einfügen"/>
+                <Item id="Inverse Bookmarks" name="Lesezeichen invertieren"/>
+                <Item id="Jump Down" name="Nach unten springen"/>
+                <Item id="Jump Up" name="Nach oben springen"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="Hell"/>
+                <Item id="Line Operations" name="Zeilenoperationen"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="Groß-/Kleinschreibung und ganzes Wort beachten"/>
+                <Item id="Match Case Only" name="Nur Groß-/Kleinschreibung beachten"/>
+                <Item id="Match Whole Word Only" name="Nur ganzes Wort"/>
+                <Item id="Modified Time Ascending" name="Änderungszeit aufsteigend"/>
+                <Item id="Modified Time Descending" name="Änderungszeit absteigend"/>
+                <Item id="Move Tab Backward" name="Tab rückwärts verschieben"/>
+                <Item id="Move Tab Forward" name="Tab vorwärts verschieben"/>
+                <Item id="Move to End" name="Ans Ende verschieben"/>
+                <Item id="Move to New Instance" name="In neue Instanz verschieben"/>
+                <Item id="Move to Start" name="An den Anfang verschieben"/>
+                <Item id="Move/Clone Current Document" name="Aktuelles Dokument verschieben/klonen"/>
+                <Item id="Multi-select All" name="Alle mehrfach auswählen"/>
+                <Item id="Multi-select Next" name="Nächstes mehrfach auswählen"/>
+                <Item id="Name A to Z" name="Name A bis Z"/>
+                <Item id="Name Z to A" name="Name Z bis A"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++-Community (Forum)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++-Benutzerhandbuch online"/>
+                <Item id="Neko++ Project Page" name="Neko++-Projektseite"/>
+                <Item id="Next Search Result" name="Nächstes Suchergebnis"/>
+                <Item id="North European" name="Nordeuropäisch"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Sammlung benutzerdefinierter Sprachen für Notepad++"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : Portugiesisch"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : Isländisch"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : Französisch"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : Nordisch"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="Auf Auswahl"/>
+                <Item id="Open Containing Folder" name="Enthaltenden Ordner öffnen"/>
+                <Item id="Open Containing Folder in Explorer" name="Enthaltenden Ordner im Datei-Explorer öffnen"/>
+                <Item id="Open File" name="Datei öffnen"/>
+                <Item id="Open Folder as Workspace..." name="Ordner als Arbeitsbereich öffnen..."/>
+                <Item id="Open Plugins Folder..." name="Plugin-Ordner öffnen..."/>
+                <Item id="Open Shortcut Mapper..." name="Tastenkürzelzuordnung öffnen..."/>
+                <Item id="Open User Defined Language folder..." name="Ordner für benutzerdefinierte Sprachen öffnen..."/>
+                <Item id="Open in New Instance" name="In neuer Instanz öffnen"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="In Zeilen mit Lesezeichen einfügen (ersetzen)"/>
+                <Item id="Path A to Z" name="Pfad A bis Z"/>
+                <Item id="Path Completion" name="Pfadvervollständigung"/>
+                <Item id="Path Z to A" name="Pfad Z bis A"/>
+                <Item id="Post-It" name="Haftnotiz"/>
+                <Item id="Previous Search Result" name="Vorheriges Suchergebnis"/>
+                <Item id="Project Panel 1" name="Projektbereich 1"/>
+                <Item id="Project Panel 2" name="Projektbereich 2"/>
+                <Item id="Project Panel 3" name="Projektbereich 3"/>
+                <Item id="Project Panels" name="Projektbereiche"/>
+                <Item id="Proper Case (blend)" name="Wortanfänge groß (gemischt)"/>
+                <Item id="Randomize Line Order" name="Zeilenreihenfolge zufällig"/>
+                <Item id="Read-Only for All Documents" name="Schreibschutz für alle Dokumente"/>
+                <Item id="Read-Only in Neko++" name="Schreibschutz in Neko++"/>
+                <Item id="Read-Only on Current Document" name="Schreibschutz für aktuelles Dokument"/>
+                <Item id="Recent Window" name="Zuletzt verwendetes Fenster"/>
+                <Item id="Redact Selection" name="Auswahl schwärzen"/>
+                <Item id="Remove Bookmarked Lines" name="Zeilen mit Lesezeichen entfernen"/>
+                <Item id="Remove Color" name="Farbe entfernen"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="Aufeinanderfolgende doppelte Zeilen entfernen"/>
+                <Item id="Remove Duplicate Lines" name="Doppelte Zeilen entfernen"/>
+                <Item id="Remove Empty Lines" name="Leerzeilen entfernen"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="Leerzeilen entfernen (mit Leerzeichen)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="Zeilen ohne Lesezeichen entfernen"/>
+                <Item id="Rename..." name="Umbenennen..."/>
+                <Item id="Reverse Line Order" name="Zeilenreihenfolge umkehren"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="Aktuell aufgezeichnetes Makro speichern..."/>
+                <Item id="Save a Copy As..." name="Kopie speichern unter..."/>
+                <Item id="Select All In-between {} [] or ()" name="Alles zwischen {} [] oder () auswählen"/>
+                <Item id="Sentence case (blend)" name="Satzanfang groß (gemischt)"/>
+                <Item id="Shortcut Mapper" name="Tastenkürzelzuordnung"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="Steuerzeichen und Unicode-Zeilenenden anzeigen"/>
+                <Item id="Show Non-Printing Characters" name="Nicht druckbare Zeichen anzeigen"/>
+                <Item id="Show Space and Tab" name="Leerzeichen und Tabulator anzeigen"/>
+                <Item id="Show Symbol" name="Symbol anzeigen"/>
+                <Item id="Single Line Uncomment" name="Zeilenkommentar entfernen"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="Aktuelle Mehrfachauswahl überspringen und zur nächsten springen"/>
+                <Item id="Sort By" name="Sortieren nach"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="Zeilen als Dezimalzahlen (Komma) aufsteigend sortieren"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="Zeilen als Dezimalzahlen (Komma) absteigend sortieren"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="Zeilen als Dezimalzahlen (Punkt) aufsteigend sortieren"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="Zeilen als Dezimalzahlen (Punkt) absteigend sortieren"/>
+                <Item id="Sort Lines As Integers Ascending" name="Zeilen als Ganzzahlen aufsteigend sortieren"/>
+                <Item id="Sort Lines As Integers Descending" name="Zeilen als Ganzzahlen absteigend sortieren"/>
+                <Item id="Sort Lines By Length Ascending" name="Zeilen nach Länge aufsteigend sortieren"/>
+                <Item id="Sort Lines By Length Descending" name="Zeilen nach Länge absteigend sortieren"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="Zeilen nach Gebietsschema aufsteigend sortieren"/>
+                <Item id="Sort Lines In Locale Order Descending" name="Zeilen nach Gebietsschema absteigend sortieren"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="Zeilen lex. aufsteigend sortieren, Groß-/Kleinschreibung ignorieren"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="Zeilen lex. absteigend sortieren, Groß-/Kleinschreibung ignorieren"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="Zeilen lexikografisch aufsteigend sortieren"/>
+                <Item id="Sort Lines Lexicographically Descending" name="Zeilen lexikografisch absteigend sortieren"/>
+                <Item id="Space to TAB (All)" name="Leerzeichen zu TAB (alle)"/>
+                <Item id="Space to TAB (Leading)" name="Leerzeichen zu TAB (führend)"/>
+                <Item id="Style All Occurrences of Token" name="Alle Vorkommen des Tokens hervorheben"/>
+                <Item id="Style One Token" name="Ein Token hervorheben"/>
+                <Item id="Synchronize Across Views" name="Über Ansichten hinweg synchronisieren"/>
+                <Item id="Synchronize Horizontal Scrolling" name="Horizontales Scrollen synchronisieren"/>
+                <Item id="Synchronize Vertical Scrolling" name="Vertikales Scrollen synchronisieren"/>
+                <Item id="System" name="System"/>
+                <Item id="TAB to Space" name="TAB zu Leerzeichen"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="Tabulator"/>
+                <Item id="Thai" name="Thailändisch"/>
+                <Item id="Theme" name="Farbschema"/>
+                <Item id="Trim Leading Space" name="Führende Leerzeichen entfernen"/>
+                <Item id="Trim Leading and Trailing Space" name="Führende und abschließende Leerzeichen entfernen"/>
+                <Item id="Trim Trailing Space" name="Abschließende Leerzeichen entfernen"/>
+                <Item id="Trim both and EOL to Space" name="Beide entfernen und Zeilenende zu Leerzeichen"/>
+                <Item id="Turkish" name="Türkisch"/>
+                <Item id="Type A to Z" name="Typ A bis Z"/>
+                <Item id="Type Z to A" name="Typ Z bis A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="Zuletzt hinzugefügte Mehrfachauswahl rückgängig machen"/>
+                <Item id="Unfold All" name="Alle ausklappen"/>
+                <Item id="Unfold Current Level" name="Aktuelle Ebene ausklappen"/>
+                <Item id="Unfold Level" name="Ebene ausklappen"/>
+                <Item id="User Defined Language" name="Benutzerdefinierte Sprache"/>
+                <Item id="Validate shortcuts.xml" name="shortcuts.xml validieren"/>
+                <Item id="Vietnamese" name="Vietnamesisch"/>
+                <Item id="View Current File in" name="Aktuelle Datei anzeigen in"/>
+                <Item id="Western European" name="Westeuropäisch"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="Wortvervollständigung"/>
+                <Item id="Zoom" name="Zoom"/>
+                <Item id="Save Current Macro" name="Aktuelles Makro speichern"/>
+                <Item id="Play macro times:" name="Anzahl der Makro-Wiedergaben:"/>
+                <Item id="Off" name="Aus"/>
+                <Item id="Run:" name="Ausführen:"/>
+                <Item id="Verbose" name="Ausführlich"/>
+                <Item id="Sel:" name="Ausw.:"/>
+                <Item id="Autosave" name="Automatisches Speichern"/>
+                <Item id="Edit..." name="Bearbeiten..."/>
+                <Item id="File Dialog" name="Dateidialog"/>
+                <Item id="Date time format:" name="Datums- und Uhrzeitformat:"/>
+                <Item id="Print" name="Drucken"/>
+                <Item id="On" name="Ein"/>
+                <Item id="A GPU-rendered text editor" name="Ein GPU-gerenderter Texteditor"/>
+                <Item id="Simple" name="Einfach"/>
+                <Item id="Insert at column:" name="Einfügen in Spalte:"/>
+                <Item id="Preferences" name="Einstellungen"/>
+                <Item id="Replace" name="Ersetzen"/>
+                <Item id="Replace:" name="Ersetzen:"/>
+                <Item id="Export to:" name="Exportieren nach:"/>
+                <Item id="Import theme from:" name="Farbschema importieren von:"/>
+                <Item id="Volatile Find" name="Flüchtige Suche"/>
+                <Item id="Go to line:" name="Gehe zu Zeile:"/>
+                <Item id="LARGE" name="GROSS"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="Hoch/Runter  Links/Rechts  Eingabe  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Hoch/Runter  Links/Rechts  Eingabe öffnet  Esc schließt"/>
+                <Item id="Sync Horizontal Scroll" name="Horizontales Scrollen synchronisieren"/>
+                <Item id="Import from:" name="Importieren von:"/>
+                <Item id="Find in files:" name="In Dateien suchen:"/>
+                <Item id="Find in projects:" name="In Projekten suchen:"/>
+                <Item id="Built-in browser" name="Integrierter Browser"/>
+                <Item id="no match" name="Kein Treffer"/>
+                <Item id="None" name="Keine"/>
+                <Item id="Save a copy as:" name="Kopie speichern unter:"/>
+                <Item id="length:" name="Länge:"/>
+                <Item id="Run Multiple Macros" name="Mehrere Makros ausführen"/>
+                <Item id="Minimap" name="Minikarte"/>
+                <Item id="Open" name="Öffnen"/>
+                <Item id="Open:" name="Öffnen:"/>
+                <Item id="Folder:" name="Ordner:"/>
+                <Item id="Import plugin from:" name="Plugin importieren von:"/>
+                <Item id="Hash file:" name="Prüfsummendatei:"/>
+                <Item id="REC" name="REC"/>
+                <Item id="Font Size" name="Schriftgröße"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Backup on Save" name="Sicherung beim Speichern"/>
+                <Item id="Load session:" name="Sitzung laden:"/>
+                <Item id="Save session as:" name="Sitzung speichern unter:"/>
+                <Item id="Col:" name="Spalte:"/>
+                <Item id="Save as:" name="Speichern unter:"/>
+                <Item id="Search URL:" name="Such-URL:"/>
+                <Item id="Find" name="Suchen"/>
+                <Item id="Find:" name="Suchen:"/>
+                <Item id="Toolbar" name="Symbolleiste"/>
+                <Item id="System dialog" name="Systemdialog"/>
+                <Item id="Tab Width" name="Tabulatorbreite"/>
+                <Item id="Shortcuts" name="Tastenkürzel"/>
+                <Item id="Split on:" name="Trennen bei:"/>
+                <Item id="Rename to:" name="Umbenennen in:"/>
+                <Item id="bad regex" name="Ungültiger regulärer Ausdruck"/>
+                <Item id="Zoom In" name="Vergrößern"/>
+                <Item id="Zoom Out" name="Verkleinern"/>
+                <Item id="Sync Vertical Scroll" name="Vertikales Scrollen synchronisieren"/>
+                <Item id="Character code:" name="Zeichencode:"/>
+                <Item id="Ln:" name="Zeile:"/>
+                <Item id="lines:" name="Zeilen:"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

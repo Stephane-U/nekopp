@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Japanese (日本語).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="日本語" english="Japanese" filename="japanese.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="ファイル"/>
+                <Item id="Edit" name="編集"/>
+                <Item id="Search" name="検索"/>
+                <Item id="View" name="表示"/>
+                <Item id="Encoding" name="エンコード"/>
+                <Item id="Language" name="言語"/>
+                <Item id="Settings" name="設定"/>
+                <Item id="Tools" name="ツール"/>
+                <Item id="Macro" name="マクロ"/>
+                <Item id="Run" name="実行"/>
+                <Item id="Plugins" name="プラグイン"/>
+                <Item id="Window" name="ウィンドウ"/>
+                <Item id="Help" name="ヘルプ"/>
+                <Item id="New" name="新規作成"/>
+                <Item id="Open..." name="開く..."/>
+                <Item id="Save" name="保存"/>
+                <Item id="Save As..." name="名前を付けて保存..."/>
+                <Item id="Save All" name="すべて保存"/>
+                <Item id="Close" name="閉じる"/>
+                <Item id="Close All" name="すべて閉じる"/>
+                <Item id="Close All to the Left" name="左側をすべて閉じる"/>
+                <Item id="Close All to the Right" name="右側をすべて閉じる"/>
+                <Item id="Reload from Disk" name="ディスクから再読み込み"/>
+                <Item id="Load Session..." name="セッションを読み込む..."/>
+                <Item id="Save Session..." name="セッションを保存..."/>
+                <Item id="Move to Recycle Bin" name="ゴミ箱へ移動"/>
+                <Item id="Print..." name="印刷..."/>
+                <Item id="Print Now" name="今すぐ印刷"/>
+                <Item id="Exit" name="終了"/>
+                <Item id="Undo" name="元に戻す"/>
+                <Item id="Redo" name="やり直す"/>
+                <Item id="Cut" name="切り取り"/>
+                <Item id="Copy" name="コピー"/>
+                <Item id="Paste" name="貼り付け"/>
+                <Item id="Delete" name="削除"/>
+                <Item id="Select All" name="すべて選択"/>
+                <Item id="Duplicate Current Line" name="現在の行を複製"/>
+                <Item id="Join Lines" name="行を結合"/>
+                <Item id="Split Lines" name="行を分割"/>
+                <Item id="Move Up Current Line" name="現在の行を上へ移動"/>
+                <Item id="Move Down Current Line" name="現在の行を下へ移動"/>
+                <Item id="Insert Blank Line Above Current" name="上に空行を挿入"/>
+                <Item id="Insert Blank Line Below Current" name="下に空行を挿入"/>
+                <Item id="Toggle Single Line Comment" name="行コメント切り替え"/>
+                <Item id="Single Line Comment" name="行コメント"/>
+                <Item id="Block Comment" name="ブロックコメント"/>
+                <Item id="UPPERCASE" name="大文字"/>
+                <Item id="lowercase" name="小文字"/>
+                <Item id="Proper Case" name="単語の先頭を大文字"/>
+                <Item id="Sentence case" name="文の先頭を大文字"/>
+                <Item id="Increase Line Indent" name="インデントを増やす"/>
+                <Item id="Decrease Line Indent" name="インデントを減らす"/>
+                <Item id="Find..." name="検索..."/>
+                <Item id="Find Next" name="次を検索"/>
+                <Item id="Find Previous" name="前を検索"/>
+                <Item id="Replace..." name="置換..."/>
+                <Item id="Find in Files..." name="ファイル内を検索..."/>
+                <Item id="Incremental Search" name="インクリメンタル検索"/>
+                <Item id="Go to..." name="移動..."/>
+                <Item id="Select and Find Next" name="選択して次を検索"/>
+                <Item id="Select and Find Previous" name="選択して前を検索"/>
+                <Item id="Mark..." name="マーク..."/>
+                <Item id="Toggle Bookmark" name="ブックマーク切り替え"/>
+                <Item id="Next Bookmark" name="次のブックマーク"/>
+                <Item id="Previous Bookmark" name="前のブックマーク"/>
+                <Item id="Clear All Bookmarks" name="すべてのブックマークを解除"/>
+                <Item id="Search Results Window" name="検索結果ウィンドウ"/>
+                <Item id="Word wrap" name="折り返し"/>
+                <Item id="Show All Characters" name="すべての文字を表示"/>
+                <Item id="Show Indent Guide" name="インデントガイドを表示"/>
+                <Item id="Show Wrap Symbol" name="折り返し記号を表示"/>
+                <Item id="Show End of Line" name="行末を表示"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="拡大 (Ctrl+ホイール上)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="縮小 (Ctrl+ホイール下)"/>
+                <Item id="Restore Default Zoom" name="ズームをリセット"/>
+                <Item id="Toggle Full Screen Mode" name="全画面表示の切り替え"/>
+                <Item id="Distraction Free Mode" name="集中モード"/>
+                <Item id="Function List" name="関数リスト"/>
+                <Item id="Document List" name="ドキュメントリスト"/>
+                <Item id="Folder as Workspace" name="フォルダをワークスペースに"/>
+                <Item id="Summary..." name="要約..."/>
+                <Item id="Monitoring (tail -f)" name="監視 (tail -f)"/>
+                <Item id="Always on Top" name="常に最前面"/>
+                <Item id="Move to Other View" name="別のビューへ移動"/>
+                <Item id="Clone to Other View" name="別のビューへ複製"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="環境設定..."/>
+                <Item id="Style Configurator..." name="スタイル設定..."/>
+                <Item id="Import style theme(s)..." name="スタイルテーマをインポート..."/>
+                <Item id="Import Notepad++ Config..." name="Notepad++ 設定をインポート..."/>
+                <Item id="Export Shortcuts..." name="ショートカットをエクスポート..."/>
+                <Item id="User-Defined" name="ユーザー定義"/>
+                <Item id="Define your language..." name="言語を定義..."/>
+                <Item id="None (Normal Text)" name="なし (通常テキスト)"/>
+                <Item id="Start Recording" name="記録開始"/>
+                <Item id="Stop Recording" name="記録停止"/>
+                <Item id="Playback" name="再生"/>
+                <Item id="Run a Macro Multiple Times..." name="マクロを複数回実行..."/>
+                <Item id="Run..." name="実行..."/>
+                <Item id="Search on Internet" name="インターネットで検索"/>
+                <Item id="Open in Default Viewer" name="既定のビューアで開く"/>
+                <Item id="Windows..." name="ウィンドウ..."/>
+                <Item id="First Tab" name="最初のタブ"/>
+                <Item id="Next Tab" name="次のタブ"/>
+                <Item id="Previous Tab" name="前のタブ"/>
+                <Item id="Last Tab" name="最後のタブ"/>
+                <Item id="No Plugins Installed" name="プラグインはインストールされていません"/>
+                <Item id="About Neko++" name="Neko++ について"/>
+                <Item id="Neko++ Home" name="Neko++ ホーム"/>
+                <Item id="Debug Info..." name="デバッグ情報..."/>
+                <Item id="Command Line Arguments..." name="コマンドライン引数..."/>
+                <Item id="(none installed)" name="(インストールされていません)"/>
+                <Item id="1st Style" name="1番目のスタイル"/>
+                <Item id="1st Tab" name="1番目のタブ"/>
+                <Item id="2nd Style" name="2番目のスタイル"/>
+                <Item id="2nd Tab" name="2番目のタブ"/>
+                <Item id="3rd Style" name="3番目のスタイル"/>
+                <Item id="3rd Tab" name="3番目のタブ"/>
+                <Item id="4th Style" name="4番目のスタイル"/>
+                <Item id="4th Tab" name="4番目のタブ"/>
+                <Item id="5th Style" name="5番目のスタイル"/>
+                <Item id="5th Tab" name="5番目のタブ"/>
+                <Item id="6th Tab" name="6番目のタブ"/>
+                <Item id="7th Tab" name="7番目のタブ"/>
+                <Item id="8th Tab" name="8番目のタブ"/>
+                <Item id="9th Tab" name="9番目のタブ"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="すべてのスタイル"/>
+                <Item id="Apply Color 1" name="色 1 を適用"/>
+                <Item id="Apply Color 2" name="色 2 を適用"/>
+                <Item id="Apply Color 3" name="色 3 を適用"/>
+                <Item id="Apply Color 4" name="色 4 を適用"/>
+                <Item id="Apply Color 5" name="色 5 を適用"/>
+                <Item id="Arabic" name="アラビア語"/>
+                <Item id="Auto-Completion" name="自動補完"/>
+                <Item id="Baltic" name="バルト語"/>
+                <Item id="Begin/End Select" name="選択の開始/終了"/>
+                <Item id="Begin/End Select in Column Mode" name="カラムモードで選択の開始/終了"/>
+                <Item id="Blank Operations" name="空白の操作"/>
+                <Item id="Block Uncomment" name="ブロックコメントを解除"/>
+                <Item id="Bookmark" name="ブックマーク"/>
+                <Item id="Celtic" name="ケルト語"/>
+                <Item id="Central European" name="中央ヨーロッパ"/>
+                <Item id="Change History" name="変更履歴"/>
+                <Item id="Change Search Engine..." name="検索エンジンを変更..."/>
+                <Item id="Character Panel" name="文字パネル"/>
+                <Item id="Character sets" name="文字セット"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="1番目のスタイルを解除"/>
+                <Item id="Clear 2nd Style" name="2番目のスタイルを解除"/>
+                <Item id="Clear 3rd Style" name="3番目のスタイルを解除"/>
+                <Item id="Clear 4th Style" name="4番目のスタイルを解除"/>
+                <Item id="Clear 5th Style" name="5番目のスタイルを解除"/>
+                <Item id="Clear Change History" name="変更履歴をクリア"/>
+                <Item id="Clear Read-Only for All Documents" name="すべてのドキュメントの読み取り専用を解除"/>
+                <Item id="Clear Style" name="スタイルを解除"/>
+                <Item id="Clear all Styles" name="すべてのスタイルを解除"/>
+                <Item id="Clipboard History" name="クリップボードの履歴"/>
+                <Item id="Close All Unchanged" name="変更なしのドキュメントをすべて閉じる"/>
+                <Item id="Close All but Active Document" name="アクティブなドキュメント以外をすべて閉じる"/>
+                <Item id="Close All but Pinned Documents" name="ピン留めしたドキュメント以外をすべて閉じる"/>
+                <Item id="Close Multiple Documents" name="複数のドキュメントを閉じる"/>
+                <Item id="Column Editor..." name="カラムエディタ..."/>
+                <Item id="Column Mode..." name="カラムモード..."/>
+                <Item id="Comment/Uncomment" name="コメント/コメント解除"/>
+                <Item id="Content Length Ascending" name="内容の長さ 昇順"/>
+                <Item id="Content Length Descending" name="内容の長さ 降順"/>
+                <Item id="Convert Case to" name="大文字小文字を変換"/>
+                <Item id="Convert to ANSI" name="ANSI に変換"/>
+                <Item id="Convert to UTF-16 BE BOM" name="UTF-16 BE BOM に変換"/>
+                <Item id="Convert to UTF-16 LE BOM" name="UTF-16 LE BOM に変換"/>
+                <Item id="Convert to UTF-8" name="UTF-8 に変換"/>
+                <Item id="Convert to UTF-8-BOM" name="UTF-8-BOM に変換"/>
+                <Item id="Copy All File Paths" name="すべてのファイルパスをコピー"/>
+                <Item id="Copy All Filenames" name="すべてのファイル名をコピー"/>
+                <Item id="Copy Bookmarked Lines" name="ブックマークした行をコピー"/>
+                <Item id="Copy Current Dir. Path" name="現在のディレクトリパスをコピー"/>
+                <Item id="Copy Current Filename" name="現在のファイル名をコピー"/>
+                <Item id="Copy Current Full File path" name="現在のファイルの完全なパスをコピー"/>
+                <Item id="Copy Styled Text" name="スタイル付きテキストをコピー"/>
+                <Item id="Copy to Clipboard" name="クリップボードにコピー"/>
+                <Item id="Cut Bookmarked Lines" name="ブックマークした行を切り取り"/>
+                <Item id="Cyrillic" name="キリル語"/>
+                <Item id="Dark" name="ダーク"/>
+                <Item id="Date Time (customized)" name="日付と時刻 (カスタム)"/>
+                <Item id="Date Time (long)" name="日付と時刻 (長い形式)"/>
+                <Item id="Date Time (short)" name="日付と時刻 (短い形式)"/>
+                <Item id="Document Map" name="ドキュメントマップ"/>
+                <Item id="EOL Conversion" name="改行コードの変換"/>
+                <Item id="EOL to Space" name="改行を空白に変換"/>
+                <Item id="Eastern European" name="東ヨーロッパ"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="ポップアップコンテキストメニューを編集"/>
+                <Item id="Explorer" name="エクスプローラー"/>
+                <Item id="Find (Volatile) Next" name="次を検索 (揮発性)"/>
+                <Item id="Find (Volatile) Previous" name="前を検索 (揮発性)"/>
+                <Item id="Find Mark Style" name="検索マークのスタイル"/>
+                <Item id="Find characters in range..." name="範囲内の文字を検索..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="別のビューにフォーカス"/>
+                <Item id="Fold All" name="すべて折りたたむ"/>
+                <Item id="Fold Current Level" name="現在のレベルを折りたたむ"/>
+                <Item id="Fold Level" name="レベルを折りたたむ"/>
+                <Item id="Function Completion" name="関数補完"/>
+                <Item id="Function Parameters Hint" name="関数パラメータのヒント"/>
+                <Item id="Function Parameters Next Hint" name="次の関数パラメータのヒント"/>
+                <Item id="Function Parameters Previous Hint" name="前の関数パラメータのヒント"/>
+                <Item id="Generate from files..." name="ファイルから生成..."/>
+                <Item id="Generate from selection into clipboard" name="選択範囲からクリップボードに生成"/>
+                <Item id="Generate..." name="生成..."/>
+                <Item id="Go to Matching Brace" name="対応する括弧へ移動"/>
+                <Item id="Go to Next Change" name="次の変更へ移動"/>
+                <Item id="Go to Previous Change" name="前の変更へ移動"/>
+                <Item id="Greek" name="ギリシャ語"/>
+                <Item id="Hebrew" name="ヘブライ語"/>
+                <Item id="Hide Lines" name="行を隠す"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="大文字小文字を無視 &amp; 単語単位"/>
+                <Item id="Import" name="インポート"/>
+                <Item id="Import plugin(s)..." name="プラグインをインポート..."/>
+                <Item id="Indent" name="インデント"/>
+                <Item id="Insert" name="挿入"/>
+                <Item id="Inverse Bookmarks" name="ブックマークを反転"/>
+                <Item id="Jump Down" name="下へジャンプ"/>
+                <Item id="Jump Up" name="上へジャンプ"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="ライト"/>
+                <Item id="Line Operations" name="行の操作"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="大文字小文字を区別 &amp; 単語単位"/>
+                <Item id="Match Case Only" name="大文字小文字のみ一致"/>
+                <Item id="Match Whole Word Only" name="単語単位のみ一致"/>
+                <Item id="Modified Time Ascending" name="変更日時の昇順"/>
+                <Item id="Modified Time Descending" name="変更日時の降順"/>
+                <Item id="Move Tab Backward" name="タブを後ろへ移動"/>
+                <Item id="Move Tab Forward" name="タブを前へ移動"/>
+                <Item id="Move to End" name="末尾へ移動"/>
+                <Item id="Move to New Instance" name="新しいインスタンスへ移動"/>
+                <Item id="Move to Start" name="先頭へ移動"/>
+                <Item id="Move/Clone Current Document" name="現在のドキュメントを移動/複製"/>
+                <Item id="Multi-select All" name="すべてを複数選択"/>
+                <Item id="Multi-select Next" name="次を複数選択"/>
+                <Item id="Name A to Z" name="名前 A→Z"/>
+                <Item id="Name Z to A" name="名前 Z→A"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++ コミュニティ (フォーラム)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++ オンラインユーザーマニュアル"/>
+                <Item id="Neko++ Project Page" name="Neko++ プロジェクトページ"/>
+                <Item id="Next Search Result" name="次の検索結果"/>
+                <Item id="North European" name="北ヨーロッパ"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Notepad++ ユーザー定義言語コレクション"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : ポルトガル語"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : アイスランド語"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : フランス語"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : 北欧語"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="選択範囲内"/>
+                <Item id="Open Containing Folder" name="格納フォルダを開く"/>
+                <Item id="Open Containing Folder in Explorer" name="エクスプローラーで格納フォルダを開く"/>
+                <Item id="Open File" name="ファイルを開く"/>
+                <Item id="Open Folder as Workspace..." name="フォルダをワークスペースとして開く..."/>
+                <Item id="Open Plugins Folder..." name="プラグインフォルダを開く..."/>
+                <Item id="Open Shortcut Mapper..." name="ショートカットマッパーを開く..."/>
+                <Item id="Open User Defined Language folder..." name="ユーザー定義言語フォルダを開く..."/>
+                <Item id="Open in New Instance" name="新しいインスタンスで開く"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="ブックマークした行に貼り付け (置換)"/>
+                <Item id="Path A to Z" name="パス A→Z"/>
+                <Item id="Path Completion" name="パス補完"/>
+                <Item id="Path Z to A" name="パス Z→A"/>
+                <Item id="Post-It" name="付箋"/>
+                <Item id="Previous Search Result" name="前の検索結果"/>
+                <Item id="Project Panel 1" name="プロジェクトパネル 1"/>
+                <Item id="Project Panel 2" name="プロジェクトパネル 2"/>
+                <Item id="Project Panel 3" name="プロジェクトパネル 3"/>
+                <Item id="Project Panels" name="プロジェクトパネル"/>
+                <Item id="Proper Case (blend)" name="単語の先頭を大文字 (混在)"/>
+                <Item id="Randomize Line Order" name="行の順序をランダム化"/>
+                <Item id="Read-Only for All Documents" name="すべてのドキュメントを読み取り専用にする"/>
+                <Item id="Read-Only in Neko++" name="Neko++ で読み取り専用にする"/>
+                <Item id="Read-Only on Current Document" name="現在のドキュメントを読み取り専用にする"/>
+                <Item id="Recent Window" name="最近のウィンドウ"/>
+                <Item id="Redact Selection" name="選択範囲を黒塗り"/>
+                <Item id="Remove Bookmarked Lines" name="ブックマークした行を削除"/>
+                <Item id="Remove Color" name="色を解除"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="連続する重複行を削除"/>
+                <Item id="Remove Duplicate Lines" name="重複行を削除"/>
+                <Item id="Remove Empty Lines" name="空行を削除"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="空行を削除 (空白文字を含む)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="ブックマークしていない行を削除"/>
+                <Item id="Rename..." name="名前を変更..."/>
+                <Item id="Reverse Line Order" name="行の順序を反転"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="現在の記録済みマクロを保存..."/>
+                <Item id="Save a Copy As..." name="コピーを名前を付けて保存..."/>
+                <Item id="Select All In-between {} [] or ()" name="{} [] () の間をすべて選択"/>
+                <Item id="Sentence case (blend)" name="文の先頭を大文字 (混在)"/>
+                <Item id="Shortcut Mapper" name="ショートカットマッパー"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="制御文字 &amp; Unicode 改行コードを表示"/>
+                <Item id="Show Non-Printing Characters" name="印刷できない文字を表示"/>
+                <Item id="Show Space and Tab" name="空白とタブを表示"/>
+                <Item id="Show Symbol" name="記号を表示"/>
+                <Item id="Single Line Uncomment" name="行コメントを解除"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="現在をスキップして次の複数選択へ"/>
+                <Item id="Sort By" name="並べ替え"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="行を小数 (カンマ) として昇順に並べ替え"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="行を小数 (カンマ) として降順に並べ替え"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="行を小数 (ピリオド) として昇順に並べ替え"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="行を小数 (ピリオド) として降順に並べ替え"/>
+                <Item id="Sort Lines As Integers Ascending" name="行を整数として昇順に並べ替え"/>
+                <Item id="Sort Lines As Integers Descending" name="行を整数として降順に並べ替え"/>
+                <Item id="Sort Lines By Length Ascending" name="行を長さで昇順に並べ替え"/>
+                <Item id="Sort Lines By Length Descending" name="行を長さで降順に並べ替え"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="行をロケール順で昇順に並べ替え"/>
+                <Item id="Sort Lines In Locale Order Descending" name="行をロケール順で降順に並べ替え"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="大文字小文字を無視して行を辞書順で昇順に並べ替え"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="大文字小文字を無視して行を辞書順で降順に並べ替え"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="行を辞書順で昇順に並べ替え"/>
+                <Item id="Sort Lines Lexicographically Descending" name="行を辞書順で降順に並べ替え"/>
+                <Item id="Space to TAB (All)" name="空白をタブに変換 (すべて)"/>
+                <Item id="Space to TAB (Leading)" name="空白をタブに変換 (先頭)"/>
+                <Item id="Style All Occurrences of Token" name="トークンのすべての出現にスタイルを設定"/>
+                <Item id="Style One Token" name="1 つのトークンにスタイルを設定"/>
+                <Item id="Synchronize Across Views" name="ビュー間を同期"/>
+                <Item id="Synchronize Horizontal Scrolling" name="水平スクロールを同期"/>
+                <Item id="Synchronize Vertical Scrolling" name="垂直スクロールを同期"/>
+                <Item id="System" name="システム"/>
+                <Item id="TAB to Space" name="タブを空白に変換"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="タブ"/>
+                <Item id="Thai" name="タイ語"/>
+                <Item id="Theme" name="テーマ"/>
+                <Item id="Trim Leading Space" name="先頭の空白を削除"/>
+                <Item id="Trim Leading and Trailing Space" name="先頭と末尾の空白を削除"/>
+                <Item id="Trim Trailing Space" name="末尾の空白を削除"/>
+                <Item id="Trim both and EOL to Space" name="両端の空白を削除して改行を空白に変換"/>
+                <Item id="Turkish" name="トルコ語"/>
+                <Item id="Type A to Z" name="種類 A→Z"/>
+                <Item id="Type Z to A" name="種類 Z→A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="最後に追加した複数選択を元に戻す"/>
+                <Item id="Unfold All" name="すべて展開"/>
+                <Item id="Unfold Current Level" name="現在のレベルを展開"/>
+                <Item id="Unfold Level" name="レベルを展開"/>
+                <Item id="User Defined Language" name="ユーザー定義言語"/>
+                <Item id="Validate shortcuts.xml" name="shortcuts.xml を検証"/>
+                <Item id="Vietnamese" name="ベトナム語"/>
+                <Item id="View Current File in" name="現在のファイルをブラウザで表示"/>
+                <Item id="Western European" name="西ヨーロッパ"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="単語補完"/>
+                <Item id="Zoom" name="ズーム"/>
+                <Item id="A GPU-rendered text editor" name="GPU で描画するテキストエディタ"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="↑/↓  ←/→  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="↑/↓  ←/→  Enter で開く  Esc で閉じる"/>
+                <Item id="None" name="なし"/>
+                <Item id="Import from:" name="インポート元:"/>
+                <Item id="Export to:" name="エクスポート先:"/>
+                <Item id="Off" name="オフ"/>
+                <Item id="On" name="オン"/>
+                <Item id="Save a copy as:" name="コピーを名前を付けて保存:"/>
+                <Item id="System dialog" name="システムダイアログ"/>
+                <Item id="Shortcuts" name="ショートカット"/>
+                <Item id="Simple" name="シンプル"/>
+                <Item id="Save session as:" name="セッションを名前を付けて保存:"/>
+                <Item id="Load session:" name="セッションを読み込む:"/>
+                <Item id="Tab Width" name="タブ幅"/>
+                <Item id="Toolbar" name="ツールバー"/>
+                <Item id="Import theme from:" name="テーマのインポート元:"/>
+                <Item id="Hash file:" name="ファイルのハッシュ:"/>
+                <Item id="File Dialog" name="ファイルダイアログ"/>
+                <Item id="Find in files:" name="ファイル内を検索:"/>
+                <Item id="Folder:" name="フォルダ:"/>
+                <Item id="Font Size" name="フォントサイズ"/>
+                <Item id="Import plugin from:" name="プラグインのインポート元:"/>
+                <Item id="Find in projects:" name="プロジェクト内を検索:"/>
+                <Item id="Play macro times:" name="マクロの実行回数:"/>
+                <Item id="Minimap" name="ミニマップ"/>
+                <Item id="no match" name="一致なし"/>
+                <Item id="bad regex" name="不正な正規表現"/>
+                <Item id="Backup on Save" name="保存時のバックアップ"/>
+                <Item id="Built-in browser" name="内蔵ブラウザ"/>
+                <Item id="Split on:" name="分割の基準:"/>
+                <Item id="Print" name="印刷"/>
+                <Item id="Save as:" name="名前を付けて保存:"/>
+                <Item id="Sync Vertical Scroll" name="垂直スクロールを同期"/>
+                <Item id="Rename to:" name="変更後の名前:"/>
+                <Item id="LARGE" name="大型"/>
+                <Item id="Run:" name="実行:"/>
+                <Item id="Zoom In" name="拡大"/>
+                <Item id="Insert at column:" name="挿入する桁:"/>
+                <Item id="Volatile Find" name="揮発性検索"/>
+                <Item id="Character code:" name="文字コード:"/>
+                <Item id="Date time format:" name="日付と時刻の形式:"/>
+                <Item id="Col:" name="桁:"/>
+                <Item id="Find" name="検索"/>
+                <Item id="Search URL:" name="検索 URL:"/>
+                <Item id="Find:" name="検索:"/>
+                <Item id="Sync Horizontal Scroll" name="水平スクロールを同期"/>
+                <Item id="Save Current Macro" name="現在のマクロを保存"/>
+                <Item id="Preferences" name="環境設定"/>
+                <Item id="Edit..." name="編集..."/>
+                <Item id="Zoom Out" name="縮小"/>
+                <Item id="Replace" name="置換"/>
+                <Item id="Replace:" name="置換:"/>
+                <Item id="Autosave" name="自動保存"/>
+                <Item id="Ln:" name="行:"/>
+                <Item id="Go to line:" name="行へ移動:"/>
+                <Item id="lines:" name="行数:"/>
+                <Item id="Run Multiple Macros" name="複数のマクロを実行"/>
+                <Item id="REC" name="記録"/>
+                <Item id="Verbose" name="詳細"/>
+                <Item id="Sel:" name="選択:"/>
+                <Item id="length:" name="長さ:"/>
+                <Item id="Open" name="開く"/>
+                <Item id="Open:" name="開く:"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

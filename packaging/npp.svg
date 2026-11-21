@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    The application mark: a kitten, on a rounded tile.
+
+    This is deliberately not Notepad++'s icon. Theirs is a chameleon standing on
+    a pencil over a page with grass along the bottom, and that arrangement — not
+    just the animal — is their mark. Redrawing the same page, the same pencil and
+    the same grass with a different creature in the middle would still be their
+    composition with our animal dropped into it, so none of it is reused here.
+
+    What is left is a tile and a face. The tile is what makes the icon legible on
+    a light taskbar and on a dark one: a cream kitten on a transparent
+    background disappears against a light theme, and a dark outline disappears
+    against a dark one. The orange is the same orange as the active tab's top
+    bar, so the icon and the window agree about what the application looks like.
+
+    The face is drawn to survive 16 pixels: two ears, two eyes, a nose. The
+    whiskers and the mouth are the first things to go at that size, which is why
+    nothing load-bearing is drawn with them.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffc061"/>
+      <stop offset="0.55" stop-color="#f79a2b"/>
+      <stop offset="1" stop-color="#d96f10"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.32" cy="0.18" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#f3e3cd"/>
+    </linearGradient>
+  </defs>
+
+  <!-- The tile. Inset by 8 so the rounded corners have room to read. -->
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#sheen)"/>
+
+  <!--
+    Ears first, head second, both in the same fill and with no stroke: the union
+    of the two shapes is the silhouette, and a stroke would draw the seam where
+    the ear meets the head.
+  -->
+  <path d="M 74 108 L 60 44 L 120 78 Z" fill="url(#fur)"/>
+  <path d="M 182 108 L 196 44 L 136 78 Z" fill="url(#fur)"/>
+  <ellipse cx="128" cy="146" rx="76" ry="70" fill="url(#fur)"/>
+
+  <!-- The inside of each ear, in the same pink as the nose. -->
+  <path d="M 84 98 L 74 60 L 112 82 Z" fill="#f2a0a8"/>
+  <path d="M 172 98 L 182 60 L 144 82 Z" fill="#f2a0a8"/>
+
+  <!-- Eyes, with a catchlight each so they read as eyes and not as holes. -->
+  <ellipse cx="100" cy="140" rx="11" ry="13" fill="#2b1d12"/>
+  <ellipse cx="156" cy="140" rx="11" ry="13" fill="#2b1d12"/>
+  <circle cx="104" cy="135" r="4" fill="#ffffff" opacity="0.92"/>
+  <circle cx="160" cy="135" r="4" fill="#ffffff" opacity="0.92"/>
+
+  <!-- Nose and mouth. -->
+  <path d="M 119 158 L 137 158 L 128 170 Z" fill="#f2a0a8"/>
+  <path d="M 128 170 q -8 11 -17 3" fill="none" stroke="#2b1d12" stroke-width="4"
+        stroke-linecap="round" opacity="0.85"/>
+  <path d="M 128 170 q 8 11 17 3" fill="none" stroke="#2b1d12" stroke-width="4"
+        stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Whiskers. Three a side, angled so they fan rather than run parallel. -->
+  <g stroke="#2b1d12" stroke-width="3.5" stroke-linecap="round" opacity="0.7">
+    <line x1="96" y1="166" x2="44" y2="156"/>
+    <line x1="96" y1="176" x2="40" y2="176"/>
+    <line x1="96" y1="186" x2="44" y2="196"/>
+    <line x1="160" y1="166" x2="212" y2="156"/>
+    <line x1="160" y1="176" x2="216" y2="176"/>
+    <line x1="160" y1="186" x2="212" y2="196"/>
+  </g>
+</svg>

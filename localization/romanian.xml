@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Romanian (Română).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="Română" english="Romanian" filename="romanian.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="Fișier"/>
+                <Item id="Edit" name="Editare"/>
+                <Item id="Search" name="Căutare"/>
+                <Item id="View" name="Vizualizare"/>
+                <Item id="Encoding" name="Codificare"/>
+                <Item id="Language" name="Limbă"/>
+                <Item id="Settings" name="Setări"/>
+                <Item id="Tools" name="Instrumente"/>
+                <Item id="Macro" name="Macro"/>
+                <Item id="Run" name="Rulare"/>
+                <Item id="Plugins" name="Module"/>
+                <Item id="Window" name="Fereastră"/>
+                <Item id="Help" name="Ajutor"/>
+                <Item id="New" name="Nou"/>
+                <Item id="Open..." name="Deschide..."/>
+                <Item id="Save" name="Salvează"/>
+                <Item id="Save As..." name="Salvează ca..."/>
+                <Item id="Save All" name="Salvează tot"/>
+                <Item id="Close" name="Închide"/>
+                <Item id="Close All" name="Închide tot"/>
+                <Item id="Close All to the Left" name="Închide tot la stânga"/>
+                <Item id="Close All to the Right" name="Închide tot la dreapta"/>
+                <Item id="Reload from Disk" name="Reîncarcă de pe disc"/>
+                <Item id="Load Session..." name="Încarcă sesiunea..."/>
+                <Item id="Save Session..." name="Salvează sesiunea..."/>
+                <Item id="Move to Recycle Bin" name="Mută în coș"/>
+                <Item id="Print..." name="Tipărește..."/>
+                <Item id="Print Now" name="Tipărește acum"/>
+                <Item id="Exit" name="Ieșire"/>
+                <Item id="Undo" name="Anulează"/>
+                <Item id="Redo" name="Refa"/>
+                <Item id="Cut" name="Decupează"/>
+                <Item id="Copy" name="Copiază"/>
+                <Item id="Paste" name="Lipește"/>
+                <Item id="Delete" name="Șterge"/>
+                <Item id="Select All" name="Selectează tot"/>
+                <Item id="Duplicate Current Line" name="Duplică linia curentă"/>
+                <Item id="Join Lines" name="Unește liniile"/>
+                <Item id="Split Lines" name="Desparte liniile"/>
+                <Item id="Move Up Current Line" name="Mută linia în sus"/>
+                <Item id="Move Down Current Line" name="Mută linia în jos"/>
+                <Item id="Insert Blank Line Above Current" name="Inserează linie goală deasupra"/>
+                <Item id="Insert Blank Line Below Current" name="Inserează linie goală dedesubt"/>
+                <Item id="Toggle Single Line Comment" name="Comută comentariul de linie"/>
+                <Item id="Single Line Comment" name="Comentează linia"/>
+                <Item id="Block Comment" name="Comentează blocul"/>
+                <Item id="UPPERCASE" name="MAJUSCULE"/>
+                <Item id="lowercase" name="minuscule"/>
+                <Item id="Proper Case" name="Inițiale majuscule"/>
+                <Item id="Sentence case" name="Ca la început de frază"/>
+                <Item id="Increase Line Indent" name="Mărește indentarea"/>
+                <Item id="Decrease Line Indent" name="Micșorează indentarea"/>
+                <Item id="Find..." name="Caută..."/>
+                <Item id="Find Next" name="Caută următorul"/>
+                <Item id="Find Previous" name="Caută anteriorul"/>
+                <Item id="Replace..." name="Înlocuiește..."/>
+                <Item id="Find in Files..." name="Caută în fișiere..."/>
+                <Item id="Incremental Search" name="Căutare incrementală"/>
+                <Item id="Go to..." name="Mergi la..."/>
+                <Item id="Select and Find Next" name="Selectează și caută următorul"/>
+                <Item id="Select and Find Previous" name="Selectează și caută anteriorul"/>
+                <Item id="Mark..." name="Marchează..."/>
+                <Item id="Toggle Bookmark" name="Comută semnul de carte"/>
+                <Item id="Next Bookmark" name="Semnul următor"/>
+                <Item id="Previous Bookmark" name="Semnul anterior"/>
+                <Item id="Clear All Bookmarks" name="Șterge toate semnele"/>
+                <Item id="Search Results Window" name="Fereastra rezultatelor"/>
+                <Item id="Word wrap" name="Trecere la rând"/>
+                <Item id="Show All Characters" name="Afișează toate caracterele"/>
+                <Item id="Show Indent Guide" name="Afișează ghidul de indentare"/>
+                <Item id="Show Wrap Symbol" name="Afișează simbolul de trecere"/>
+                <Item id="Show End of Line" name="Afișează sfârșitul rândului"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="Mărește (Ctrl+rotiță sus)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="Micșorează (Ctrl+rotiță jos)"/>
+                <Item id="Restore Default Zoom" name="Restabilește zoomul"/>
+                <Item id="Toggle Full Screen Mode" name="Comută ecranul complet"/>
+                <Item id="Distraction Free Mode" name="Mod fără distrageri"/>
+                <Item id="Function List" name="Lista funcțiilor"/>
+                <Item id="Document List" name="Lista documentelor"/>
+                <Item id="Folder as Workspace" name="Folder ca spațiu de lucru"/>
+                <Item id="Summary..." name="Rezumat..."/>
+                <Item id="Monitoring (tail -f)" name="Monitorizare (tail -f)"/>
+                <Item id="Always on Top" name="Întotdeauna deasupra"/>
+                <Item id="Move to Other View" name="Mută în cealaltă vizualizare"/>
+                <Item id="Clone to Other View" name="Clonează în cealaltă vizualizare"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="Preferințe..."/>
+                <Item id="Style Configurator..." name="Configurator de stil..."/>
+                <Item id="Import style theme(s)..." name="Importă teme de stil..."/>
+                <Item id="Import Notepad++ Config..." name="Importă configurația Notepad++..."/>
+                <Item id="Export Shortcuts..." name="Exportă scurtăturile..."/>
+                <Item id="User-Defined" name="Definit de utilizator"/>
+                <Item id="Define your language..." name="Definiți limba dvs...."/>
+                <Item id="None (Normal Text)" name="Niciunul (text normal)"/>
+                <Item id="Start Recording" name="Începe înregistrarea"/>
+                <Item id="Stop Recording" name="Oprește înregistrarea"/>
+                <Item id="Playback" name="Redă"/>
+                <Item id="Run a Macro Multiple Times..." name="Rulează o macrocomandă de mai multe ori..."/>
+                <Item id="Run..." name="Rulează..."/>
+                <Item id="Search on Internet" name="Caută pe Internet"/>
+                <Item id="Open in Default Viewer" name="Deschide în vizualizatorul implicit"/>
+                <Item id="Windows..." name="Ferestre..."/>
+                <Item id="First Tab" name="Prima filă"/>
+                <Item id="Next Tab" name="Fila următoare"/>
+                <Item id="Previous Tab" name="Fila anterioară"/>
+                <Item id="Last Tab" name="Ultima filă"/>
+                <Item id="No Plugins Installed" name="Nu sunt instalate module"/>
+                <Item id="About Neko++" name="Despre Neko++"/>
+                <Item id="Neko++ Home" name="Pagina Neko++"/>
+                <Item id="Debug Info..." name="Informații de depanare..."/>
+                <Item id="Command Line Arguments..." name="Argumentele liniei de comandă..."/>
+                <Item id="(none installed)" name="(nimic instalat)"/>
+                <Item id="1st Style" name="al 1-lea stil"/>
+                <Item id="1st Tab" name="a 1-a filă"/>
+                <Item id="2nd Style" name="al 2-lea stil"/>
+                <Item id="2nd Tab" name="a 2-a filă"/>
+                <Item id="3rd Style" name="al 3-lea stil"/>
+                <Item id="3rd Tab" name="a 3-a filă"/>
+                <Item id="4th Style" name="al 4-lea stil"/>
+                <Item id="4th Tab" name="a 4-a filă"/>
+                <Item id="5th Style" name="al 5-lea stil"/>
+                <Item id="5th Tab" name="a 5-a filă"/>
+                <Item id="6th Tab" name="a 6-a filă"/>
+                <Item id="7th Tab" name="a 7-a filă"/>
+                <Item id="8th Tab" name="a 8-a filă"/>
+                <Item id="9th Tab" name="a 9-a filă"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="Toate stilurile"/>
+                <Item id="Apply Color 1" name="Aplică culoarea 1"/>
+                <Item id="Apply Color 2" name="Aplică culoarea 2"/>
+                <Item id="Apply Color 3" name="Aplică culoarea 3"/>
+                <Item id="Apply Color 4" name="Aplică culoarea 4"/>
+                <Item id="Apply Color 5" name="Aplică culoarea 5"/>
+                <Item id="Arabic" name="Arabă"/>
+                <Item id="Auto-Completion" name="Completare automată"/>
+                <Item id="Baltic" name="Baltică"/>
+                <Item id="Begin/End Select" name="Începe/încheie selecția"/>
+                <Item id="Begin/End Select in Column Mode" name="Începe/încheie selecția în modul coloană"/>
+                <Item id="Blank Operations" name="Operații cu spații"/>
+                <Item id="Block Uncomment" name="Anulează comentariul de bloc"/>
+                <Item id="Bookmark" name="Semn de carte"/>
+                <Item id="Celtic" name="Celtică"/>
+                <Item id="Central European" name="Europa Centrală"/>
+                <Item id="Change History" name="Istoric modificări"/>
+                <Item id="Change Search Engine..." name="Schimbă motorul de căutare..."/>
+                <Item id="Character Panel" name="Panou caractere"/>
+                <Item id="Character sets" name="Seturi de caractere"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="Șterge al 1-lea stil"/>
+                <Item id="Clear 2nd Style" name="Șterge al 2-lea stil"/>
+                <Item id="Clear 3rd Style" name="Șterge al 3-lea stil"/>
+                <Item id="Clear 4th Style" name="Șterge al 4-lea stil"/>
+                <Item id="Clear 5th Style" name="Șterge al 5-lea stil"/>
+                <Item id="Clear Change History" name="Șterge istoricul modificărilor"/>
+                <Item id="Clear Read-Only for All Documents" name="Anulează doar citire pentru toate documentele"/>
+                <Item id="Clear Style" name="Șterge stilul"/>
+                <Item id="Clear all Styles" name="Șterge toate stilurile"/>
+                <Item id="Clipboard History" name="Istoric clipboard"/>
+                <Item id="Close All Unchanged" name="Închide toate fișierele nemodificate"/>
+                <Item id="Close All but Active Document" name="Închide toate, cu excepția documentului activ"/>
+                <Item id="Close All but Pinned Documents" name="Închide toate, cu excepția documentelor fixate"/>
+                <Item id="Close Multiple Documents" name="Închide mai multe documente"/>
+                <Item id="Column Editor..." name="Editor de coloane..."/>
+                <Item id="Column Mode..." name="Mod coloană..."/>
+                <Item id="Comment/Uncomment" name="Comentează/anulează comentariul"/>
+                <Item id="Content Length Ascending" name="Lungimea conținutului crescător"/>
+                <Item id="Content Length Descending" name="Lungimea conținutului descrescător"/>
+                <Item id="Convert Case to" name="Convertește majuscule/minuscule în"/>
+                <Item id="Convert to ANSI" name="Convertește în ANSI"/>
+                <Item id="Convert to UTF-16 BE BOM" name="Convertește în UTF-16 BE BOM"/>
+                <Item id="Convert to UTF-16 LE BOM" name="Convertește în UTF-16 LE BOM"/>
+                <Item id="Convert to UTF-8" name="Convertește în UTF-8"/>
+                <Item id="Convert to UTF-8-BOM" name="Convertește în UTF-8-BOM"/>
+                <Item id="Copy All File Paths" name="Copiază toate căile fișierelor"/>
+                <Item id="Copy All Filenames" name="Copiază toate numele de fișiere"/>
+                <Item id="Copy Bookmarked Lines" name="Copiază liniile cu semn de carte"/>
+                <Item id="Copy Current Dir. Path" name="Copiază calea folderului curent"/>
+                <Item id="Copy Current Filename" name="Copiază numele fișierului curent"/>
+                <Item id="Copy Current Full File path" name="Copiază calea completă a fișierului curent"/>
+                <Item id="Copy Styled Text" name="Copiază textul cu stil"/>
+                <Item id="Copy to Clipboard" name="Copiază în clipboard"/>
+                <Item id="Cut Bookmarked Lines" name="Decupează liniile cu semn de carte"/>
+                <Item id="Cyrillic" name="Chirilică"/>
+                <Item id="Dark" name="Întunecată"/>
+                <Item id="Date Time (customized)" name="Data și ora (personalizat)"/>
+                <Item id="Date Time (long)" name="Data și ora (lung)"/>
+                <Item id="Date Time (short)" name="Data și ora (scurt)"/>
+                <Item id="Document Map" name="Hartă document"/>
+                <Item id="EOL Conversion" name="Conversie sfârșit de rând"/>
+                <Item id="EOL to Space" name="Sfârșit de rând în spațiu"/>
+                <Item id="Eastern European" name="Europa de Est"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="Editează meniul contextual popup"/>
+                <Item id="Explorer" name="Explorer"/>
+                <Item id="Find (Volatile) Next" name="Caută (volatil) următorul"/>
+                <Item id="Find (Volatile) Previous" name="Caută (volatil) anteriorul"/>
+                <Item id="Find Mark Style" name="Stil marcaj de căutare"/>
+                <Item id="Find characters in range..." name="Caută caractere în interval..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="Focalizează pe cealaltă vizualizare"/>
+                <Item id="Fold All" name="Pliază tot"/>
+                <Item id="Fold Current Level" name="Pliază nivelul curent"/>
+                <Item id="Fold Level" name="Pliază după nivel"/>
+                <Item id="Function Completion" name="Completare funcții"/>
+                <Item id="Function Parameters Hint" name="Sugestie parametri funcție"/>
+                <Item id="Function Parameters Next Hint" name="Sugestie următoare parametri funcție"/>
+                <Item id="Function Parameters Previous Hint" name="Sugestie anterioară parametri funcție"/>
+                <Item id="Generate from files..." name="Generează din fișiere..."/>
+                <Item id="Generate from selection into clipboard" name="Generează din selecție în clipboard"/>
+                <Item id="Generate..." name="Generează..."/>
+                <Item id="Go to Matching Brace" name="Mergi la acolada pereche"/>
+                <Item id="Go to Next Change" name="Mergi la modificarea următoare"/>
+                <Item id="Go to Previous Change" name="Mergi la modificarea anterioară"/>
+                <Item id="Greek" name="Greacă"/>
+                <Item id="Hebrew" name="Ebraică"/>
+                <Item id="Hide Lines" name="Ascunde liniile"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="Ignoră majusculele/minusculele și cuvântul întreg"/>
+                <Item id="Import" name="Importă"/>
+                <Item id="Import plugin(s)..." name="Importă modul(e)..."/>
+                <Item id="Indent" name="Indentează"/>
+                <Item id="Insert" name="Inserează"/>
+                <Item id="Inverse Bookmarks" name="Inversează semnele de carte"/>
+                <Item id="Jump Down" name="Sari în jos"/>
+                <Item id="Jump Up" name="Sari în sus"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="Luminoasă"/>
+                <Item id="Line Operations" name="Operații cu linii"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="Potrivește majusculele/minusculele și cuvântul întreg"/>
+                <Item id="Match Case Only" name="Doar majuscule/minuscule"/>
+                <Item id="Match Whole Word Only" name="Doar cuvânt întreg"/>
+                <Item id="Modified Time Ascending" name="Ora modificării crescător"/>
+                <Item id="Modified Time Descending" name="Ora modificării descrescător"/>
+                <Item id="Move Tab Backward" name="Mută fila înapoi"/>
+                <Item id="Move Tab Forward" name="Mută fila înainte"/>
+                <Item id="Move to End" name="Mută la sfârșit"/>
+                <Item id="Move to New Instance" name="Mută într-o instanță nouă"/>
+                <Item id="Move to Start" name="Mută la început"/>
+                <Item id="Move/Clone Current Document" name="Mută/clonează documentul curent"/>
+                <Item id="Multi-select All" name="Adaugă tot la selecția multiplă"/>
+                <Item id="Multi-select Next" name="Adaugă următorul la selecția multiplă"/>
+                <Item id="Name A to Z" name="Nume de la A la Z"/>
+                <Item id="Name Z to A" name="Nume de la Z la A"/>
+                <Item id="Neko++ Community (Forum)" name="Comunitatea Neko++ (forum)"/>
+                <Item id="Neko++ Online User Manual" name="Manualul de utilizare online Neko++"/>
+                <Item id="Neko++ Project Page" name="Pagina proiectului Neko++"/>
+                <Item id="Next Search Result" name="Rezultatul următor al căutării"/>
+                <Item id="North European" name="Europa de Nord"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Colecția de limbi definite de utilizator Notepad++"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : Portugheză"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : Islandeză"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : Franceză"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : Nordică"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="Pe selecție"/>
+                <Item id="Open Containing Folder" name="Deschide folderul care conține"/>
+                <Item id="Open Containing Folder in Explorer" name="Deschide folderul care conține în Explorer"/>
+                <Item id="Open File" name="Deschide fișier"/>
+                <Item id="Open Folder as Workspace..." name="Deschide folder ca spațiu de lucru..."/>
+                <Item id="Open Plugins Folder..." name="Deschide folderul modulelor..."/>
+                <Item id="Open Shortcut Mapper..." name="Deschide maparea scurtăturilor..."/>
+                <Item id="Open User Defined Language folder..." name="Deschide folderul limbilor definite de utilizator..."/>
+                <Item id="Open in New Instance" name="Deschide într-o instanță nouă"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="Lipește în liniile cu semn de carte (înlocuiește)"/>
+                <Item id="Path A to Z" name="Cale de la A la Z"/>
+                <Item id="Path Completion" name="Completare căi"/>
+                <Item id="Path Z to A" name="Cale de la Z la A"/>
+                <Item id="Post-It" name="Post-It"/>
+                <Item id="Previous Search Result" name="Rezultatul anterior al căutării"/>
+                <Item id="Project Panel 1" name="Panoul de proiect 1"/>
+                <Item id="Project Panel 2" name="Panoul de proiect 2"/>
+                <Item id="Project Panel 3" name="Panoul de proiect 3"/>
+                <Item id="Project Panels" name="Panouri de proiect"/>
+                <Item id="Proper Case (blend)" name="Inițiale majuscule (combinat)"/>
+                <Item id="Randomize Line Order" name="Randomizează ordinea liniilor"/>
+                <Item id="Read-Only for All Documents" name="Doar citire pentru toate documentele"/>
+                <Item id="Read-Only in Neko++" name="Doar citire în Neko++"/>
+                <Item id="Read-Only on Current Document" name="Doar citire pentru documentul curent"/>
+                <Item id="Recent Window" name="Fereastră recentă"/>
+                <Item id="Redact Selection" name="Censurează selecția"/>
+                <Item id="Remove Bookmarked Lines" name="Elimină liniile cu semn de carte"/>
+                <Item id="Remove Color" name="Elimină culoarea"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="Elimină liniile duplicate consecutive"/>
+                <Item id="Remove Duplicate Lines" name="Elimină liniile duplicate"/>
+                <Item id="Remove Empty Lines" name="Elimină liniile goale"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="Elimină liniile goale (care conțin caractere spațiu)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="Elimină liniile fără semn de carte"/>
+                <Item id="Rename..." name="Redenumește..."/>
+                <Item id="Reverse Line Order" name="Inversează ordinea liniilor"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="Salvează macrocomanda înregistrată curentă..."/>
+                <Item id="Save a Copy As..." name="Salvează o copie ca..."/>
+                <Item id="Select All In-between {} [] or ()" name="Selectează tot între {} [] sau ()"/>
+                <Item id="Sentence case (blend)" name="Ca la început de frază (combinat)"/>
+                <Item id="Shortcut Mapper" name="Maparea scurtăturilor"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="Afișează caracterele de control și sfârșitul de rând Unicode"/>
+                <Item id="Show Non-Printing Characters" name="Afișează caracterele neimprimabile"/>
+                <Item id="Show Space and Tab" name="Afișează spațiul și tabul"/>
+                <Item id="Show Symbol" name="Afișează simbolul"/>
+                <Item id="Single Line Uncomment" name="Anulează comentariul de linie"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="Sari peste cel curent și treci la următoarea selecție multiplă"/>
+                <Item id="Sort By" name="Sortează după"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="Sortează liniile ca zecimale (virgulă) crescător"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="Sortează liniile ca zecimale (virgulă) descrescător"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="Sortează liniile ca zecimale (punct) crescător"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="Sortează liniile ca zecimale (punct) descrescător"/>
+                <Item id="Sort Lines As Integers Ascending" name="Sortează liniile ca numere întregi crescător"/>
+                <Item id="Sort Lines As Integers Descending" name="Sortează liniile ca numere întregi descrescător"/>
+                <Item id="Sort Lines By Length Ascending" name="Sortează liniile după lungime crescător"/>
+                <Item id="Sort Lines By Length Descending" name="Sortează liniile după lungime descrescător"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="Sortează liniile în ordinea locală crescător"/>
+                <Item id="Sort Lines In Locale Order Descending" name="Sortează liniile în ordinea locală descrescător"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="Sortează liniile lexic crescător ignorând majusculele/minusculele"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="Sortează liniile lexic descrescător ignorând majusculele/minusculele"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="Sortează liniile lexicografic crescător"/>
+                <Item id="Sort Lines Lexicographically Descending" name="Sortează liniile lexicografic descrescător"/>
+                <Item id="Space to TAB (All)" name="Spațiu în TAB (toate)"/>
+                <Item id="Space to TAB (Leading)" name="Spațiu în TAB (inițiale)"/>
+                <Item id="Style All Occurrences of Token" name="Aplică stil tuturor aparițiilor tokenului"/>
+                <Item id="Style One Token" name="Aplică stil unui token"/>
+                <Item id="Synchronize Across Views" name="Sincronizează între vizualizări"/>
+                <Item id="Synchronize Horizontal Scrolling" name="Sincronizează derularea orizontală"/>
+                <Item id="Synchronize Vertical Scrolling" name="Sincronizează derularea verticală"/>
+                <Item id="System" name="Sistem"/>
+                <Item id="TAB to Space" name="TAB în spațiu"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="Tabulator"/>
+                <Item id="Thai" name="Thailandeză"/>
+                <Item id="Theme" name="Temă"/>
+                <Item id="Trim Leading Space" name="Elimină spațiile inițiale"/>
+                <Item id="Trim Leading and Trailing Space" name="Elimină spațiile inițiale și finale"/>
+                <Item id="Trim Trailing Space" name="Elimină spațiile finale"/>
+                <Item id="Trim both and EOL to Space" name="Elimină spațiile inițiale și finale și transformă sfârșitul de rând în spațiu"/>
+                <Item id="Turkish" name="Turcă"/>
+                <Item id="Type A to Z" name="Tip de la A la Z"/>
+                <Item id="Type Z to A" name="Tip de la Z la A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="Anulează ultima selecție multiplă adăugată"/>
+                <Item id="Unfold All" name="Depliază tot"/>
+                <Item id="Unfold Current Level" name="Depliază nivelul curent"/>
+                <Item id="Unfold Level" name="Depliază după nivel"/>
+                <Item id="User Defined Language" name="Limbă definită de utilizator"/>
+                <Item id="Validate shortcuts.xml" name="Validează shortcuts.xml"/>
+                <Item id="Vietnamese" name="Vietnameză"/>
+                <Item id="View Current File in" name="Vezi fișierul curent în"/>
+                <Item id="Western European" name="Europa de Vest"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="Completare cuvinte"/>
+                <Item id="Zoom" name="Mărire"/>
+                <Item id="On" name="Activat"/>
+                <Item id="Hash file:" name="Amprenta fișierului:"/>
+                <Item id="Toolbar" name="Bară de instrumente"/>
+                <Item id="Find" name="Caută"/>
+                <Item id="Find in files:" name="Caută în fișiere:"/>
+                <Item id="Find in projects:" name="Caută în proiecte:"/>
+                <Item id="Find:" name="Caută:"/>
+                <Item id="Volatile Find" name="Căutare volatilă"/>
+                <Item id="Character code:" name="Cod de caractere:"/>
+                <Item id="Col:" name="Coloană:"/>
+                <Item id="Backup on Save" name="Copie de rezervă la salvare"/>
+                <Item id="Open" name="Deschide"/>
+                <Item id="Open:" name="Deschide:"/>
+                <Item id="Split on:" name="Desparte după:"/>
+                <Item id="Verbose" name="Detaliat"/>
+                <Item id="Off" name="Dezactivat"/>
+                <Item id="File Dialog" name="Dialog de fișiere"/>
+                <Item id="System dialog" name="Dialog de sistem"/>
+                <Item id="Edit..." name="Editează..."/>
+                <Item id="Export to:" name="Exportă în:"/>
+                <Item id="bad regex" name="expresie regulată nevalidă"/>
+                <Item id="Folder:" name="Folder:"/>
+                <Item id="Date time format:" name="Format dată și oră:"/>
+                <Item id="Import from:" name="Importă din:"/>
+                <Item id="Import plugin from:" name="Importă modul din:"/>
+                <Item id="Import theme from:" name="Importă tema din:"/>
+                <Item id="Load session:" name="Încarcă sesiunea:"/>
+                <Item id="Replace" name="Înlocuiește"/>
+                <Item id="Replace:" name="Înlocuiește:"/>
+                <Item id="Insert at column:" name="Inserează la coloana:"/>
+                <Item id="Tab Width" name="Lățimea tabulatorului"/>
+                <Item id="lines:" name="linii:"/>
+                <Item id="length:" name="lungime:"/>
+                <Item id="LARGE" name="MARE"/>
+                <Item id="Zoom In" name="Mărește"/>
+                <Item id="Font Size" name="Mărimea caracterelor"/>
+                <Item id="Go to line:" name="Mergi la linia:"/>
+                <Item id="Zoom Out" name="Micșorează"/>
+                <Item id="Minimap" name="Minihartă"/>
+                <Item id="Built-in browser" name="Navigator încorporat"/>
+                <Item id="no match" name="nicio potrivire"/>
+                <Item id="None" name="Niciunul"/>
+                <Item id="Play macro times:" name="Număr de redări ale macrocomenzii:"/>
+                <Item id="Preferences" name="Preferințe"/>
+                <Item id="Ln:" name="Rând:"/>
+                <Item id="REC" name="REC"/>
+                <Item id="Rename to:" name="Redenumește în:"/>
+                <Item id="Run Multiple Macros" name="Rulează mai multe macrocomenzi"/>
+                <Item id="Run:" name="Rulează:"/>
+                <Item id="Autosave" name="Salvare automată"/>
+                <Item id="Save as:" name="Salvează ca:"/>
+                <Item id="Save Current Macro" name="Salvează macrocomanda curentă"/>
+                <Item id="Save a copy as:" name="Salvează o copie ca:"/>
+                <Item id="Save session as:" name="Salvează sesiunea ca:"/>
+                <Item id="Shortcuts" name="Scurtături"/>
+                <Item id="Sel:" name="Selecție:"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Simple" name="Simplu"/>
+                <Item id="Sync Horizontal Scroll" name="Sincronizează derularea orizontală"/>
+                <Item id="Sync Vertical Scroll" name="Sincronizează derularea verticală"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="Sus/Jos  Stânga/Dreapta  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Sus/Jos  Stânga/Dreapta  Enter deschide  Esc închide"/>
+                <Item id="Print" name="Tipărește"/>
+                <Item id="A GPU-rendered text editor" name="Un editor de text randat cu GPU"/>
+                <Item id="Search URL:" name="URL de căutare:"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

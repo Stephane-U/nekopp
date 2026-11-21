@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Turkish (Türkçe).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="Türkçe" english="Turkish" filename="turkish.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="Dosya"/>
+                <Item id="Edit" name="Düzen"/>
+                <Item id="Search" name="Ara"/>
+                <Item id="View" name="Görünüm"/>
+                <Item id="Encoding" name="Kodlama"/>
+                <Item id="Language" name="Dil"/>
+                <Item id="Settings" name="Ayarlar"/>
+                <Item id="Tools" name="Araçlar"/>
+                <Item id="Macro" name="Makro"/>
+                <Item id="Run" name="Çalıştır"/>
+                <Item id="Plugins" name="Eklentiler"/>
+                <Item id="Window" name="Pencere"/>
+                <Item id="Help" name="Yardım"/>
+                <Item id="New" name="Yeni"/>
+                <Item id="Open..." name="Aç..."/>
+                <Item id="Save" name="Kaydet"/>
+                <Item id="Save As..." name="Farklı kaydet..."/>
+                <Item id="Save All" name="Tümünü kaydet"/>
+                <Item id="Close" name="Kapat"/>
+                <Item id="Close All" name="Tümünü kapat"/>
+                <Item id="Close All to the Left" name="Soldakileri kapat"/>
+                <Item id="Close All to the Right" name="Sağdakileri kapat"/>
+                <Item id="Reload from Disk" name="Diskten yeniden yükle"/>
+                <Item id="Load Session..." name="Oturumu yükle..."/>
+                <Item id="Save Session..." name="Oturumu kaydet..."/>
+                <Item id="Move to Recycle Bin" name="Geri dönüşüm kutusuna taşı"/>
+                <Item id="Print..." name="Yazdır..."/>
+                <Item id="Print Now" name="Şimdi yazdır"/>
+                <Item id="Exit" name="Çıkış"/>
+                <Item id="Undo" name="Geri al"/>
+                <Item id="Redo" name="Yinele"/>
+                <Item id="Cut" name="Kes"/>
+                <Item id="Copy" name="Kopyala"/>
+                <Item id="Paste" name="Yapıştır"/>
+                <Item id="Delete" name="Sil"/>
+                <Item id="Select All" name="Tümünü seç"/>
+                <Item id="Duplicate Current Line" name="Geçerli satırı çoğalt"/>
+                <Item id="Join Lines" name="Satırları birleştir"/>
+                <Item id="Split Lines" name="Satırları böl"/>
+                <Item id="Move Up Current Line" name="Satırı yukarı taşı"/>
+                <Item id="Move Down Current Line" name="Satırı aşağı taşı"/>
+                <Item id="Insert Blank Line Above Current" name="Üste boş satır ekle"/>
+                <Item id="Insert Blank Line Below Current" name="Alta boş satır ekle"/>
+                <Item id="Toggle Single Line Comment" name="Satır yorumunu değiştir"/>
+                <Item id="Single Line Comment" name="Satırı yorumla"/>
+                <Item id="Block Comment" name="Bloğu yorumla"/>
+                <Item id="UPPERCASE" name="BÜYÜK HARF"/>
+                <Item id="lowercase" name="küçük harf"/>
+                <Item id="Proper Case" name="Baş harfler büyük"/>
+                <Item id="Sentence case" name="Cümle başı büyük"/>
+                <Item id="Increase Line Indent" name="Girintiyi artır"/>
+                <Item id="Decrease Line Indent" name="Girintiyi azalt"/>
+                <Item id="Find..." name="Bul..."/>
+                <Item id="Find Next" name="Sonrakini bul"/>
+                <Item id="Find Previous" name="Öncekini bul"/>
+                <Item id="Replace..." name="Değiştir..."/>
+                <Item id="Find in Files..." name="Dosyalarda bul..."/>
+                <Item id="Incremental Search" name="Artımlı arama"/>
+                <Item id="Go to..." name="Git..."/>
+                <Item id="Select and Find Next" name="Seç ve sonrakini bul"/>
+                <Item id="Select and Find Previous" name="Seç ve öncekini bul"/>
+                <Item id="Mark..." name="İşaretle..."/>
+                <Item id="Toggle Bookmark" name="Yer imini değiştir"/>
+                <Item id="Next Bookmark" name="Sonraki yer imi"/>
+                <Item id="Previous Bookmark" name="Önceki yer imi"/>
+                <Item id="Clear All Bookmarks" name="Tüm yer imlerini temizle"/>
+                <Item id="Search Results Window" name="Arama sonuçları penceresi"/>
+                <Item id="Word wrap" name="Sözcük kaydırma"/>
+                <Item id="Show All Characters" name="Tüm karakterleri göster"/>
+                <Item id="Show Indent Guide" name="Girinti kılavuzunu göster"/>
+                <Item id="Show Wrap Symbol" name="Kaydırma simgesini göster"/>
+                <Item id="Show End of Line" name="Satır sonunu göster"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="Yakınlaştır (Ctrl+tekerlek yukarı)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="Uzaklaştır (Ctrl+tekerlek aşağı)"/>
+                <Item id="Restore Default Zoom" name="Varsayılan yakınlaştırmaya dön"/>
+                <Item id="Toggle Full Screen Mode" name="Tam ekranı değiştir"/>
+                <Item id="Distraction Free Mode" name="Dikkat dağıtmayan mod"/>
+                <Item id="Function List" name="İşlev listesi"/>
+                <Item id="Document List" name="Belge listesi"/>
+                <Item id="Folder as Workspace" name="Klasörü çalışma alanı yap"/>
+                <Item id="Summary..." name="Özet..."/>
+                <Item id="Monitoring (tail -f)" name="İzleme (tail -f)"/>
+                <Item id="Always on Top" name="Her zaman üstte"/>
+                <Item id="Move to Other View" name="Diğer görünüme taşı"/>
+                <Item id="Clone to Other View" name="Diğer görünüme kopyala"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="Tercihler..."/>
+                <Item id="Style Configurator..." name="Stil yapılandırıcısı..."/>
+                <Item id="Import style theme(s)..." name="Stil temalarını içe aktar..."/>
+                <Item id="Import Notepad++ Config..." name="Notepad++ yapılandırmasını içe aktar..."/>
+                <Item id="Export Shortcuts..." name="Kısayolları dışa aktar..."/>
+                <Item id="User-Defined" name="Kullanıcı tanımlı"/>
+                <Item id="Define your language..." name="Kendi dilinizi tanımlayın..."/>
+                <Item id="None (Normal Text)" name="Yok (normal metin)"/>
+                <Item id="Start Recording" name="Kaydı başlat"/>
+                <Item id="Stop Recording" name="Kaydı durdur"/>
+                <Item id="Playback" name="Oynat"/>
+                <Item id="Run a Macro Multiple Times..." name="Makroyu birkaç kez çalıştır..."/>
+                <Item id="Run..." name="Çalıştır..."/>
+                <Item id="Search on Internet" name="İnternette ara"/>
+                <Item id="Open in Default Viewer" name="Varsayılan görüntüleyicide aç"/>
+                <Item id="Windows..." name="Pencereler..."/>
+                <Item id="First Tab" name="İlk sekme"/>
+                <Item id="Next Tab" name="Sonraki sekme"/>
+                <Item id="Previous Tab" name="Önceki sekme"/>
+                <Item id="Last Tab" name="Son sekme"/>
+                <Item id="No Plugins Installed" name="Eklenti yüklü değil"/>
+                <Item id="About Neko++" name="Neko++ hakkında"/>
+                <Item id="Neko++ Home" name="Neko++ ana sayfa"/>
+                <Item id="Debug Info..." name="Hata ayıklama bilgisi..."/>
+                <Item id="Command Line Arguments..." name="Komut satırı bağımsız değişkenleri..."/>
+                <Item id="(none installed)" name="(yüklü değil)"/>
+                <Item id="1st Style" name="1. stil"/>
+                <Item id="1st Tab" name="1. sekme"/>
+                <Item id="2nd Style" name="2. stil"/>
+                <Item id="2nd Tab" name="2. sekme"/>
+                <Item id="3rd Style" name="3. stil"/>
+                <Item id="3rd Tab" name="3. sekme"/>
+                <Item id="4th Style" name="4. stil"/>
+                <Item id="4th Tab" name="4. sekme"/>
+                <Item id="5th Style" name="5. stil"/>
+                <Item id="5th Tab" name="5. sekme"/>
+                <Item id="6th Tab" name="6. sekme"/>
+                <Item id="7th Tab" name="7. sekme"/>
+                <Item id="8th Tab" name="8. sekme"/>
+                <Item id="9th Tab" name="9. sekme"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="Tüm stiller"/>
+                <Item id="Apply Color 1" name="Renk 1'i uygula"/>
+                <Item id="Apply Color 2" name="Renk 2'yi uygula"/>
+                <Item id="Apply Color 3" name="Renk 3'ü uygula"/>
+                <Item id="Apply Color 4" name="Renk 4'ü uygula"/>
+                <Item id="Apply Color 5" name="Renk 5'i uygula"/>
+                <Item id="Arabic" name="Arapça"/>
+                <Item id="Auto-Completion" name="Otomatik tamamlama"/>
+                <Item id="Baltic" name="Baltık"/>
+                <Item id="Begin/End Select" name="Seçimi başlat/bitir"/>
+                <Item id="Begin/End Select in Column Mode" name="Sütun modunda seçimi başlat/bitir"/>
+                <Item id="Blank Operations" name="Boşluk işlemleri"/>
+                <Item id="Block Uncomment" name="Blok yorumunu kaldır"/>
+                <Item id="Bookmark" name="Yer imi"/>
+                <Item id="Celtic" name="Kelt"/>
+                <Item id="Central European" name="Orta Avrupa"/>
+                <Item id="Change History" name="Değişiklik geçmişi"/>
+                <Item id="Change Search Engine..." name="Arama motorunu değiştir..."/>
+                <Item id="Character Panel" name="Karakter paneli"/>
+                <Item id="Character sets" name="Karakter kümeleri"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="1. stili temizle"/>
+                <Item id="Clear 2nd Style" name="2. stili temizle"/>
+                <Item id="Clear 3rd Style" name="3. stili temizle"/>
+                <Item id="Clear 4th Style" name="4. stili temizle"/>
+                <Item id="Clear 5th Style" name="5. stili temizle"/>
+                <Item id="Clear Change History" name="Değişiklik geçmişini temizle"/>
+                <Item id="Clear Read-Only for All Documents" name="Tüm belgelerin salt okunur ayarını kaldır"/>
+                <Item id="Clear Style" name="Stili temizle"/>
+                <Item id="Clear all Styles" name="Tüm stilleri temizle"/>
+                <Item id="Clipboard History" name="Pano geçmişi"/>
+                <Item id="Close All Unchanged" name="Değişmeyen tüm belgeleri kapat"/>
+                <Item id="Close All but Active Document" name="Etkin belge dışındakileri kapat"/>
+                <Item id="Close All but Pinned Documents" name="Sabitlenmiş belgeler dışındakileri kapat"/>
+                <Item id="Close Multiple Documents" name="Birden çok belgeyi kapat"/>
+                <Item id="Column Editor..." name="Sütun düzenleyici..."/>
+                <Item id="Column Mode..." name="Sütun modu..."/>
+                <Item id="Comment/Uncomment" name="Yorumla/yorumu kaldır"/>
+                <Item id="Content Length Ascending" name="İçerik uzunluğu artan"/>
+                <Item id="Content Length Descending" name="İçerik uzunluğu azalan"/>
+                <Item id="Convert Case to" name="Harf durumuna dönüştür"/>
+                <Item id="Convert to ANSI" name="ANSI'ye dönüştür"/>
+                <Item id="Convert to UTF-16 BE BOM" name="UTF-16 BE BOM'a dönüştür"/>
+                <Item id="Convert to UTF-16 LE BOM" name="UTF-16 LE BOM'a dönüştür"/>
+                <Item id="Convert to UTF-8" name="UTF-8'e dönüştür"/>
+                <Item id="Convert to UTF-8-BOM" name="UTF-8-BOM'a dönüştür"/>
+                <Item id="Copy All File Paths" name="Tüm dosya yollarını kopyala"/>
+                <Item id="Copy All Filenames" name="Tüm dosya adlarını kopyala"/>
+                <Item id="Copy Bookmarked Lines" name="Yer imli satırları kopyala"/>
+                <Item id="Copy Current Dir. Path" name="Geçerli dizin yolunu kopyala"/>
+                <Item id="Copy Current Filename" name="Geçerli dosya adını kopyala"/>
+                <Item id="Copy Current Full File path" name="Geçerli tam dosya yolunu kopyala"/>
+                <Item id="Copy Styled Text" name="Biçimlendirilmiş metni kopyala"/>
+                <Item id="Copy to Clipboard" name="Panoya kopyala"/>
+                <Item id="Cut Bookmarked Lines" name="Yer imli satırları kes"/>
+                <Item id="Cyrillic" name="Kiril"/>
+                <Item id="Dark" name="Koyu"/>
+                <Item id="Date Time (customized)" name="Tarih saat (özelleştirilmiş)"/>
+                <Item id="Date Time (long)" name="Tarih saat (uzun)"/>
+                <Item id="Date Time (short)" name="Tarih saat (kısa)"/>
+                <Item id="Document Map" name="Belge haritası"/>
+                <Item id="EOL Conversion" name="Satır sonu dönüşümü"/>
+                <Item id="EOL to Space" name="Satır sonunu boşluğa çevir"/>
+                <Item id="Eastern European" name="Doğu Avrupa"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="Açılır bağlam menüsünü düzenle"/>
+                <Item id="Explorer" name="Gezgin"/>
+                <Item id="Find (Volatile) Next" name="Bul (geçici) sonraki"/>
+                <Item id="Find (Volatile) Previous" name="Bul (geçici) önceki"/>
+                <Item id="Find Mark Style" name="Bulma işareti stili"/>
+                <Item id="Find characters in range..." name="Aralıktaki karakterleri bul..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="Diğer görünüme odaklan"/>
+                <Item id="Fold All" name="Tümünü daralt"/>
+                <Item id="Fold Current Level" name="Geçerli düzeyi daralt"/>
+                <Item id="Fold Level" name="Daraltma düzeyi"/>
+                <Item id="Function Completion" name="İşlev tamamlama"/>
+                <Item id="Function Parameters Hint" name="İşlev parametreleri ipucu"/>
+                <Item id="Function Parameters Next Hint" name="Sonraki işlev parametreleri ipucu"/>
+                <Item id="Function Parameters Previous Hint" name="Önceki işlev parametreleri ipucu"/>
+                <Item id="Generate from files..." name="Dosyalardan oluştur..."/>
+                <Item id="Generate from selection into clipboard" name="Seçimden panoya oluştur"/>
+                <Item id="Generate..." name="Oluştur..."/>
+                <Item id="Go to Matching Brace" name="Eşleşen ayraca git"/>
+                <Item id="Go to Next Change" name="Sonraki değişikliğe git"/>
+                <Item id="Go to Previous Change" name="Önceki değişikliğe git"/>
+                <Item id="Greek" name="Yunanca"/>
+                <Item id="Hebrew" name="İbranice"/>
+                <Item id="Hide Lines" name="Satırları gizle"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="Büyük/küçük harfi ve tam sözcüğü yok say"/>
+                <Item id="Import" name="İçe aktar"/>
+                <Item id="Import plugin(s)..." name="Eklenti(ler)i içe aktar..."/>
+                <Item id="Indent" name="Girintile"/>
+                <Item id="Insert" name="Ekle"/>
+                <Item id="Inverse Bookmarks" name="Yer imlerini ters çevir"/>
+                <Item id="Jump Down" name="Aşağı atla"/>
+                <Item id="Jump Up" name="Yukarı atla"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="Açık"/>
+                <Item id="Line Operations" name="Satır işlemleri"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="Büyük/küçük harf ve tam sözcük eşleştir"/>
+                <Item id="Match Case Only" name="Yalnızca büyük/küçük harf eşleştir"/>
+                <Item id="Match Whole Word Only" name="Yalnızca tam sözcük eşleştir"/>
+                <Item id="Modified Time Ascending" name="Değiştirme zamanı artan"/>
+                <Item id="Modified Time Descending" name="Değiştirme zamanı azalan"/>
+                <Item id="Move Tab Backward" name="Sekmeyi geriye taşı"/>
+                <Item id="Move Tab Forward" name="Sekmeyi ileriye taşı"/>
+                <Item id="Move to End" name="Sona taşı"/>
+                <Item id="Move to New Instance" name="Yeni örneğe taşı"/>
+                <Item id="Move to Start" name="Başa taşı"/>
+                <Item id="Move/Clone Current Document" name="Geçerli belgeyi taşı/çoğalt"/>
+                <Item id="Multi-select All" name="Tümünü çoklu seç"/>
+                <Item id="Multi-select Next" name="Sonrakini çoklu seç"/>
+                <Item id="Name A to Z" name="Ad A'dan Z'ye"/>
+                <Item id="Name Z to A" name="Ad Z'den A'ya"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++ topluluğu (forum)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++ çevrimiçi kullanım kılavuzu"/>
+                <Item id="Neko++ Project Page" name="Neko++ proje sayfası"/>
+                <Item id="Next Search Result" name="Sonraki arama sonucu"/>
+                <Item id="North European" name="Kuzey Avrupa"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Notepad++ kullanıcı tanımlı diller koleksiyonu"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : Portekizce"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : İzlandaca"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : Fransızca"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : İskandinav"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="Seçim üzerinde"/>
+                <Item id="Open Containing Folder" name="İçeren klasörü aç"/>
+                <Item id="Open Containing Folder in Explorer" name="İçeren klasörü Gezgin'de aç"/>
+                <Item id="Open File" name="Dosya aç"/>
+                <Item id="Open Folder as Workspace..." name="Klasörü çalışma alanı olarak aç..."/>
+                <Item id="Open Plugins Folder..." name="Eklentiler klasörünü aç..."/>
+                <Item id="Open Shortcut Mapper..." name="Kısayol eşleyiciyi aç..."/>
+                <Item id="Open User Defined Language folder..." name="Kullanıcı tanımlı diller klasörünü aç..."/>
+                <Item id="Open in New Instance" name="Yeni örnekte aç"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="Yer imli satırlara (değiştir) yapıştır"/>
+                <Item id="Path A to Z" name="Yol A'dan Z'ye"/>
+                <Item id="Path Completion" name="Yol tamamlama"/>
+                <Item id="Path Z to A" name="Yol Z'den A'ya"/>
+                <Item id="Post-It" name="Post-It"/>
+                <Item id="Previous Search Result" name="Önceki arama sonucu"/>
+                <Item id="Project Panel 1" name="Proje paneli 1"/>
+                <Item id="Project Panel 2" name="Proje paneli 2"/>
+                <Item id="Project Panel 3" name="Proje paneli 3"/>
+                <Item id="Project Panels" name="Proje panelleri"/>
+                <Item id="Proper Case (blend)" name="Baş harfler büyük (blend)"/>
+                <Item id="Randomize Line Order" name="Satır sırasını rastgele yap"/>
+                <Item id="Read-Only for All Documents" name="Tüm belgeleri salt okunur yap"/>
+                <Item id="Read-Only in Neko++" name="Neko++ içinde salt okunur yap"/>
+                <Item id="Read-Only on Current Document" name="Geçerli belgeyi salt okunur yap"/>
+                <Item id="Recent Window" name="Son pencere"/>
+                <Item id="Redact Selection" name="Seçimi gizle"/>
+                <Item id="Remove Bookmarked Lines" name="Yer imli satırları kaldır"/>
+                <Item id="Remove Color" name="Rengi kaldır"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="Ardışık yinelenen satırları kaldır"/>
+                <Item id="Remove Duplicate Lines" name="Yinelenen satırları kaldır"/>
+                <Item id="Remove Empty Lines" name="Boş satırları kaldır"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="Boş satırları kaldır (boşluk karakteri içeren)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="Yer imi olmayan satırları kaldır"/>
+                <Item id="Rename..." name="Yeniden adlandır..."/>
+                <Item id="Reverse Line Order" name="Satır sırasını ters çevir"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="Geçerli kayıtlı makroyu kaydet..."/>
+                <Item id="Save a Copy As..." name="Kopyayı farklı kaydet..."/>
+                <Item id="Select All In-between {} [] or ()" name="{} [] veya () arasındakilerin tümünü seç"/>
+                <Item id="Sentence case (blend)" name="Cümle başı büyük (blend)"/>
+                <Item id="Shortcut Mapper" name="Kısayol eşleyici"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="Kontrol karakterlerini ve Unicode satır sonlarını göster"/>
+                <Item id="Show Non-Printing Characters" name="Yazdırılamayan karakterleri göster"/>
+                <Item id="Show Space and Tab" name="Boşluğu ve sekmeyi göster"/>
+                <Item id="Show Symbol" name="Simgeyi göster"/>
+                <Item id="Single Line Uncomment" name="Satır yorumunu kaldır"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="Geçerli seçimi atla ve sonraki çoklu seçime git"/>
+                <Item id="Sort By" name="Şuna göre sırala"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="Satırları ondalık olarak sırala (virgül) artan"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="Satırları ondalık olarak sırala (virgül) azalan"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="Satırları ondalık olarak sırala (nokta) artan"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="Satırları ondalık olarak sırala (nokta) azalan"/>
+                <Item id="Sort Lines As Integers Ascending" name="Satırları tam sayı olarak sırala artan"/>
+                <Item id="Sort Lines As Integers Descending" name="Satırları tam sayı olarak sırala azalan"/>
+                <Item id="Sort Lines By Length Ascending" name="Satırları uzunluğa göre sırala artan"/>
+                <Item id="Sort Lines By Length Descending" name="Satırları uzunluğa göre sırala azalan"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="Satırları yerel ayar sırasına göre sırala artan"/>
+                <Item id="Sort Lines In Locale Order Descending" name="Satırları yerel ayar sırasına göre sırala azalan"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="Satırları sözlük sırasına göre artan, harf duyarsız sırala"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="Satırları sözlük sırasına göre azalan, harf duyarsız sırala"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="Satırları sözlük sırasına göre artan sırala"/>
+                <Item id="Sort Lines Lexicographically Descending" name="Satırları sözlük sırasına göre azalan sırala"/>
+                <Item id="Space to TAB (All)" name="Boşluğu sekmeye çevir (tümü)"/>
+                <Item id="Space to TAB (Leading)" name="Boşluğu sekmeye çevir (baştaki)"/>
+                <Item id="Style All Occurrences of Token" name="Belirtecin tüm oluşumlarını biçimlendir"/>
+                <Item id="Style One Token" name="Tek belirteci biçimlendir"/>
+                <Item id="Synchronize Across Views" name="Görünümler arasında eşitle"/>
+                <Item id="Synchronize Horizontal Scrolling" name="Yatay kaydırmayı eşitle"/>
+                <Item id="Synchronize Vertical Scrolling" name="Dikey kaydırmayı eşitle"/>
+                <Item id="System" name="Sistem"/>
+                <Item id="TAB to Space" name="Sekmeyi boşluğa çevir"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="Sekme"/>
+                <Item id="Thai" name="Tayca"/>
+                <Item id="Theme" name="Tema"/>
+                <Item id="Trim Leading Space" name="Baştaki boşlukları kırp"/>
+                <Item id="Trim Leading and Trailing Space" name="Baştaki ve sondaki boşlukları kırp"/>
+                <Item id="Trim Trailing Space" name="Sondaki boşlukları kırp"/>
+                <Item id="Trim both and EOL to Space" name="Her ikisini kırp ve satır sonunu boşluğa çevir"/>
+                <Item id="Turkish" name="Türkçe"/>
+                <Item id="Type A to Z" name="Tür A'dan Z'ye"/>
+                <Item id="Type Z to A" name="Tür Z'den A'ya"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="Son eklenen çoklu seçimi geri al"/>
+                <Item id="Unfold All" name="Tümünü genişlet"/>
+                <Item id="Unfold Current Level" name="Geçerli düzeyi genişlet"/>
+                <Item id="Unfold Level" name="Genişletme düzeyi"/>
+                <Item id="User Defined Language" name="Kullanıcı tanımlı dil"/>
+                <Item id="Validate shortcuts.xml" name="shortcuts.xml dosyasını doğrula"/>
+                <Item id="Vietnamese" name="Vietnamca"/>
+                <Item id="View Current File in" name="Geçerli dosyayı şurada görüntüle"/>
+                <Item id="Western European" name="Batı Avrupa"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="Sözcük tamamlama"/>
+                <Item id="Zoom" name="Yakınlaştırma"/>
+                <Item id="Open" name="Aç"/>
+                <Item id="Open:" name="Aç:"/>
+                <Item id="On" name="Açık"/>
+                <Item id="Toolbar" name="Araç çubuğu"/>
+                <Item id="Search URL:" name="Arama URL'si:"/>
+                <Item id="Verbose" name="Ayrıntılı"/>
+                <Item id="Simple" name="Basit"/>
+                <Item id="Run Multiple Macros" name="Birden çok makro çalıştır"/>
+                <Item id="Find" name="Bul"/>
+                <Item id="Find:" name="Bul:"/>
+                <Item id="LARGE" name="BÜYÜK"/>
+                <Item id="Run:" name="Çalıştır:"/>
+                <Item id="Replace" name="Değiştir"/>
+                <Item id="Replace:" name="Değiştir:"/>
+                <Item id="Sync Vertical Scroll" name="Dikey kaydırmayı eşitle"/>
+                <Item id="File Dialog" name="Dosya iletişim kutusu"/>
+                <Item id="Hash file:" name="Dosya karması:"/>
+                <Item id="Find in files:" name="Dosyalarda bul:"/>
+                <Item id="Edit..." name="Düzenle..."/>
+                <Item id="Import plugin from:" name="Eklentiyi şuradan içe aktar:"/>
+                <Item id="no match" name="eşleşme yok"/>
+                <Item id="Save as:" name="Farklı kaydet:"/>
+                <Item id="Save Current Macro" name="Geçerli makroyu kaydet"/>
+                <Item id="bad regex" name="geçersiz düzenli ifade"/>
+                <Item id="Volatile Find" name="Geçici arama"/>
+                <Item id="A GPU-rendered text editor" name="GPU ile işlenen bir metin düzenleyici"/>
+                <Item id="Off" name="Kapalı"/>
+                <Item id="Character code:" name="Karakter kodu:"/>
+                <Item id="Backup on Save" name="Kaydederken yedekle"/>
+                <Item id="REC" name="KAYIT"/>
+                <Item id="Folder:" name="Klasör:"/>
+                <Item id="Save a copy as:" name="Kopyayı farklı kaydet:"/>
+                <Item id="Shortcuts" name="Kısayollar"/>
+                <Item id="Play macro times:" name="Makro oynatma sayısı:"/>
+                <Item id="Minimap" name="Mini harita"/>
+                <Item id="Autosave" name="Otomatik kaydetme"/>
+                <Item id="Save session as:" name="Oturumu farklı kaydet:"/>
+                <Item id="Load session:" name="Oturumu yükle:"/>
+                <Item id="Find in projects:" name="Projelerde bul:"/>
+                <Item id="Ln:" name="Satır:"/>
+                <Item id="lines:" name="satır:"/>
+                <Item id="Go to line:" name="Satıra git:"/>
+                <Item id="Sel:" name="Seçim:"/>
+                <Item id="Tab Width" name="Sekme genişliği"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="System dialog" name="Sistem iletişim kutusu"/>
+                <Item id="Split on:" name="Şuna göre böl:"/>
+                <Item id="Import from:" name="Şuradan içe aktar:"/>
+                <Item id="Export to:" name="Şuraya dışa aktar:"/>
+                <Item id="Col:" name="Sütun:"/>
+                <Item id="Insert at column:" name="Sütuna ekle:"/>
+                <Item id="Date time format:" name="Tarih saat biçimi:"/>
+                <Item id="Import theme from:" name="Temayı şuradan içe aktar:"/>
+                <Item id="Preferences" name="Tercihler"/>
+                <Item id="Zoom Out" name="Uzaklaştır"/>
+                <Item id="length:" name="uzunluk:"/>
+                <Item id="Zoom In" name="Yakınlaştır"/>
+                <Item id="Sync Horizontal Scroll" name="Yatay kaydırmayı eşitle"/>
+                <Item id="Print" name="Yazdır"/>
+                <Item id="Font Size" name="Yazı tipi boyutu"/>
+                <Item id="Rename to:" name="Yeni ad:"/>
+                <Item id="Built-in browser" name="Yerleşik tarayıcı"/>
+                <Item id="None" name="Yok"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="Yukarı/Aşağı  Sol/Sağ  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Yukarı/Aşağı  Sol/Sağ  Enter aç  Esc kapat"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

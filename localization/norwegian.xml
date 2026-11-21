@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Norwegian (Norsk).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="Norsk" english="Norwegian" filename="norwegian.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="Fil"/>
+                <Item id="Edit" name="Rediger"/>
+                <Item id="Search" name="Søk"/>
+                <Item id="View" name="Vis"/>
+                <Item id="Encoding" name="Tegnkoding"/>
+                <Item id="Language" name="Språk"/>
+                <Item id="Settings" name="Innstillinger"/>
+                <Item id="Tools" name="Verktøy"/>
+                <Item id="Macro" name="Makro"/>
+                <Item id="Run" name="Kjør"/>
+                <Item id="Plugins" name="Utvidelser"/>
+                <Item id="Window" name="Vindu"/>
+                <Item id="Help" name="Hjelp"/>
+                <Item id="New" name="Ny"/>
+                <Item id="Open..." name="Åpne..."/>
+                <Item id="Save" name="Lagre"/>
+                <Item id="Save As..." name="Lagre som..."/>
+                <Item id="Save All" name="Lagre alle"/>
+                <Item id="Close" name="Lukk"/>
+                <Item id="Close All" name="Lukk alle"/>
+                <Item id="Close All to the Left" name="Lukk alle til venstre"/>
+                <Item id="Close All to the Right" name="Lukk alle til høyre"/>
+                <Item id="Reload from Disk" name="Les på nytt fra disk"/>
+                <Item id="Load Session..." name="Last inn økt..."/>
+                <Item id="Save Session..." name="Lagre økt..."/>
+                <Item id="Move to Recycle Bin" name="Flytt til papirkurven"/>
+                <Item id="Print..." name="Skriv ut..."/>
+                <Item id="Print Now" name="Skriv ut nå"/>
+                <Item id="Exit" name="Avslutt"/>
+                <Item id="Undo" name="Angre"/>
+                <Item id="Redo" name="Gjør om"/>
+                <Item id="Cut" name="Klipp ut"/>
+                <Item id="Copy" name="Kopier"/>
+                <Item id="Paste" name="Lim inn"/>
+                <Item id="Delete" name="Slett"/>
+                <Item id="Select All" name="Merk alt"/>
+                <Item id="Duplicate Current Line" name="Dupliser gjeldende linje"/>
+                <Item id="Join Lines" name="Slå sammen linjer"/>
+                <Item id="Split Lines" name="Del linjer"/>
+                <Item id="Move Up Current Line" name="Flytt linjen opp"/>
+                <Item id="Move Down Current Line" name="Flytt linjen ned"/>
+                <Item id="Insert Blank Line Above Current" name="Sett inn tom linje over"/>
+                <Item id="Insert Blank Line Below Current" name="Sett inn tom linje under"/>
+                <Item id="Toggle Single Line Comment" name="Veksle linjekommentar"/>
+                <Item id="Single Line Comment" name="Kommenter linje"/>
+                <Item id="Block Comment" name="Kommenter blokk"/>
+                <Item id="UPPERCASE" name="STORE BOKSTAVER"/>
+                <Item id="lowercase" name="små bokstaver"/>
+                <Item id="Proper Case" name="Første bokstav stor"/>
+                <Item id="Sentence case" name="Setningsstart stor"/>
+                <Item id="Increase Line Indent" name="Øk innrykk"/>
+                <Item id="Decrease Line Indent" name="Reduser innrykk"/>
+                <Item id="Find..." name="Søk..."/>
+                <Item id="Find Next" name="Søk neste"/>
+                <Item id="Find Previous" name="Søk forrige"/>
+                <Item id="Replace..." name="Erstatt..."/>
+                <Item id="Find in Files..." name="Søk i filer..."/>
+                <Item id="Incremental Search" name="Inkrementelt søk"/>
+                <Item id="Go to..." name="Gå til..."/>
+                <Item id="Select and Find Next" name="Merk og søk neste"/>
+                <Item id="Select and Find Previous" name="Merk og søk forrige"/>
+                <Item id="Mark..." name="Merk..."/>
+                <Item id="Toggle Bookmark" name="Veksle bokmerke"/>
+                <Item id="Next Bookmark" name="Neste bokmerke"/>
+                <Item id="Previous Bookmark" name="Forrige bokmerke"/>
+                <Item id="Clear All Bookmarks" name="Fjern alle bokmerker"/>
+                <Item id="Search Results Window" name="Søkeresultatvindu"/>
+                <Item id="Word wrap" name="Tekstbryting"/>
+                <Item id="Show All Characters" name="Vis alle tegn"/>
+                <Item id="Show Indent Guide" name="Vis innrykkslinjer"/>
+                <Item id="Show Wrap Symbol" name="Vis brytningstegn"/>
+                <Item id="Show End of Line" name="Vis linjeslutt"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="Zoom inn (Ctrl+musehjul opp)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="Zoom ut (Ctrl+musehjul ned)"/>
+                <Item id="Restore Default Zoom" name="Tilbakestill standardzoom"/>
+                <Item id="Toggle Full Screen Mode" name="Veksle fullskjerm"/>
+                <Item id="Distraction Free Mode" name="Distraksjonsfri modus"/>
+                <Item id="Function List" name="Funksjonsliste"/>
+                <Item id="Document List" name="Dokumentliste"/>
+                <Item id="Folder as Workspace" name="Mappe som arbeidsområde"/>
+                <Item id="Summary..." name="Sammendrag..."/>
+                <Item id="Monitoring (tail -f)" name="Overvåking (tail -f)"/>
+                <Item id="Always on Top" name="Alltid øverst"/>
+                <Item id="Move to Other View" name="Flytt til annen visning"/>
+                <Item id="Clone to Other View" name="Klon til annen visning"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="Innstillinger..."/>
+                <Item id="Style Configurator..." name="Stilkonfigurator..."/>
+                <Item id="Import style theme(s)..." name="Importer stiltemaer..."/>
+                <Item id="Import Notepad++ Config..." name="Importer Notepad++-konfigurasjon..."/>
+                <Item id="Export Shortcuts..." name="Eksporter hurtigtaster..."/>
+                <Item id="User-Defined" name="Brukerdefinert"/>
+                <Item id="Define your language..." name="Definer ditt språk..."/>
+                <Item id="None (Normal Text)" name="Ingen (vanlig tekst)"/>
+                <Item id="Start Recording" name="Start opptak"/>
+                <Item id="Stop Recording" name="Stopp opptak"/>
+                <Item id="Playback" name="Spill av"/>
+                <Item id="Run a Macro Multiple Times..." name="Kjør en makro flere ganger..."/>
+                <Item id="Run..." name="Kjør..."/>
+                <Item id="Search on Internet" name="Søk på Internett"/>
+                <Item id="Open in Default Viewer" name="Åpne i standardviser"/>
+                <Item id="Windows..." name="Vinduer..."/>
+                <Item id="First Tab" name="Første fane"/>
+                <Item id="Next Tab" name="Neste fane"/>
+                <Item id="Previous Tab" name="Forrige fane"/>
+                <Item id="Last Tab" name="Siste fane"/>
+                <Item id="No Plugins Installed" name="Ingen utvidelser installert"/>
+                <Item id="About Neko++" name="Om Neko++"/>
+                <Item id="Neko++ Home" name="Neko++ startside"/>
+                <Item id="Debug Info..." name="Feilsøkingsinfo..."/>
+                <Item id="Command Line Arguments..." name="Kommandolinjeargumenter..."/>
+                <Item id="(none installed)" name="(ingen installert)"/>
+                <Item id="1st Style" name="1. stil"/>
+                <Item id="1st Tab" name="1. fane"/>
+                <Item id="2nd Style" name="2. stil"/>
+                <Item id="2nd Tab" name="2. fane"/>
+                <Item id="3rd Style" name="3. stil"/>
+                <Item id="3rd Tab" name="3. fane"/>
+                <Item id="4th Style" name="4. stil"/>
+                <Item id="4th Tab" name="4. fane"/>
+                <Item id="5th Style" name="5. stil"/>
+                <Item id="5th Tab" name="5. fane"/>
+                <Item id="6th Tab" name="6. fane"/>
+                <Item id="7th Tab" name="7. fane"/>
+                <Item id="8th Tab" name="8. fane"/>
+                <Item id="9th Tab" name="9. fane"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="Alle stiler"/>
+                <Item id="Apply Color 1" name="Bruk farge 1"/>
+                <Item id="Apply Color 2" name="Bruk farge 2"/>
+                <Item id="Apply Color 3" name="Bruk farge 3"/>
+                <Item id="Apply Color 4" name="Bruk farge 4"/>
+                <Item id="Apply Color 5" name="Bruk farge 5"/>
+                <Item id="Arabic" name="Arabisk"/>
+                <Item id="Auto-Completion" name="Autofullføring"/>
+                <Item id="Baltic" name="Baltisk"/>
+                <Item id="Begin/End Select" name="Start/slutt merking"/>
+                <Item id="Begin/End Select in Column Mode" name="Start/slutt merking i kolonnemodus"/>
+                <Item id="Blank Operations" name="Blanktegnsoperasjoner"/>
+                <Item id="Block Uncomment" name="Fjern blokkkommentar"/>
+                <Item id="Bookmark" name="Bokmerke"/>
+                <Item id="Celtic" name="Keltisk"/>
+                <Item id="Central European" name="Sentraleuropeisk"/>
+                <Item id="Change History" name="Endringshistorikk"/>
+                <Item id="Change Search Engine..." name="Bytt søkemotor..."/>
+                <Item id="Character Panel" name="Tegnpanel"/>
+                <Item id="Character sets" name="Tegnsett"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="Fjern 1. stil"/>
+                <Item id="Clear 2nd Style" name="Fjern 2. stil"/>
+                <Item id="Clear 3rd Style" name="Fjern 3. stil"/>
+                <Item id="Clear 4th Style" name="Fjern 4. stil"/>
+                <Item id="Clear 5th Style" name="Fjern 5. stil"/>
+                <Item id="Clear Change History" name="Fjern endringshistorikk"/>
+                <Item id="Clear Read-Only for All Documents" name="Fjern skrivebeskyttelse for alle dokumenter"/>
+                <Item id="Clear Style" name="Fjern stil"/>
+                <Item id="Clear all Styles" name="Fjern alle stiler"/>
+                <Item id="Clipboard History" name="Utklippshistorikk"/>
+                <Item id="Close All Unchanged" name="Lukk alle uendrede"/>
+                <Item id="Close All but Active Document" name="Lukk alle unntatt aktivt dokument"/>
+                <Item id="Close All but Pinned Documents" name="Lukk alle unntatt festede dokumenter"/>
+                <Item id="Close Multiple Documents" name="Lukk flere dokumenter"/>
+                <Item id="Column Editor..." name="Kolonneeditor..."/>
+                <Item id="Column Mode..." name="Kolonnemodus..."/>
+                <Item id="Comment/Uncomment" name="Kommenter/avkommenter"/>
+                <Item id="Content Length Ascending" name="Innholdslengde stigende"/>
+                <Item id="Content Length Descending" name="Innholdslengde synkende"/>
+                <Item id="Convert Case to" name="Konverter store/små bokstaver til"/>
+                <Item id="Convert to ANSI" name="Konverter til ANSI"/>
+                <Item id="Convert to UTF-16 BE BOM" name="Konverter til UTF-16 BE BOM"/>
+                <Item id="Convert to UTF-16 LE BOM" name="Konverter til UTF-16 LE BOM"/>
+                <Item id="Convert to UTF-8" name="Konverter til UTF-8"/>
+                <Item id="Convert to UTF-8-BOM" name="Konverter til UTF-8-BOM"/>
+                <Item id="Copy All File Paths" name="Kopier alle filbaner"/>
+                <Item id="Copy All Filenames" name="Kopier alle filnavn"/>
+                <Item id="Copy Bookmarked Lines" name="Kopier bokmerkede linjer"/>
+                <Item id="Copy Current Dir. Path" name="Kopier gjeldende mappebane"/>
+                <Item id="Copy Current Filename" name="Kopier gjeldende filnavn"/>
+                <Item id="Copy Current Full File path" name="Kopier gjeldende fullstendige filbane"/>
+                <Item id="Copy Styled Text" name="Kopier formatert tekst"/>
+                <Item id="Copy to Clipboard" name="Kopier til utklippstavlen"/>
+                <Item id="Cut Bookmarked Lines" name="Klipp ut bokmerkede linjer"/>
+                <Item id="Cyrillic" name="Kyrillisk"/>
+                <Item id="Dark" name="Mørk"/>
+                <Item id="Date Time (customized)" name="Dato og tid (tilpasset)"/>
+                <Item id="Date Time (long)" name="Dato og tid (lang)"/>
+                <Item id="Date Time (short)" name="Dato og tid (kort)"/>
+                <Item id="Document Map" name="Dokumentkart"/>
+                <Item id="EOL Conversion" name="Konvertering av linjeslutt"/>
+                <Item id="EOL to Space" name="Linjeslutt til mellomrom"/>
+                <Item id="Eastern European" name="Østeuropeisk"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="Rediger popup-kontekstmeny"/>
+                <Item id="Explorer" name="Utforskeren"/>
+                <Item id="Find (Volatile) Next" name="Søk (flyktig) neste"/>
+                <Item id="Find (Volatile) Previous" name="Søk (flyktig) forrige"/>
+                <Item id="Find Mark Style" name="Stil for søkemarkering"/>
+                <Item id="Find characters in range..." name="Søk tegn i område..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="Sett fokus på annen visning"/>
+                <Item id="Fold All" name="Brett sammen alle"/>
+                <Item id="Fold Current Level" name="Brett sammen gjeldende nivå"/>
+                <Item id="Fold Level" name="Brett sammen nivå"/>
+                <Item id="Function Completion" name="Funksjonsfullføring"/>
+                <Item id="Function Parameters Hint" name="Tips om funksjonsparametere"/>
+                <Item id="Function Parameters Next Hint" name="Neste tips om funksjonsparametere"/>
+                <Item id="Function Parameters Previous Hint" name="Forrige tips om funksjonsparametere"/>
+                <Item id="Generate from files..." name="Generer fra filer..."/>
+                <Item id="Generate from selection into clipboard" name="Generer fra merking til utklippstavlen"/>
+                <Item id="Generate..." name="Generer..."/>
+                <Item id="Go to Matching Brace" name="Gå til samsvarende parentes"/>
+                <Item id="Go to Next Change" name="Gå til neste endring"/>
+                <Item id="Go to Previous Change" name="Gå til forrige endring"/>
+                <Item id="Greek" name="Gresk"/>
+                <Item id="Hebrew" name="Hebraisk"/>
+                <Item id="Hide Lines" name="Skjul linjer"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="Ignorer store/små bokstaver &amp; hele ord"/>
+                <Item id="Import" name="Importer"/>
+                <Item id="Import plugin(s)..." name="Importer utvidelse(r)..."/>
+                <Item id="Indent" name="Innrykk"/>
+                <Item id="Insert" name="Sett inn"/>
+                <Item id="Inverse Bookmarks" name="Omvend bokmerker"/>
+                <Item id="Jump Down" name="Hopp ned"/>
+                <Item id="Jump Up" name="Hopp opp"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="Lys"/>
+                <Item id="Line Operations" name="Linjeoperasjoner"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="Match store/små bokstaver &amp; hele ord"/>
+                <Item id="Match Case Only" name="Match kun store/små bokstaver"/>
+                <Item id="Match Whole Word Only" name="Match kun hele ord"/>
+                <Item id="Modified Time Ascending" name="Endringstid stigende"/>
+                <Item id="Modified Time Descending" name="Endringstid synkende"/>
+                <Item id="Move Tab Backward" name="Flytt fane bakover"/>
+                <Item id="Move Tab Forward" name="Flytt fane fremover"/>
+                <Item id="Move to End" name="Flytt til slutten"/>
+                <Item id="Move to New Instance" name="Flytt til ny instans"/>
+                <Item id="Move to Start" name="Flytt til starten"/>
+                <Item id="Move/Clone Current Document" name="Flytt/klon gjeldende dokument"/>
+                <Item id="Multi-select All" name="Multimerk alle"/>
+                <Item id="Multi-select Next" name="Multimerk neste"/>
+                <Item id="Name A to Z" name="Navn A til Å"/>
+                <Item id="Name Z to A" name="Navn Å til A"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++ fellesskap (forum)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++ brukerhåndbok på nettet"/>
+                <Item id="Neko++ Project Page" name="Neko++ prosjektside"/>
+                <Item id="Next Search Result" name="Neste søkeresultat"/>
+                <Item id="North European" name="Nordeuropeisk"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Notepad++ samling av brukerdefinerte språk"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : Portugisisk"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : Islandsk"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : Fransk"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : Nordisk"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="På merking"/>
+                <Item id="Open Containing Folder" name="Åpne den inneholdende mappen"/>
+                <Item id="Open Containing Folder in Explorer" name="Åpne den inneholdende mappen i Utforskeren"/>
+                <Item id="Open File" name="Åpne fil"/>
+                <Item id="Open Folder as Workspace..." name="Åpne mappe som arbeidsområde..."/>
+                <Item id="Open Plugins Folder..." name="Åpne utvidelsesmappe..."/>
+                <Item id="Open Shortcut Mapper..." name="Åpne hurtigtasttilordning..."/>
+                <Item id="Open User Defined Language folder..." name="Åpne mappen for brukerdefinerte språk..."/>
+                <Item id="Open in New Instance" name="Åpne i ny instans"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="Lim inn i (erstatt) bokmerkede linjer"/>
+                <Item id="Path A to Z" name="Bane A til Å"/>
+                <Item id="Path Completion" name="Banefullføring"/>
+                <Item id="Path Z to A" name="Bane Å til A"/>
+                <Item id="Post-It" name="Huskelapp"/>
+                <Item id="Previous Search Result" name="Forrige søkeresultat"/>
+                <Item id="Project Panel 1" name="Prosjektpanel 1"/>
+                <Item id="Project Panel 2" name="Prosjektpanel 2"/>
+                <Item id="Project Panel 3" name="Prosjektpanel 3"/>
+                <Item id="Project Panels" name="Prosjektpaneler"/>
+                <Item id="Proper Case (blend)" name="Første bokstav stor (blandet)"/>
+                <Item id="Randomize Line Order" name="Tilfeldig linjerekkefølge"/>
+                <Item id="Read-Only for All Documents" name="Skrivebeskyttet for alle dokumenter"/>
+                <Item id="Read-Only in Neko++" name="Skrivebeskyttet i Neko++"/>
+                <Item id="Read-Only on Current Document" name="Skrivebeskyttet på gjeldende dokument"/>
+                <Item id="Recent Window" name="Siste vindu"/>
+                <Item id="Redact Selection" name="Masker merking"/>
+                <Item id="Remove Bookmarked Lines" name="Fjern bokmerkede linjer"/>
+                <Item id="Remove Color" name="Fjern farge"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="Fjern påfølgende dupliserte linjer"/>
+                <Item id="Remove Duplicate Lines" name="Fjern dupliserte linjer"/>
+                <Item id="Remove Empty Lines" name="Fjern tomme linjer"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="Fjern tomme linjer (inneholder blanke tegn)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="Fjern linjer uten bokmerke"/>
+                <Item id="Rename..." name="Gi nytt navn..."/>
+                <Item id="Reverse Line Order" name="Omvendt linjerekkefølge"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="Lagre gjeldende innspilte makro..."/>
+                <Item id="Save a Copy As..." name="Lagre en kopi som..."/>
+                <Item id="Select All In-between {} [] or ()" name="Merk alt mellom {} [] eller ()"/>
+                <Item id="Sentence case (blend)" name="Setningsstart stor (blandet)"/>
+                <Item id="Shortcut Mapper" name="Hurtigtasttilordning"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="Vis kontrolltegn &amp; Unicode-linjeslutt"/>
+                <Item id="Show Non-Printing Characters" name="Vis ikke-utskrivbare tegn"/>
+                <Item id="Show Space and Tab" name="Vis mellomrom og tabulator"/>
+                <Item id="Show Symbol" name="Vis symbol"/>
+                <Item id="Single Line Uncomment" name="Fjern linjekommentar"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="Hopp over gjeldende &amp; gå til neste multimerking"/>
+                <Item id="Sort By" name="Sorter etter"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="Sorter linjer som desimaltall (komma) stigende"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="Sorter linjer som desimaltall (komma) synkende"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="Sorter linjer som desimaltall (punktum) stigende"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="Sorter linjer som desimaltall (punktum) synkende"/>
+                <Item id="Sort Lines As Integers Ascending" name="Sorter linjer som heltall stigende"/>
+                <Item id="Sort Lines As Integers Descending" name="Sorter linjer som heltall synkende"/>
+                <Item id="Sort Lines By Length Ascending" name="Sorter linjer etter lengde stigende"/>
+                <Item id="Sort Lines By Length Descending" name="Sorter linjer etter lengde synkende"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="Sorter linjer i språkrekkefølge stigende"/>
+                <Item id="Sort Lines In Locale Order Descending" name="Sorter linjer i språkrekkefølge synkende"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="Sorter linjer leks. stigende uten hensyn til store/små bokstaver"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="Sorter linjer leks. synkende uten hensyn til store/små bokstaver"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="Sorter linjer leksikografisk stigende"/>
+                <Item id="Sort Lines Lexicographically Descending" name="Sorter linjer leksikografisk synkende"/>
+                <Item id="Space to TAB (All)" name="Mellomrom til TAB (alle)"/>
+                <Item id="Space to TAB (Leading)" name="Mellomrom til TAB (innledende)"/>
+                <Item id="Style All Occurrences of Token" name="Bruk stil på alle forekomster av token"/>
+                <Item id="Style One Token" name="Bruk stil på ett token"/>
+                <Item id="Synchronize Across Views" name="Synkroniser mellom visninger"/>
+                <Item id="Synchronize Horizontal Scrolling" name="Synkroniser vannrett rulling"/>
+                <Item id="Synchronize Vertical Scrolling" name="Synkroniser loddrett rulling"/>
+                <Item id="System" name="System"/>
+                <Item id="TAB to Space" name="TAB til mellomrom"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="Fane"/>
+                <Item id="Thai" name="Thailandsk"/>
+                <Item id="Theme" name="Tema"/>
+                <Item id="Trim Leading Space" name="Fjern innledende mellomrom"/>
+                <Item id="Trim Leading and Trailing Space" name="Fjern innledende og avsluttende mellomrom"/>
+                <Item id="Trim Trailing Space" name="Fjern avsluttende mellomrom"/>
+                <Item id="Trim both and EOL to Space" name="Fjern mellomrom i begge ender og linjeslutt til mellomrom"/>
+                <Item id="Turkish" name="Tyrkisk"/>
+                <Item id="Type A to Z" name="Type A til Å"/>
+                <Item id="Type Z to A" name="Type Å til A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="Angre sist tilføyde multimerking"/>
+                <Item id="Unfold All" name="Brett ut alle"/>
+                <Item id="Unfold Current Level" name="Brett ut gjeldende nivå"/>
+                <Item id="Unfold Level" name="Brett ut nivå"/>
+                <Item id="User Defined Language" name="Brukerdefinert språk"/>
+                <Item id="Validate shortcuts.xml" name="Valider shortcuts.xml"/>
+                <Item id="Vietnamese" name="Vietnamesisk"/>
+                <Item id="View Current File in" name="Vis gjeldende fil i"/>
+                <Item id="Western European" name="Vesteuropeisk"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="Ordfullføring"/>
+                <Item id="Zoom" name="Zoom"/>
+                <Item id="Open" name="Åpne"/>
+                <Item id="Open:" name="Åpne:"/>
+                <Item id="Autosave" name="Autolagring"/>
+                <Item id="Off" name="Av"/>
+                <Item id="Date time format:" name="Dato- og tidsformat:"/>
+                <Item id="Split on:" name="Del på:"/>
+                <Item id="Verbose" name="Detaljert"/>
+                <Item id="Export to:" name="Eksporter til:"/>
+                <Item id="A GPU-rendered text editor" name="En GPU-akselerert teksteditor"/>
+                <Item id="Simple" name="Enkel"/>
+                <Item id="Replace" name="Erstatt"/>
+                <Item id="Replace:" name="Erstatt:"/>
+                <Item id="File Dialog" name="Fildialog"/>
+                <Item id="Volatile Find" name="Flyktig søk"/>
+                <Item id="Go to line:" name="Gå til linje:"/>
+                <Item id="Rename to:" name="Gi nytt navn til:"/>
+                <Item id="Shortcuts" name="Hurtigtaster"/>
+                <Item id="Import from:" name="Importer fra:"/>
+                <Item id="Import theme from:" name="Importer tema fra:"/>
+                <Item id="Import plugin from:" name="Importer utvidelse fra:"/>
+                <Item id="None" name="Ingen"/>
+                <Item id="no match" name="ingen treff"/>
+                <Item id="Built-in browser" name="Innebygd nettleser"/>
+                <Item id="Preferences" name="Innstillinger"/>
+                <Item id="Run Multiple Macros" name="Kjør flere makroer"/>
+                <Item id="Run:" name="Kjør:"/>
+                <Item id="Col:" name="Kol:"/>
+                <Item id="Save a copy as:" name="Lagre en kopi som:"/>
+                <Item id="Save Current Macro" name="Lagre gjeldende makro"/>
+                <Item id="Save as:" name="Lagre som:"/>
+                <Item id="Save session as:" name="Lagre økt som:"/>
+                <Item id="Load session:" name="Last inn økt:"/>
+                <Item id="length:" name="lengde:"/>
+                <Item id="Ln:" name="Linje:"/>
+                <Item id="lines:" name="linjer:"/>
+                <Item id="Folder:" name="Mappe:"/>
+                <Item id="Sel:" name="Merking:"/>
+                <Item id="Minimap" name="Minikart"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="Opp/Ned  Venstre/Høyre  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Opp/Ned  Venstre/Høyre  Enter åpne  Esc lukk"/>
+                <Item id="On" name="På"/>
+                <Item id="REC" name="REC"/>
+                <Item id="Edit..." name="Rediger..."/>
+                <Item id="Insert at column:" name="Sett inn ved kolonne:"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Backup on Save" name="Sikkerhetskopiering ved lagring"/>
+                <Item id="Hash file:" name="Sjekksumfil:"/>
+                <Item id="Font Size" name="Skriftstørrelse"/>
+                <Item id="Print" name="Skriv ut"/>
+                <Item id="Play macro times:" name="Spill av makro ganger:"/>
+                <Item id="LARGE" name="STOR"/>
+                <Item id="Sync Vertical Scroll" name="Synkroniser loddrett rulling"/>
+                <Item id="Sync Horizontal Scroll" name="Synkroniser vannrett rulling"/>
+                <Item id="System dialog" name="Systemdialog"/>
+                <Item id="Find" name="Søk"/>
+                <Item id="Find in files:" name="Søk i filer:"/>
+                <Item id="Find in projects:" name="Søk i prosjekter:"/>
+                <Item id="Find:" name="Søk:"/>
+                <Item id="Search URL:" name="Søke-URL:"/>
+                <Item id="Tab Width" name="Tabulatorbredde"/>
+                <Item id="Character code:" name="Tegnkode:"/>
+                <Item id="bad regex" name="ugyldig regulært uttrykk"/>
+                <Item id="Toolbar" name="Verktøylinje"/>
+                <Item id="Zoom In" name="Zoom inn"/>
+                <Item id="Zoom Out" name="Zoom ut"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

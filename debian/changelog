@@ -1,0 +1,9 @@
+npp (0.1.0) unstable; urgency=medium
+
+  * Initial packaging.
+  * Ships the editor, a desktop entry, three icon sizes and a manual page.
+  * The X11 and Wayland client libraries are declared as dependencies even
+    though the binary does not link against them: winit loads them with
+    dlopen, so dpkg-shlibdeps cannot see them.
+
+ -- Neko++ maintainers <npp@example.invalid>  Thu, 19 Nov 2026 17:00:00 +0100

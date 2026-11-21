@@ -1,0 +1,67 @@
+.TH NPP 1 "November 2026" "Neko++ 0.1.0" "User Commands"
+.SH NAME
+npp \- a GPU-rendered text editor in the shape of Notepad++
+.SH SYNOPSIS
+.B npp
+.RI [ switches ]
+.RI [ file " ...]"
+.SH DESCRIPTION
+.B Neko++
+is a text editor for Linux that reproduces Notepad++'s feature set: tabs,
+syntax highlighting, regular-expression search, find in files, bookmarks,
+macros, a function list, a folder panel, user-defined languages and a
+WebAssembly plugin host.
+.PP
+It draws through wgpu, so it uses Vulkan when the machine has it, OpenGL when
+it does not, and a software rasteriser when it has neither.
+.PP
+A file named
+.B \-
+is read from standard input.
+.SH OPTIONS
+.TP
+.BR \-n ", " \-\-new\-instance
+Start a second process even when one is already running. Without this, a
+second invocation hands its files to the running editor and exits.
+.TP
+.BR \-w ", " \-\-wait
+Block until every named document is closed. This is what makes the editor
+usable as
+.BR $EDITOR .
+.TP
+.BR \-l ", " \-\-line " \fIline\fR"
+Put the caret on this line. Lines are counted from one, as a compiler error
+counts them.
+.TP
+.BR \-c ", " \-\-column " \fIcolumn\fR"
+Put the caret on this column, counted from one.
+.TP
+.BR \-s ", " \-\-software
+Draw with the software rasteriser instead of the GPU. Useful over a remote
+display, or when the driver is the problem.
+.TP
+.BR \-h ", " \-\-help
+Print the usage text and exit.
+.TP
+.BR \-V ", " \-\-version
+Print the version and exit.
+.SH FILES
+.TP
+.I ~/.config/npp/settings.txt
+Settings, one
+.I key value
+pair per line. Written by the Preferences dialog.
+.TP
+.I ~/.config/npp/
+Session, recent files, macros, user-defined languages and installed plugins.
+.PP
+A configuration directory left behind under the old name,
+.IR ~/.config/npp-rs/ ,
+is moved to
+.I ~/.config/npp/
+the first time the program runs.
+.SH SEE ALSO
+.BR vi (1),
+.BR nano (1)
+.SH AUTHOR
+The Neko++ authors.

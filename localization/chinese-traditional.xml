@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Chinese (Traditional) (繁體中文).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="繁體中文" english="Chinese (Traditional)" filename="chinese-traditional.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="檔案"/>
+                <Item id="Edit" name="編輯"/>
+                <Item id="Search" name="搜尋"/>
+                <Item id="View" name="檢視"/>
+                <Item id="Encoding" name="編碼"/>
+                <Item id="Language" name="語言"/>
+                <Item id="Settings" name="設定"/>
+                <Item id="Tools" name="工具"/>
+                <Item id="Macro" name="巨集"/>
+                <Item id="Run" name="執行"/>
+                <Item id="Plugins" name="外掛"/>
+                <Item id="Window" name="視窗"/>
+                <Item id="Help" name="說明"/>
+                <Item id="New" name="新增"/>
+                <Item id="Open..." name="開啟..."/>
+                <Item id="Save" name="儲存"/>
+                <Item id="Save As..." name="另存新檔..."/>
+                <Item id="Save All" name="全部儲存"/>
+                <Item id="Close" name="關閉"/>
+                <Item id="Close All" name="全部關閉"/>
+                <Item id="Close All to the Left" name="關閉左側全部"/>
+                <Item id="Close All to the Right" name="關閉右側全部"/>
+                <Item id="Reload from Disk" name="從磁碟重新載入"/>
+                <Item id="Load Session..." name="載入工作階段..."/>
+                <Item id="Save Session..." name="儲存工作階段..."/>
+                <Item id="Move to Recycle Bin" name="移至回收筒"/>
+                <Item id="Print..." name="列印..."/>
+                <Item id="Print Now" name="立即列印"/>
+                <Item id="Exit" name="結束"/>
+                <Item id="Undo" name="復原"/>
+                <Item id="Redo" name="重做"/>
+                <Item id="Cut" name="剪下"/>
+                <Item id="Copy" name="複製"/>
+                <Item id="Paste" name="貼上"/>
+                <Item id="Delete" name="刪除"/>
+                <Item id="Select All" name="全選"/>
+                <Item id="Duplicate Current Line" name="複製目前行"/>
+                <Item id="Join Lines" name="合併行"/>
+                <Item id="Split Lines" name="分割行"/>
+                <Item id="Move Up Current Line" name="上移目前行"/>
+                <Item id="Move Down Current Line" name="下移目前行"/>
+                <Item id="Insert Blank Line Above Current" name="在上方插入空行"/>
+                <Item id="Insert Blank Line Below Current" name="在下方插入空行"/>
+                <Item id="Toggle Single Line Comment" name="切換行註解"/>
+                <Item id="Single Line Comment" name="行註解"/>
+                <Item id="Block Comment" name="區塊註解"/>
+                <Item id="UPPERCASE" name="大寫"/>
+                <Item id="lowercase" name="小寫"/>
+                <Item id="Proper Case" name="字首大寫"/>
+                <Item id="Sentence case" name="句首大寫"/>
+                <Item id="Increase Line Indent" name="增加縮排"/>
+                <Item id="Decrease Line Indent" name="減少縮排"/>
+                <Item id="Find..." name="尋找..."/>
+                <Item id="Find Next" name="找下一個"/>
+                <Item id="Find Previous" name="找上一個"/>
+                <Item id="Replace..." name="取代..."/>
+                <Item id="Find in Files..." name="在檔案中尋找..."/>
+                <Item id="Incremental Search" name="增量搜尋"/>
+                <Item id="Go to..." name="移至..."/>
+                <Item id="Select and Find Next" name="選取並找下一個"/>
+                <Item id="Select and Find Previous" name="選取並找上一個"/>
+                <Item id="Mark..." name="標記..."/>
+                <Item id="Toggle Bookmark" name="切換書籤"/>
+                <Item id="Next Bookmark" name="下一個書籤"/>
+                <Item id="Previous Bookmark" name="上一個書籤"/>
+                <Item id="Clear All Bookmarks" name="清除所有書籤"/>
+                <Item id="Search Results Window" name="搜尋結果視窗"/>
+                <Item id="Word wrap" name="自動換行"/>
+                <Item id="Show All Characters" name="顯示所有字元"/>
+                <Item id="Show Indent Guide" name="顯示縮排參考線"/>
+                <Item id="Show Wrap Symbol" name="顯示換行符號"/>
+                <Item id="Show End of Line" name="顯示行尾符號"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="放大 (Ctrl+滾輪向上)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="縮小 (Ctrl+滾輪向下)"/>
+                <Item id="Restore Default Zoom" name="還原預設縮放"/>
+                <Item id="Toggle Full Screen Mode" name="切換全螢幕"/>
+                <Item id="Distraction Free Mode" name="專注模式"/>
+                <Item id="Function List" name="函式清單"/>
+                <Item id="Document List" name="文件清單"/>
+                <Item id="Folder as Workspace" name="資料夾作為工作區"/>
+                <Item id="Summary..." name="摘要..."/>
+                <Item id="Monitoring (tail -f)" name="監看 (tail -f)"/>
+                <Item id="Always on Top" name="最上層顯示"/>
+                <Item id="Move to Other View" name="移至其他檢視"/>
+                <Item id="Clone to Other View" name="複製到其他檢視"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="偏好設定..."/>
+                <Item id="Style Configurator..." name="樣式設定..."/>
+                <Item id="Import style theme(s)..." name="匯入樣式主題..."/>
+                <Item id="Import Notepad++ Config..." name="匯入 Notepad++ 設定..."/>
+                <Item id="Export Shortcuts..." name="匯出快速鍵..."/>
+                <Item id="User-Defined" name="使用者自訂"/>
+                <Item id="Define your language..." name="定義您的語言..."/>
+                <Item id="None (Normal Text)" name="無 (一般文字)"/>
+                <Item id="Start Recording" name="開始錄製"/>
+                <Item id="Stop Recording" name="停止錄製"/>
+                <Item id="Playback" name="播放"/>
+                <Item id="Run a Macro Multiple Times..." name="多次執行巨集..."/>
+                <Item id="Run..." name="執行..."/>
+                <Item id="Search on Internet" name="在網際網路上搜尋"/>
+                <Item id="Open in Default Viewer" name="以預設檢視器開啟"/>
+                <Item id="Windows..." name="視窗..."/>
+                <Item id="First Tab" name="第一個分頁"/>
+                <Item id="Next Tab" name="下一個分頁"/>
+                <Item id="Previous Tab" name="上一個分頁"/>
+                <Item id="Last Tab" name="最後一個分頁"/>
+                <Item id="No Plugins Installed" name="未安裝外掛"/>
+                <Item id="About Neko++" name="關於 Neko++"/>
+                <Item id="Neko++ Home" name="Neko++ 首頁"/>
+                <Item id="Debug Info..." name="偵錯資訊..."/>
+                <Item id="Command Line Arguments..." name="命令列引數..."/>
+                <Item id="(none installed)" name="(未安裝任何外掛)"/>
+                <Item id="1st Style" name="第1種樣式"/>
+                <Item id="1st Tab" name="第1個分頁"/>
+                <Item id="2nd Style" name="第2種樣式"/>
+                <Item id="2nd Tab" name="第2個分頁"/>
+                <Item id="3rd Style" name="第3種樣式"/>
+                <Item id="3rd Tab" name="第3個分頁"/>
+                <Item id="4th Style" name="第4種樣式"/>
+                <Item id="4th Tab" name="第4個分頁"/>
+                <Item id="5th Style" name="第5種樣式"/>
+                <Item id="5th Tab" name="第5個分頁"/>
+                <Item id="6th Tab" name="第6個分頁"/>
+                <Item id="7th Tab" name="第7個分頁"/>
+                <Item id="8th Tab" name="第8個分頁"/>
+                <Item id="9th Tab" name="第9個分頁"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="所有樣式"/>
+                <Item id="Apply Color 1" name="套用色彩 1"/>
+                <Item id="Apply Color 2" name="套用色彩 2"/>
+                <Item id="Apply Color 3" name="套用色彩 3"/>
+                <Item id="Apply Color 4" name="套用色彩 4"/>
+                <Item id="Apply Color 5" name="套用色彩 5"/>
+                <Item id="Arabic" name="阿拉伯語"/>
+                <Item id="Auto-Completion" name="自動完成"/>
+                <Item id="Baltic" name="波羅的海"/>
+                <Item id="Begin/End Select" name="開始/結束選取"/>
+                <Item id="Begin/End Select in Column Mode" name="在欄模式下開始/結束選取"/>
+                <Item id="Blank Operations" name="空白操作"/>
+                <Item id="Block Uncomment" name="取消區塊註解"/>
+                <Item id="Bookmark" name="書籤"/>
+                <Item id="Celtic" name="凱爾特"/>
+                <Item id="Central European" name="中歐"/>
+                <Item id="Change History" name="變更歷程"/>
+                <Item id="Change Search Engine..." name="變更搜尋引擎..."/>
+                <Item id="Character Panel" name="字元面板"/>
+                <Item id="Character sets" name="字元集"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="清除第1種樣式"/>
+                <Item id="Clear 2nd Style" name="清除第2種樣式"/>
+                <Item id="Clear 3rd Style" name="清除第3種樣式"/>
+                <Item id="Clear 4th Style" name="清除第4種樣式"/>
+                <Item id="Clear 5th Style" name="清除第5種樣式"/>
+                <Item id="Clear Change History" name="清除變更歷程"/>
+                <Item id="Clear Read-Only for All Documents" name="清除所有文件的唯讀"/>
+                <Item id="Clear Style" name="清除樣式"/>
+                <Item id="Clear all Styles" name="清除所有樣式"/>
+                <Item id="Clipboard History" name="剪貼簿歷程"/>
+                <Item id="Close All Unchanged" name="關閉所有未變更的文件"/>
+                <Item id="Close All but Active Document" name="關閉使用中文件以外的所有文件"/>
+                <Item id="Close All but Pinned Documents" name="關閉釘選文件以外的所有文件"/>
+                <Item id="Close Multiple Documents" name="關閉多個文件"/>
+                <Item id="Column Editor..." name="欄位編輯器..."/>
+                <Item id="Column Mode..." name="欄模式..."/>
+                <Item id="Comment/Uncomment" name="註解/取消註解"/>
+                <Item id="Content Length Ascending" name="內容長度遞增"/>
+                <Item id="Content Length Descending" name="內容長度遞減"/>
+                <Item id="Convert Case to" name="轉換大小寫為"/>
+                <Item id="Convert to ANSI" name="轉換為 ANSI"/>
+                <Item id="Convert to UTF-16 BE BOM" name="轉換為 UTF-16 BE BOM"/>
+                <Item id="Convert to UTF-16 LE BOM" name="轉換為 UTF-16 LE BOM"/>
+                <Item id="Convert to UTF-8" name="轉換為 UTF-8"/>
+                <Item id="Convert to UTF-8-BOM" name="轉換為 UTF-8-BOM"/>
+                <Item id="Copy All File Paths" name="複製所有檔案路徑"/>
+                <Item id="Copy All Filenames" name="複製所有檔案名稱"/>
+                <Item id="Copy Bookmarked Lines" name="複製書籤行"/>
+                <Item id="Copy Current Dir. Path" name="複製目前目錄路徑"/>
+                <Item id="Copy Current Filename" name="複製目前檔案名稱"/>
+                <Item id="Copy Current Full File path" name="複製目前完整檔案路徑"/>
+                <Item id="Copy Styled Text" name="複製樣式化文字"/>
+                <Item id="Copy to Clipboard" name="複製到剪貼簿"/>
+                <Item id="Cut Bookmarked Lines" name="剪下書籤行"/>
+                <Item id="Cyrillic" name="西里爾文"/>
+                <Item id="Dark" name="深色"/>
+                <Item id="Date Time (customized)" name="日期時間 (自訂)"/>
+                <Item id="Date Time (long)" name="日期時間 (長)"/>
+                <Item id="Date Time (short)" name="日期時間 (短)"/>
+                <Item id="Document Map" name="文件地圖"/>
+                <Item id="EOL Conversion" name="行尾符號轉換"/>
+                <Item id="EOL to Space" name="行尾符號轉為空格"/>
+                <Item id="Eastern European" name="東歐"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="編輯彈出式右鍵選單"/>
+                <Item id="Explorer" name="檔案總管"/>
+                <Item id="Find (Volatile) Next" name="尋找 (易失) 下一個"/>
+                <Item id="Find (Volatile) Previous" name="尋找 (易失) 上一個"/>
+                <Item id="Find Mark Style" name="尋找標記樣式"/>
+                <Item id="Find characters in range..." name="在範圍內尋找字元..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="聚焦至其他檢視"/>
+                <Item id="Fold All" name="全部摺疊"/>
+                <Item id="Fold Current Level" name="摺疊目前層級"/>
+                <Item id="Fold Level" name="摺疊層級"/>
+                <Item id="Function Completion" name="函式補全"/>
+                <Item id="Function Parameters Hint" name="函式參數提示"/>
+                <Item id="Function Parameters Next Hint" name="下一個函式參數提示"/>
+                <Item id="Function Parameters Previous Hint" name="上一個函式參數提示"/>
+                <Item id="Generate from files..." name="從檔案產生..."/>
+                <Item id="Generate from selection into clipboard" name="從選取範圍產生到剪貼簿"/>
+                <Item id="Generate..." name="產生..."/>
+                <Item id="Go to Matching Brace" name="移至對應的括號"/>
+                <Item id="Go to Next Change" name="移至下一個變更"/>
+                <Item id="Go to Previous Change" name="移至上一個變更"/>
+                <Item id="Greek" name="希臘語"/>
+                <Item id="Hebrew" name="希伯來語"/>
+                <Item id="Hide Lines" name="隱藏行"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="忽略大小寫及全字拼寫"/>
+                <Item id="Import" name="匯入"/>
+                <Item id="Import plugin(s)..." name="匯入外掛..."/>
+                <Item id="Indent" name="縮排"/>
+                <Item id="Insert" name="插入"/>
+                <Item id="Inverse Bookmarks" name="反轉書籤"/>
+                <Item id="Jump Down" name="向下跳轉"/>
+                <Item id="Jump Up" name="向上跳轉"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="淺色"/>
+                <Item id="Line Operations" name="行操作"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="大小寫須相符及全字拼寫"/>
+                <Item id="Match Case Only" name="僅大小寫須相符"/>
+                <Item id="Match Whole Word Only" name="僅全字拼寫"/>
+                <Item id="Modified Time Ascending" name="修改時間遞增"/>
+                <Item id="Modified Time Descending" name="修改時間遞減"/>
+                <Item id="Move Tab Backward" name="分頁向後移"/>
+                <Item id="Move Tab Forward" name="分頁向前移"/>
+                <Item id="Move to End" name="移至結尾"/>
+                <Item id="Move to New Instance" name="移至新執行個體"/>
+                <Item id="Move to Start" name="移至開頭"/>
+                <Item id="Move/Clone Current Document" name="移動/複製目前文件"/>
+                <Item id="Multi-select All" name="全部多選"/>
+                <Item id="Multi-select Next" name="下一個多選"/>
+                <Item id="Name A to Z" name="名稱 A 到 Z"/>
+                <Item id="Name Z to A" name="名稱 Z 到 A"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++ 社群 (論壇)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++ 線上使用者手冊"/>
+                <Item id="Neko++ Project Page" name="Neko++ 專案頁面"/>
+                <Item id="Next Search Result" name="下一個搜尋結果"/>
+                <Item id="North European" name="北歐"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Notepad++ 使用者自訂語言集合"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : 葡萄牙語"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : 冰島語"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : 法語"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : 北歐"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="對選取範圍"/>
+                <Item id="Open Containing Folder" name="開啟所在資料夾"/>
+                <Item id="Open Containing Folder in Explorer" name="在檔案總管中開啟所在資料夾"/>
+                <Item id="Open File" name="開啟檔案"/>
+                <Item id="Open Folder as Workspace..." name="開啟資料夾作為工作區..."/>
+                <Item id="Open Plugins Folder..." name="開啟外掛資料夾..."/>
+                <Item id="Open Shortcut Mapper..." name="開啟快速鍵對應表..."/>
+                <Item id="Open User Defined Language folder..." name="開啟使用者自訂語言資料夾..."/>
+                <Item id="Open in New Instance" name="在新執行個體中開啟"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="貼上至 (取代) 書籤行"/>
+                <Item id="Path A to Z" name="路徑 A 到 Z"/>
+                <Item id="Path Completion" name="路徑補全"/>
+                <Item id="Path Z to A" name="路徑 Z 到 A"/>
+                <Item id="Post-It" name="便利貼"/>
+                <Item id="Previous Search Result" name="上一個搜尋結果"/>
+                <Item id="Project Panel 1" name="專案面板 1"/>
+                <Item id="Project Panel 2" name="專案面板 2"/>
+                <Item id="Project Panel 3" name="專案面板 3"/>
+                <Item id="Project Panels" name="專案面板"/>
+                <Item id="Proper Case (blend)" name="字首大寫 (混合)"/>
+                <Item id="Randomize Line Order" name="隨機排列行順序"/>
+                <Item id="Read-Only for All Documents" name="所有文件唯讀"/>
+                <Item id="Read-Only in Neko++" name="在 Neko++ 中唯讀"/>
+                <Item id="Read-Only on Current Document" name="目前文件唯讀"/>
+                <Item id="Recent Window" name="最近使用的視窗"/>
+                <Item id="Redact Selection" name="遮蔽選取範圍"/>
+                <Item id="Remove Bookmarked Lines" name="移除書籤行"/>
+                <Item id="Remove Color" name="移除色彩"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="移除連續重複行"/>
+                <Item id="Remove Duplicate Lines" name="移除重複行"/>
+                <Item id="Remove Empty Lines" name="移除空行"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="移除空行 (包含空白字元)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="移除非書籤行"/>
+                <Item id="Rename..." name="重新命名..."/>
+                <Item id="Reverse Line Order" name="反轉行順序"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="儲存目前錄製的巨集..."/>
+                <Item id="Save a Copy As..." name="另存副本為..."/>
+                <Item id="Select All In-between {} [] or ()" name="全選 {} [] 或 () 之間的內容"/>
+                <Item id="Sentence case (blend)" name="句首大寫 (混合)"/>
+                <Item id="Shortcut Mapper" name="快速鍵對應表"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="顯示控制字元和 Unicode 行尾符號"/>
+                <Item id="Show Non-Printing Characters" name="顯示非列印字元"/>
+                <Item id="Show Space and Tab" name="顯示空格和定位字元"/>
+                <Item id="Show Symbol" name="顯示符號"/>
+                <Item id="Single Line Uncomment" name="取消單行註解"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="跳過目前並移至下一個多選"/>
+                <Item id="Sort By" name="排序依據"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="按小數 (逗號) 遞增排序行"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="按小數 (逗號) 遞減排序行"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="按小數 (點) 遞增排序行"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="按小數 (點) 遞減排序行"/>
+                <Item id="Sort Lines As Integers Ascending" name="按整數遞增排序行"/>
+                <Item id="Sort Lines As Integers Descending" name="按整數遞減排序行"/>
+                <Item id="Sort Lines By Length Ascending" name="按長度遞增排序行"/>
+                <Item id="Sort Lines By Length Descending" name="按長度遞減排序行"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="按地區順序遞增排序行"/>
+                <Item id="Sort Lines In Locale Order Descending" name="按地區順序遞減排序行"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="忽略大小寫的詞典序遞增排序行"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="忽略大小寫的詞典序遞減排序行"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="按字典序遞增排序行"/>
+                <Item id="Sort Lines Lexicographically Descending" name="按字典序遞減排序行"/>
+                <Item id="Space to TAB (All)" name="空格轉定位字元 (全部)"/>
+                <Item id="Space to TAB (Leading)" name="空格轉定位字元 (行首)"/>
+                <Item id="Style All Occurrences of Token" name="為詞元的所有出現位置設定樣式"/>
+                <Item id="Style One Token" name="設定單一詞元的樣式"/>
+                <Item id="Synchronize Across Views" name="跨檢視同步"/>
+                <Item id="Synchronize Horizontal Scrolling" name="同步水平捲動"/>
+                <Item id="Synchronize Vertical Scrolling" name="同步垂直捲動"/>
+                <Item id="System" name="系統"/>
+                <Item id="TAB to Space" name="定位字元轉空格"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="定位字元"/>
+                <Item id="Thai" name="泰語"/>
+                <Item id="Theme" name="主題"/>
+                <Item id="Trim Leading Space" name="去除前置空格"/>
+                <Item id="Trim Leading and Trailing Space" name="去除前置與後置空格"/>
+                <Item id="Trim Trailing Space" name="去除後置空格"/>
+                <Item id="Trim both and EOL to Space" name="去除前後空格並將行尾符號轉為空格"/>
+                <Item id="Turkish" name="土耳其語"/>
+                <Item id="Type A to Z" name="類型 A 到 Z"/>
+                <Item id="Type Z to A" name="類型 Z 到 A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="復原最近新增的多選"/>
+                <Item id="Unfold All" name="全部展開"/>
+                <Item id="Unfold Current Level" name="展開目前層級"/>
+                <Item id="Unfold Level" name="展開層級"/>
+                <Item id="User Defined Language" name="使用者自訂語言"/>
+                <Item id="Validate shortcuts.xml" name="驗證 shortcuts.xml"/>
+                <Item id="Vietnamese" name="越南語"/>
+                <Item id="View Current File in" name="在以下程式中檢視目前檔案"/>
+                <Item id="Western European" name="西歐"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="字詞補全"/>
+                <Item id="Zoom" name="縮放"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="A GPU-rendered text editor" name="一款由 GPU 繪製的文字編輯器"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="上/下  左/右  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="上/下  左/右  Enter 開啟  Esc 關閉"/>
+                <Item id="Import theme from:" name="主題匯入來源:"/>
+                <Item id="Preferences" name="偏好設定"/>
+                <Item id="Backup on Save" name="儲存時備份"/>
+                <Item id="Save Current Macro" name="儲存目前錄製的巨集"/>
+                <Item id="Built-in browser" name="內建瀏覽器"/>
+                <Item id="Split on:" name="分割依據:"/>
+                <Item id="Print" name="列印"/>
+                <Item id="Import from:" name="匯入來源:"/>
+                <Item id="Export to:" name="匯出目標:"/>
+                <Item id="Replace" name="取代"/>
+                <Item id="Replace:" name="取代:"/>
+                <Item id="Save a copy as:" name="另存副本為:"/>
+                <Item id="Save as:" name="另存新檔:"/>
+                <Item id="Sync Vertical Scroll" name="同步垂直捲動"/>
+                <Item id="Sync Horizontal Scroll" name="同步水平捲動"/>
+                <Item id="Find in projects:" name="在專案中尋找:"/>
+                <Item id="Find in files:" name="在檔案中尋找:"/>
+                <Item id="Run:" name="執行:"/>
+                <Item id="Import plugin from:" name="外掛匯入來源:"/>
+                <Item id="Run Multiple Macros" name="多次執行巨集"/>
+                <Item id="LARGE" name="大檔案"/>
+                <Item id="Character code:" name="字元編碼:"/>
+                <Item id="Font Size" name="字型大小"/>
+                <Item id="Tab Width" name="定位字元寬度"/>
+                <Item id="Find" name="尋找"/>
+                <Item id="Find:" name="尋找:"/>
+                <Item id="Save session as:" name="工作階段另存新檔:"/>
+                <Item id="Toolbar" name="工具列"/>
+                <Item id="Play macro times:" name="巨集播放次數:"/>
+                <Item id="Shortcuts" name="快速鍵"/>
+                <Item id="Insert at column:" name="插入欄號:"/>
+                <Item id="Search URL:" name="搜尋 URL:"/>
+                <Item id="Zoom In" name="放大"/>
+                <Item id="Date time format:" name="日期時間格式:"/>
+                <Item id="Volatile Find" name="易失尋找"/>
+                <Item id="File Dialog" name="檔案對話方塊"/>
+                <Item id="Col:" name="欄:"/>
+                <Item id="bad regex" name="正規表示式無效"/>
+                <Item id="None" name="無"/>
+                <Item id="no match" name="無相符項目"/>
+                <Item id="Go to line:" name="移至行:"/>
+                <Item id="Simple" name="簡單"/>
+                <Item id="System dialog" name="系統對話方塊"/>
+                <Item id="Edit..." name="編輯..."/>
+                <Item id="Minimap" name="縮圖"/>
+                <Item id="Zoom Out" name="縮小"/>
+                <Item id="Autosave" name="自動儲存"/>
+                <Item id="Ln:" name="行:"/>
+                <Item id="lines:" name="行數:"/>
+                <Item id="Verbose" name="詳細"/>
+                <Item id="Folder:" name="資料夾:"/>
+                <Item id="Load session:" name="載入工作階段:"/>
+                <Item id="Sel:" name="選取:"/>
+                <Item id="Rename to:" name="重新命名為:"/>
+                <Item id="REC" name="錄製"/>
+                <Item id="length:" name="長度:"/>
+                <Item id="On" name="開啟"/>
+                <Item id="Open" name="開啟"/>
+                <Item id="Open:" name="開啟:"/>
+                <Item id="Off" name="關閉"/>
+                <Item id="Hash file:" name="雜湊檔案:"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

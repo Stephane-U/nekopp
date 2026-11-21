@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Hebrew (עברית), right to left.
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English.
+     The labels are read and laid out by the same shaper everything else uses,
+     so a line that mixes Hebrew with a Latin shortcut comes out in the order a
+     Hebrew reader expects. -->
+<NotepadPlus>
+    <Native-Langue name="עברית" english="Hebrew" filename="hebrew.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="קובץ"/>
+                <Item id="Edit" name="עריכה"/>
+                <Item id="Search" name="חיפוש"/>
+                <Item id="View" name="תצוגה"/>
+                <Item id="Encoding" name="קידוד"/>
+                <Item id="Language" name="שפה"/>
+                <Item id="Settings" name="הגדרות"/>
+                <Item id="Tools" name="כלים"/>
+                <Item id="Macro" name="מאקרו"/>
+                <Item id="Run" name="הפעלה"/>
+                <Item id="Plugins" name="תוספים"/>
+                <Item id="Window" name="חלון"/>
+                <Item id="Help" name="עזרה"/>
+                <Item id="New" name="חדש"/>
+                <Item id="Open..." name="פתיחה..."/>
+                <Item id="Save" name="שמירה"/>
+                <Item id="Save As..." name="שמירה בשם..."/>
+                <Item id="Save All" name="שמירת הכול"/>
+                <Item id="Close" name="סגירה"/>
+                <Item id="Close All" name="סגירת הכול"/>
+                <Item id="Close All to the Left" name="סגירת הכול משמאל"/>
+                <Item id="Close All to the Right" name="סגירת הכול מימין"/>
+                <Item id="Reload from Disk" name="טעינה מחדש מהדיסק"/>
+                <Item id="Load Session..." name="טעינת הפעלה..."/>
+                <Item id="Save Session..." name="שמירת הפעלה..."/>
+                <Item id="Move to Recycle Bin" name="העברה לאשפה"/>
+                <Item id="Print..." name="הדפסה..."/>
+                <Item id="Print Now" name="הדפסה עכשיו"/>
+                <Item id="Exit" name="יציאה"/>
+                <Item id="Undo" name="ביטול"/>
+                <Item id="Redo" name="ביצוע מחדש"/>
+                <Item id="Cut" name="גזירה"/>
+                <Item id="Copy" name="העתקה"/>
+                <Item id="Paste" name="הדבקה"/>
+                <Item id="Delete" name="מחיקה"/>
+                <Item id="Select All" name="בחירת הכול"/>
+                <Item id="Duplicate Current Line" name="שכפול השורה הנוכחית"/>
+                <Item id="Join Lines" name="איחוד שורות"/>
+                <Item id="Split Lines" name="פיצול שורות"/>
+                <Item id="Move Up Current Line" name="העברת השורה למעלה"/>
+                <Item id="Move Down Current Line" name="העברת השורה למטה"/>
+                <Item id="Insert Blank Line Above Current" name="הוספת שורה ריקה מעל"/>
+                <Item id="Insert Blank Line Below Current" name="הוספת שורה ריקה מתחת"/>
+                <Item id="Toggle Single Line Comment" name="הערת שורה"/>
+                <Item id="Single Line Comment" name="הוספת הערת שורה"/>
+                <Item id="Block Comment" name="הערת בלוק"/>
+                <Item id="UPPERCASE" name="אותיות גדולות"/>
+                <Item id="lowercase" name="אותיות קטנות"/>
+                <Item id="Proper Case" name="אות ראשונה גדולה"/>
+                <Item id="Sentence case" name="רישיות משפט"/>
+                <Item id="Increase Line Indent" name="הגדלת הזחה"/>
+                <Item id="Decrease Line Indent" name="הקטנת הזחה"/>
+                <Item id="Find..." name="חיפוש..."/>
+                <Item id="Find Next" name="חיפוש הבא"/>
+                <Item id="Find Previous" name="חיפוש הקודם"/>
+                <Item id="Replace..." name="החלפה..."/>
+                <Item id="Find in Files..." name="חיפוש בקבצים..."/>
+                <Item id="Incremental Search" name="חיפוש מצטבר"/>
+                <Item id="Go to..." name="מעבר לשורה..."/>
+                <Item id="Select and Find Next" name="בחירה וחיפוש הבא"/>
+                <Item id="Select and Find Previous" name="בחירה וחיפוש הקודם"/>
+                <Item id="Mark..." name="סימון..."/>
+                <Item id="Toggle Bookmark" name="סימנייה"/>
+                <Item id="Next Bookmark" name="הסימנייה הבאה"/>
+                <Item id="Previous Bookmark" name="הסימנייה הקודמת"/>
+                <Item id="Clear All Bookmarks" name="ניקוי הסימניות"/>
+                <Item id="Search Results Window" name="חלון תוצאות החיפוש"/>
+                <Item id="Word wrap" name="גלישת שורות"/>
+                <Item id="Show All Characters" name="הצגת כל התווים"/>
+                <Item id="Show Indent Guide" name="הצגת קווי הזחה"/>
+                <Item id="Show Wrap Symbol" name="הצגת סמל גלישה"/>
+                <Item id="Show End of Line" name="הצגת סוף שורה"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="הגדלת תצוגה (Ctrl+גלגלת למעלה)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="הקטנת תצוגה (Ctrl+גלגלת למטה)"/>
+                <Item id="Restore Default Zoom" name="שחזור התצוגה הרגילה"/>
+                <Item id="Toggle Full Screen Mode" name="מסך מלא"/>
+                <Item id="Distraction Free Mode" name="מצב ללא הסחות דעת"/>
+                <Item id="Function List" name="רשימת פונקציות"/>
+                <Item id="Document List" name="רשימת מסמכים"/>
+                <Item id="Folder as Workspace" name="תיקייה כסביבת עבודה"/>
+                <Item id="Summary..." name="סיכום..."/>
+                <Item id="Monitoring (tail -f)" name="מעקב (tail -f)"/>
+                <Item id="Always on Top" name="תמיד מעל הכול"/>
+                <Item id="Move to Other View" name="העברה לתצוגה השנייה"/>
+                <Item id="Clone to Other View" name="שכפול לתצוגה השנייה"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="העדפות..."/>
+                <Item id="Style Configurator..." name="עיצוב סגנונות..."/>
+                <Item id="Import style theme(s)..." name="ייבוא ערכות נושא..."/>
+                <Item id="Import Notepad++ Config..." name="ייבוא הגדרות Notepad++..."/>
+                <Item id="Export Shortcuts..." name="ייצוא קיצורי דרך..."/>
+                <Item id="User-Defined" name="מוגדר על ידי המשתמש"/>
+                <Item id="Define your language..." name="הגדרת שפה משלך..."/>
+                <Item id="None (Normal Text)" name="ללא (טקסט רגיל)"/>
+                <Item id="Start Recording" name="התחלת הקלטה"/>
+                <Item id="Stop Recording" name="עצירת הקלטה"/>
+                <Item id="Playback" name="הפעלה חוזרת"/>
+                <Item id="Run a Macro Multiple Times..." name="הפעלת מאקרו מספר פעמים..."/>
+                <Item id="Run..." name="הפעלה..."/>
+                <Item id="Search on Internet" name="חיפוש באינטרנט"/>
+                <Item id="Open in Default Viewer" name="פתיחה בתוכנית ברירת המחדל"/>
+                <Item id="Windows..." name="חלונות..."/>
+                <Item id="First Tab" name="הכרטיסייה הראשונה"/>
+                <Item id="Next Tab" name="הכרטיסייה הבאה"/>
+                <Item id="Previous Tab" name="הכרטיסייה הקודמת"/>
+                <Item id="Last Tab" name="הכרטיסייה האחרונה"/>
+                <Item id="No Plugins Installed" name="לא הותקנו תוספים"/>
+                <Item id="About Neko++" name="אודות Neko++"/>
+                <Item id="Neko++ Home" name="אתר הבית של Neko++"/>
+                <Item id="Debug Info..." name="פרטי ניפוי שגיאות..."/>
+                <Item id="Command Line Arguments..." name="ארגומנטים של שורת הפקודה..."/>
+                <Item id="(none installed)" name="(לא הותקנו)"/>
+                <Item id="1st Style" name="הסגנון הראשון"/>
+                <Item id="1st Tab" name="הכרטיסייה הראשונה"/>
+                <Item id="2nd Style" name="הסגנון השני"/>
+                <Item id="2nd Tab" name="הכרטיסייה השנייה"/>
+                <Item id="3rd Style" name="הסגנון השלישי"/>
+                <Item id="3rd Tab" name="הכרטיסייה השלישית"/>
+                <Item id="4th Style" name="הסגנון הרביעי"/>
+                <Item id="4th Tab" name="הכרטיסייה הרביעית"/>
+                <Item id="5th Style" name="הסגנון החמישי"/>
+                <Item id="5th Tab" name="הכרטיסייה החמישית"/>
+                <Item id="6th Tab" name="הכרטיסייה השישית"/>
+                <Item id="7th Tab" name="הכרטיסייה השביעית"/>
+                <Item id="8th Tab" name="הכרטיסייה השמינית"/>
+                <Item id="9th Tab" name="הכרטיסייה התשיעית"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="כל הסגנונות"/>
+                <Item id="Apply Color 1" name="החלת צבע 1"/>
+                <Item id="Apply Color 2" name="החלת צבע 2"/>
+                <Item id="Apply Color 3" name="החלת צבע 3"/>
+                <Item id="Apply Color 4" name="החלת צבע 4"/>
+                <Item id="Apply Color 5" name="החלת צבע 5"/>
+                <Item id="Arabic" name="ערבית"/>
+                <Item id="Auto-Completion" name="השלמה אוטומטית"/>
+                <Item id="Baltic" name="בלטית"/>
+                <Item id="Begin/End Select" name="התחלת/סיום בחירה"/>
+                <Item id="Begin/End Select in Column Mode" name="התחלת/סיום בחירה במצב עמודות"/>
+                <Item id="Blank Operations" name="פעולות על שורות ריקות"/>
+                <Item id="Block Uncomment" name="ביטול הערת בלוק"/>
+                <Item id="Bookmark" name="סימנייה"/>
+                <Item id="Celtic" name="קלטית"/>
+                <Item id="Central European" name="מרכז אירופית"/>
+                <Item id="Change History" name="היסטוריית שינויים"/>
+                <Item id="Change Search Engine..." name="שינוי מנוע חיפוש..."/>
+                <Item id="Character Panel" name="חלונית תווים"/>
+                <Item id="Character sets" name="ערכות תווים"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="ניקוי הסגנון הראשון"/>
+                <Item id="Clear 2nd Style" name="ניקוי הסגנון השני"/>
+                <Item id="Clear 3rd Style" name="ניקוי הסגנון השלישי"/>
+                <Item id="Clear 4th Style" name="ניקוי הסגנון הרביעי"/>
+                <Item id="Clear 5th Style" name="ניקוי הסגנון החמישי"/>
+                <Item id="Clear Change History" name="ניקוי היסטוריית השינויים"/>
+                <Item id="Clear Read-Only for All Documents" name="ביטול קריאה בלבד בכל המסמכים"/>
+                <Item id="Clear Style" name="ניקוי סגנון"/>
+                <Item id="Clear all Styles" name="ניקוי כל הסגנונות"/>
+                <Item id="Clipboard History" name="היסטוריית הלוח"/>
+                <Item id="Close All Unchanged" name="סגירת כל המסמכים ללא שינויים"/>
+                <Item id="Close All but Active Document" name="סגירת הכול למעט המסמך הפעיל"/>
+                <Item id="Close All but Pinned Documents" name="סגירת הכול למעט מסמכים נעוצים"/>
+                <Item id="Close Multiple Documents" name="סגירת מספר מסמכים"/>
+                <Item id="Column Editor..." name="עורך העמודות..."/>
+                <Item id="Column Mode..." name="מצב עמודות..."/>
+                <Item id="Comment/Uncomment" name="הוספת הערה/ביטול הערה"/>
+                <Item id="Content Length Ascending" name="אורך תוכן בסדר עולה"/>
+                <Item id="Content Length Descending" name="אורך תוכן בסדר יורד"/>
+                <Item id="Convert Case to" name="המרת רישיות ל־"/>
+                <Item id="Convert to ANSI" name="המרה ל-ANSI"/>
+                <Item id="Convert to UTF-16 BE BOM" name="המרה ל-UTF-16 BE BOM"/>
+                <Item id="Convert to UTF-16 LE BOM" name="המרה ל-UTF-16 LE BOM"/>
+                <Item id="Convert to UTF-8" name="המרה ל-UTF-8"/>
+                <Item id="Convert to UTF-8-BOM" name="המרה ל-UTF-8-BOM"/>
+                <Item id="Copy All File Paths" name="העתקת כל נתיבי הקבצים"/>
+                <Item id="Copy All Filenames" name="העתקת כל שמות הקבצים"/>
+                <Item id="Copy Bookmarked Lines" name="העתקת שורות מסומנות"/>
+                <Item id="Copy Current Dir. Path" name="העתקת נתיב התיקייה הנוכחית"/>
+                <Item id="Copy Current Filename" name="העתקת שם הקובץ הנוכחי"/>
+                <Item id="Copy Current Full File path" name="העתקת הנתיב המלא של הקובץ הנוכחי"/>
+                <Item id="Copy Styled Text" name="העתקת טקסט מעוצב"/>
+                <Item id="Copy to Clipboard" name="העתקה ללוח"/>
+                <Item id="Cut Bookmarked Lines" name="גזירת שורות מסומנות"/>
+                <Item id="Cyrillic" name="קירילית"/>
+                <Item id="Dark" name="כהה"/>
+                <Item id="Date Time (customized)" name="תאריך ושעה (מותאם אישית)"/>
+                <Item id="Date Time (long)" name="תאריך ושעה (ארוך)"/>
+                <Item id="Date Time (short)" name="תאריך ושעה (קצר)"/>
+                <Item id="Document Map" name="מפת מסמך"/>
+                <Item id="EOL Conversion" name="המרת סוף שורה"/>
+                <Item id="EOL to Space" name="סוף שורה לרווח"/>
+                <Item id="Eastern European" name="מזרח אירופית"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="עריכת תפריט ההקשר הקופץ"/>
+                <Item id="Explorer" name="סייר הקבצים"/>
+                <Item id="Find (Volatile) Next" name="חיפוש (נדיף) הבא"/>
+                <Item id="Find (Volatile) Previous" name="חיפוש (נדיף) הקודם"/>
+                <Item id="Find Mark Style" name="סגנון סימון החיפוש"/>
+                <Item id="Find characters in range..." name="חיפוש תווים בטווח..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="מיקוד בתצוגה השנייה"/>
+                <Item id="Fold All" name="קיפול הכול"/>
+                <Item id="Fold Current Level" name="קיפול הרמה הנוכחית"/>
+                <Item id="Fold Level" name="קיפול לפי רמה"/>
+                <Item id="Function Completion" name="השלמת פונקציות"/>
+                <Item id="Function Parameters Hint" name="רמז לפרמטרי פונקציה"/>
+                <Item id="Function Parameters Next Hint" name="רמז הבא לפרמטרי פונקציה"/>
+                <Item id="Function Parameters Previous Hint" name="רמז קודם לפרמטרי פונקציה"/>
+                <Item id="Generate from files..." name="יצירה מקבצים..."/>
+                <Item id="Generate from selection into clipboard" name="יצירה מהבחירה אל הלוח"/>
+                <Item id="Generate..." name="יצירה..."/>
+                <Item id="Go to Matching Brace" name="מעבר לסוגר המתאים"/>
+                <Item id="Go to Next Change" name="מעבר לשינוי הבא"/>
+                <Item id="Go to Previous Change" name="מעבר לשינוי הקודם"/>
+                <Item id="Greek" name="יוונית"/>
+                <Item id="Hebrew" name="עברית"/>
+                <Item id="Hide Lines" name="הסתרת שורות"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="התעלמות מרישיות &amp; מילה שלמה"/>
+                <Item id="Import" name="ייבוא"/>
+                <Item id="Import plugin(s)..." name="ייבוא תוסף(ים)..."/>
+                <Item id="Indent" name="הזחה"/>
+                <Item id="Insert" name="הוספה"/>
+                <Item id="Inverse Bookmarks" name="היפוך סימניות"/>
+                <Item id="Jump Down" name="קפיצה למטה"/>
+                <Item id="Jump Up" name="קפיצה למעלה"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="בהיר"/>
+                <Item id="Line Operations" name="פעולות על שורות"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="התאמת רישיות &amp; מילה שלמה"/>
+                <Item id="Match Case Only" name="התאמת רישיות בלבד"/>
+                <Item id="Match Whole Word Only" name="התאמת מילה שלמה בלבד"/>
+                <Item id="Modified Time Ascending" name="זמן שינוי בסדר עולה"/>
+                <Item id="Modified Time Descending" name="זמן שינוי בסדר יורד"/>
+                <Item id="Move Tab Backward" name="העברת הכרטיסייה אחורה"/>
+                <Item id="Move Tab Forward" name="העברת הכרטיסייה קדימה"/>
+                <Item id="Move to End" name="העברה לסוף"/>
+                <Item id="Move to New Instance" name="העברה למופע חדש"/>
+                <Item id="Move to Start" name="העברה להתחלה"/>
+                <Item id="Move/Clone Current Document" name="העברה/שכפול של המסמך הנוכחי"/>
+                <Item id="Multi-select All" name="בחירה מרובה של הכול"/>
+                <Item id="Multi-select Next" name="בחירה מרובה הבאה"/>
+                <Item id="Name A to Z" name="שם א׳ עד ת׳"/>
+                <Item id="Name Z to A" name="שם ת׳ עד א׳"/>
+                <Item id="Neko++ Community (Forum)" name="קהילת Neko++ (פורום)"/>
+                <Item id="Neko++ Online User Manual" name="המדריך למשתמש המקוון של Neko++"/>
+                <Item id="Neko++ Project Page" name="דף הפרויקט של Neko++"/>
+                <Item id="Next Search Result" name="תוצאת החיפוש הבאה"/>
+                <Item id="North European" name="צפון אירופית"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="אוסף השפות המוגדרות על ידי המשתמש של Notepad++"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : פורטוגזית"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : איסלנדית"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : צרפתית"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : נורדית"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="על הבחירה"/>
+                <Item id="Open Containing Folder" name="פתיחת התיקייה המכילה"/>
+                <Item id="Open Containing Folder in Explorer" name="פתיחת התיקייה המכילה בסייר הקבצים"/>
+                <Item id="Open File" name="פתיחת קובץ"/>
+                <Item id="Open Folder as Workspace..." name="פתיחת תיקייה כסביבת עבודה..."/>
+                <Item id="Open Plugins Folder..." name="פתיחת תיקיית התוספים..."/>
+                <Item id="Open Shortcut Mapper..." name="פתיחת מיפוי קיצורי הדרך..."/>
+                <Item id="Open User Defined Language folder..." name="פתיחת תיקיית השפות המוגדרות על ידי המשתמש..."/>
+                <Item id="Open in New Instance" name="פתיחה במופע חדש"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="הדבקה לשורות מסומנות (החלפה)"/>
+                <Item id="Path A to Z" name="נתיב א׳ עד ת׳"/>
+                <Item id="Path Completion" name="השלמת נתיבים"/>
+                <Item id="Path Z to A" name="נתיב ת׳ עד א׳"/>
+                <Item id="Post-It" name="פתקית"/>
+                <Item id="Previous Search Result" name="תוצאת החיפוש הקודמת"/>
+                <Item id="Project Panel 1" name="חלונית פרויקט 1"/>
+                <Item id="Project Panel 2" name="חלונית פרויקט 2"/>
+                <Item id="Project Panel 3" name="חלונית פרויקט 3"/>
+                <Item id="Project Panels" name="חלוניות פרויקט"/>
+                <Item id="Proper Case (blend)" name="אות ראשונה גדולה (משולב)"/>
+                <Item id="Randomize Line Order" name="ערבוב סדר השורות"/>
+                <Item id="Read-Only for All Documents" name="קריאה בלבד בכל המסמכים"/>
+                <Item id="Read-Only in Neko++" name="קריאה בלבד ב-Neko++"/>
+                <Item id="Read-Only on Current Document" name="קריאה בלבד במסמך הנוכחי"/>
+                <Item id="Recent Window" name="חלונות אחרונים"/>
+                <Item id="Redact Selection" name="השחרת הבחירה"/>
+                <Item id="Remove Bookmarked Lines" name="הסרת שורות מסומנות"/>
+                <Item id="Remove Color" name="הסרת צבע"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="הסרת שורות כפולות עוקבות"/>
+                <Item id="Remove Duplicate Lines" name="הסרת שורות כפולות"/>
+                <Item id="Remove Empty Lines" name="הסרת שורות ריקות"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="הסרת שורות ריקות (המכילות תווי רווח)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="הסרת שורות ללא סימנייה"/>
+                <Item id="Rename..." name="שינוי שם..."/>
+                <Item id="Reverse Line Order" name="היפוך סדר השורות"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="שמירת המאקרו המוקלט הנוכחי..."/>
+                <Item id="Save a Copy As..." name="שמירת עותק בשם..."/>
+                <Item id="Select All In-between {} [] or ()" name="בחירת הכול בין {} [] או ()"/>
+                <Item id="Sentence case (blend)" name="רישיות משפט (משולב)"/>
+                <Item id="Shortcut Mapper" name="מיפוי קיצורי דרך"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="הצגת תווי בקרה &amp; סוף שורה של Unicode"/>
+                <Item id="Show Non-Printing Characters" name="הצגת תווים שאינם ניתנים להדפסה"/>
+                <Item id="Show Space and Tab" name="הצגת רווח וטאב"/>
+                <Item id="Show Symbol" name="הצגת סמל"/>
+                <Item id="Single Line Uncomment" name="ביטול הערת שורה"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="דילוג על הנוכחי ומעבר לבחירה המרובה הבאה"/>
+                <Item id="Sort By" name="מיון לפי"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="מיון שורות כמספרים עשרוניים (פסיק) בסדר עולה"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="מיון שורות כמספרים עשרוניים (פסיק) בסדר יורד"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="מיון שורות כמספרים עשרוניים (נקודה) בסדר עולה"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="מיון שורות כמספרים עשרוניים (נקודה) בסדר יורד"/>
+                <Item id="Sort Lines As Integers Ascending" name="מיון שורות כמספרים שלמים בסדר עולה"/>
+                <Item id="Sort Lines As Integers Descending" name="מיון שורות כמספרים שלמים בסדר יורד"/>
+                <Item id="Sort Lines By Length Ascending" name="מיון שורות לפי אורך בסדר עולה"/>
+                <Item id="Sort Lines By Length Descending" name="מיון שורות לפי אורך בסדר יורד"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="מיון שורות לפי סדר אזורי בסדר עולה"/>
+                <Item id="Sort Lines In Locale Order Descending" name="מיון שורות לפי סדר אזורי בסדר יורד"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="מיון שורות לקסיקוגרפי בסדר עולה תוך התעלמות מרישיות"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="מיון שורות לקסיקוגרפי בסדר יורד תוך התעלמות מרישיות"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="מיון שורות לקסיקוגרפי בסדר עולה"/>
+                <Item id="Sort Lines Lexicographically Descending" name="מיון שורות לקסיקוגרפי בסדר יורד"/>
+                <Item id="Space to TAB (All)" name="רווח לטאב (הכול)"/>
+                <Item id="Space to TAB (Leading)" name="רווח לטאב (מוביל)"/>
+                <Item id="Style All Occurrences of Token" name="החלת סגנון על כל המופעים של אסימון"/>
+                <Item id="Style One Token" name="החלת סגנון על אסימון בודד"/>
+                <Item id="Synchronize Across Views" name="סנכרון בין התצוגות"/>
+                <Item id="Synchronize Horizontal Scrolling" name="סנכרון גלילה אופקית"/>
+                <Item id="Synchronize Vertical Scrolling" name="סנכרון גלילה אנכית"/>
+                <Item id="System" name="מערכת"/>
+                <Item id="TAB to Space" name="טאב לרווח"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="טאב"/>
+                <Item id="Thai" name="תאית"/>
+                <Item id="Theme" name="ערכת נושא"/>
+                <Item id="Trim Leading Space" name="חיתוך רווחים מובילים"/>
+                <Item id="Trim Leading and Trailing Space" name="חיתוך רווחים מובילים ונגררים"/>
+                <Item id="Trim Trailing Space" name="חיתוך רווחים נגררים"/>
+                <Item id="Trim both and EOL to Space" name="חיתוך משני הקצוות וסוף שורה לרווח"/>
+                <Item id="Turkish" name="טורקית"/>
+                <Item id="Type A to Z" name="סוג א׳ עד ת׳"/>
+                <Item id="Type Z to A" name="סוג ת׳ עד א׳"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="ביטול הבחירה המרובה האחרונה"/>
+                <Item id="Unfold All" name="פריסת הכול"/>
+                <Item id="Unfold Current Level" name="פריסת הרמה הנוכחית"/>
+                <Item id="Unfold Level" name="פריסה לפי רמה"/>
+                <Item id="User Defined Language" name="שפה מוגדרת על ידי המשתמש"/>
+                <Item id="Validate shortcuts.xml" name="אימות shortcuts.xml"/>
+                <Item id="Vietnamese" name="וייטנאמית"/>
+                <Item id="View Current File in" name="הצגת הקובץ הנוכחי בדפדפן"/>
+                <Item id="Western European" name="מערב אירופית"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="השלמת מילים"/>
+                <Item id="Zoom" name="זום"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="length:" name="אורך:"/>
+                <Item id="no match" name="אין התאמה"/>
+                <Item id="Sel:" name="בחירה:"/>
+                <Item id="bad regex" name="ביטוי רגולרי שגוי"/>
+                <Item id="LARGE" name="גדול"/>
+                <Item id="Font Size" name="גודל גופן"/>
+                <Item id="Hash file:" name="גיבוב קובץ:"/>
+                <Item id="Backup on Save" name="גיבוי בעת שמירה"/>
+                <Item id="System dialog" name="דו־שיח המערכת"/>
+                <Item id="Built-in browser" name="דפדפן מובנה"/>
+                <Item id="Zoom In" name="הגדלת תצוגה"/>
+                <Item id="Print" name="הדפסה"/>
+                <Item id="Insert at column:" name="הוספה בעמודה:"/>
+                <Item id="Replace" name="החלפה"/>
+                <Item id="Replace:" name="החלפה:"/>
+                <Item id="Preferences" name="העדפות"/>
+                <Item id="Run:" name="הפעלה:"/>
+                <Item id="Play macro times:" name="הפעלת מאקרו מספר פעמים:"/>
+                <Item id="Run Multiple Macros" name="הפעלת מספר מאקרו"/>
+                <Item id="Zoom Out" name="הקטנת תצוגה"/>
+                <Item id="REC" name="הקלטה"/>
+                <Item id="Find" name="חיפוש"/>
+                <Item id="Search URL:" name="חיפוש URL:"/>
+                <Item id="Find in projects:" name="חיפוש בפרויקטים:"/>
+                <Item id="Find in files:" name="חיפוש בקבצים:"/>
+                <Item id="Volatile Find" name="חיפוש נדיף"/>
+                <Item id="Find:" name="חיפוש:"/>
+                <Item id="Load session:" name="טעינת הפעלה:"/>
+                <Item id="Import from:" name="ייבוא מ:"/>
+                <Item id="Import theme from:" name="ייבוא ערכת נושא מ:"/>
+                <Item id="Import plugin from:" name="ייבוא תוסף מ:"/>
+                <Item id="Export to:" name="ייצוא אל:"/>
+                <Item id="Off" name="כבוי"/>
+                <Item id="None" name="ללא"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="למעלה/למטה  שמאלה/ימינה  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="למעלה/למטה  שמאלה/ימינה  Enter לפתוח  Esc לסגור"/>
+                <Item id="On" name="מופעל"/>
+                <Item id="Minimap" name="מיני־מפה"/>
+                <Item id="Go to line:" name="מעבר לשורה:"/>
+                <Item id="Verbose" name="מפורט"/>
+                <Item id="Sync Horizontal Scroll" name="סנכרון גלילה אופקית"/>
+                <Item id="Sync Vertical Scroll" name="סנכרון גלילה אנכית"/>
+                <Item id="Toolbar" name="סרגל כלים"/>
+                <Item id="A GPU-rendered text editor" name="עורך טקסט המרונדר ב־GPU"/>
+                <Item id="Col:" name="עמ׳:"/>
+                <Item id="Edit..." name="עריכה..."/>
+                <Item id="Split on:" name="פיצול לפי:"/>
+                <Item id="Simple" name="פשוט"/>
+                <Item id="Open" name="פתיחה"/>
+                <Item id="Open:" name="פתיחה:"/>
+                <Item id="Character code:" name="קידוד תווים:"/>
+                <Item id="Shortcuts" name="קיצורי דרך"/>
+                <Item id="Tab Width" name="רוחב טאב"/>
+                <Item id="lines:" name="שורות:"/>
+                <Item id="Ln:" name="שו׳:"/>
+                <Item id="Rename to:" name="שינוי שם ל:"/>
+                <Item id="Autosave" name="שמירה אוטומטית"/>
+                <Item id="Save as:" name="שמירה בשם:"/>
+                <Item id="Save Current Macro" name="שמירת המאקרו הנוכחי"/>
+                <Item id="Save session as:" name="שמירת הפעלה בשם:"/>
+                <Item id="Save a copy as:" name="שמירת עותק בשם:"/>
+                <Item id="Date time format:" name="תבנית תאריך ושעה:"/>
+                <Item id="File Dialog" name="תיבת דו־שיח לקבצים"/>
+                <Item id="Folder:" name="תיקייה:"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

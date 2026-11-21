@@ -1,0 +1,31 @@
+Source: npp
+Section: editors
+Priority: optional
+Maintainer: Neko++ maintainers <npp@example.invalid>
+Build-Depends: debhelper-compat (= 13), cargo, rustc
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Vcs-Browser: https://example.invalid/npp
+Vcs-Git: https://example.invalid/npp.git
+
+Package: npp
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+ libx11-6,
+ libx11-xcb1,
+ libxcursor1,
+ libxi6,
+ libxkbcommon0,
+ libxkbcommon-x11-0,
+ libwayland-client0,
+ libwayland-egl1
+Recommends: libegl1, libvulkan1, mesa-vulkan-drivers
+Description: GPU-rendered Notepad++ workalike
+ Neko++ is a text editor that reproduces Notepad++'s feature set on Linux:
+ multi-document tabs, syntax highlighting for the languages Notepad++ ships,
+ find and replace with regular expressions, find in files, bookmarks, macros,
+ a function list, a folder-as-workspace panel, user-defined languages, and a
+ WebAssembly plugin host.
+ .
+ It renders through wgpu, so it runs on Vulkan, on OpenGL, or on a software
+ rasteriser when neither is available.

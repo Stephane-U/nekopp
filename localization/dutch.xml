@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Dutch (Nederlands).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="Nederlands" english="Dutch" filename="dutch.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="Bestand"/>
+                <Item id="Edit" name="Bewerken"/>
+                <Item id="Search" name="Zoeken"/>
+                <Item id="View" name="Beeld"/>
+                <Item id="Encoding" name="Codering"/>
+                <Item id="Language" name="Taal"/>
+                <Item id="Settings" name="Instellingen"/>
+                <Item id="Tools" name="Extra"/>
+                <Item id="Macro" name="Macro"/>
+                <Item id="Run" name="Uitvoeren"/>
+                <Item id="Plugins" name="Plug-ins"/>
+                <Item id="Window" name="Venster"/>
+                <Item id="Help" name="Help"/>
+                <Item id="New" name="Nieuw"/>
+                <Item id="Open..." name="Openen..."/>
+                <Item id="Save" name="Opslaan"/>
+                <Item id="Save As..." name="Opslaan als..."/>
+                <Item id="Save All" name="Alles opslaan"/>
+                <Item id="Close" name="Sluiten"/>
+                <Item id="Close All" name="Alles sluiten"/>
+                <Item id="Close All to the Left" name="Alles links sluiten"/>
+                <Item id="Close All to the Right" name="Alles rechts sluiten"/>
+                <Item id="Reload from Disk" name="Opnieuw laden van schijf"/>
+                <Item id="Load Session..." name="Sessie laden..."/>
+                <Item id="Save Session..." name="Sessie opslaan..."/>
+                <Item id="Move to Recycle Bin" name="Naar prullenbak verplaatsen"/>
+                <Item id="Print..." name="Afdrukken..."/>
+                <Item id="Print Now" name="Nu afdrukken"/>
+                <Item id="Exit" name="Afsluiten"/>
+                <Item id="Undo" name="Ongedaan maken"/>
+                <Item id="Redo" name="Opnieuw"/>
+                <Item id="Cut" name="Knippen"/>
+                <Item id="Copy" name="Kopiëren"/>
+                <Item id="Paste" name="Plakken"/>
+                <Item id="Delete" name="Verwijderen"/>
+                <Item id="Select All" name="Alles selecteren"/>
+                <Item id="Duplicate Current Line" name="Huidige regel dupliceren"/>
+                <Item id="Join Lines" name="Regels samenvoegen"/>
+                <Item id="Split Lines" name="Regels splitsen"/>
+                <Item id="Move Up Current Line" name="Huidige regel omhoog"/>
+                <Item id="Move Down Current Line" name="Huidige regel omlaag"/>
+                <Item id="Insert Blank Line Above Current" name="Lege regel hierboven invoegen"/>
+                <Item id="Insert Blank Line Below Current" name="Lege regel hieronder invoegen"/>
+                <Item id="Toggle Single Line Comment" name="Regelcommentaar wisselen"/>
+                <Item id="Single Line Comment" name="Regel becommentariëren"/>
+                <Item id="Block Comment" name="Blok becommentariëren"/>
+                <Item id="UPPERCASE" name="HOOFDLETTERS"/>
+                <Item id="lowercase" name="kleine letters"/>
+                <Item id="Proper Case" name="Beginletters hoofdletter"/>
+                <Item id="Sentence case" name="Zinsbegin hoofdletter"/>
+                <Item id="Increase Line Indent" name="Inspringing vergroten"/>
+                <Item id="Decrease Line Indent" name="Inspringing verkleinen"/>
+                <Item id="Find..." name="Zoeken..."/>
+                <Item id="Find Next" name="Volgende zoeken"/>
+                <Item id="Find Previous" name="Vorige zoeken"/>
+                <Item id="Replace..." name="Vervangen..."/>
+                <Item id="Find in Files..." name="In bestanden zoeken..."/>
+                <Item id="Incremental Search" name="Incrementeel zoeken"/>
+                <Item id="Go to..." name="Ga naar..."/>
+                <Item id="Select and Find Next" name="Selecteren en volgende zoeken"/>
+                <Item id="Select and Find Previous" name="Selecteren en vorige zoeken"/>
+                <Item id="Mark..." name="Markeren..."/>
+                <Item id="Toggle Bookmark" name="Bladwijzer wisselen"/>
+                <Item id="Next Bookmark" name="Volgende bladwijzer"/>
+                <Item id="Previous Bookmark" name="Vorige bladwijzer"/>
+                <Item id="Clear All Bookmarks" name="Alle bladwijzers wissen"/>
+                <Item id="Search Results Window" name="Venster zoekresultaten"/>
+                <Item id="Word wrap" name="Tekstterugloop"/>
+                <Item id="Show All Characters" name="Alle tekens tonen"/>
+                <Item id="Show Indent Guide" name="Inspringhulp tonen"/>
+                <Item id="Show Wrap Symbol" name="Terugloopsymbool tonen"/>
+                <Item id="Show End of Line" name="Regeleinde tonen"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="Inzoomen (Ctrl+muiswiel omhoog)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="Uitzoomen (Ctrl+muiswiel omlaag)"/>
+                <Item id="Restore Default Zoom" name="Standaardzoom herstellen"/>
+                <Item id="Toggle Full Screen Mode" name="Volledig scherm wisselen"/>
+                <Item id="Distraction Free Mode" name="Afleidingsvrije modus"/>
+                <Item id="Function List" name="Functielijst"/>
+                <Item id="Document List" name="Documentenlijst"/>
+                <Item id="Folder as Workspace" name="Map als werkruimte"/>
+                <Item id="Summary..." name="Samenvatting..."/>
+                <Item id="Monitoring (tail -f)" name="Bewaking (tail -f)"/>
+                <Item id="Always on Top" name="Altijd bovenaan"/>
+                <Item id="Move to Other View" name="Naar andere weergave verplaatsen"/>
+                <Item id="Clone to Other View" name="Naar andere weergave klonen"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="Voorkeuren..."/>
+                <Item id="Style Configurator..." name="Stijlconfiguratie..."/>
+                <Item id="Import style theme(s)..." name="Stijlthema's importeren..."/>
+                <Item id="Import Notepad++ Config..." name="Notepad++-configuratie importeren..."/>
+                <Item id="Export Shortcuts..." name="Sneltoetsen exporteren..."/>
+                <Item id="User-Defined" name="Door gebruiker gedefinieerd"/>
+                <Item id="Define your language..." name="Uw taal definiëren..."/>
+                <Item id="None (Normal Text)" name="Geen (normale tekst)"/>
+                <Item id="Start Recording" name="Opname starten"/>
+                <Item id="Stop Recording" name="Opname stoppen"/>
+                <Item id="Playback" name="Afspelen"/>
+                <Item id="Run a Macro Multiple Times..." name="Macro meerdere keren uitvoeren..."/>
+                <Item id="Run..." name="Uitvoeren..."/>
+                <Item id="Search on Internet" name="Op internet zoeken"/>
+                <Item id="Open in Default Viewer" name="Openen in standaardviewer"/>
+                <Item id="Windows..." name="Vensters..."/>
+                <Item id="First Tab" name="Eerste tabblad"/>
+                <Item id="Next Tab" name="Volgend tabblad"/>
+                <Item id="Previous Tab" name="Vorig tabblad"/>
+                <Item id="Last Tab" name="Laatste tabblad"/>
+                <Item id="No Plugins Installed" name="Geen plug-ins geïnstalleerd"/>
+                <Item id="About Neko++" name="Over Neko++"/>
+                <Item id="Neko++ Home" name="Neko++-startpagina"/>
+                <Item id="Debug Info..." name="Foutopsporingsinfo..."/>
+                <Item id="Command Line Arguments..." name="Opdrachtregelargumenten..."/>
+                <Item id="(none installed)" name="(geen geïnstalleerd)"/>
+                <Item id="1st Style" name="1e stijl"/>
+                <Item id="1st Tab" name="1e tabblad"/>
+                <Item id="2nd Style" name="2e stijl"/>
+                <Item id="2nd Tab" name="2e tabblad"/>
+                <Item id="3rd Style" name="3e stijl"/>
+                <Item id="3rd Tab" name="3e tabblad"/>
+                <Item id="4th Style" name="4e stijl"/>
+                <Item id="4th Tab" name="4e tabblad"/>
+                <Item id="5th Style" name="5e stijl"/>
+                <Item id="5th Tab" name="5e tabblad"/>
+                <Item id="6th Tab" name="6e tabblad"/>
+                <Item id="7th Tab" name="7e tabblad"/>
+                <Item id="8th Tab" name="8e tabblad"/>
+                <Item id="9th Tab" name="9e tabblad"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="Alle stijlen"/>
+                <Item id="Apply Color 1" name="Kleur 1 toepassen"/>
+                <Item id="Apply Color 2" name="Kleur 2 toepassen"/>
+                <Item id="Apply Color 3" name="Kleur 3 toepassen"/>
+                <Item id="Apply Color 4" name="Kleur 4 toepassen"/>
+                <Item id="Apply Color 5" name="Kleur 5 toepassen"/>
+                <Item id="Arabic" name="Arabisch"/>
+                <Item id="Auto-Completion" name="Automatisch aanvullen"/>
+                <Item id="Baltic" name="Baltisch"/>
+                <Item id="Begin/End Select" name="Selectie beginnen/beëindigen"/>
+                <Item id="Begin/End Select in Column Mode" name="Selectie in kolommodus beginnen/beëindigen"/>
+                <Item id="Blank Operations" name="Bewerkingen op witruimte"/>
+                <Item id="Block Uncomment" name="Blokcommentaar verwijderen"/>
+                <Item id="Bookmark" name="Bladwijzer"/>
+                <Item id="Celtic" name="Keltisch"/>
+                <Item id="Central European" name="Midden-Europees"/>
+                <Item id="Change History" name="Wijzigingsgeschiedenis"/>
+                <Item id="Change Search Engine..." name="Zoekmachine wijzigen..."/>
+                <Item id="Character Panel" name="Tekenspaneel"/>
+                <Item id="Character sets" name="Tekensets"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="1e stijl wissen"/>
+                <Item id="Clear 2nd Style" name="2e stijl wissen"/>
+                <Item id="Clear 3rd Style" name="3e stijl wissen"/>
+                <Item id="Clear 4th Style" name="4e stijl wissen"/>
+                <Item id="Clear 5th Style" name="5e stijl wissen"/>
+                <Item id="Clear Change History" name="Wijzigingsgeschiedenis wissen"/>
+                <Item id="Clear Read-Only for All Documents" name="Alleen-lezen voor alle documenten opheffen"/>
+                <Item id="Clear Style" name="Stijl wissen"/>
+                <Item id="Clear all Styles" name="Alle stijlen wissen"/>
+                <Item id="Clipboard History" name="Klembordgeschiedenis"/>
+                <Item id="Close All Unchanged" name="Alle ongewijzigde sluiten"/>
+                <Item id="Close All but Active Document" name="Alles behalve actief document sluiten"/>
+                <Item id="Close All but Pinned Documents" name="Alles behalve vastgezette documenten sluiten"/>
+                <Item id="Close Multiple Documents" name="Meerdere documenten sluiten"/>
+                <Item id="Column Editor..." name="Kolomeditor..."/>
+                <Item id="Column Mode..." name="Kolommodus..."/>
+                <Item id="Comment/Uncomment" name="Becommentariëren/Commentaar verwijderen"/>
+                <Item id="Content Length Ascending" name="Inhoudslengte oplopend"/>
+                <Item id="Content Length Descending" name="Inhoudslengte aflopend"/>
+                <Item id="Convert Case to" name="Hoofdlettergebruik omzetten naar"/>
+                <Item id="Convert to ANSI" name="Converteren naar ANSI"/>
+                <Item id="Convert to UTF-16 BE BOM" name="Converteren naar UTF-16 BE BOM"/>
+                <Item id="Convert to UTF-16 LE BOM" name="Converteren naar UTF-16 LE BOM"/>
+                <Item id="Convert to UTF-8" name="Converteren naar UTF-8"/>
+                <Item id="Convert to UTF-8-BOM" name="Converteren naar UTF-8-BOM"/>
+                <Item id="Copy All File Paths" name="Alle bestandspaden kopiëren"/>
+                <Item id="Copy All Filenames" name="Alle bestandsnamen kopiëren"/>
+                <Item id="Copy Bookmarked Lines" name="Regels met bladwijzer kopiëren"/>
+                <Item id="Copy Current Dir. Path" name="Pad van huidige map kopiëren"/>
+                <Item id="Copy Current Filename" name="Huidige bestandsnaam kopiëren"/>
+                <Item id="Copy Current Full File path" name="Volledig pad van huidig bestand kopiëren"/>
+                <Item id="Copy Styled Text" name="Opgemaakte tekst kopiëren"/>
+                <Item id="Copy to Clipboard" name="Naar klembord kopiëren"/>
+                <Item id="Cut Bookmarked Lines" name="Regels met bladwijzer knippen"/>
+                <Item id="Cyrillic" name="Cyrillisch"/>
+                <Item id="Dark" name="Donker"/>
+                <Item id="Date Time (customized)" name="Datum en tijd (aangepast)"/>
+                <Item id="Date Time (long)" name="Datum en tijd (lang)"/>
+                <Item id="Date Time (short)" name="Datum en tijd (kort)"/>
+                <Item id="Document Map" name="Documentoverzicht"/>
+                <Item id="EOL Conversion" name="Regeleinde-conversie"/>
+                <Item id="EOL to Space" name="Regeleinde naar spatie"/>
+                <Item id="Eastern European" name="Oost-Europees"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="Contextmenu bewerken"/>
+                <Item id="Explorer" name="Verkenner"/>
+                <Item id="Find (Volatile) Next" name="(Vluchtig) volgende zoeken"/>
+                <Item id="Find (Volatile) Previous" name="(Vluchtig) vorige zoeken"/>
+                <Item id="Find Mark Style" name="Stijl voor zoekmarkering"/>
+                <Item id="Find characters in range..." name="Tekens in bereik zoeken..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="Focus op andere weergave"/>
+                <Item id="Fold All" name="Alles samenvouwen"/>
+                <Item id="Fold Current Level" name="Huidig niveau samenvouwen"/>
+                <Item id="Fold Level" name="Niveau samenvouwen"/>
+                <Item id="Function Completion" name="Functieaanvulling"/>
+                <Item id="Function Parameters Hint" name="Hint voor functieparameters"/>
+                <Item id="Function Parameters Next Hint" name="Volgende hint voor functieparameters"/>
+                <Item id="Function Parameters Previous Hint" name="Vorige hint voor functieparameters"/>
+                <Item id="Generate from files..." name="Genereren uit bestanden..."/>
+                <Item id="Generate from selection into clipboard" name="Genereren uit selectie naar klembord"/>
+                <Item id="Generate..." name="Genereren..."/>
+                <Item id="Go to Matching Brace" name="Naar bijbehorend haakje gaan"/>
+                <Item id="Go to Next Change" name="Naar volgende wijziging gaan"/>
+                <Item id="Go to Previous Change" name="Naar vorige wijziging gaan"/>
+                <Item id="Greek" name="Grieks"/>
+                <Item id="Hebrew" name="Hebreeuws"/>
+                <Item id="Hide Lines" name="Regels verbergen"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="Hoofdlettergebruik en heel woord negeren"/>
+                <Item id="Import" name="Importeren"/>
+                <Item id="Import plugin(s)..." name="Plug-in(s) importeren..."/>
+                <Item id="Indent" name="Inspringen"/>
+                <Item id="Insert" name="Invoegen"/>
+                <Item id="Inverse Bookmarks" name="Bladwijzers omkeren"/>
+                <Item id="Jump Down" name="Omlaag springen"/>
+                <Item id="Jump Up" name="Omhoog springen"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="Licht"/>
+                <Item id="Line Operations" name="Regelbewerkingen"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="Hoofdlettergebruik en heel woord respecteren"/>
+                <Item id="Match Case Only" name="Alleen hoofdlettergebruik respecteren"/>
+                <Item id="Match Whole Word Only" name="Alleen heel woord"/>
+                <Item id="Modified Time Ascending" name="Wijzigingstijd oplopend"/>
+                <Item id="Modified Time Descending" name="Wijzigingstijd aflopend"/>
+                <Item id="Move Tab Backward" name="Tabblad achteruit verplaatsen"/>
+                <Item id="Move Tab Forward" name="Tabblad vooruit verplaatsen"/>
+                <Item id="Move to End" name="Naar einde verplaatsen"/>
+                <Item id="Move to New Instance" name="Naar nieuwe instantie verplaatsen"/>
+                <Item id="Move to Start" name="Naar begin verplaatsen"/>
+                <Item id="Move/Clone Current Document" name="Huidig document verplaatsen/klonen"/>
+                <Item id="Multi-select All" name="Alles multiselecteren"/>
+                <Item id="Multi-select Next" name="Volgende multiselecteren"/>
+                <Item id="Name A to Z" name="Naam A tot Z"/>
+                <Item id="Name Z to A" name="Naam Z tot A"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++-gemeenschap (forum)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++-gebruikershandleiding online"/>
+                <Item id="Neko++ Project Page" name="Neko++-projectpagina"/>
+                <Item id="Next Search Result" name="Volgend zoekresultaat"/>
+                <Item id="North European" name="Noord-Europees"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Verzameling door gebruiker gedefinieerde talen voor Notepad++"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : Portugees"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : IJslands"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : Frans"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : Noords"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="Op selectie"/>
+                <Item id="Open Containing Folder" name="Bevattende map openen"/>
+                <Item id="Open Containing Folder in Explorer" name="Bevattende map openen in Verkenner"/>
+                <Item id="Open File" name="Bestand openen"/>
+                <Item id="Open Folder as Workspace..." name="Map als werkruimte openen..."/>
+                <Item id="Open Plugins Folder..." name="Plug-inmap openen..."/>
+                <Item id="Open Shortcut Mapper..." name="Sneltoetsenoverzicht openen..."/>
+                <Item id="Open User Defined Language folder..." name="Map met door gebruiker gedefinieerde talen openen..."/>
+                <Item id="Open in New Instance" name="Openen in nieuwe instantie"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="Plakken in (vervangen) regels met bladwijzer"/>
+                <Item id="Path A to Z" name="Pad A tot Z"/>
+                <Item id="Path Completion" name="Padaanvulling"/>
+                <Item id="Path Z to A" name="Pad Z tot A"/>
+                <Item id="Post-It" name="Plaknotitie"/>
+                <Item id="Previous Search Result" name="Vorig zoekresultaat"/>
+                <Item id="Project Panel 1" name="Projectpaneel 1"/>
+                <Item id="Project Panel 2" name="Projectpaneel 2"/>
+                <Item id="Project Panel 3" name="Projectpaneel 3"/>
+                <Item id="Project Panels" name="Projectpanelen"/>
+                <Item id="Proper Case (blend)" name="Beginletters hoofdletter (gemengd)"/>
+                <Item id="Randomize Line Order" name="Regelvolgorde willekeurig"/>
+                <Item id="Read-Only for All Documents" name="Alleen-lezen voor alle documenten"/>
+                <Item id="Read-Only in Neko++" name="Alleen-lezen in Neko++"/>
+                <Item id="Read-Only on Current Document" name="Alleen-lezen voor huidig document"/>
+                <Item id="Recent Window" name="Recent venster"/>
+                <Item id="Redact Selection" name="Selectie onleesbaar maken"/>
+                <Item id="Remove Bookmarked Lines" name="Regels met bladwijzer verwijderen"/>
+                <Item id="Remove Color" name="Kleur verwijderen"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="Opeenvolgende dubbele regels verwijderen"/>
+                <Item id="Remove Duplicate Lines" name="Dubbele regels verwijderen"/>
+                <Item id="Remove Empty Lines" name="Lege regels verwijderen"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="Lege regels verwijderen (met blanco tekens)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="Regels zonder bladwijzer verwijderen"/>
+                <Item id="Rename..." name="Naam wijzigen..."/>
+                <Item id="Reverse Line Order" name="Regelvolgorde omkeren"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="Huidige opgenomen macro opslaan..."/>
+                <Item id="Save a Copy As..." name="Een kopie opslaan als..."/>
+                <Item id="Select All In-between {} [] or ()" name="Alles tussen {} [] of () selecteren"/>
+                <Item id="Sentence case (blend)" name="Zinsbegin hoofdletter (gemengd)"/>
+                <Item id="Shortcut Mapper" name="Sneltoetsenoverzicht"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="Stuurtekens en Unicode-regeleinden tonen"/>
+                <Item id="Show Non-Printing Characters" name="Niet-afdrukbare tekens tonen"/>
+                <Item id="Show Space and Tab" name="Spaties en tabs tonen"/>
+                <Item id="Show Symbol" name="Symbool tonen"/>
+                <Item id="Single Line Uncomment" name="Regelcommentaar verwijderen"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="Huidige multiselectie overslaan en naar volgende gaan"/>
+                <Item id="Sort By" name="Sorteren op"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="Regels als decimalen (komma) oplopend sorteren"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="Regels als decimalen (komma) aflopend sorteren"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="Regels als decimalen (punt) oplopend sorteren"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="Regels als decimalen (punt) aflopend sorteren"/>
+                <Item id="Sort Lines As Integers Ascending" name="Regels als gehele getallen oplopend sorteren"/>
+                <Item id="Sort Lines As Integers Descending" name="Regels als gehele getallen aflopend sorteren"/>
+                <Item id="Sort Lines By Length Ascending" name="Regels op lengte oplopend sorteren"/>
+                <Item id="Sort Lines By Length Descending" name="Regels op lengte aflopend sorteren"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="Regels in locale-volgorde oplopend sorteren"/>
+                <Item id="Sort Lines In Locale Order Descending" name="Regels in locale-volgorde aflopend sorteren"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="Regels lex. oplopend sorteren, hoofdlettergebruik negeren"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="Regels lex. aflopend sorteren, hoofdlettergebruik negeren"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="Regels lexicografisch oplopend sorteren"/>
+                <Item id="Sort Lines Lexicographically Descending" name="Regels lexicografisch aflopend sorteren"/>
+                <Item id="Space to TAB (All)" name="Spaties naar TAB (alles)"/>
+                <Item id="Space to TAB (Leading)" name="Spaties naar TAB (vooraan)"/>
+                <Item id="Style All Occurrences of Token" name="Alle voorkomens van token opmaken"/>
+                <Item id="Style One Token" name="Eén token opmaken"/>
+                <Item id="Synchronize Across Views" name="Synchroniseren tussen weergaven"/>
+                <Item id="Synchronize Horizontal Scrolling" name="Horizontaal scrollen synchroniseren"/>
+                <Item id="Synchronize Vertical Scrolling" name="Verticaal scrollen synchroniseren"/>
+                <Item id="System" name="Systeem"/>
+                <Item id="TAB to Space" name="TAB naar spatie"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="Tabteken"/>
+                <Item id="Thai" name="Thais"/>
+                <Item id="Theme" name="Thema"/>
+                <Item id="Trim Leading Space" name="Voorloopspaties verwijderen"/>
+                <Item id="Trim Leading and Trailing Space" name="Voorloop- en volgspaties verwijderen"/>
+                <Item id="Trim Trailing Space" name="Volgspaties verwijderen"/>
+                <Item id="Trim both and EOL to Space" name="Beide verwijderen en regeleinde naar spatie"/>
+                <Item id="Turkish" name="Turks"/>
+                <Item id="Type A to Z" name="Type A tot Z"/>
+                <Item id="Type Z to A" name="Type Z tot A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="Laatst toegevoegde multiselectie ongedaan maken"/>
+                <Item id="Unfold All" name="Alles uitvouwen"/>
+                <Item id="Unfold Current Level" name="Huidig niveau uitvouwen"/>
+                <Item id="Unfold Level" name="Niveau uitvouwen"/>
+                <Item id="User Defined Language" name="Door gebruiker gedefinieerde taal"/>
+                <Item id="Validate shortcuts.xml" name="shortcuts.xml valideren"/>
+                <Item id="Vietnamese" name="Vietnamees"/>
+                <Item id="View Current File in" name="Huidig bestand weergeven in"/>
+                <Item id="Western European" name="West-Europees"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="Woordaanvulling"/>
+                <Item id="Zoom" name="Zoom"/>
+                <Item id="On" name="Aan"/>
+                <Item id="Print" name="Afdrukken"/>
+                <Item id="Autosave" name="Automatisch opslaan"/>
+                <Item id="File Dialog" name="Bestandsdialoogvenster"/>
+                <Item id="Edit..." name="Bewerken..."/>
+                <Item id="Hash file:" name="Controlesombestand:"/>
+                <Item id="Date time format:" name="Datum- en tijdnotatie:"/>
+                <Item id="Save a copy as:" name="Een kopie opslaan als:"/>
+                <Item id="A GPU-rendered text editor" name="Een teksteditor die door de GPU wordt weergegeven"/>
+                <Item id="Simple" name="Eenvoudig"/>
+                <Item id="Export to:" name="Exporteren naar:"/>
+                <Item id="Go to line:" name="Ga naar regel:"/>
+                <Item id="None" name="Geen"/>
+                <Item id="no match" name="geen resultaat"/>
+                <Item id="LARGE" name="GROOT"/>
+                <Item id="Sync Horizontal Scroll" name="Horizontaal scrollen synchroniseren"/>
+                <Item id="Save Current Macro" name="Huidige opgenomen macro opslaan"/>
+                <Item id="Import from:" name="Importeren uit:"/>
+                <Item id="Find in files:" name="In bestanden zoeken:"/>
+                <Item id="Find in projects:" name="In projecten zoeken:"/>
+                <Item id="Built-in browser" name="Ingebouwde bestandsverkenner"/>
+                <Item id="Insert at column:" name="Invoegen bij kolom:"/>
+                <Item id="Zoom In" name="Inzoomen"/>
+                <Item id="Col:" name="Kol:"/>
+                <Item id="length:" name="lengte:"/>
+                <Item id="Font Size" name="Lettergrootte"/>
+                <Item id="Play macro times:" name="Macro aantal keer afspelen:"/>
+                <Item id="Run Multiple Macros" name="Macro meerdere keren uitvoeren"/>
+                <Item id="Folder:" name="Map:"/>
+                <Item id="Minimap" name="Minikaart"/>
+                <Item id="Rename to:" name="Naam wijzigen in:"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="Omhoog/Omlaag  Links/Rechts  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Omhoog/Omlaag  Links/Rechts  Enter openen  Esc sluiten"/>
+                <Item id="bad regex" name="ongeldige reguliere expressie"/>
+                <Item id="Open" name="Openen"/>
+                <Item id="Open:" name="Openen:"/>
+                <Item id="Save as:" name="Opslaan als:"/>
+                <Item id="Import plugin from:" name="Plug-in importeren uit:"/>
+                <Item id="REC" name="REC"/>
+                <Item id="lines:" name="regels:"/>
+                <Item id="Backup on Save" name="Reservekopie bij opslaan"/>
+                <Item id="Ln:" name="Rgl:"/>
+                <Item id="Sel:" name="Sel:"/>
+                <Item id="Load session:" name="Sessie laden:"/>
+                <Item id="Save session as:" name="Sessie opslaan als:"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Shortcuts" name="Sneltoetsen"/>
+                <Item id="Split on:" name="Splitsen op:"/>
+                <Item id="System dialog" name="Systeemdialoogvenster"/>
+                <Item id="Tab Width" name="Tabbreedte"/>
+                <Item id="Character code:" name="Tekencode:"/>
+                <Item id="Import theme from:" name="Thema importeren uit:"/>
+                <Item id="Off" name="Uit"/>
+                <Item id="Verbose" name="Uitgebreid"/>
+                <Item id="Run:" name="Uitvoeren:"/>
+                <Item id="Zoom Out" name="Uitzoomen"/>
+                <Item id="Sync Vertical Scroll" name="Verticaal scrollen synchroniseren"/>
+                <Item id="Replace" name="Vervangen"/>
+                <Item id="Replace:" name="Vervangen:"/>
+                <Item id="Volatile Find" name="Vluchtig zoeken"/>
+                <Item id="Preferences" name="Voorkeuren"/>
+                <Item id="Toolbar" name="Werkbalk"/>
+                <Item id="Search URL:" name="Zoek-URL:"/>
+                <Item id="Find" name="Zoeken"/>
+                <Item id="Find:" name="Zoeken:"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

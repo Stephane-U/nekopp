@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Finnish (Suomi).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="Suomi" english="Finnish" filename="finnish.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="Tiedosto"/>
+                <Item id="Edit" name="Muokkaa"/>
+                <Item id="Search" name="Etsi"/>
+                <Item id="View" name="Näytä"/>
+                <Item id="Encoding" name="Koodaus"/>
+                <Item id="Language" name="Kieli"/>
+                <Item id="Settings" name="Asetukset"/>
+                <Item id="Tools" name="Työkalut"/>
+                <Item id="Macro" name="Makro"/>
+                <Item id="Run" name="Suorita"/>
+                <Item id="Plugins" name="Liitännäiset"/>
+                <Item id="Window" name="Ikkuna"/>
+                <Item id="Help" name="Ohje"/>
+                <Item id="New" name="Uusi"/>
+                <Item id="Open..." name="Avaa..."/>
+                <Item id="Save" name="Tallenna"/>
+                <Item id="Save As..." name="Tallenna nimellä..."/>
+                <Item id="Save All" name="Tallenna kaikki"/>
+                <Item id="Close" name="Sulje"/>
+                <Item id="Close All" name="Sulje kaikki"/>
+                <Item id="Close All to the Left" name="Sulje kaikki vasemmalta"/>
+                <Item id="Close All to the Right" name="Sulje kaikki oikealta"/>
+                <Item id="Reload from Disk" name="Lue levyltä uudelleen"/>
+                <Item id="Load Session..." name="Lataa istunto..."/>
+                <Item id="Save Session..." name="Tallenna istunto..."/>
+                <Item id="Move to Recycle Bin" name="Siirrä roskakoriin"/>
+                <Item id="Print..." name="Tulosta..."/>
+                <Item id="Print Now" name="Tulosta nyt"/>
+                <Item id="Exit" name="Lopeta"/>
+                <Item id="Undo" name="Kumoa"/>
+                <Item id="Redo" name="Tee uudelleen"/>
+                <Item id="Cut" name="Leikkaa"/>
+                <Item id="Copy" name="Kopioi"/>
+                <Item id="Paste" name="Liitä"/>
+                <Item id="Delete" name="Poista"/>
+                <Item id="Select All" name="Valitse kaikki"/>
+                <Item id="Duplicate Current Line" name="Monista nykyinen rivi"/>
+                <Item id="Join Lines" name="Yhdistä rivit"/>
+                <Item id="Split Lines" name="Jaa rivit"/>
+                <Item id="Move Up Current Line" name="Siirrä rivi ylös"/>
+                <Item id="Move Down Current Line" name="Siirrä rivi alas"/>
+                <Item id="Insert Blank Line Above Current" name="Lisää tyhjä rivi yläpuolelle"/>
+                <Item id="Insert Blank Line Below Current" name="Lisää tyhjä rivi alapuolelle"/>
+                <Item id="Toggle Single Line Comment" name="Vaihda rivikommentti"/>
+                <Item id="Single Line Comment" name="Kommentoi rivi"/>
+                <Item id="Block Comment" name="Kommentoi lohko"/>
+                <Item id="UPPERCASE" name="SUURET KIRJAIMET"/>
+                <Item id="lowercase" name="pienet kirjaimet"/>
+                <Item id="Proper Case" name="Alkukirjaimet isoiksi"/>
+                <Item id="Sentence case" name="Lauseen alku isoksi"/>
+                <Item id="Increase Line Indent" name="Suurenna sisennystä"/>
+                <Item id="Decrease Line Indent" name="Pienennä sisennystä"/>
+                <Item id="Find..." name="Etsi..."/>
+                <Item id="Find Next" name="Etsi seuraava"/>
+                <Item id="Find Previous" name="Etsi edellinen"/>
+                <Item id="Replace..." name="Korvaa..."/>
+                <Item id="Find in Files..." name="Etsi tiedostoista..."/>
+                <Item id="Incremental Search" name="Inkrementaalinen haku"/>
+                <Item id="Go to..." name="Siirry kohtaan..."/>
+                <Item id="Select and Find Next" name="Valitse ja etsi seuraava"/>
+                <Item id="Select and Find Previous" name="Valitse ja etsi edellinen"/>
+                <Item id="Mark..." name="Merkitse..."/>
+                <Item id="Toggle Bookmark" name="Vaihda kirjanmerkki"/>
+                <Item id="Next Bookmark" name="Seuraava kirjanmerkki"/>
+                <Item id="Previous Bookmark" name="Edellinen kirjanmerkki"/>
+                <Item id="Clear All Bookmarks" name="Poista kaikki kirjanmerkit"/>
+                <Item id="Search Results Window" name="Hakutulokset-ikkuna"/>
+                <Item id="Word wrap" name="Rivinvaihto"/>
+                <Item id="Show All Characters" name="Näytä kaikki merkit"/>
+                <Item id="Show Indent Guide" name="Näytä sisennysviivat"/>
+                <Item id="Show Wrap Symbol" name="Näytä rivinvaihtomerkki"/>
+                <Item id="Show End of Line" name="Näytä rivin loppu"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="Lähennä (Ctrl+vieritys ylös)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="Loitonna (Ctrl+vieritys alas)"/>
+                <Item id="Restore Default Zoom" name="Palauta oletuszoom"/>
+                <Item id="Toggle Full Screen Mode" name="Vaihda koko näyttö"/>
+                <Item id="Distraction Free Mode" name="Häiriötön tila"/>
+                <Item id="Function List" name="Funktioluettelo"/>
+                <Item id="Document List" name="Asiakirjaluettelo"/>
+                <Item id="Folder as Workspace" name="Kansio työtilana"/>
+                <Item id="Summary..." name="Yhteenveto..."/>
+                <Item id="Monitoring (tail -f)" name="Seuranta (tail -f)"/>
+                <Item id="Always on Top" name="Aina päällimmäisenä"/>
+                <Item id="Move to Other View" name="Siirrä toiseen näkymään"/>
+                <Item id="Clone to Other View" name="Kloonaa toiseen näkymään"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="Asetukset..."/>
+                <Item id="Style Configurator..." name="Tyylimäärittely..."/>
+                <Item id="Import style theme(s)..." name="Tuo tyyliteemoja..."/>
+                <Item id="Import Notepad++ Config..." name="Tuo Notepad++-asetukset..."/>
+                <Item id="Export Shortcuts..." name="Vie pikakuvakkeet..."/>
+                <Item id="User-Defined" name="Käyttäjän määrittämä"/>
+                <Item id="Define your language..." name="Määritä oma kieli..."/>
+                <Item id="None (Normal Text)" name="Ei mitään (tavallinen teksti)"/>
+                <Item id="Start Recording" name="Aloita tallennus"/>
+                <Item id="Stop Recording" name="Lopeta tallennus"/>
+                <Item id="Playback" name="Toista"/>
+                <Item id="Run a Macro Multiple Times..." name="Suorita makro useita kertoja..."/>
+                <Item id="Run..." name="Suorita..."/>
+                <Item id="Search on Internet" name="Etsi internetistä"/>
+                <Item id="Open in Default Viewer" name="Avaa oletuskatselemessa"/>
+                <Item id="Windows..." name="Ikkunat..."/>
+                <Item id="First Tab" name="Ensimmäinen välilehti"/>
+                <Item id="Next Tab" name="Seuraava välilehti"/>
+                <Item id="Previous Tab" name="Edellinen välilehti"/>
+                <Item id="Last Tab" name="Viimeinen välilehti"/>
+                <Item id="No Plugins Installed" name="Liitännäisiä ei ole asennettu"/>
+                <Item id="About Neko++" name="Tietoja Neko++:sta"/>
+                <Item id="Neko++ Home" name="Neko++-kotisivu"/>
+                <Item id="Debug Info..." name="Virheenkorjaustiedot..."/>
+                <Item id="Command Line Arguments..." name="Komentoriviargumentit..."/>
+                <Item id="(none installed)" name="(ei asennettu)"/>
+                <Item id="1st Style" name="1. tyyli"/>
+                <Item id="1st Tab" name="1. välilehti"/>
+                <Item id="2nd Style" name="2. tyyli"/>
+                <Item id="2nd Tab" name="2. välilehti"/>
+                <Item id="3rd Style" name="3. tyyli"/>
+                <Item id="3rd Tab" name="3. välilehti"/>
+                <Item id="4th Style" name="4. tyyli"/>
+                <Item id="4th Tab" name="4. välilehti"/>
+                <Item id="5th Style" name="5. tyyli"/>
+                <Item id="5th Tab" name="5. välilehti"/>
+                <Item id="6th Tab" name="6. välilehti"/>
+                <Item id="7th Tab" name="7. välilehti"/>
+                <Item id="8th Tab" name="8. välilehti"/>
+                <Item id="9th Tab" name="9. välilehti"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="Kaikki tyylit"/>
+                <Item id="Apply Color 1" name="Käytä väriä 1"/>
+                <Item id="Apply Color 2" name="Käytä väriä 2"/>
+                <Item id="Apply Color 3" name="Käytä väriä 3"/>
+                <Item id="Apply Color 4" name="Käytä väriä 4"/>
+                <Item id="Apply Color 5" name="Käytä väriä 5"/>
+                <Item id="Arabic" name="Arabialainen"/>
+                <Item id="Auto-Completion" name="Automaattinen täydennys"/>
+                <Item id="Baltic" name="Balttilainen"/>
+                <Item id="Begin/End Select" name="Aloita/lopeta valinta"/>
+                <Item id="Begin/End Select in Column Mode" name="Aloita/lopeta valinta saraketilassa"/>
+                <Item id="Blank Operations" name="Tyhjien merkkien toiminnot"/>
+                <Item id="Block Uncomment" name="Poista lohkokommentti"/>
+                <Item id="Bookmark" name="Kirjanmerkki"/>
+                <Item id="Celtic" name="Kelttiläinen"/>
+                <Item id="Central European" name="Keski-Eurooppalainen"/>
+                <Item id="Change History" name="Muutoshistoria"/>
+                <Item id="Change Search Engine..." name="Vaihda hakukone..."/>
+                <Item id="Character Panel" name="Merkkipaneeli"/>
+                <Item id="Character sets" name="Merkistöt"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="Poista 1. tyyli"/>
+                <Item id="Clear 2nd Style" name="Poista 2. tyyli"/>
+                <Item id="Clear 3rd Style" name="Poista 3. tyyli"/>
+                <Item id="Clear 4th Style" name="Poista 4. tyyli"/>
+                <Item id="Clear 5th Style" name="Poista 5. tyyli"/>
+                <Item id="Clear Change History" name="Tyhjennä muutoshistoria"/>
+                <Item id="Clear Read-Only for All Documents" name="Poista kaikkien asiakirjojen kirjoitussuojaus"/>
+                <Item id="Clear Style" name="Poista tyyli"/>
+                <Item id="Clear all Styles" name="Poista kaikki tyylit"/>
+                <Item id="Clipboard History" name="Leikepöydän historia"/>
+                <Item id="Close All Unchanged" name="Sulje kaikki muuttumattomat"/>
+                <Item id="Close All but Active Document" name="Sulje kaikki paitsi aktiivinen asiakirja"/>
+                <Item id="Close All but Pinned Documents" name="Sulje kaikki paitsi kiinnitetyt asiakirjat"/>
+                <Item id="Close Multiple Documents" name="Sulje useita asiakirjoja"/>
+                <Item id="Column Editor..." name="Sarakemuokkain..."/>
+                <Item id="Column Mode..." name="Saraketila..."/>
+                <Item id="Comment/Uncomment" name="Kommentoi/poista kommentti"/>
+                <Item id="Content Length Ascending" name="Sisällön pituus nouseva"/>
+                <Item id="Content Length Descending" name="Sisällön pituus laskeva"/>
+                <Item id="Convert Case to" name="Muunna kirjainkoko"/>
+                <Item id="Convert to ANSI" name="Muunna ANSI-muotoon"/>
+                <Item id="Convert to UTF-16 BE BOM" name="Muunna UTF-16 BE BOM -muotoon"/>
+                <Item id="Convert to UTF-16 LE BOM" name="Muunna UTF-16 LE BOM -muotoon"/>
+                <Item id="Convert to UTF-8" name="Muunna UTF-8-muotoon"/>
+                <Item id="Convert to UTF-8-BOM" name="Muunna UTF-8-BOM-muotoon"/>
+                <Item id="Copy All File Paths" name="Kopioi kaikki tiedostopolut"/>
+                <Item id="Copy All Filenames" name="Kopioi kaikki tiedostonimet"/>
+                <Item id="Copy Bookmarked Lines" name="Kopioi kirjanmerkityt rivit"/>
+                <Item id="Copy Current Dir. Path" name="Kopioi nykyinen hakemistopolku"/>
+                <Item id="Copy Current Filename" name="Kopioi nykyinen tiedostonimi"/>
+                <Item id="Copy Current Full File path" name="Kopioi nykyinen koko tiedostopolku"/>
+                <Item id="Copy Styled Text" name="Kopioi muotoiltu teksti"/>
+                <Item id="Copy to Clipboard" name="Kopioi leikepöydälle"/>
+                <Item id="Cut Bookmarked Lines" name="Leikkaa kirjanmerkityt rivit"/>
+                <Item id="Cyrillic" name="Kyrillinen"/>
+                <Item id="Dark" name="Tumma"/>
+                <Item id="Date Time (customized)" name="Päiväys ja aika (mukautettu)"/>
+                <Item id="Date Time (long)" name="Päiväys ja aika (pitkä)"/>
+                <Item id="Date Time (short)" name="Päiväys ja aika (lyhyt)"/>
+                <Item id="Document Map" name="Asiakirjakartta"/>
+                <Item id="EOL Conversion" name="Rivinvaihtojen muunto"/>
+                <Item id="EOL to Space" name="Rivinvaihto välilyönniksi"/>
+                <Item id="Eastern European" name="Itäeurooppalainen"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="Muokkaa ponnahdusvalikkoa"/>
+                <Item id="Explorer" name="Resurssienhallinta"/>
+                <Item id="Find (Volatile) Next" name="Etsi (haihtuva) seuraava"/>
+                <Item id="Find (Volatile) Previous" name="Etsi (haihtuva) edellinen"/>
+                <Item id="Find Mark Style" name="Etsinnän merkintätyyli"/>
+                <Item id="Find characters in range..." name="Etsi merkkejä alueelta..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="Kohdista toiseen näkymään"/>
+                <Item id="Fold All" name="Taita kaikki"/>
+                <Item id="Fold Current Level" name="Taita nykyinen taso"/>
+                <Item id="Fold Level" name="Taiton taso"/>
+                <Item id="Function Completion" name="Funktioiden täydennys"/>
+                <Item id="Function Parameters Hint" name="Funktion parametrien vihje"/>
+                <Item id="Function Parameters Next Hint" name="Funktion parametrien seuraava vihje"/>
+                <Item id="Function Parameters Previous Hint" name="Funktion parametrien edellinen vihje"/>
+                <Item id="Generate from files..." name="Luo tiedostoista..."/>
+                <Item id="Generate from selection into clipboard" name="Luo valinnasta leikepöydälle"/>
+                <Item id="Generate..." name="Luo..."/>
+                <Item id="Go to Matching Brace" name="Siirry vastaavaan sulkeeseen"/>
+                <Item id="Go to Next Change" name="Siirry seuraavaan muutokseen"/>
+                <Item id="Go to Previous Change" name="Siirry edelliseen muutokseen"/>
+                <Item id="Greek" name="Kreikkalainen"/>
+                <Item id="Hebrew" name="Heprealainen"/>
+                <Item id="Hide Lines" name="Piilota rivit"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="Ei kirjainkokoeroa &amp; koko sana"/>
+                <Item id="Import" name="Tuo"/>
+                <Item id="Import plugin(s)..." name="Tuo liitännäinen(-set)..."/>
+                <Item id="Indent" name="Sisennä"/>
+                <Item id="Insert" name="Lisää"/>
+                <Item id="Inverse Bookmarks" name="Käänteiset kirjanmerkit"/>
+                <Item id="Jump Down" name="Hyppää alas"/>
+                <Item id="Jump Up" name="Hyppää ylös"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="Vaalea"/>
+                <Item id="Line Operations" name="Rivitoiminnot"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="Sama kirjainkoko &amp; koko sana"/>
+                <Item id="Match Case Only" name="Vain sama kirjainkoko"/>
+                <Item id="Match Whole Word Only" name="Vain koko sana"/>
+                <Item id="Modified Time Ascending" name="Muokkausaika nouseva"/>
+                <Item id="Modified Time Descending" name="Muokkausaika laskeva"/>
+                <Item id="Move Tab Backward" name="Siirrä välilehteä taaksepäin"/>
+                <Item id="Move Tab Forward" name="Siirrä välilehteä eteenpäin"/>
+                <Item id="Move to End" name="Siirrä loppuun"/>
+                <Item id="Move to New Instance" name="Siirrä uuteen ilmentymään"/>
+                <Item id="Move to Start" name="Siirrä alkuun"/>
+                <Item id="Move/Clone Current Document" name="Siirrä/kloonaa nykyinen asiakirja"/>
+                <Item id="Multi-select All" name="Monivalitse kaikki"/>
+                <Item id="Multi-select Next" name="Monivalitse seuraava"/>
+                <Item id="Name A to Z" name="Nimi A:sta Z:hen"/>
+                <Item id="Name Z to A" name="Nimi Z:sta A:han"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++-yhteisö (foorumi)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++-käyttöopas verkossa"/>
+                <Item id="Neko++ Project Page" name="Neko++-projektisivu"/>
+                <Item id="Next Search Result" name="Seuraava hakutulos"/>
+                <Item id="North European" name="Pohjoiseurooppalainen"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Notepad++:n käyttäjän määrittämien kielten kokoelma"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : portugali"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : islanti"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : ranska"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : pohjoismainen"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="Valintaan"/>
+                <Item id="Open Containing Folder" name="Avaa sisältävä kansio"/>
+                <Item id="Open Containing Folder in Explorer" name="Avaa sisältävä kansio Resurssienhallinnassa"/>
+                <Item id="Open File" name="Avaa tiedosto"/>
+                <Item id="Open Folder as Workspace..." name="Avaa kansio työtilana..."/>
+                <Item id="Open Plugins Folder..." name="Avaa liitännäiskansio..."/>
+                <Item id="Open Shortcut Mapper..." name="Avaa pikakuvakekartta..."/>
+                <Item id="Open User Defined Language folder..." name="Avaa käyttäjän määrittämien kielten kansio..."/>
+                <Item id="Open in New Instance" name="Avaa uudessa ilmentymässä"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="Liitä kirjanmerkityille riveille (korvaa)"/>
+                <Item id="Path A to Z" name="Polku A:sta Z:hen"/>
+                <Item id="Path Completion" name="Polun täydennys"/>
+                <Item id="Path Z to A" name="Polku Z:sta A:han"/>
+                <Item id="Post-It" name="Post-It"/>
+                <Item id="Previous Search Result" name="Edellinen hakutulos"/>
+                <Item id="Project Panel 1" name="Projektipaneeli 1"/>
+                <Item id="Project Panel 2" name="Projektipaneeli 2"/>
+                <Item id="Project Panel 3" name="Projektipaneeli 3"/>
+                <Item id="Project Panels" name="Projektipaneelit"/>
+                <Item id="Proper Case (blend)" name="Alkukirjaimet isoiksi (blend)"/>
+                <Item id="Randomize Line Order" name="Satunnaista rivijärjestys"/>
+                <Item id="Read-Only for All Documents" name="Vain luku kaikille asiakirjoille"/>
+                <Item id="Read-Only in Neko++" name="Vain luku Neko++:ssa"/>
+                <Item id="Read-Only on Current Document" name="Vain luku nykyisessä asiakirjassa"/>
+                <Item id="Recent Window" name="Viimeisin ikkuna"/>
+                <Item id="Redact Selection" name="Peitä valinta"/>
+                <Item id="Remove Bookmarked Lines" name="Poista kirjanmerkityt rivit"/>
+                <Item id="Remove Color" name="Poista väri"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="Poista peräkkäiset kaksoisrivit"/>
+                <Item id="Remove Duplicate Lines" name="Poista kaksoisrivit"/>
+                <Item id="Remove Empty Lines" name="Poista tyhjät rivit"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="Poista tyhjät rivit (joissa on tyhjämerkkejä)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="Poista rivit, joissa ei ole kirjanmerkkiä"/>
+                <Item id="Rename..." name="Nimeä uudelleen..."/>
+                <Item id="Reverse Line Order" name="Käänteinen rivijärjestys"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="Tallenna nykyinen tallennettu makro..."/>
+                <Item id="Save a Copy As..." name="Tallenna kopio nimellä..."/>
+                <Item id="Select All In-between {} [] or ()" name="Valitse kaikki {} [] tai () välistä"/>
+                <Item id="Sentence case (blend)" name="Lauseen alku isoksi (blend)"/>
+                <Item id="Shortcut Mapper" name="Pikakuvakekartta"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="Näytä ohjausmerkit ja Unicode-rivinloput"/>
+                <Item id="Show Non-Printing Characters" name="Näytä tulostumattomat merkit"/>
+                <Item id="Show Space and Tab" name="Näytä välilyönti ja sarkain"/>
+                <Item id="Show Symbol" name="Näytä symboli"/>
+                <Item id="Single Line Uncomment" name="Poista rivikommentti"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="Ohita nykyinen ja siirry seuraavaan monivalintaan"/>
+                <Item id="Sort By" name="Lajitteluperuste"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="Lajittele rivit desimaaleina (pilkku) nousevasti"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="Lajittele rivit desimaaleina (pilkku) laskevasti"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="Lajittele rivit desimaaleina (piste) nousevasti"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="Lajittele rivit desimaaleina (piste) laskevasti"/>
+                <Item id="Sort Lines As Integers Ascending" name="Lajittele rivit kokonaislukuina nousevasti"/>
+                <Item id="Sort Lines As Integers Descending" name="Lajittele rivit kokonaislukuina laskevasti"/>
+                <Item id="Sort Lines By Length Ascending" name="Lajittele rivit pituuden mukaan nousevasti"/>
+                <Item id="Sort Lines By Length Descending" name="Lajittele rivit pituuden mukaan laskevasti"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="Lajittele rivit kielialueen järjestykseen nousevasti"/>
+                <Item id="Sort Lines In Locale Order Descending" name="Lajittele rivit kielialueen järjestykseen laskevasti"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="Lajittele rivit aakkosellisesti nousevasti kirjainkoko huomiotta"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="Lajittele rivit aakkosellisesti laskevasti kirjainkoko huomiotta"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="Lajittele rivit aakkosjärjestykseen nousevasti"/>
+                <Item id="Sort Lines Lexicographically Descending" name="Lajittele rivit aakkosjärjestykseen laskevasti"/>
+                <Item id="Space to TAB (All)" name="Välilyönti sarkaineksi (kaikki)"/>
+                <Item id="Space to TAB (Leading)" name="Välilyönti sarkaineksi (alussa)"/>
+                <Item id="Style All Occurrences of Token" name="Tyylitä kaikki tunnuksen esiintymät"/>
+                <Item id="Style One Token" name="Tyylitä yksi tunnus"/>
+                <Item id="Synchronize Across Views" name="Synkronoi näkymien välillä"/>
+                <Item id="Synchronize Horizontal Scrolling" name="Synkronoi vaakavieritys"/>
+                <Item id="Synchronize Vertical Scrolling" name="Synkronoi pystyvieritys"/>
+                <Item id="System" name="Järjestelmä"/>
+                <Item id="TAB to Space" name="Sarkain välilyönniksi"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="Sarkain"/>
+                <Item id="Thai" name="Thaimaalainen"/>
+                <Item id="Theme" name="Teema"/>
+                <Item id="Trim Leading Space" name="Poista alkavat välilyönnit"/>
+                <Item id="Trim Leading and Trailing Space" name="Poista alku- ja loppuvälilyönnit"/>
+                <Item id="Trim Trailing Space" name="Poista loppuvälilyönnit"/>
+                <Item id="Trim both and EOL to Space" name="Poista molemmat ja muunna rivinvaihto välilyönniksi"/>
+                <Item id="Turkish" name="Turkkilainen"/>
+                <Item id="Type A to Z" name="Tyyppi A:sta Z:hen"/>
+                <Item id="Type Z to A" name="Tyyppi Z:sta A:han"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="Kumoa viimeisin lisätty monivalinta"/>
+                <Item id="Unfold All" name="Avaa kaikki"/>
+                <Item id="Unfold Current Level" name="Avaa nykyinen taso"/>
+                <Item id="Unfold Level" name="Taiton avaustaso"/>
+                <Item id="User Defined Language" name="Käyttäjän määrittämä kieli"/>
+                <Item id="Validate shortcuts.xml" name="Tarkista shortcuts.xml"/>
+                <Item id="Vietnamese" name="Vietnamilainen"/>
+                <Item id="View Current File in" name="Näytä nykyinen tiedosto sovelluksessa"/>
+                <Item id="Western European" name="Länsieurooppalainen"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="Sanantäydennys"/>
+                <Item id="Zoom" name="Zoomaus"/>
+                <Item id="Preferences" name="Asetukset"/>
+                <Item id="Autosave" name="Automaattitallennus"/>
+                <Item id="Open" name="Avaa"/>
+                <Item id="Open:" name="Avaa:"/>
+                <Item id="None" name="Ei mitään"/>
+                <Item id="no match" name="ei osumia"/>
+                <Item id="Find" name="Etsi"/>
+                <Item id="Find in projects:" name="Etsi projekteista:"/>
+                <Item id="Find in files:" name="Etsi tiedostoista:"/>
+                <Item id="Find:" name="Etsi:"/>
+                <Item id="A GPU-rendered text editor" name="GPU-kiihdytetty tekstieditori"/>
+                <Item id="Volatile Find" name="Haihtuva etsintä"/>
+                <Item id="Search URL:" name="Haun URL:"/>
+                <Item id="Split on:" name="Jakoperuste:"/>
+                <Item id="System dialog" name="Järjestelmän valintaikkuna"/>
+                <Item id="Folder:" name="Kansio:"/>
+                <Item id="Font Size" name="Kirjasinkoko"/>
+                <Item id="Replace" name="Korvaa"/>
+                <Item id="Replace:" name="Korvaa:"/>
+                <Item id="Zoom In" name="Lähennä"/>
+                <Item id="Load session:" name="Lataa istunto:"/>
+                <Item id="Insert at column:" name="Lisää sarakkeeseen:"/>
+                <Item id="Zoom Out" name="Loitonna"/>
+                <Item id="Character code:" name="Merkkikoodi:"/>
+                <Item id="Minimap" name="Minikartta"/>
+                <Item id="Edit..." name="Muokkaa..."/>
+                <Item id="Rename to:" name="Nimeä uudelleen:"/>
+                <Item id="On" name="Päällä"/>
+                <Item id="Date time format:" name="Päiväys- ja aikamuoto:"/>
+                <Item id="Shortcuts" name="Pikakuvakkeet"/>
+                <Item id="length:" name="pituus:"/>
+                <Item id="Off" name="Pois"/>
+                <Item id="REC" name="REC"/>
+                <Item id="Ln:" name="Rivi:"/>
+                <Item id="lines:" name="riviä:"/>
+                <Item id="Col:" name="Sarake:"/>
+                <Item id="Tab Width" name="Sarkaimen leveys"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Go to line:" name="Siirry riville:"/>
+                <Item id="Built-in browser" name="Sisäinen selain"/>
+                <Item id="Run Multiple Macros" name="Suorita useita makroja"/>
+                <Item id="Run:" name="Suorita:"/>
+                <Item id="LARGE" name="SUURI"/>
+                <Item id="Sync Vertical Scroll" name="Synkronoi pystyvieritys"/>
+                <Item id="Sync Horizontal Scroll" name="Synkronoi vaakavieritys"/>
+                <Item id="Save session as:" name="Tallenna istunto nimellä:"/>
+                <Item id="Save a copy as:" name="Tallenna kopio nimellä:"/>
+                <Item id="Save as:" name="Tallenna nimellä:"/>
+                <Item id="Save Current Macro" name="Tallenna nykyinen makro"/>
+                <Item id="Hash file:" name="Tarkistussummatiedosto:"/>
+                <Item id="File Dialog" name="Tiedostovalintaikkuna"/>
+                <Item id="Play macro times:" name="Toista makro kertaa:"/>
+                <Item id="Print" name="Tulosta"/>
+                <Item id="Import plugin from:" name="Tuo liitännäinen sijainnista:"/>
+                <Item id="Import from:" name="Tuo sijainnista:"/>
+                <Item id="Import theme from:" name="Tuo teema sijainnista:"/>
+                <Item id="Toolbar" name="Työkalurivi"/>
+                <Item id="Sel:" name="Valinta:"/>
+                <Item id="Backup on Save" name="Varmuuskopiointi tallennettaessa"/>
+                <Item id="Export to:" name="Vie sijaintiin:"/>
+                <Item id="bad regex" name="virheellinen säännöllinen lauseke"/>
+                <Item id="Simple" name="Yksinkertainen"/>
+                <Item id="Verbose" name="Yksityiskohtainen"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="Ylös/Alas  Vasen/Oikea  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Ylös/Alas  Vasen/Oikea  Enter avaa  Esc sulje"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

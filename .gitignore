@@ -1,0 +1,12 @@
+# Build output.
+/target/
+/dist/
+
+# dpkg-buildpackage leaves its staging area and bookkeeping in debian/. None of
+# it is source: `debian/npp/` is the package being assembled, and the rest is
+# debhelper's record of what it has already done.
+/debian/.debhelper/
+/debian/debhelper-build-stamp/
+/debian/files
+/debian/npp/
+/debian/*.substvars

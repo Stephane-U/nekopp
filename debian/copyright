@@ -1,0 +1,23 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: npp
+
+Files: *
+Copyright: 2026 the Neko++ authors
+License: proprietary
+ No license has been chosen for this project yet. The package is built for
+ local use and must not be redistributed until one is added.
+
+Files: crates/nn-app/assets/NekoHangul-Regular.ttf
+Copyright: 2010, NHN Corporation (http://www.nhncorp.com),
+ Font designed by Sandoll Communications Inc.
+License: OFL-1.1
+ A Hangul subset of NanumGothic Regular, renamed `Neko Hangul` because the
+ licence's Reserved Font Name clause forbids a modified version keeping the
+ name. The subset is compiled into the binary rather than installed as a file,
+ and the licence has to travel with it either way: the full text is in
+ `crates/nn-app/assets/OFL.txt`.
+
+License: OFL-1.1
+ This Font Software is licensed under the SIL Open Font License, Version 1.1.
+ The complete text and the copyright notice are kept in
+ `crates/nn-app/assets/OFL.txt`.

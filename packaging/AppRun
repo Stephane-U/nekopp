@@ -1,0 +1,5 @@
+#!/bin/sh
+# AppImage entry point. Resolves the mount point through the symlink the
+# runtime creates, so the binary is found wherever the image is mounted.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/npp" "$@"

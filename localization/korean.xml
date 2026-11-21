@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Korean (한국어).
+     The ids are the English labels the editor uses, so this file needs no
+     id table and keeps working when a row is renamed in English. -->
+<NotepadPlus>
+    <Native-Langue name="한국어" english="Korean" filename="korean.xml">
+        <Menu>
+            <Main>
+                <Item id="File" name="파일"/>
+                <Item id="Edit" name="편집"/>
+                <Item id="Search" name="찾기"/>
+                <Item id="View" name="보기"/>
+                <Item id="Encoding" name="인코딩"/>
+                <Item id="Language" name="언어"/>
+                <Item id="Settings" name="설정"/>
+                <Item id="Tools" name="도구"/>
+                <Item id="Macro" name="매크로"/>
+                <Item id="Run" name="실행"/>
+                <Item id="Plugins" name="플러그인"/>
+                <Item id="Window" name="창"/>
+                <Item id="Help" name="도움말"/>
+                <Item id="New" name="새로 만들기"/>
+                <Item id="Open..." name="열기..."/>
+                <Item id="Save" name="저장"/>
+                <Item id="Save As..." name="다른 이름으로 저장..."/>
+                <Item id="Save All" name="모두 저장"/>
+                <Item id="Close" name="닫기"/>
+                <Item id="Close All" name="모두 닫기"/>
+                <Item id="Close All to the Left" name="왼쪽 모두 닫기"/>
+                <Item id="Close All to the Right" name="오른쪽 모두 닫기"/>
+                <Item id="Reload from Disk" name="디스크에서 다시 읽기"/>
+                <Item id="Load Session..." name="세션 불러오기..."/>
+                <Item id="Save Session..." name="세션 저장..."/>
+                <Item id="Move to Recycle Bin" name="휴지통으로 이동"/>
+                <Item id="Print..." name="인쇄..."/>
+                <Item id="Print Now" name="지금 인쇄"/>
+                <Item id="Exit" name="종료"/>
+                <Item id="Undo" name="실행 취소"/>
+                <Item id="Redo" name="다시 실행"/>
+                <Item id="Cut" name="잘라내기"/>
+                <Item id="Copy" name="복사"/>
+                <Item id="Paste" name="붙여넣기"/>
+                <Item id="Delete" name="삭제"/>
+                <Item id="Select All" name="모두 선택"/>
+                <Item id="Duplicate Current Line" name="현재 줄 복제"/>
+                <Item id="Join Lines" name="줄 합치기"/>
+                <Item id="Split Lines" name="줄 나누기"/>
+                <Item id="Move Up Current Line" name="현재 줄 위로 이동"/>
+                <Item id="Move Down Current Line" name="현재 줄 아래로 이동"/>
+                <Item id="Insert Blank Line Above Current" name="위에 빈 줄 삽입"/>
+                <Item id="Insert Blank Line Below Current" name="아래에 빈 줄 삽입"/>
+                <Item id="Toggle Single Line Comment" name="줄 주석 전환"/>
+                <Item id="Single Line Comment" name="줄 주석"/>
+                <Item id="Block Comment" name="블록 주석"/>
+                <Item id="UPPERCASE" name="대문자"/>
+                <Item id="lowercase" name="소문자"/>
+                <Item id="Proper Case" name="단어 첫 글자 대문자"/>
+                <Item id="Sentence case" name="문장 첫 글자 대문자"/>
+                <Item id="Increase Line Indent" name="들여쓰기 늘리기"/>
+                <Item id="Decrease Line Indent" name="들여쓰기 줄이기"/>
+                <Item id="Find..." name="찾기..."/>
+                <Item id="Find Next" name="다음 찾기"/>
+                <Item id="Find Previous" name="이전 찾기"/>
+                <Item id="Replace..." name="바꾸기..."/>
+                <Item id="Find in Files..." name="파일에서 찾기..."/>
+                <Item id="Incremental Search" name="점진적 검색"/>
+                <Item id="Go to..." name="이동..."/>
+                <Item id="Select and Find Next" name="선택 후 다음 찾기"/>
+                <Item id="Select and Find Previous" name="선택 후 이전 찾기"/>
+                <Item id="Mark..." name="표시..."/>
+                <Item id="Toggle Bookmark" name="책갈피 전환"/>
+                <Item id="Next Bookmark" name="다음 책갈피"/>
+                <Item id="Previous Bookmark" name="이전 책갈피"/>
+                <Item id="Clear All Bookmarks" name="모든 책갈피 지우기"/>
+                <Item id="Search Results Window" name="검색 결과 창"/>
+                <Item id="Word wrap" name="자동 줄 바꿈"/>
+                <Item id="Show All Characters" name="모든 문자 표시"/>
+                <Item id="Show Indent Guide" name="들여쓰기 안내선 표시"/>
+                <Item id="Show Wrap Symbol" name="줄 바꿈 기호 표시"/>
+                <Item id="Show End of Line" name="줄 끝 표시"/>
+                <Item id="Zoom In (Ctrl+Mouse Wheel Up)" name="확대 (Ctrl+휠 위)"/>
+                <Item id="Zoom Out (Ctrl+Mouse Wheel Down)" name="축소 (Ctrl+휠 아래)"/>
+                <Item id="Restore Default Zoom" name="기본 확대/축소로 복원"/>
+                <Item id="Toggle Full Screen Mode" name="전체 화면 전환"/>
+                <Item id="Distraction Free Mode" name="집중 모드"/>
+                <Item id="Function List" name="함수 목록"/>
+                <Item id="Document List" name="문서 목록"/>
+                <Item id="Folder as Workspace" name="폴더를 작업 공간으로"/>
+                <Item id="Summary..." name="요약..."/>
+                <Item id="Monitoring (tail -f)" name="모니터링 (tail -f)"/>
+                <Item id="Always on Top" name="항상 위에"/>
+                <Item id="Move to Other View" name="다른 보기로 이동"/>
+                <Item id="Clone to Other View" name="다른 보기로 복제"/>
+                <Item id="Windows (CR LF)" name="Windows (CR LF)"/>
+                <Item id="Unix (LF)" name="Unix (LF)"/>
+                <Item id="Macintosh (CR)" name="Macintosh (CR)"/>
+                <Item id="Preferences..." name="환경 설정..."/>
+                <Item id="Style Configurator..." name="스타일 구성..."/>
+                <Item id="Import style theme(s)..." name="스타일 테마 가져오기..."/>
+                <Item id="Import Notepad++ Config..." name="Notepad++ 설정 가져오기..."/>
+                <Item id="Export Shortcuts..." name="단축키 내보내기..."/>
+                <Item id="User-Defined" name="사용자 정의"/>
+                <Item id="Define your language..." name="언어 정의..."/>
+                <Item id="None (Normal Text)" name="없음 (일반 텍스트)"/>
+                <Item id="Start Recording" name="녹화 시작"/>
+                <Item id="Stop Recording" name="녹화 중지"/>
+                <Item id="Playback" name="재생"/>
+                <Item id="Run a Macro Multiple Times..." name="매크로 여러 번 실행..."/>
+                <Item id="Run..." name="실행..."/>
+                <Item id="Search on Internet" name="인터넷에서 검색"/>
+                <Item id="Open in Default Viewer" name="기본 뷰어로 열기"/>
+                <Item id="Windows..." name="창..."/>
+                <Item id="First Tab" name="첫 번째 탭"/>
+                <Item id="Next Tab" name="다음 탭"/>
+                <Item id="Previous Tab" name="이전 탭"/>
+                <Item id="Last Tab" name="마지막 탭"/>
+                <Item id="No Plugins Installed" name="설치된 플러그인 없음"/>
+                <Item id="About Neko++" name="Neko++ 정보"/>
+                <Item id="Neko++ Home" name="Neko++ 홈"/>
+                <Item id="Debug Info..." name="디버그 정보..."/>
+                <Item id="Command Line Arguments..." name="명령줄 인수..."/>
+                <Item id="(none installed)" name="(설치된 항목 없음)"/>
+                <Item id="1st Style" name="첫 번째 스타일"/>
+                <Item id="1st Tab" name="첫 번째 탭"/>
+                <Item id="2nd Style" name="두 번째 스타일"/>
+                <Item id="2nd Tab" name="두 번째 탭"/>
+                <Item id="3rd Style" name="세 번째 스타일"/>
+                <Item id="3rd Tab" name="세 번째 탭"/>
+                <Item id="4th Style" name="네 번째 스타일"/>
+                <Item id="4th Tab" name="네 번째 탭"/>
+                <Item id="5th Style" name="다섯 번째 스타일"/>
+                <Item id="5th Tab" name="다섯 번째 탭"/>
+                <Item id="6th Tab" name="여섯 번째 탭"/>
+                <Item id="7th Tab" name="일곱 번째 탭"/>
+                <Item id="8th Tab" name="여덟 번째 탭"/>
+                <Item id="9th Tab" name="아홉 번째 탭"/>
+                <Item id="ANSI" name="ANSI"/>
+                <Item id="All Styles" name="모든 스타일"/>
+                <Item id="Apply Color 1" name="색상 1 적용"/>
+                <Item id="Apply Color 2" name="색상 2 적용"/>
+                <Item id="Apply Color 3" name="색상 3 적용"/>
+                <Item id="Apply Color 4" name="색상 4 적용"/>
+                <Item id="Apply Color 5" name="색상 5 적용"/>
+                <Item id="Arabic" name="아랍어"/>
+                <Item id="Auto-Completion" name="자동 완성"/>
+                <Item id="Baltic" name="발트어"/>
+                <Item id="Begin/End Select" name="선택 시작/끝"/>
+                <Item id="Begin/End Select in Column Mode" name="컬럼 모드에서 선택 시작/끝"/>
+                <Item id="Blank Operations" name="공백 작업"/>
+                <Item id="Block Uncomment" name="블록 주석 해제"/>
+                <Item id="Bookmark" name="책갈피"/>
+                <Item id="Celtic" name="켈트어"/>
+                <Item id="Central European" name="중앙 유럽어"/>
+                <Item id="Change History" name="변경 기록"/>
+                <Item id="Change Search Engine..." name="검색 엔진 변경..."/>
+                <Item id="Character Panel" name="문자 패널"/>
+                <Item id="Character sets" name="문자 집합"/>
+                <Item id="Chrome" name="Chrome"/>
+                <Item id="Clear 1st Style" name="첫 번째 스타일 지우기"/>
+                <Item id="Clear 2nd Style" name="두 번째 스타일 지우기"/>
+                <Item id="Clear 3rd Style" name="세 번째 스타일 지우기"/>
+                <Item id="Clear 4th Style" name="네 번째 스타일 지우기"/>
+                <Item id="Clear 5th Style" name="다섯 번째 스타일 지우기"/>
+                <Item id="Clear Change History" name="변경 기록 지우기"/>
+                <Item id="Clear Read-Only for All Documents" name="모든 문서의 읽기 전용 해제"/>
+                <Item id="Clear Style" name="스타일 지우기"/>
+                <Item id="Clear all Styles" name="모든 스타일 지우기"/>
+                <Item id="Clipboard History" name="클립보드 기록"/>
+                <Item id="Close All Unchanged" name="변경되지 않은 문서 모두 닫기"/>
+                <Item id="Close All but Active Document" name="활성 문서를 제외하고 모두 닫기"/>
+                <Item id="Close All but Pinned Documents" name="고정된 문서를 제외하고 모두 닫기"/>
+                <Item id="Close Multiple Documents" name="여러 문서 닫기"/>
+                <Item id="Column Editor..." name="컬럼 편집기..."/>
+                <Item id="Column Mode..." name="컬럼 모드..."/>
+                <Item id="Comment/Uncomment" name="주석/주석 해제"/>
+                <Item id="Content Length Ascending" name="내용 길이 오름차순"/>
+                <Item id="Content Length Descending" name="내용 길이 내림차순"/>
+                <Item id="Convert Case to" name="대소문자 변환"/>
+                <Item id="Convert to ANSI" name="ANSI로 변환"/>
+                <Item id="Convert to UTF-16 BE BOM" name="UTF-16 BE BOM으로 변환"/>
+                <Item id="Convert to UTF-16 LE BOM" name="UTF-16 LE BOM으로 변환"/>
+                <Item id="Convert to UTF-8" name="UTF-8로 변환"/>
+                <Item id="Convert to UTF-8-BOM" name="UTF-8-BOM으로 변환"/>
+                <Item id="Copy All File Paths" name="모든 파일 경로 복사"/>
+                <Item id="Copy All Filenames" name="모든 파일 이름 복사"/>
+                <Item id="Copy Bookmarked Lines" name="책갈피가 지정된 줄 복사"/>
+                <Item id="Copy Current Dir. Path" name="현재 디렉터리 경로 복사"/>
+                <Item id="Copy Current Filename" name="현재 파일 이름 복사"/>
+                <Item id="Copy Current Full File path" name="현재 파일의 전체 경로 복사"/>
+                <Item id="Copy Styled Text" name="스타일이 적용된 텍스트 복사"/>
+                <Item id="Copy to Clipboard" name="클립보드에 복사"/>
+                <Item id="Cut Bookmarked Lines" name="책갈피가 지정된 줄 잘라내기"/>
+                <Item id="Cyrillic" name="키릴어"/>
+                <Item id="Dark" name="어둡게"/>
+                <Item id="Date Time (customized)" name="날짜와 시간 (사용자 지정)"/>
+                <Item id="Date Time (long)" name="날짜와 시간 (자세히)"/>
+                <Item id="Date Time (short)" name="날짜와 시간 (간단히)"/>
+                <Item id="Document Map" name="문서 맵"/>
+                <Item id="EOL Conversion" name="줄 바꿈 문자 변환"/>
+                <Item id="EOL to Space" name="줄 바꿈을 공백으로 변환"/>
+                <Item id="Eastern European" name="동유럽어"/>
+                <Item id="Edge" name="Edge"/>
+                <Item id="Edit Popup ContextMenu" name="팝업 상황 메뉴 편집"/>
+                <Item id="Explorer" name="탐색기"/>
+                <Item id="Find (Volatile) Next" name="다음 찾기 (휘발성)"/>
+                <Item id="Find (Volatile) Previous" name="이전 찾기 (휘발성)"/>
+                <Item id="Find Mark Style" name="찾기 표시 스타일"/>
+                <Item id="Find characters in range..." name="범위 내 문자 찾기..."/>
+                <Item id="Firefox" name="Firefox"/>
+                <Item id="Focus on Another View" name="다른 보기로 포커스 이동"/>
+                <Item id="Fold All" name="모두 접기"/>
+                <Item id="Fold Current Level" name="현재 수준 접기"/>
+                <Item id="Fold Level" name="수준 접기"/>
+                <Item id="Function Completion" name="함수 완성"/>
+                <Item id="Function Parameters Hint" name="함수 매개변수 힌트"/>
+                <Item id="Function Parameters Next Hint" name="다음 함수 매개변수 힌트"/>
+                <Item id="Function Parameters Previous Hint" name="이전 함수 매개변수 힌트"/>
+                <Item id="Generate from files..." name="파일에서 생성..."/>
+                <Item id="Generate from selection into clipboard" name="선택 영역에서 클립보드로 생성"/>
+                <Item id="Generate..." name="생성..."/>
+                <Item id="Go to Matching Brace" name="일치하는 괄호로 이동"/>
+                <Item id="Go to Next Change" name="다음 변경 사항으로 이동"/>
+                <Item id="Go to Previous Change" name="이전 변경 사항으로 이동"/>
+                <Item id="Greek" name="그리스어"/>
+                <Item id="Hebrew" name="히브리어"/>
+                <Item id="Hide Lines" name="줄 숨기기"/>
+                <Item id="IE" name="IE"/>
+                <Item id="ISO 8859-1" name="ISO 8859-1"/>
+                <Item id="ISO 8859-13" name="ISO 8859-13"/>
+                <Item id="ISO 8859-14" name="ISO 8859-14"/>
+                <Item id="ISO 8859-15" name="ISO 8859-15"/>
+                <Item id="ISO 8859-2" name="ISO 8859-2"/>
+                <Item id="ISO 8859-3" name="ISO 8859-3"/>
+                <Item id="ISO 8859-4" name="ISO 8859-4"/>
+                <Item id="ISO 8859-5" name="ISO 8859-5"/>
+                <Item id="ISO 8859-6" name="ISO 8859-6"/>
+                <Item id="ISO 8859-7" name="ISO 8859-7"/>
+                <Item id="ISO 8859-8" name="ISO 8859-8"/>
+                <Item id="ISO 8859-9" name="ISO 8859-9"/>
+                <Item id="Ignore Case &amp; Whole Word" name="대소문자 무시 &amp; 단어 단위"/>
+                <Item id="Import" name="가져오기"/>
+                <Item id="Import plugin(s)..." name="플러그인 가져오기..."/>
+                <Item id="Indent" name="들여쓰기"/>
+                <Item id="Insert" name="삽입"/>
+                <Item id="Inverse Bookmarks" name="책갈피 반전"/>
+                <Item id="Jump Down" name="아래로 점프"/>
+                <Item id="Jump Up" name="위로 점프"/>
+                <Item id="KOI8-R" name="KOI8-R"/>
+                <Item id="KOI8-U" name="KOI8-U"/>
+                <Item id="Light" name="밝게"/>
+                <Item id="Line Operations" name="줄 작업"/>
+                <Item id="MD5" name="MD5"/>
+                <Item id="Macintosh" name="Macintosh"/>
+                <Item id="Match Case &amp; Whole Word" name="대소문자 일치 &amp; 단어 단위"/>
+                <Item id="Match Case Only" name="대소문자만 일치"/>
+                <Item id="Match Whole Word Only" name="단어 단위만 일치"/>
+                <Item id="Modified Time Ascending" name="수정한 시간 오름차순"/>
+                <Item id="Modified Time Descending" name="수정한 시간 내림차순"/>
+                <Item id="Move Tab Backward" name="탭을 뒤로 이동"/>
+                <Item id="Move Tab Forward" name="탭을 앞으로 이동"/>
+                <Item id="Move to End" name="끝으로 이동"/>
+                <Item id="Move to New Instance" name="새 인스턴스로 이동"/>
+                <Item id="Move to Start" name="시작으로 이동"/>
+                <Item id="Move/Clone Current Document" name="현재 문서 이동/복제"/>
+                <Item id="Multi-select All" name="모두 다중 선택"/>
+                <Item id="Multi-select Next" name="다음 다중 선택"/>
+                <Item id="Name A to Z" name="이름 A→Z"/>
+                <Item id="Name Z to A" name="이름 Z→A"/>
+                <Item id="Neko++ Community (Forum)" name="Neko++ 커뮤니티 (포럼)"/>
+                <Item id="Neko++ Online User Manual" name="Neko++ 온라인 사용자 설명서"/>
+                <Item id="Neko++ Project Page" name="Neko++ 프로젝트 페이지"/>
+                <Item id="Next Search Result" name="다음 검색 결과"/>
+                <Item id="North European" name="북유럽어"/>
+                <Item id="Notepad++ User Defined Languages Collection" name="Notepad++ 사용자 정의 언어 모음"/>
+                <Item id="OEM 720" name="OEM 720"/>
+                <Item id="OEM 737" name="OEM 737"/>
+                <Item id="OEM 775" name="OEM 775"/>
+                <Item id="OEM 850" name="OEM 850"/>
+                <Item id="OEM 852" name="OEM 852"/>
+                <Item id="OEM 855" name="OEM 855"/>
+                <Item id="OEM 857" name="OEM 857"/>
+                <Item id="OEM 858" name="OEM 858"/>
+                <Item id="OEM 860 : Portuguese" name="OEM 860 : 포르투갈어"/>
+                <Item id="OEM 861 : Icelandic" name="OEM 861 : 아이슬란드어"/>
+                <Item id="OEM 862" name="OEM 862"/>
+                <Item id="OEM 863 : French" name="OEM 863 : 프랑스어"/>
+                <Item id="OEM 865 : Nordic" name="OEM 865 : 북유럽어"/>
+                <Item id="OEM 866" name="OEM 866"/>
+                <Item id="OEM 869" name="OEM 869"/>
+                <Item id="OEM-US : CP437" name="OEM-US : CP437"/>
+                <Item id="On Selection" name="선택 영역"/>
+                <Item id="Open Containing Folder" name="포함 폴더 열기"/>
+                <Item id="Open Containing Folder in Explorer" name="탐색기에서 포함 폴더 열기"/>
+                <Item id="Open File" name="파일 열기"/>
+                <Item id="Open Folder as Workspace..." name="폴더를 작업 공간으로 열기..."/>
+                <Item id="Open Plugins Folder..." name="플러그인 폴더 열기..."/>
+                <Item id="Open Shortcut Mapper..." name="단축키 매퍼 열기..."/>
+                <Item id="Open User Defined Language folder..." name="사용자 정의 언어 폴더 열기..."/>
+                <Item id="Open in New Instance" name="새 인스턴스에서 열기"/>
+                <Item id="Paste to (Replace) Bookmarked Lines" name="책갈피가 지정된 줄에 붙여넣기 (바꾸기)"/>
+                <Item id="Path A to Z" name="경로 A→Z"/>
+                <Item id="Path Completion" name="경로 완성"/>
+                <Item id="Path Z to A" name="경로 Z→A"/>
+                <Item id="Post-It" name="포스트잇"/>
+                <Item id="Previous Search Result" name="이전 검색 결과"/>
+                <Item id="Project Panel 1" name="프로젝트 패널 1"/>
+                <Item id="Project Panel 2" name="프로젝트 패널 2"/>
+                <Item id="Project Panel 3" name="프로젝트 패널 3"/>
+                <Item id="Project Panels" name="프로젝트 패널"/>
+                <Item id="Proper Case (blend)" name="단어 첫 글자 대문자 (혼합)"/>
+                <Item id="Randomize Line Order" name="줄 순서 무작위로 섞기"/>
+                <Item id="Read-Only for All Documents" name="모든 문서 읽기 전용으로"/>
+                <Item id="Read-Only in Neko++" name="Neko++에서 읽기 전용으로"/>
+                <Item id="Read-Only on Current Document" name="현재 문서 읽기 전용으로"/>
+                <Item id="Recent Window" name="최근 창"/>
+                <Item id="Redact Selection" name="선택 영역 가리기"/>
+                <Item id="Remove Bookmarked Lines" name="책갈피가 지정된 줄 제거"/>
+                <Item id="Remove Color" name="색상 제거"/>
+                <Item id="Remove Consecutive Duplicate Lines" name="연속 중복 줄 제거"/>
+                <Item id="Remove Duplicate Lines" name="중복 줄 제거"/>
+                <Item id="Remove Empty Lines" name="빈 줄 제거"/>
+                <Item id="Remove Empty Lines (Containing Blank characters)" name="빈 줄 제거 (공백 문자 포함)"/>
+                <Item id="Remove Non-Bookmarked Lines" name="책갈피가 없는 줄 제거"/>
+                <Item id="Rename..." name="이름 바꾸기..."/>
+                <Item id="Reverse Line Order" name="줄 순서 반대로"/>
+                <Item id="SHA-1" name="SHA-1"/>
+                <Item id="SHA-256" name="SHA-256"/>
+                <Item id="SHA-512" name="SHA-512"/>
+                <Item id="Save Current Recorded Macro..." name="현재 기록된 매크로 저장..."/>
+                <Item id="Save a Copy As..." name="사본을 다른 이름으로 저장..."/>
+                <Item id="Select All In-between {} [] or ()" name="{} [] () 사이 모두 선택"/>
+                <Item id="Sentence case (blend)" name="문장 첫 글자 대문자 (혼합)"/>
+                <Item id="Shortcut Mapper" name="단축키 매퍼"/>
+                <Item id="Show Control Characters &amp; Unicode EOL" name="제어 문자 &amp; 유니코드 줄 바꿈 표시"/>
+                <Item id="Show Non-Printing Characters" name="인쇄할 수 없는 문자 표시"/>
+                <Item id="Show Space and Tab" name="공백과 탭 표시"/>
+                <Item id="Show Symbol" name="기호 표시"/>
+                <Item id="Single Line Uncomment" name="줄 주석 해제"/>
+                <Item id="Skip Current &amp; Go to Next Multi-select" name="현재 항목을 건너뛰고 다음 다중 선택으로"/>
+                <Item id="Sort By" name="정렬 기준"/>
+                <Item id="Sort Lines As Decimals (Comma) Ascending" name="줄을 소수 (쉼표) 기준 오름차순 정렬"/>
+                <Item id="Sort Lines As Decimals (Comma) Descending" name="줄을 소수 (쉼표) 기준 내림차순 정렬"/>
+                <Item id="Sort Lines As Decimals (Dot) Ascending" name="줄을 소수 (마침표) 기준 오름차순 정렬"/>
+                <Item id="Sort Lines As Decimals (Dot) Descending" name="줄을 소수 (마침표) 기준 내림차순 정렬"/>
+                <Item id="Sort Lines As Integers Ascending" name="줄을 정수로 오름차순 정렬"/>
+                <Item id="Sort Lines As Integers Descending" name="줄을 정수로 내림차순 정렬"/>
+                <Item id="Sort Lines By Length Ascending" name="줄을 길이순으로 오름차순 정렬"/>
+                <Item id="Sort Lines By Length Descending" name="줄을 길이순으로 내림차순 정렬"/>
+                <Item id="Sort Lines In Locale Order Ascending" name="줄을 로캘 순서로 오름차순 정렬"/>
+                <Item id="Sort Lines In Locale Order Descending" name="줄을 로캘 순서로 내림차순 정렬"/>
+                <Item id="Sort Lines Lex. Ascending Ignoring Case" name="대소문자를 무시하고 줄을 사전순으로 오름차순 정렬"/>
+                <Item id="Sort Lines Lex. Descending Ignoring Case" name="대소문자를 무시하고 줄을 사전순으로 내림차순 정렬"/>
+                <Item id="Sort Lines Lexicographically Ascending" name="줄을 사전순으로 오름차순 정렬"/>
+                <Item id="Sort Lines Lexicographically Descending" name="줄을 사전순으로 내림차순 정렬"/>
+                <Item id="Space to TAB (All)" name="공백을 탭으로 (전체)"/>
+                <Item id="Space to TAB (Leading)" name="공백을 탭으로 (앞부분)"/>
+                <Item id="Style All Occurrences of Token" name="토큰의 모든 항목에 스타일 적용"/>
+                <Item id="Style One Token" name="토큰 하나에 스타일 적용"/>
+                <Item id="Synchronize Across Views" name="보기 간 동기화"/>
+                <Item id="Synchronize Horizontal Scrolling" name="가로 스크롤 동기화"/>
+                <Item id="Synchronize Vertical Scrolling" name="세로 스크롤 동기화"/>
+                <Item id="System" name="시스템"/>
+                <Item id="TAB to Space" name="탭을 공백으로 변환"/>
+                <Item id="TIS-620" name="TIS-620"/>
+                <Item id="Tab" name="탭"/>
+                <Item id="Thai" name="태국어"/>
+                <Item id="Theme" name="테마"/>
+                <Item id="Trim Leading Space" name="앞쪽 공백 제거"/>
+                <Item id="Trim Leading and Trailing Space" name="앞뒤 공백 제거"/>
+                <Item id="Trim Trailing Space" name="뒤쪽 공백 제거"/>
+                <Item id="Trim both and EOL to Space" name="앞뒤 공백을 제거하고 줄 바꿈을 공백으로 변환"/>
+                <Item id="Turkish" name="터키어"/>
+                <Item id="Type A to Z" name="종류 A→Z"/>
+                <Item id="Type Z to A" name="종류 Z→A"/>
+                <Item id="UTF-16 BE BOM" name="UTF-16 BE BOM"/>
+                <Item id="UTF-16 LE BOM" name="UTF-16 LE BOM"/>
+                <Item id="UTF-8" name="UTF-8"/>
+                <Item id="UTF-8-BOM" name="UTF-8-BOM"/>
+                <Item id="Undo the Latest Added Multi-Select" name="마지막으로 추가한 다중 선택 실행 취소"/>
+                <Item id="Unfold All" name="모두 펼치기"/>
+                <Item id="Unfold Current Level" name="현재 수준 펼치기"/>
+                <Item id="Unfold Level" name="수준 펼치기"/>
+                <Item id="User Defined Language" name="사용자 정의 언어"/>
+                <Item id="Validate shortcuts.xml" name="shortcuts.xml 검사"/>
+                <Item id="Vietnamese" name="베트남어"/>
+                <Item id="View Current File in" name="현재 파일을 브라우저에서 보기"/>
+                <Item id="Western European" name="서유럽어"/>
+                <Item id="Windows-1250" name="Windows-1250"/>
+                <Item id="Windows-1251" name="Windows-1251"/>
+                <Item id="Windows-1252" name="Windows-1252"/>
+                <Item id="Windows-1253" name="Windows-1253"/>
+                <Item id="Windows-1254" name="Windows-1254"/>
+                <Item id="Windows-1255" name="Windows-1255"/>
+                <Item id="Windows-1256" name="Windows-1256"/>
+                <Item id="Windows-1257" name="Windows-1257"/>
+                <Item id="Windows-1258" name="Windows-1258"/>
+                <Item id="Word Completion" name="단어 완성"/>
+                <Item id="Zoom" name="확대/축소"/>
+                <Item id="A GPU-rendered text editor" name="GPU로 렌더링되는 텍스트 편집기"/>
+                <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
+                <Item id="Sync Horizontal Scroll" name="가로 스크롤 동기화"/>
+                <Item id="Import from:" name="가져올 위치:"/>
+                <Item id="Simple" name="간단히"/>
+                <Item id="Search URL:" name="검색 URL:"/>
+                <Item id="Font Size" name="글꼴 크기"/>
+                <Item id="length:" name="길이:"/>
+                <Item id="Off" name="끔"/>
+                <Item id="Split on:" name="나눌 기준:"/>
+                <Item id="Date time format:" name="날짜와 시간 형식:"/>
+                <Item id="Export to:" name="내보낼 위치:"/>
+                <Item id="Built-in browser" name="내장 브라우저"/>
+                <Item id="REC" name="녹화"/>
+                <Item id="Save as:" name="다른 이름으로 저장:"/>
+                <Item id="Shortcuts" name="단축키"/>
+                <Item id="LARGE" name="대용량"/>
+                <Item id="Toolbar" name="도구 모음"/>
+                <Item id="Play macro times:" name="매크로 실행 횟수:"/>
+                <Item id="Character code:" name="문자 코드:"/>
+                <Item id="Minimap" name="미니맵"/>
+                <Item id="Replace" name="바꾸기"/>
+                <Item id="Replace:" name="바꾸기:"/>
+                <Item id="Save a copy as:" name="사본을 다른 이름으로 저장:"/>
+                <Item id="Insert at column:" name="삽입할 열:"/>
+                <Item id="Rename to:" name="새 이름:"/>
+                <Item id="Sel:" name="선택:"/>
+                <Item id="Sync Vertical Scroll" name="세로 스크롤 동기화"/>
+                <Item id="Load session:" name="세션 불러오기:"/>
+                <Item id="Save session as:" name="세션을 다른 이름으로 저장:"/>
+                <Item id="System dialog" name="시스템 대화 상자"/>
+                <Item id="Run:" name="실행:"/>
+                <Item id="None" name="없음"/>
+                <Item id="Run Multiple Macros" name="여러 매크로 실행"/>
+                <Item id="Col:" name="열:"/>
+                <Item id="Open" name="열기"/>
+                <Item id="Open:" name="열기:"/>
+                <Item id="Print" name="인쇄"/>
+                <Item id="no match" name="일치 없음"/>
+                <Item id="Autosave" name="자동 저장"/>
+                <Item id="Verbose" name="자세히"/>
+                <Item id="bad regex" name="잘못된 정규식"/>
+                <Item id="Backup on Save" name="저장 시 백업"/>
+                <Item id="lines:" name="줄 수:"/>
+                <Item id="Go to line:" name="줄 이동:"/>
+                <Item id="Ln:" name="줄:"/>
+                <Item id="Find" name="찾기"/>
+                <Item id="Find:" name="찾기:"/>
+                <Item id="Zoom Out" name="축소"/>
+                <Item id="On" name="켬"/>
+                <Item id="Tab Width" name="탭 너비"/>
+                <Item id="Import theme from:" name="테마를 가져올 위치:"/>
+                <Item id="File Dialog" name="파일 대화 상자"/>
+                <Item id="Hash file:" name="파일 해시:"/>
+                <Item id="Find in files:" name="파일에서 찾기:"/>
+                <Item id="Edit..." name="편집..."/>
+                <Item id="Folder:" name="폴더:"/>
+                <Item id="Find in projects:" name="프로젝트에서 찾기:"/>
+                <Item id="Import plugin from:" name="플러그인을 가져올 위치:"/>
+                <Item id="Save Current Macro" name="현재 매크로 저장"/>
+                <Item id="Zoom In" name="확대"/>
+                <Item id="Preferences" name="환경 설정"/>
+                <Item id="Volatile Find" name="휘발성 찾기"/>
+                <Item id="Up/Down  Left/Right  Enter  Esc" name="↑/↓  ←/→  Enter  Esc"/>
+                <Item id="Up/Down  Left/Right  Enter open  Esc close" name="↑/↓  ←/→  Enter 열기  Esc 닫기"/>
+            </Main>
+        </Menu>
+    </Native-Langue>
+</NotepadPlus>

@@ -1,0 +1,708 @@
+//! The Style Configurator.
+//!
+//! Notepad++'s version is a two-pane dialog: a language list on the left, a style
+//! list on the right, and a font and colour picker under both. This is the part
+//! that matters — one row per colour the editor draws with, and a way to change
+//! it — without the language dimension, because this editor has one lexer.
+//!
+//! Colours are chosen from a fixed palette rather than a full picker. A picker
+//! means a hue wheel or three sliders and a hex field, which is a dialog of its
+//! own; a palette is one row of swatches and covers every colour a syntax theme
+//! actually uses. The palette is the one thing here that is a deliberate subset,
+//! and it is written down rather than hidden.
+
+use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
+use glyphon::{TextArea, TextBounds};
+
+use crate::quad::QuadRenderer;
+use crate::theme::{Rgb, Theme};
+
+/// The width of the dialog, in pixels.
+const WIDTH: f32 = 460.0;
+/// Padding inside the frame.
+const PADDING: f32 = 14.0;
+/// The column the swatch starts at, in characters.
+const SWATCH_COLUMN: usize = 16;
+/// The column the hex value starts at, in characters. Far enough right that the
+/// swatch sits in the gap rather than under the digits.
+const VALUE_COLUMN: usize = 22;
+/// The width of a swatch, in pixels.
+const SWATCH_WIDTH: f32 = 34.0;
+
+/// The colours the configurator offers.
+///
+/// Twenty-four, chosen to cover what a syntax theme needs: neutrals for text and
+/// backgrounds, and a saturated and a muted version of each hue for keywords,
+/// strings, and comments.
+pub const PALETTE: [Rgb; 24] = [
+    Rgb::new(0, 0, 0),
+    Rgb::new(30, 30, 30),
+    Rgb::new(60, 60, 60),
+    Rgb::new(100, 100, 100),
+    Rgb::new(140, 140, 140),
+    Rgb::new(180, 180, 180),
+    Rgb::new(212, 212, 212),
+    Rgb::new(255, 255, 255),
+    Rgb::new(163, 21, 21),
+    Rgb::new(206, 145, 120),
+    Rgb::new(214, 120, 40),
+    Rgb::new(220, 180, 60),
+    Rgb::new(181, 206, 168),
+    Rgb::new(106, 153, 85),
+    Rgb::new(0, 128, 0),
+    Rgb::new(78, 201, 176),
+    Rgb::new(38, 127, 110),
+    Rgb::new(86, 156, 214),
+    Rgb::new(0, 0, 200),
+    Rgb::new(38, 79, 120),
+    Rgb::new(197, 134, 192),
+    Rgb::new(128, 0, 128),
+    Rgb::new(220, 220, 170),
+    Rgb::new(255, 240, 160),
+];
+
+/// One colour the configurator can change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Slot {
+    Default,
+    Keyword,
+    Type,
+    String,
+    Comment,
+    Number,
+    Function,
+    Operator,
+    Preprocessor,
+    Background,
+    Gutter,
+    Foreground,
+    Selection,
+    Caret,
+    CurrentLine,
+    LineNumber,
+}
+
+impl Slot {
+    /// Every slot, in the order the dialog lists them.
+    pub const ALL: [Slot; 16] = [
+        Slot::Default,
+        Slot::Keyword,
+        Slot::Type,
+        Slot::String,
+        Slot::Comment,
+        Slot::Number,
+        Slot::Function,
+        Slot::Operator,
+        Slot::Preprocessor,
+        Slot::Background,
+        Slot::Gutter,
+        Slot::Foreground,
+        Slot::Selection,
+        Slot::Caret,
+        Slot::CurrentLine,
+        Slot::LineNumber,
+    ];
+
+    /// The label drawn on the left.
+    pub fn label(self) -> &'static str {
+        match self {
+            Slot::Default => "Default text",
+            Slot::Keyword => "Keyword",
+            Slot::Type => "Type",
+            Slot::String => "String",
+            Slot::Comment => "Comment",
+            Slot::Number => "Number",
+            Slot::Function => "Function",
+            Slot::Operator => "Operator",
+            Slot::Preprocessor => "Preprocessor",
+            Slot::Background => "Background",
+            Slot::Gutter => "Gutter",
+            Slot::Foreground => "Text",
+            Slot::Selection => "Selection",
+            Slot::Caret => "Caret",
+            Slot::CurrentLine => "Current line",
+            Slot::LineNumber => "Line number",
+        }
+    }
+
+    /// The keyword this slot is written as in the settings file.
+    ///
+    /// Stable: a user's `style` lines have to keep meaning the same thing across
+    /// versions, so these are not derived from the label.
+    pub fn key(self) -> &'static str {
+        match self {
+            Slot::Default => "default",
+            Slot::Keyword => "keyword",
+            Slot::Type => "type",
+            Slot::String => "string",
+            Slot::Comment => "comment",
+            Slot::Number => "number",
+            Slot::Function => "function",
+            Slot::Operator => "operator",
+            Slot::Preprocessor => "preprocessor",
+            Slot::Background => "background",
+            Slot::Gutter => "gutter",
+            Slot::Foreground => "foreground",
+            Slot::Selection => "selection",
+            Slot::Caret => "caret",
+            Slot::CurrentLine => "current_line",
+            Slot::LineNumber => "line_number",
+        }
+    }
+
+    /// Reads a key written by [`Slot::key`].
+    pub fn from_key(key: &str) -> Option<Slot> {
+        Slot::ALL.into_iter().find(|slot| slot.key() == key)
+    }
+
+    /// The colour this slot currently holds in `theme`.
+    pub fn get(self, theme: &Theme) -> Rgb {
+        match self {
+            Slot::Default => theme.syntax[0],
+            Slot::Keyword => theme.syntax[1],
+            Slot::Type => theme.syntax[2],
+            Slot::String => theme.syntax[3],
+            Slot::Comment => theme.syntax[4],
+            Slot::Number => theme.syntax[5],
+            Slot::Function => theme.syntax[6],
+            Slot::Operator => theme.syntax[7],
+            Slot::Preprocessor => theme.syntax[8],
+            Slot::Background => theme.background,
+            Slot::Gutter => theme.gutter_background,
+            Slot::Foreground => theme.foreground,
+            Slot::Selection => theme.selection,
+            Slot::Caret => theme.caret,
+            Slot::CurrentLine => theme.current_line,
+            Slot::LineNumber => theme.gutter_foreground,
+        }
+    }
+
+    /// Writes `color` into this slot of `theme`.
+    pub fn set(self, theme: &mut Theme, color: Rgb) {
+        match self {
+            Slot::Default => theme.syntax[0] = color,
+            Slot::Keyword => theme.syntax[1] = color,
+            Slot::Type => theme.syntax[2] = color,
+            Slot::String => theme.syntax[3] = color,
+            Slot::Comment => theme.syntax[4] = color,
+            Slot::Number => theme.syntax[5] = color,
+            Slot::Function => theme.syntax[6] = color,
+            Slot::Operator => theme.syntax[7] = color,
+            Slot::Preprocessor => theme.syntax[8] = color,
+            Slot::Background => theme.background = color,
+            Slot::Gutter => theme.gutter_background = color,
+            Slot::Foreground => theme.foreground = color,
+            Slot::Selection => theme.selection = color,
+            Slot::Caret => theme.caret = color,
+            Slot::CurrentLine => theme.current_line = color,
+            Slot::LineNumber => theme.gutter_foreground = color,
+        }
+    }
+}
+
+/// Records `slot`'s colour in `overrides`, replacing any earlier entry.
+///
+/// Kept sorted in dialog order so the settings file is stable and diffable, and
+/// so a slot can never appear twice — the last write wins, which is what a user
+/// stepping a colour expects.
+pub fn record(overrides: &mut Vec<(Slot, Rgb)>, slot: Slot, color: Rgb) {
+    overrides.retain(|(s, _)| *s != slot);
+    overrides.push((slot, color));
+    overrides.sort_by_key(|(s, _)| Slot::ALL.iter().position(|x| x == s).unwrap_or(0));
+}
+
+/// Builds the theme the editor should draw with.
+///
+/// The base palette is chosen first and the user's overrides go on top, so
+/// switching to another one of the twenty-one themes keeps their edits instead
+/// of discarding them. That is the whole reason the overrides are stored
+/// sparsely: they are a diff against a theme, not a theme.
+pub fn effective_theme(base: Theme, overrides: &[(Slot, Rgb)]) -> Theme {
+    let mut theme = base;
+    for (slot, color) in overrides {
+        slot.set(&mut theme, *color);
+    }
+    theme
+}
+
+/// The modal style list.
+pub struct StyleConfigurator {
+    open: bool,
+    selected: usize,
+    /// The theme being edited, so the dialog can show live colours.
+    theme: Theme,
+    title: Buffer,
+    title_shaped: String,
+    body: Buffer,
+    body_shaped: String,
+    family: Family<'static>,
+    char_width: f32,
+    line_height: f32,
+    /// Window size, so the dialog can centre itself.
+    viewport: (f32, f32),
+}
+
+impl StyleConfigurator {
+    /// Builds a closed dialog.
+    pub fn new(metrics: Metrics, family: Family<'static>, char_width: f32) -> Self {
+        Self {
+            open: false,
+            selected: 0,
+            theme: Theme::DARK,
+            title: Buffer::new_empty(metrics),
+            title_shaped: String::new(),
+            body: Buffer::new_empty(metrics),
+            body_shaped: String::new(),
+            family,
+            char_width,
+            line_height: metrics.line_height,
+            viewport: (0.0, 0.0),
+        }
+    }
+
+    /// Opens the dialog on a copy of `theme`.
+    pub fn open(&mut self, theme: Theme) {
+        self.theme = theme;
+        self.selected = 0;
+        self.open = true;
+    }
+
+    /// Closes the dialog.
+    pub fn close(&mut self) {
+        self.open = false;
+    }
+
+    /// Whether the dialog is showing.
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    /// The theme as edited so far.
+    pub fn theme(&self) -> Theme {
+        self.theme
+    }
+
+    /// The highlighted row.
+    pub fn selected(&self) -> Slot {
+        Slot::ALL[self.selected.min(Slot::ALL.len() - 1)]
+    }
+
+    /// Records the window size, so the dialog can centre itself.
+    pub fn set_viewport(&mut self, width: f32, height: f32) {
+        self.viewport = (width, height);
+    }
+
+    /// Moves the highlight by `delta`, clamping at both ends.
+    pub fn move_selection(&mut self, delta: isize) {
+        let last = Slot::ALL.len() as isize - 1;
+        self.selected = (self.selected as isize + delta).clamp(0, last) as usize;
+    }
+
+    /// Highlights `index`, for a click.
+    pub fn set_selected(&mut self, index: usize) {
+        if index < Slot::ALL.len() {
+            self.selected = index;
+        }
+    }
+
+    /// Steps the highlighted slot's colour through the palette.
+    ///
+    /// Returns whether anything changed, so the caller can skip a redraw and a
+    /// disk write when the colour is already at the end of the palette.
+    pub fn adjust(&mut self, delta: i32) -> bool {
+        let slot = self.selected();
+        let current = slot.get(&self.theme);
+        let at = PALETTE.iter().position(|&c| c == current);
+        let next = match at {
+            Some(at) => {
+                let last = PALETTE.len() as isize - 1;
+                (at as isize + delta as isize).clamp(0, last) as usize
+            }
+            // A colour that is not in the palette — the theme's own default —
+            // steps to the nearest end rather than jumping to the middle.
+            None => {
+                if delta >= 0 {
+                    0
+                } else {
+                    PALETTE.len() - 1
+                }
+            }
+        };
+        if PALETTE[next] == current {
+            return false;
+        }
+        slot.set(&mut self.theme, PALETTE[next]);
+        true
+    }
+
+    /// The value drawn on the right of `slot`.
+    pub fn value(&self, slot: Slot) -> String {
+        let color = slot.get(&self.theme);
+        format!("#{:02X}{:02X}{:02X}", color.0, color.1, color.2)
+    }
+
+    /// The width the dialog occupies.
+    pub fn width(&self) -> f32 {
+        WIDTH
+    }
+
+    /// The height the dialog occupies.
+    pub fn height(&self) -> f32 {
+        PADDING * 2.0 + (Slot::ALL.len() as f32 + 4.0) * self.line_height
+    }
+
+    /// The top-left corner, centred in the window.
+    fn origin(&self) -> (f32, f32) {
+        let (width, height) = self.viewport;
+        let left = ((width - self.width()) / 2.0).max(0.0);
+        let top = ((height - self.height()) / 2.0).max(0.0);
+        (left, top)
+    }
+
+    /// The row index under `(x, y)` in window pixels.
+    pub fn row_at(&self, x: f32, y: f32) -> Option<usize> {
+        if !self.open {
+            return None;
+        }
+        let (left, top) = self.origin();
+        if x < left || x > left + self.width() {
+            return None;
+        }
+        let rows_top = top + PADDING + self.line_height * 2.0;
+        if y < rows_top {
+            return None;
+        }
+        let row = ((y - rows_top) / self.line_height) as usize;
+        (row < Slot::ALL.len()).then_some(row)
+    }
+
+    /// Shapes the title and the body if they changed.
+    pub fn prepare(&mut self, font_system: &mut FontSystem) {
+        if !self.open {
+            return;
+        }
+        if self.title_shaped != self.title_text() {
+            self.title.set_text(
+                self.title_text(),
+                &Attrs::new().family(self.family),
+                Shaping::Basic,
+                None,
+            );
+            self.title.shape_until_scroll(font_system, false);
+            self.title_shaped = self.title_text().to_string();
+        }
+
+        let mut text = String::new();
+        for (index, slot) in Slot::ALL.iter().enumerate() {
+            if index > 0 {
+                text.push('\n');
+            }
+            let label = slot.label();
+            text.push_str(label);
+            for _ in label.chars().count()..VALUE_COLUMN {
+                text.push(' ');
+            }
+            text.push_str(&self.value(*slot));
+        }
+        text.push_str("\n\n");
+        text.push_str(self.hint());
+        if text == self.body_shaped {
+            return;
+        }
+        self.body.set_text(
+            &text,
+            &Attrs::new().family(self.family),
+            Shaping::Basic,
+            None,
+        );
+        self.body.shape_until_scroll(font_system, false);
+        self.body_shaped = text;
+    }
+
+    /// Queues the frame, the selected row, and a swatch per row.
+    pub fn push_quads(&self, quads: &mut QuadRenderer, theme: &Theme) {
+        if !self.open {
+            return;
+        }
+        let (left, top) = self.origin();
+        let width = self.width();
+        let height = self.height();
+
+        quads.push(left, top, width, height, theme.menu_background.to_linear());
+        let border = theme.menu_border.to_linear();
+        quads.push(left, top, width, 1.0, border);
+        quads.push(left, top + height - 1.0, width, 1.0, border);
+        quads.push(left, top, 1.0, height, border);
+        quads.push(left + width - 1.0, top, 1.0, height, border);
+
+        let rows_top = top + PADDING + self.line_height * 2.0;
+        quads.push(
+            left + 1.0,
+            rows_top + self.selected as f32 * self.line_height,
+            width - 2.0,
+            self.line_height,
+            theme.menu_hover.to_linear(),
+        );
+
+        // A swatch of the colour itself, left of the hex value. The hex is what
+        // you copy; the swatch is what you read.
+        let swatch_left = left + PADDING + SWATCH_COLUMN as f32 * self.char_width();
+        for (index, slot) in Slot::ALL.iter().enumerate() {
+            let y = rows_top + index as f32 * self.line_height + 3.0;
+            quads.push(
+                swatch_left,
+                y,
+                SWATCH_WIDTH,
+                self.line_height - 6.0,
+                slot.get(&self.theme).to_linear(),
+            );
+        }
+    }
+
+    /// The text areas: the title, the rows, and the hint.
+    pub fn text_areas<'a>(&'a self, theme: &Theme) -> Vec<TextArea<'a>> {
+        if !self.open {
+            return Vec::new();
+        }
+        let (left, top) = self.origin();
+        let bounds = TextBounds {
+            left: left as i32,
+            top: top as i32,
+            right: (left + self.width()) as i32,
+            bottom: (top + self.height()) as i32,
+        };
+        vec![
+            TextArea {
+                buffer: &self.title,
+                left: left + PADDING,
+                top: top + PADDING,
+                scale: 1.0,
+                bounds,
+                default_color: theme.bar_label.to_cosmic(),
+                custom_glyphs: &[],
+            },
+            TextArea {
+                buffer: &self.body,
+                left: left + PADDING,
+                top: top + PADDING + self.line_height * 2.0,
+                scale: 1.0,
+                bounds,
+                default_color: theme.foreground.to_cosmic(),
+                custom_glyphs: &[],
+            },
+        ]
+    }
+
+    /// The title, drawn separately so it can use the label colour.
+    pub fn title_text(&self) -> &'static str {
+        "Style Configurator"
+    }
+
+    /// The hint line under the rows.
+    pub fn hint(&self) -> &'static str {
+        "Up/Down select   Left/Right change   Esc close"
+    }
+
+    /// The character width the dialog was built with.
+    pub fn char_width(&self) -> f32 {
+        self.char_width
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dialog() -> StyleConfigurator {
+        StyleConfigurator::new(Metrics::new(15.0, 20.0), Family::Monospace, 8.0)
+    }
+
+    #[test]
+    fn a_new_dialog_is_closed() {
+        assert!(!dialog().is_open());
+    }
+
+    #[test]
+    fn opening_copies_the_theme() {
+        let mut d = dialog();
+        d.open(Theme::LIGHT);
+        assert!(d.is_open());
+        assert_eq!(d.theme().background, Theme::LIGHT.background);
+    }
+
+    #[test]
+    fn the_first_row_is_the_default_text_colour() {
+        assert_eq!(dialog().selected(), Slot::Default);
+    }
+
+    #[test]
+    fn selection_clamps_at_both_ends() {
+        let mut d = dialog();
+        d.move_selection(-1);
+        assert_eq!(d.selected(), Slot::Default);
+        d.move_selection(100);
+        assert_eq!(d.selected(), Slot::LineNumber);
+    }
+
+    #[test]
+    fn every_slot_reads_back_from_its_key() {
+        for slot in Slot::ALL {
+            assert_eq!(Slot::from_key(slot.key()), Some(slot), "{}", slot.key());
+        }
+    }
+
+    #[test]
+    fn the_keys_are_unique() {
+        let mut seen: Vec<&str> = Vec::new();
+        for slot in Slot::ALL {
+            assert!(!seen.contains(&slot.key()), "{} twice", slot.key());
+            seen.push(slot.key());
+        }
+    }
+
+    #[test]
+    fn every_slot_has_a_label() {
+        for slot in Slot::ALL {
+            assert!(!slot.label().is_empty());
+        }
+    }
+
+    #[test]
+    fn setting_a_slot_changes_only_that_slot() {
+        let mut theme = Theme::DARK;
+        let before = theme;
+        Slot::Keyword.set(&mut theme, Rgb::new(1, 2, 3));
+        assert_eq!(Slot::Keyword.get(&theme), Rgb::new(1, 2, 3));
+        assert_eq!(theme.background, before.background);
+        assert_eq!(theme.syntax[3], before.syntax[3]);
+    }
+
+    #[test]
+    fn every_slot_round_trips_through_the_theme() {
+        for slot in Slot::ALL {
+            let mut theme = Theme::DARK;
+            slot.set(&mut theme, Rgb::new(9, 8, 7));
+            assert_eq!(slot.get(&theme), Rgb::new(9, 8, 7), "{}", slot.key());
+        }
+    }
+
+    #[test]
+    fn adjusting_steps_through_the_palette() {
+        let mut d = dialog();
+        d.open(Theme::DARK);
+        d.set_selected(1); // Keyword
+        // The dark theme's keyword colour is itself a palette entry, so the step
+        // is measured from wherever it sits rather than assumed to be off-palette.
+        let start = PALETTE
+            .iter()
+            .position(|&c| c == Slot::Keyword.get(&Theme::DARK))
+            .expect("the dark keyword colour is in the palette");
+        assert!(d.adjust(1));
+        assert_eq!(Slot::Keyword.get(&d.theme()), PALETTE[start + 1]);
+        assert!(d.adjust(1));
+        assert_eq!(Slot::Keyword.get(&d.theme()), PALETTE[start + 2]);
+    }
+
+    #[test]
+    fn adjusting_clamps_at_the_ends_of_the_palette() {
+        let mut d = dialog();
+        d.open(Theme::DARK);
+        d.set_selected(1);
+        for _ in 0..PALETTE.len() {
+            d.adjust(1);
+        }
+        assert_eq!(Slot::Keyword.get(&d.theme()), PALETTE[PALETTE.len() - 1]);
+        assert!(!d.adjust(1));
+    }
+
+    #[test]
+    fn a_colour_outside_the_palette_steps_to_an_end() {
+        let mut d = dialog();
+        let mut theme = Theme::DARK;
+        // A colour no palette entry holds.
+        Slot::Keyword.set(&mut theme, Rgb::new(1, 1, 1));
+        d.open(theme);
+        d.set_selected(1);
+        assert!(d.adjust(1));
+        assert_eq!(Slot::Keyword.get(&d.theme()), PALETTE[0]);
+    }
+
+    #[test]
+    fn the_value_is_a_hex_triplet() {
+        let mut d = dialog();
+        let mut theme = Theme::DARK;
+        Slot::Keyword.set(&mut theme, Rgb::new(0x56, 0x9C, 0xD6));
+        d.open(theme);
+        assert_eq!(d.value(Slot::Keyword), "#569CD6");
+    }
+
+    #[test]
+    fn the_dialog_is_centred_in_the_window() {
+        let mut d = dialog();
+        d.set_viewport(1000.0, 800.0);
+        let (left, top) = d.origin();
+        assert_eq!(left, (1000.0 - WIDTH) / 2.0);
+        assert_eq!(top, (800.0 - d.height()) / 2.0);
+    }
+
+    #[test]
+    fn row_at_maps_a_click_to_a_row() {
+        let mut d = dialog();
+        d.open(Theme::DARK);
+        d.set_viewport(1000.0, 800.0);
+        let (left, top) = d.origin();
+        let rows_top = top + PADDING + d.line_height * 2.0;
+        assert_eq!(d.row_at(left + 20.0, rows_top + 5.0), Some(0));
+        assert_eq!(d.row_at(left + 20.0, rows_top + d.line_height + 5.0), Some(1));
+        assert_eq!(d.row_at(left + 20.0, rows_top - 5.0), None);
+    }
+
+    #[test]
+    fn recording_a_slot_replaces_the_earlier_value() {
+        let mut overrides = Vec::new();
+        record(&mut overrides, Slot::Caret, Rgb::new(1, 1, 1));
+        record(&mut overrides, Slot::Caret, Rgb::new(2, 2, 2));
+        assert_eq!(overrides, vec![(Slot::Caret, Rgb::new(2, 2, 2))]);
+    }
+
+    #[test]
+    fn recording_keeps_the_list_in_dialog_order() {
+        let mut overrides = Vec::new();
+        record(&mut overrides, Slot::LineNumber, Rgb::new(1, 1, 1));
+        record(&mut overrides, Slot::Keyword, Rgb::new(2, 2, 2));
+        record(&mut overrides, Slot::Background, Rgb::new(3, 3, 3));
+        assert_eq!(
+            overrides.iter().map(|(s, _)| *s).collect::<Vec<_>>(),
+            vec![Slot::Keyword, Slot::Background, Slot::LineNumber]
+        );
+    }
+
+    #[test]
+    fn overrides_apply_on_top_of_each_base() {
+        let overrides = [(Slot::Keyword, Rgb::new(1, 2, 3))];
+        let mut bases = vec![Theme::DARK, Theme::LIGHT];
+        bases.extend(crate::themes::CATALOGUE.iter().map(Theme::from_palette));
+        for base in bases {
+            let theme = effective_theme(base, &overrides);
+            assert_eq!(Slot::Keyword.get(&theme), Rgb::new(1, 2, 3));
+            assert_eq!(theme.background, base.background);
+        }
+    }
+
+    #[test]
+    fn no_overrides_is_the_base_theme() {
+        assert_eq!(
+            effective_theme(Theme::DARK, &[]).background,
+            Theme::DARK.background
+        );
+        assert_eq!(
+            effective_theme(Theme::LIGHT, &[]).background,
+            Theme::LIGHT.background
+        );
+    }
+
+    #[test]
+    fn a_closed_dialog_has_no_rows() {
+        assert_eq!(dialog().row_at(10.0, 10.0), None);
+    }
+}
