@@ -1,0 +1,339 @@
+/* Print stylesheet for the Neko++ feature reference.
+ *
+ * WeasyPrint reads this directly, so it is also the pagination: the page
+ * margins, the running header, the page numbers, and where a chapter starts.
+ * Everything is in millimetres and points because paper is measured that way
+ * and screen pixels are not.
+ */
+
+/* The editor ships a Hangul face (see crates/nn-app/src/fonts.rs), and the PDF
+ * uses the same file: no system font on a stock Linux machine carries the
+ * syllables, so without this paragraph of Korean would be a row of boxes. The
+ * path is relative to this stylesheet. */
+@font-face {
+  font-family: "Neko Hangul";
+  src: url("../crates/nn-app/assets/NekoHangul-Regular.ttf") format("truetype");
+}
+
+@page {
+  size: a4;
+  margin: 22mm 20mm 20mm 20mm;
+
+  @top-left {
+    content: "Neko++ Feature Reference";
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 8pt;
+    color: #7a7a7a;
+  }
+
+  @top-right {
+    content: string(chapter);
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 8pt;
+    color: #7a7a7a;
+  }
+
+  @bottom-center {
+    content: counter(page);
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 9pt;
+    color: #555555;
+  }
+}
+
+/* The title page carries no running header: a page that is a title should not
+ * also claim to be chapter two. */
+@page cover {
+  margin: 0;
+  /* Painted on the page rather than on the title block: a block that is one
+   * page tall loses the last line of its background to rounding, and the seam
+   * is visible on paper. */
+  background: #10161d;
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-center { content: none; }
+}
+
+@page :first {
+  margin: 0;
+  background: #10161d;
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-center { content: none; }
+}
+
+html {
+  font-family: "DejaVu Sans", "Lato", "Neko Hangul", "Droid Sans Fallback", sans-serif;
+  /* Droid Sans Fallback is the CJK face; DejaVu carries Hebrew and Arabic.
+   * The chain is what makes one paragraph able to mix scripts. */
+  font-size: 9.6pt;
+  line-height: 1.45;
+  color: #1b1b1b;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  hyphens: auto;
+  text-align: left;
+}
+
+/* ---- title page ------------------------------------------------------- */
+
+.title-page {
+  page: cover;
+  page-break-after: always;
+  box-sizing: border-box;
+  height: 297mm;
+  padding: 58mm 26mm 30mm 26mm;
+  background: #10161d;
+  color: #f4f4f2;
+}
+
+.title-kicker {
+  font-size: 12pt;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #8fb6a8;
+  margin: 0 0 10mm 0;
+}
+
+h1.title {
+  font-size: 34pt;
+  line-height: 1.12;
+  margin: 0 0 8mm 0;
+  font-weight: 600;
+  color: #ffffff;
+  string-set: none;
+  page-break-before: avoid;
+}
+
+.title-subtitle {
+  font-size: 12.5pt;
+  line-height: 1.5;
+  color: #c9d2d8;
+  margin: 0 0 9mm 0;
+  max-width: 120mm;
+}
+
+/* The document abstract, carried on the title page instead of on a page of its
+ * own between the contents and chapter one. */
+.title-abstract {
+  font-size: 9.6pt;
+  line-height: 1.55;
+  color: #aab6be;
+  max-width: 132mm;
+  margin: 0 0 16mm 0;
+}
+
+.title-abstract p {
+  margin: 0 0 3.2mm 0;
+}
+
+.title-abstract code {
+  background: #1d2833;
+  color: #e8eef2;
+  border: none;
+}
+
+.title-meta {
+  font-size: 9pt;
+  color: #7f8f99;
+  border-top: 0.4mm solid #2b3944;
+  padding-top: 4mm;
+  margin: 0;
+}
+
+/* ---- contents -------------------------------------------------------- */
+
+.toc {
+  page-break-after: always;
+}
+
+h2.toc-title {
+  font-size: 20pt;
+  margin: 0 0 7mm 0;
+  padding: 0;
+  border: none;
+  page-break-before: avoid;
+}
+
+ul.toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 2;
+  column-gap: 10mm;
+}
+
+ul.toc-list li {
+  margin: 0 0 0.6mm 0;
+  break-inside: avoid;
+  font-size: 8.7pt;
+  line-height: 1.2;
+}
+
+ul.toc-list li.toc-level-2 {
+  font-weight: 600;
+  margin-top: 1.8mm;
+}
+
+ul.toc-list li.toc-level-3 {
+  padding-left: 4mm;
+  font-weight: 400;
+  color: #333333;
+}
+
+ul.toc-list a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---- headings -------------------------------------------------------- */
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+  color: #10161d;
+  break-after: avoid;
+}
+
+h1 {
+  font-size: 21pt;
+  margin: 0 0 6mm 0;
+  page-break-before: always;
+}
+
+h2 {
+  font-size: 16pt;
+  margin: 0 0 4mm 0;
+  padding-bottom: 2mm;
+  border-bottom: 0.5mm solid #c9d2d8;
+  page-break-before: always;
+  string-set: chapter content(text);
+}
+
+h3 {
+  font-size: 12pt;
+  margin: 7mm 0 2.5mm 0;
+}
+
+h4 {
+  font-size: 10.5pt;
+  margin: 5mm 0 2mm 0;
+}
+
+/* ---- body text ------------------------------------------------------- */
+
+p {
+  margin: 0 0 3mm 0;
+  orphans: 3;
+  widows: 3;
+}
+
+em { font-style: italic; }
+strong { font-weight: 600; }
+
+code {
+  font-family: "DejaVu Sans Mono", monospace;
+  font-size: 8.4pt;
+  background: #f1f3f5;
+  padding: 0.2mm 0.8mm;
+  border-radius: 0.6mm;
+  /* A long command name should break rather than run into the margin. */
+  overflow-wrap: break-word;
+}
+
+pre {
+  background: #f4f6f7;
+  border-left: 1.2mm solid #8fb6a8;
+  padding: 3mm 4mm;
+  margin: 0 0 4mm 0;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 8.2pt;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+blockquote {
+  margin: 0 0 4mm 0;
+  padding: 2.5mm 4mm;
+  background: #f7f8f9;
+  border-left: 1.2mm solid #c9d2d8;
+  font-size: 9.4pt;
+}
+
+blockquote p { margin: 0; }
+
+hr {
+  border: none;
+  border-top: 0.3mm solid #d7dde1;
+  margin: 5mm 0;
+}
+
+/* ---- lists ----------------------------------------------------------- */
+
+ul, ol {
+  margin: 0 0 3.5mm 0;
+  padding-left: 6mm;
+}
+
+li {
+  margin: 0 0 0.8mm 0;
+  break-inside: avoid;
+}
+
+/* The menu trees are deep and long: tighter leading keeps them readable and
+ * keeps a submenu from splitting across a page where it can be avoided. */
+li > ul, li > ol {
+  margin: 0.8mm 0 0.8mm 0;
+}
+
+/* ---- tables ---------------------------------------------------------- */
+
+table.grid {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 4.5mm 0;
+  font-size: 8.6pt;
+  page-break-inside: auto;
+}
+
+table.grid thead {
+  display: table-header-group;
+}
+
+table.grid th {
+  text-align: left;
+  background: #eef2f3;
+  border-bottom: 0.4mm solid #b9c5cb;
+  padding: 1.6mm 2mm;
+  font-weight: 600;
+}
+
+table.grid td {
+  border-bottom: 0.2mm solid #dde3e6;
+  padding: 1.5mm 2mm;
+  vertical-align: top;
+}
+
+table.grid tr {
+  page-break-inside: avoid;
+}
+
+/* A cell full of code spans should not force a column wider than the page. */
+table.grid code {
+  font-size: 8pt;
+}
+
+/* ---- links ----------------------------------------------------------- */
+
+a {
+  color: #1f5f4b;
+  text-decoration: none;
+}
+

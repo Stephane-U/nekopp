@@ -1,0 +1,18 @@
+[package]
+name = "nn-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# Same reasoning as nn-app's `npp`: the package is named after the workspace,
+# the program is named after the editor. A client config says
+# `"command": "npp-mcp"`, and the crate name only appears in `use` statements.
+[[bin]]
+name = "npp-mcp"
+path = "src/main.rs"
+
+[dependencies]
+# The protocol is JSON-RPC, and the reference is parsed markdown that becomes
+# JSON: a hand-written parser and a hand-written serialiser would be two more
+# things to test than the protocol itself.
+serde_json = "1"

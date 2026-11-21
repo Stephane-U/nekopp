@@ -7842,3 +7842,107 @@ above was first seen: `Apri cartella dei plugin...` and `Ricarica i plugin` besi
 by the real-catalog tests rather than by the picture that exposed it.
 
 `cargo fmt` was not run.
+
+## Sixtieth pass: a reference, a PDF, and a server that answers from both
+
+### A reference is a reading of the code, not a copy of a manual
+
+`docs/nekopp-features.md` is the whole feature set in prose: 27 chapters, 75
+subsections, 102 sections, and the menu tree spelled out row by row wherever a
+chapter is about a menu. It was written by reading this code -- the menus, the
+keymap, the editor, the theme and localization tables -- and not by reproducing
+Notepad++'s manual, which describes a program with DLL plugins and a Scintilla
+scrolling model that this one does not have.
+
+Where the build differs from the program it imitates, the chapter says so instead
+of smoothing it over: plugins are WebAssembly, the four Help links still point at
+Notepad++'s pages because those are the closest documentation that exists, and the
+Unicode chapter names the one font the program ships and the licence it is under.
+A reference that quietly disagrees with the program is worse than no reference,
+because it is confidently wrong.
+
+### The converter is the small part, and it has no dependencies
+
+`docs/build-pdf.py` is a markdown-to-HTML converter for the subset the document
+actually uses -- headings, paragraphs, lists, tables, fenced code, block quotes,
+rules, and inline code, bold, italic and links -- plus a call into WeasyPrint,
+which is looked up on `PATH` first and at its per-user location second, because
+that is where `pip install --user` puts it on a machine without root. No
+third-party Python: a manual that needs a toolchain to rebuild is a manual that
+goes stale.
+
+The slug rule is shared with the server's resource URIs, so `nekopp://features/folding`
+and the `#folding` anchor in the PDF name the same section. `--out` writes
+elsewhere, `--html` keeps the intermediate, and the CSS beside it is A4 with a
+running header, a page number, and a font stack that covers Greek, Cyrillic,
+Hebrew, Arabic, Hangul, kana and Han -- checked by extracting the text layer of
+the built file and counting characters from each block, not by trusting the font
+list.
+
+### The server has no dependency on the window
+
+`crates/nn-mcp` is a separate crate with no dependency on `nn-app`: it builds and
+runs on a machine that has never started the GUI, and the binary is `npp-mcp`. The
+markdown is embedded with `include_str!` and cut into sections at startup, so an
+answer cannot drift from the PDF -- they are the same bytes.
+
+It speaks JSON-RPC 2.0, one object per line, protocol revision `2024-11-05`, and
+five tools: `search_features`, `get_section`, `list_sections`, `list_shortcuts`
+and `get_command`. Every section is also a resource. The rules that make a
+hand-written server usable are the unglamorous ones, and they are all tested: a
+notification is never answered, not even when its method is unknown; an unknown
+method is `-32601`, bad params `-32602`, a line that is not JSON `-32700`, a
+resource that names nothing `-32002`; and a tool that fails -- an unknown section,
+an unknown command -- is a successful call with `isError: true` and text saying
+what to try instead, because a protocol error tells the user nothing. stdout is
+the protocol and nothing else; the startup line goes to stderr.
+
+Search ranks an exact heading above a heading that contains the query, above one
+word of it, above a mention in the body, and whole words above fragments, so "bin"
+does not return every page that says "bindable".
+
+### The counts are a contract, and the document grew
+
+Three tests pinned the document's shape: 27 chapters, 73 subsections, 100
+sections, 101 resources. Adding the two plugin subsections in this pass turned all
+three red, which is what they are for. The numbers are now 75, 102 and 103, and
+the README quotes them.
+
+The Plugins chapter itself was rewritten in the same change. Asking the server for
+`get_command "Unload"` returned an honest refusal -- a menu row is not a bound
+command -- and reading the chapter afterwards showed why that mattered: it still
+described seven host functions and a Plugins menu with one folder row and no
+unload, which is what the previous pass had already replaced. The chapter now
+documents the fifteen-function ABI, the append-only rule, the Rust SDK with its
+three ports, and the load/unload rows.
+
+### Verification
+
+`cargo build --offline --release`: clean.
+
+`cargo test --offline --release`: 974 passed in `nn-app`, 816 in `nn-core`, 51 in
+`nn-mcp`, 1841 in all, no failures. `cd plugins && cargo test --offline --release`:
+23 passed.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+`python3 docs/build-pdf.py`: wrote `docs/nekopp-features.pdf`, 60 pages A4, 262,523
+bytes, 104 bookmarks. `pdftotext` on the result finds the words "Load and
+unload", "fifteen host functions" and the French example `Décharger Half Width`,
+and counts characters in the Hebrew (29), Arabic (52), Greek (30), Cyrillic (46),
+Hangul (11), Han (12) and kana (23) blocks, so the scripts are in the text layer
+rather than drawn as boxes.
+
+A piped session against `target/release/npp-mcp`, four lines in:
+
+- `initialize` answers `{"name":"npp-mcp","version":"0.1.0"}` with capabilities
+  for tools and resources.
+- `get_command "Unload"` answers `isError: true` and the text "No command is called
+  "Unload". `list_shortcuts` has the bound ones." -- the correct answer, since that
+  row is a menu item and not something a key can be bound to.
+- `resources/read nekopp://features/plugins` returns the Plugins chapter as
+  markdown.
+- stderr carries `npp-mcp 0.1.0: 102 sections, 73 shortcuts, one JSON object per
+  line on stdio`, and stdout carries nothing but the four responses.
+
+`cargo fmt` was not run.
