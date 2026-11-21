@@ -343,6 +343,19 @@ pub const ICONS: &[Icon] = &[
             ("M 7 14 L 10 17", TAB),
         ],
     },
+    // The pair that scrolls a strip too full to show every tab. They are the
+    // only marks in this table drawn from a fixed rectangle rather than from
+    // the tab they belong to, which is why they take their own argument.
+    Icon {
+        name: "tab_left",
+        ink: &[("M 15 5 L 8 12 L 15 19", TAB)],
+        accent: &[],
+    },
+    Icon {
+        name: "tab_right",
+        ink: &[("M 9 5 L 16 12 L 9 19", TAB)],
+        accent: &[],
+    },
 ];
 
 /// The box the drawings are laid out in.
@@ -455,6 +468,8 @@ mod tests {
                 "tab_pin",
                 "tab_pin_on",
                 "tab_unsaved",
+                "tab_left",
+                "tab_right",
             ]
         );
     }

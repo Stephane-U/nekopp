@@ -7483,3 +7483,117 @@ Flows, each one driven with the mouse and read off a screenshot:
 `cargo clippy --offline --release --all-targets`: 0 warnings.
 
 `cargo fmt` was not run.
+
+## Fifty-seventh pass: a strip that clipped to the wrong edge
+
+### Two complaints, one geometry
+
+The user reported two things about the tab strip: a long filename runs under the
+pin and the cross, and a window full of tabs offers no way to reach the ones past
+the edge. They are one defect seen from two sides. The strip had a single clip
+rectangle, the whole row, and no notion of a position within that row. A title
+was therefore cut at the strip's edge -- which is to say, not cut at all until it
+had already crossed its own buttons and the next tab -- and the row simply ended
+at the window, with every tab past it placed and painted but unreachable.
+
+### A clip is only as good as its rectangle
+
+`text_areas` built one `TextBounds` from `self.left` to `self.left + block_width`
+and handed it to every title. The tabs' fills had been clipped per tab for a
+while; the text had not. So a 49-character filename drew all 49 characters,
+through the pin, the cross and the tab beside it, and only stopped at the pane's
+far edge. The clip is now the tab's own title slot: from `title_left` -- after the
+pencil, if there is one -- to `label_right`, which is the pin's left edge less
+`LABEL_GAP`. Eight pixels is not a typographic nicety; it is what makes the gap
+visible at the sizes the strip actually uses, since a glyph that ends one pixel
+short of the pin reads as touching it.
+
+Measured on the built binary: a tab at `MAX_TAB_WIDTH` (260) shows its title ink
+ending at x = 200, the pin's ink starting at 222, and the cross's at 249 -- a
+22-pixel gap of bare tab between the name and the first button, where before the
+name ran under both. The clip admits glyphs up to
+210 and layout stops at the last one that fits, which is the behaviour a
+fixed-width strip wants: cut the name, do not squeeze it.
+
+### A row that cannot scroll says nothing
+
+There was no scroll state. `slots` started every horizontal row at zero and ran
+on, so the only tabs that existed were the ones that fitted, and the rest were
+painted under the arrow zone that did not exist. `TabBar` now carries `offset`,
+and the row starts at `-offset`. Everything else already read `slots`, which is
+why one field was enough: the fills, the hit test, the titles and the buttons all
+moved together.
+
+The arrows are drawn in a reserved zone at the trailing edge --
+`BUTTON_ZONE` wide, the same 36 pixels a tab reserves for its own two buttons --
+and `usable_width` shrinks the row by that much while it overflows, so the last
+tab stops flush against the arrows instead of sliding beneath them. `tab_at`
+returns `None` over the zone, because a click there is a scroll and cannot also
+be a click on the tab behind it.
+
+### Glyphs cannot be clipped, so they are dropped
+
+A tab's fill is a quad and is clipped to `[0, usable_width]`. The marks on a tab
+are atlas glyphs and are not: a pencil on a tab that had scrolled off would have
+been drawn at a negative x, over whatever sits to the left of the strip. They are
+dropped instead, by `mark_is_visible`, which asks for the whole glyph to be inside
+the row rather than a clipped fragment of one. The active tab's own buttons can
+never be affected: `ensure_active_visible` keeps the active tab inside the row by
+construction.
+
+### Scrolling is state, and state has ends
+
+`scroll_step` moves three quarters of the visible width, so the tab that was at
+the edge stays on screen as a landmark. `clamp_offset` holds the result between
+zero and `content_width - usable_width`, on every change of tabs and of bounds,
+and `ensure_active_visible` scrolls the active tab in when it is opened, cloned,
+moved from the other view or reached from the keyboard -- otherwise the keyboard
+would reach tabs the pointer could not.
+
+That first version was wrong in a way only a test found. `set_tabs` runs before
+`set_bounds` at startup, when the strip's width is still zero; `clamp_offset`
+against a zero width allowed a large offset, and `ensure_active_visible` then
+computed one from it, so the strip opened parked past its own first tab. Both
+functions now return early on a width of zero, and `set_bounds` re-anchors the
+strip when the width actually changes -- on a resize, and only then: doing it
+every frame would undo the arrows as fast as they are pressed.
+
+### Verification
+
+`cargo build --offline --release`: clean.
+
+`cargo test --offline --release`: 954 passed in `nn-app`, 816 in `nn-core`, 1770
+in all, no failures. Six tests are new in `tabbar`: `a_long_title_stops_before_the_pin`
+(asserts `label_right` is `LABEL_GAP` short of the pin and that the name is wider
+than the room left for it, so the clip is doing work), `the_arrows_appear_only_when_the_tabs_do_not_fit`,
+`scrolling_stops_at_both_ends`, `activating_a_far_tab_scrolls_it_into_view`,
+`a_click_on_an_arrow_says_which_way` and `a_tab_under_the_arrows_cannot_be_clicked`.
+`a_single_row_strip_never_wraps` was rewritten: it used to assert that a tab at
+`3 * MIN_TAB_WIDTH` was still hit-testable with a `MIN_TAB_WIDTH` strip, which is
+precisely the behaviour the arrows have to break. `icons`' exact-name test gained
+`tab_left` and `tab_right`.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+Flows, each driven with the mouse at 1100x750 on a 1400x1000 Xvfb on `:9`, read
+off a screenshot. The binary needs lavapipe (`VK_ICD_FILENAMES` at
+`lvp_icd.x86_64.json`, `WGPU_BACKEND=vulkan`) and `HOME` on a scratch directory.
+
+- Ten files opened at once, the active one last: the strip opens anchored on it,
+  the two chevrons are drawn in the trailing zone, and the first tab is cut
+  mid-name at the left edge rather than bleeding over the pane.
+- The same window after three presses of the left arrow: the row is back at its
+  start with the leading tab intact. The two end stops are asserted in
+  `scrolling_stops_at_both_ends` rather than read off a screenshot, since a
+  scroll that does nothing and a scroll that is refused look the same.
+- One press of the right arrow: the row scrolls by three quarters of its width,
+  stops at its end because the tabs run out first, and the last tab ends flush
+  against the arrow zone with no overlap.
+- Hovering either arrow lights its well before the click: the row pixel at the
+  arrow is `tab_hover`, not the strip background.
+- The long-named tab made active: its title stops with a clear gap before the
+  pin, the cross sits inside the tab's inset, and neither is drawn over the text.
+- A fresh window with three files: the arrows are absent -- nothing to scroll --
+  and the row ends after the last tab with the strip's background to its right.
+
+`cargo fmt` was not run.

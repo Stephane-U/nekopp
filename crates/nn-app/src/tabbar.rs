@@ -42,6 +42,12 @@ const BUTTON_SIZE: f32 = 16.0;
 const BUTTON_GAP: f32 = 4.0;
 /// The width the two buttons and their gap take at a tab's trailing edge.
 const BUTTON_ZONE: f32 = BUTTON_SIZE * 2.0 + BUTTON_GAP;
+/// The space between the end of a title and the first button it must not reach.
+///
+/// A tab reserves [`BUTTON_ZONE`] for its buttons; this is the margin inside
+/// that reservation, so a long name stops a word-gap short of the pin instead of
+/// running underneath it.
+const LABEL_GAP: f32 = 8.0;
 /// The side of the pencil that marks an unsaved document.
 const MARK_SIZE: f32 = 14.0;
 /// The gap between the pencil and the title.
@@ -228,6 +234,10 @@ enum Hover {
     Tab(usize),
     Close,
     Pin,
+    /// The arrow that scrolls the strip towards its first tab.
+    ScrollLeft,
+    /// The arrow that scrolls it towards its last.
+    ScrollRight,
 }
 
 /// What the strip needs to know about one tab.
@@ -276,6 +286,14 @@ pub struct TabBar {
     width: f32,
     /// How the tabs are arranged.
     layout: TabLayout,
+    /// How far the strip is scrolled towards its last tab, in pixels.
+    ///
+    /// Zero while the tabs fit, which is the usual case. Once they do not, the
+    /// single row scrolls under the strip's own arrows rather than running off
+    /// the edge with no way to reach the tabs past it. Only the single-row
+    /// arrangement scrolls: a column has its own height and the multi-line strip
+    /// wraps.
+    offset: f32,
     /// What the pointer is over, if anything.
     hover: Option<Hover>,
     stale: bool,
@@ -295,6 +313,7 @@ impl TabBar {
             top: 0.0,
             width: 0.0,
             layout: TabLayout::Horizontal,
+            offset: 0.0,
             hover: None,
             stale: true,
         }
@@ -310,6 +329,11 @@ impl TabBar {
             self.hover = None;
             self.stale = true;
         }
+        // The set of tabs decides how far the strip may scroll, and the active
+        // one decides where it has to be: a document opened from the keyboard
+        // must arrive in view rather than past the last arrow.
+        self.clamp_offset();
+        self.ensure_active_visible();
     }
 
     /// The tabs the strip is showing.
@@ -400,9 +424,20 @@ impl TabBar {
 
     /// Places the strip in the window.
     pub fn set_bounds(&mut self, left: f32, top: f32, width: f32) {
+        let previous = self.width;
         self.left = left;
         self.top = top;
         self.width = width;
+        // A narrower window can make an existing scroll impossible, and a wider
+        // one can leave the strip parked past its own end.
+        self.clamp_offset();
+        // A tab set that arrived before the strip had a width could not be
+        // scrolled into view, and every tab past the new edge would be stranded.
+        // Only a real change of width re-anchors the strip: doing it every frame
+        // would undo the arrows as fast as they are pressed.
+        if (self.width - previous).abs() > f32::EPSILON {
+            self.ensure_active_visible();
+        }
     }
 
     /// The width of tab `index`.
@@ -423,6 +458,137 @@ impl TabBar {
         };
         (chars as f32 * self.char_width + 2.0 * TAB_PADDING + BUTTON_ZONE + mark)
             .clamp(MIN_TAB_WIDTH, MAX_TAB_WIDTH)
+    }
+
+    /// The width the tabs need if they are laid out in one row.
+    fn content_width(&self) -> f32 {
+        (0..self.tabs.len()).map(|index| self.tab_width(index)).sum()
+    }
+
+    /// Whether the tabs do not fit in one row.
+    ///
+    /// Only the single-row arrangement can overflow: a column takes its own
+    /// height, and the multi-line strip wraps instead.
+    fn overflows(&self) -> bool {
+        self.layout == TabLayout::Horizontal
+            && self.width > 0.0
+            && self.tabs.len() > 1
+            && self.content_width() > self.width
+    }
+
+    /// How much of the strip the tabs may use.
+    ///
+    /// Once the arrows exist they take a zone at the trailing edge, so the tabs
+    /// stop before them rather than sliding underneath: a tab half-covered by an
+    /// arrow is a tab whose buttons cannot be clicked.
+    fn usable_width(&self) -> f32 {
+        if self.overflows() {
+            (self.width - BUTTON_ZONE).max(MIN_TAB_WIDTH)
+        } else {
+            self.width
+        }
+    }
+
+    /// How far the strip may scroll before its last tab is flush with the edge.
+    fn max_offset(&self) -> f32 {
+        // A strip that has not been placed yet has no edge to scroll against,
+        // and scrolling against a width of zero is what parked the row past its
+        // first tab at startup.
+        if self.layout != TabLayout::Horizontal || self.width <= 0.0 {
+            return 0.0;
+        }
+        (self.content_width() - self.usable_width()).max(0.0)
+    }
+
+    /// Pulls the scroll back inside the range the current tabs allow.
+    fn clamp_offset(&mut self) {
+        let max = self.max_offset();
+        self.offset = if max > 0.0 {
+            self.offset.clamp(0.0, max)
+        } else {
+            0.0
+        };
+    }
+
+    /// The left edge of tab `index` with the strip unscrolled.
+    fn left_of(&self, index: usize) -> f32 {
+        (0..index).map(|earlier| self.tab_width(earlier)).sum()
+    }
+
+    /// Scrolls the strip far enough to show the active tab.
+    ///
+    /// Opening or cycling to a document that sits past the last visible tab has
+    /// to bring it in, or the keyboard reaches tabs the pointer cannot.
+    fn ensure_active_visible(&mut self) {
+        if self.layout != TabLayout::Horizontal || self.tabs.is_empty() || self.width <= 0.0 {
+            return;
+        }
+        let left = self.left_of(self.active);
+        let right = left + self.tab_width(self.active);
+        let usable = self.usable_width();
+        if left < self.offset {
+            self.offset = left;
+        }
+        if right > self.offset + usable {
+            self.offset = right - usable;
+        }
+        self.clamp_offset();
+    }
+
+    /// Scrolls by one press of an arrow. `direction` is `-1` for left, `1` for
+    /// right, and the return value says whether anything moved.
+    ///
+    /// A press moves three quarters of the visible width, so the tab that was at
+    /// the edge stays in view as a landmark rather than being scrolled away.
+    pub fn scroll_step(&mut self, direction: i32) -> bool {
+        if direction == 0 || !self.overflows() {
+            return false;
+        }
+        let step = (self.usable_width() * 0.75).max(MIN_TAB_WIDTH * 0.5);
+        let before = self.offset;
+        self.offset += direction.signum() as f32 * step;
+        self.clamp_offset();
+        self.offset != before
+    }
+
+    /// The two arrow buttons at the trailing edge, when the strip has them.
+    ///
+    /// `None` while the tabs fit: an arrow that scrolls nothing is a button that
+    /// looks broken, so it only exists when there is somewhere to go.
+    fn arrow_rects(&self, line_height: f32) -> Option<[(f32, f32, f32, f32); 2]> {
+        if !self.overflows() {
+            return None;
+        }
+        let row = self.row_height(line_height);
+        let inset = ((row - BUTTON_SIZE) * 0.5).max(0.0);
+        let left = self.width - BUTTON_ZONE;
+        Some([
+            (left, inset, BUTTON_SIZE, BUTTON_SIZE),
+            (
+                left + BUTTON_SIZE + BUTTON_GAP,
+                inset,
+                BUTTON_SIZE,
+                BUTTON_SIZE,
+            ),
+        ])
+    }
+
+    /// The scroll arrow under `(x, y)`: `-1` left, `1` right.
+    pub fn arrow_at(&self, x: f32, y: f32, line_height: f32) -> Option<i32> {
+        let rects = self.arrow_rects(line_height)?;
+        let x = x - self.left;
+        let y = y - self.top;
+        for (index, (left, top, width, height)) in rects.into_iter().enumerate() {
+            if x >= left && x < left + width && y >= top && y < top + height {
+                return Some(if index == 0 { -1 } else { 1 });
+            }
+        }
+        None
+    }
+
+    /// Where a tab's title has to stop so the buttons stay legible.
+    fn label_right(&self, slot: &Slot) -> f32 {
+        self.pin_rect(slot).0 - LABEL_GAP
     }
 
     /// The rectangle of the close button inside a tab slot.
@@ -476,7 +642,10 @@ impl TabBar {
         let mut slots = Vec::with_capacity(self.tabs.len());
         match self.layout {
             TabLayout::Horizontal => {
-                let mut left = 0.0;
+                // The row starts under the left edge until the strip is
+                // scrolled, then the tabs that scrolled off keep their places
+                // to the left of it and are clipped by the strip.
+                let mut left = -self.offset;
                 for i in 0..self.tabs.len() {
                     let width = self.tab_width(i);
                     slots.push(Slot {
@@ -532,6 +701,11 @@ impl TabBar {
     pub fn tab_at(&self, x: f32, y: f32, line_height: f32) -> Option<usize> {
         let x = x - self.left;
         let y = y - self.top;
+        // Under the arrows there is no tab to hit, however far the row runs
+        // underneath them.
+        if self.overflows() && (x < 0.0 || x >= self.usable_width()) {
+            return None;
+        }
         self.slots(line_height)
             .into_iter()
             .position(|slot| {
@@ -582,7 +756,13 @@ impl TabBar {
     /// Handles a pointer move over the strip. Returns true when it landed on a
     /// tab or one of its buttons.
     pub fn hover_at(&mut self, x: f32, y: f32, line_height: f32) -> bool {
-        let hover = if self.close_at(x, y, line_height).is_some() {
+        let hover = if let Some(direction) = self.arrow_at(x, y, line_height) {
+            Some(if direction < 0 {
+                Hover::ScrollLeft
+            } else {
+                Hover::ScrollRight
+            })
+        } else if self.close_at(x, y, line_height).is_some() {
             Some(Hover::Close)
         } else if self.pin_at(x, y, line_height).is_some() {
             Some(Hover::Pin)
@@ -663,7 +843,20 @@ impl TabBar {
 
         for (i, tab) in self.tabs.iter().enumerate() {
             let Some(slot) = slots.get(i) else { continue };
-            let left = self.left + slot.left;
+            // A scrolled-out tab keeps its place in the row but is not painted
+            // past the strip's own ends, where it would sit under the arrows or
+            // bleed over the pane beside it.
+            let (start, span) = if self.overflows() {
+                let right = (slot.left + slot.width).min(self.usable_width());
+                let start = slot.left.max(0.0);
+                (start, (right - start).max(0.0))
+            } else {
+                (slot.left, slot.width)
+            };
+            if span <= 0.0 {
+                continue;
+            }
+            let left = self.left + start;
             let top = self.top + slot.top;
             let base = if i == self.active {
                 theme.background
@@ -676,18 +869,12 @@ impl TabBar {
                 Some(paint) => mix(paint, base, COLOUR_MIX),
                 None => base,
             };
-            quads.push(left, top, slot.width, slot.height, color.to_linear());
+            quads.push(left, top, span, slot.height, color.to_linear());
             if i != self.active {
                 // An inactive tab under the pointer lifts a shade, which is the
                 // only feedback the strip gives before a click.
                 if self.hover == Some(Hover::Tab(i)) {
-                    quads.push(
-                        left,
-                        top,
-                        slot.width,
-                        slot.height,
-                        theme.tab_hover.to_linear(),
-                    );
+                    quads.push(left, top, span, slot.height, theme.tab_hover.to_linear());
                 }
                 continue;
             }
@@ -706,7 +893,7 @@ impl TabBar {
                 quads.push(
                     left,
                     top,
-                    slot.width,
+                    span,
                     TOP_BAR,
                     theme.tab_active_rule.to_linear(),
                 );
@@ -727,6 +914,38 @@ impl TabBar {
                 }
             }
         }
+        // A pressed-looking well behind whichever arrow the pointer is on, so
+        // the strip answers before the click rather than after it.
+        if let Some(rects) = self.arrow_rects(line_height) {
+            for (index, rect) in rects.into_iter().enumerate() {
+                let hovered = matches!(
+                    (index, self.hover),
+                    (0, Some(Hover::ScrollLeft)) | (1, Some(Hover::ScrollRight))
+                );
+                if hovered {
+                    quads.push(
+                        self.left + rect.0,
+                        self.top + rect.1,
+                        rect.2,
+                        rect.3,
+                        theme.tab_hover.to_linear(),
+                    );
+                }
+            }
+        }
+    }
+
+    /// Whether a mark `width` wide at `x` falls inside the part of the row the
+    /// tabs occupy.
+    ///
+    /// Marks are glyphs, not quads, so they cannot be clipped to the strip the
+    /// way a tab's fill is. A pencil on a tab that scrolled off would otherwise
+    /// appear to belong to whatever sits beside the strip, so it is dropped.
+    fn mark_is_visible(&self, x: f32, width: f32) -> bool {
+        if !self.overflows() {
+            return true;
+        }
+        x >= 0.0 && x + width <= self.usable_width()
     }
 
     /// Queues the marks on the tabs: the pencil on a dirty document, and the
@@ -753,6 +972,9 @@ impl TabBar {
                     continue;
                 };
                 let (x, y, w, h) = self.mark_rect(slot);
+                if !self.mark_is_visible(x, w) {
+                    continue;
+                }
                 icons.push(
                     icon,
                     true,
@@ -770,6 +992,9 @@ impl TabBar {
                 continue;
             };
             let (x, y, w, h) = self.close_rect(slot);
+            if !self.mark_is_visible(x, w) {
+                continue;
+            }
             icons.push(
                 close,
                 false,
@@ -786,6 +1011,9 @@ impl TabBar {
             };
             let Some(pin) = pin else { continue };
             let (x, y, w, h) = self.pin_rect(slot);
+            if !self.mark_is_visible(x, w) {
+                continue;
+            }
             icons.push(
                 pin,
                 tab.pinned,
@@ -796,31 +1024,60 @@ impl TabBar {
                 theme.tab_button.to_linear(),
             );
         }
+        // The two scroll arrows, last so they sit over the strip's own edge
+        // rather than under a tab that scrolled past them.
+        if let Some(rects) = self.arrow_rects(line_height) {
+            for (index, name) in ["tab_left", "tab_right"].into_iter().enumerate() {
+                let Some(icon) = icons::index(name) else {
+                    continue;
+                };
+                let (x, y, w, h) = rects[index];
+                icons.push(
+                    icon,
+                    false,
+                    self.left + x,
+                    self.top + y,
+                    w,
+                    h,
+                    theme.tab_button.to_linear(),
+                );
+            }
+        }
     }
 
     /// The text areas for the tab titles.
+    ///
+    /// Each title is clipped to its own tab, and inside that tab to the space
+    /// left of the two buttons. A single clip for the whole strip -- which is
+    /// what this was -- let a long name run under the pin and the cross, and
+    /// under the next tab as well.
     pub fn text_areas<'a>(&'a self, line_height: f32, theme: &Theme) -> Vec<TextArea<'a>> {
         if !self.is_shown() {
             return Vec::new();
         }
         let slots = self.slots(line_height);
-        let block_height = self.block_height(line_height);
-        let block_width = self.block_width();
-        let bounds = TextBounds {
-            left: self.left as i32,
-            top: self.top as i32,
-            right: (self.left + block_width) as i32,
-            bottom: (self.top + block_height) as i32,
-        };
         let mut areas = Vec::with_capacity(self.buffers.len());
         for (i, buffer) in self.buffers.iter().enumerate() {
             let Some(slot) = slots.get(i) else { continue };
+            let left = self.left + self.title_left(i, slot);
+            // The arrows take the strip's trailing edge, so a tab that runs
+            // under them is clipped there as well as at its own buttons.
+            let right = (self.left + self.label_right(slot)).min(self.left + self.usable_width());
+            let top = self.top + slot.top;
+            if right <= left {
+                continue;
+            }
             areas.push(TextArea {
                 buffer,
-                left: self.left + self.title_left(i, slot),
-                top: self.top + slot.top + 4.0,
+                left,
+                top: top + 4.0,
                 scale: 1.0,
-                bounds,
+                bounds: TextBounds {
+                    left: left as i32,
+                    top: top as i32,
+                    right: right as i32,
+                    bottom: (top + slot.height) as i32,
+                },
                 default_color: if i == self.active {
                     theme.tab_active_text.to_cosmic()
                 } else {
@@ -1195,7 +1452,92 @@ mod tests {
         let row = 20.0 + 8.0;
         assert_eq!(bar.height(20.0), row);
         // The tabs past the edge are still placed, just clipped.
-        assert_eq!(bar.tab_at(3.0 * MIN_TAB_WIDTH + 1.0, 1.0, 20.0), Some(3));
+        assert_eq!(bar.slots(20.0).len(), 4);
+        assert!(bar.slots(20.0)[3].left >= MIN_TAB_WIDTH);
+    }
+
+    #[test]
+    fn a_long_title_stops_before_the_pin() {
+        // The titles used to be clipped to the strip, not to their own tab, so a
+        // long name ran under the pin and the cross.
+        let mut bar = bar();
+        let long = "a_really_rather_long_document_name.rs";
+        bar.set_tabs(strip(&[long, "b.rs"]), 0);
+        bar.set_bounds(0.0, 0.0, 900.0);
+        let slot = bar.slots(20.0)[0];
+        let (pin, _, _, _) = bar.pin_rect(&slot);
+        assert_eq!(bar.label_right(&slot), pin - LABEL_GAP);
+        assert!(bar.label_right(&slot) < slot.left + slot.width);
+        // The name is wider than the room left for it, so the clip is doing work
+        // rather than merely enclosing a title that already fitted.
+        let span = bar.label_right(&slot) - bar.title_left(0, &slot);
+        assert!(long.len() as f32 * bar.char_width > span);
+    }
+
+    #[test]
+    fn the_arrows_appear_only_when_the_tabs_do_not_fit() {
+        let mut bar = bar();
+        bar.set_tabs(strip(&["a.rs", "b.rs"]), 0);
+        bar.set_bounds(0.0, 0.0, 900.0);
+        assert!(bar.arrow_rects(20.0).is_none());
+        assert_eq!(bar.arrow_at(892.0, 10.0, 20.0), None);
+        bar.set_tabs(strip(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs", "f.rs"]), 0);
+        bar.set_bounds(0.0, 0.0, 200.0);
+        assert!(bar.arrow_rects(20.0).is_some());
+    }
+
+    #[test]
+    fn scrolling_stops_at_both_ends() {
+        let mut bar = bar();
+        bar.set_tabs(strip(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs", "f.rs"]), 0);
+        bar.set_bounds(0.0, 0.0, 200.0);
+        assert!(!bar.scroll_step(-1));
+        assert_eq!(bar.offset, 0.0);
+        assert!(bar.scroll_step(1));
+        assert!(bar.offset > 0.0);
+        let mut presses = 0;
+        while bar.scroll_step(1) {
+            presses += 1;
+            assert!(presses < 20, "the strip never reached its end");
+        }
+        assert_eq!(bar.offset, bar.max_offset());
+        assert!(!bar.scroll_step(1));
+        assert!(bar.scroll_step(-1));
+    }
+
+    #[test]
+    fn activating_a_far_tab_scrolls_it_into_view() {
+        let mut bar = bar();
+        bar.set_tabs(strip(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs", "f.rs"]), 5);
+        bar.set_bounds(0.0, 0.0, 200.0);
+        let left = bar.left_of(5);
+        assert!(left >= bar.offset, "the active tab starts left of the strip");
+        assert!(left + bar.tab_width(5) <= bar.offset + bar.usable_width() + 0.01);
+    }
+
+    #[test]
+    fn a_click_on_an_arrow_says_which_way() {
+        let mut bar = bar();
+        bar.set_tabs(strip(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs", "f.rs"]), 0);
+        bar.set_bounds(10.0, 5.0, 200.0);
+        let rects = bar.arrow_rects(20.0).expect("two arrows");
+        for (index, expected) in [-1, 1].into_iter().enumerate() {
+            let (x, y, w, h) = rects[index];
+            let hit = bar.arrow_at(10.0 + x + w * 0.5, 5.0 + y + h * 0.5, 20.0);
+            assert_eq!(hit, Some(expected));
+        }
+    }
+
+    #[test]
+    fn a_tab_under_the_arrows_cannot_be_clicked() {
+        // The row runs on under the arrows; a click there is a scroll, so the
+        // hit test must not also report the tab behind them.
+        let mut bar = bar();
+        bar.set_tabs(strip(&["a.rs", "b.rs", "c.rs", "d.rs", "e.rs", "f.rs"]), 0);
+        bar.set_bounds(0.0, 0.0, 200.0);
+        assert_eq!(bar.tab_at(170.0, 10.0, 20.0), None);
+        assert_eq!(bar.tab_at(195.0, 10.0, 20.0), None);
+        assert!(bar.tab_at(100.0, 10.0, 20.0).is_some());
     }
 
     #[test]

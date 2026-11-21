@@ -1317,6 +1317,23 @@ impl State {
         self.tab_bar.tab_at(x, y, line_height)
     }
 
+    /// Which scroll arrow of the tab strip the pointer is on, if either.
+    ///
+    /// `-1` is the left arrow, `1` the right. The column layout never scrolls --
+    /// a column is as tall as its tabs, and vertical space is what a split gives
+    /// up last -- so only the horizontal strip answers here.
+    fn tab_arrow_at(&self, x: f64, y: f64) -> Option<i32> {
+        if self.tab_bar.layout().is_vertical() {
+            return None;
+        }
+        let (top, bottom) = self.strip_band();
+        let (x, y) = (x as f32, y as f32);
+        if y < top || y >= bottom {
+            return None;
+        }
+        self.tab_bar.arrow_at(x, y, UI_LINE_HEIGHT)
+    }
+
     /// The close or pin button under the pointer, if any.
     ///
     /// Both buttons belong to the active tab, so neither carries an index: the
@@ -5020,6 +5037,16 @@ impl State {
             if second.is_some_and(|rect| rect.contains(x as f32, y as f32)) {
                 self.focus_other();
             }
+        }
+
+        // The arrows live in the strip's trailing edge, over no tab at all, so
+        // they come before everything else in the strip.
+        if let Some(direction) = self.tab_arrow_at(x, y) {
+            if self.tab_bar.scroll_step(direction) {
+                self.window.request_redraw();
+            }
+            self.dragging = false;
+            return;
         }
 
         // The cross and the pin sit inside the active tab, so they are tested
