@@ -7597,3 +7597,87 @@ off a screenshot. The binary needs lavapipe (`VK_ICD_FILENAMES` at
   and the row ends after the last tab with the strip's background to its right.
 
 `cargo fmt` was not run.
+
+## Fifty-eighth pass: a drag is a position, not a payload
+
+### The gesture had two destinations and three meanings
+
+`drop_tab` knew one thing: which pane the pointer was released over. Inside its
+own pane a dropped tab did nothing, because a drag that began on the strip could
+only mean "send this tab somewhere else". Notepad++ reads the same gesture as
+three: released on the other pane it moves there, released on another tab of its
+own strip it changes places with it, released anywhere else it goes back. The
+third meaning is a reorder, and it was the one missing.
+
+Adding it as a case in `drop_tab` would have been the small change and the wrong
+one. A reorder decided on the drop has no feedback until the release, so the user
+has to aim at a slot rather than push a tab along. That is why the reorder runs
+during the drag instead: `drag_tab_to` moves the tab on every pointer move, and
+the strip is the progress bar.
+
+### Live reordering cannot flicker, which is why it needs no threshold
+
+The reason Notepad++ can reorder live, and the reason no hysteresis is needed
+here, is that moving a tab out of the slot under the pointer and into it puts the
+same tab back under the pointer. Every intermediate state has the dragged tab
+where the mouse is; only the order of the others changes. So the plain hit test
+`tab_at` is safe to consult every frame, and a half-way threshold -- the usual
+guard against a boundary that flips back and forth -- would only add a dead zone
+to a gesture that has none.
+
+`move_tab` is separate from the gesture and returns nothing: both indices are
+checked and an out-of-range one is ignored rather than clamped. The index arrives
+from a hit test that ran against the previous frame's slots, so "the tab moved
+away under my pointer" is a normal race here, not a bug, and clamping would turn
+it into a silent jump to the end of the row.
+
+### The end of the row is the one place `tab_at` cannot answer
+
+`tab_at` answers only where there is a tab, so a tab dragged past its last
+neighbour stopped one short of the end and could never be put last -- the most
+common reorder of all. `reorder_end` fills that hole: on the row, past the last
+slot's right edge, it answers the last index. Off the row it answers nothing, so
+a drag that wanders down into the text moves nothing on the way.
+
+`State::past_strip_end` puts the pane's own rectangle in front of it, and the
+check is not decoration. Without it the strip's band extends to the bottom of the
+window, and a tab being dragged towards the other view would slide along its own
+strip the whole way -- a reorder nobody asked for, performed while attempting a
+move.
+
+### The index follows the tab; the document is not touched
+
+After a move, `self.active` is set to the new index, because the active tab is
+still the same tab: it simply has more neighbours to its left now. Nothing is
+reloaded, no history is dropped, and the other view is resynced only so that a
+cloned tab shows the same title in the same slot order. `tab_drag` and
+`tab_press` are rewritten to the new index as well -- the press coordinates were
+taken in the old slot, and a press that still pointed at the old index would make
+the next pointer move drag the wrong tab.
+
+### Verification
+
+`cargo build --offline --release`: clean.
+
+`cargo test --offline --release`: 957 passed in `nn-app`, 816 in `nn-core`, 1773
+in all, no failures. Three tests are new in `tabbar`: `a_tab_can_be_moved_along_its_strip`
+(forward and backward, asserting the order of the whole row both times),
+`moving_a_tab_nowhere_leaves_it_alone` (a self-move and two out-of-range moves),
+and `a_drag_past_the_last_tab_lands_on_the_end`, which asserts `reorder_end`
+answers the last index past the row, abstains inside the last tab because there
+is a tab to hit there, and abstains below the row.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+Flows, driven with the mouse at 1100x750 on a 1400x1000 Xvfb on `:9`, five files
+open, read off screenshots of the strip row:
+
+- `beta.txt` dragged from the first slot to the third and released: the row is
+  `gamma, alpha, delta, epsilon, beta` -- the drop was past the right end, so the
+  tab landed last, which is the branch `tab_at` cannot see.
+- The same window earlier with `alpha.txt` dragged from the first slot to the
+  third and released inside the row: `beta, gamma, alpha, delta, epsilon`, from
+  a pixel scan of the row at the tab row's centre showing the active tab's fill
+  in the third slot.
+
+`cargo fmt` was not run.

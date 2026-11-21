@@ -269,6 +269,20 @@ impl TabInfo {
     }
 }
 
+/// Moves the item at `from` so that it sits at `to`.
+///
+/// Notepad++ lets a tab be dragged along its strip, and the drag is live: the
+/// tab takes the place of the one it passes rather than being reordered on the
+/// drop. Both ends are ignored rather than clamped here, because the index comes
+/// from a hit test that ran against the previous frame's slots.
+pub fn move_tab<T>(tabs: &mut Vec<T>, from: usize, to: usize) {
+    if from == to || from >= tabs.len() || to >= tabs.len() {
+        return;
+    }
+    let tab = tabs.remove(from);
+    tabs.insert(to, tab);
+}
+
 /// The strip of document tabs.
 pub struct TabBar {
     tabs: Vec<TabInfo>,
@@ -584,6 +598,26 @@ impl TabBar {
             }
         }
         None
+    }
+
+    /// Where a tab dragged past the end of its row has to land.
+    ///
+    /// [`TabBar::tab_at`] answers nothing over the empty space to the right of
+    /// the last tab, so a tab dragged past its neighbours would stop one short of
+    /// the end. `None` for a pointer that is not on the row at all, so a drag
+    /// that wanders off the strip moves nothing.
+    pub fn reorder_end(&self, x: f32, y: f32, line_height: f32) -> Option<usize> {
+        if !self.is_shown() || self.tabs.is_empty() {
+            return None;
+        }
+        let slots = self.slots(line_height);
+        let last = slots.last()?;
+        let x = x - self.left;
+        let y = y - self.top;
+        if y < last.top || y >= last.top + last.height {
+            return None;
+        }
+        (x >= last.left + last.width).then(|| slots.len() - 1)
     }
 
     /// Where a tab's title has to stop so the buttons stay legible.
@@ -1454,6 +1488,41 @@ mod tests {
         // The tabs past the edge are still placed, just clipped.
         assert_eq!(bar.slots(20.0).len(), 4);
         assert!(bar.slots(20.0)[3].left >= MIN_TAB_WIDTH);
+    }
+
+    #[test]
+    fn a_tab_can_be_moved_along_its_strip() {
+        let mut tabs = strip(&["a.rs", "b.rs", "c.rs", "d.rs"]);
+        move_tab(&mut tabs, 0, 2);
+        let order: Vec<&str> = tabs.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(order, ["b.rs", "c.rs", "a.rs", "d.rs"]);
+        move_tab(&mut tabs, 3, 0);
+        let order: Vec<&str> = tabs.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(order, ["d.rs", "b.rs", "c.rs", "a.rs"]);
+    }
+
+    #[test]
+    fn moving_a_tab_nowhere_leaves_it_alone() {
+        let mut tabs = strip(&["a.rs", "b.rs"]);
+        move_tab(&mut tabs, 1, 1);
+        move_tab(&mut tabs, 0, 7);
+        move_tab(&mut tabs, 9, 0);
+        let order: Vec<&str> = tabs.iter().map(|t| t.title.as_str()).collect();
+        assert_eq!(order, ["a.rs", "b.rs"]);
+    }
+
+    #[test]
+    fn a_drag_past_the_last_tab_lands_on_the_end() {
+        let mut bar = bar();
+        bar.set_tabs(strip(&["a.rs", "b.rs", "c.rs", "d.rs"]), 0);
+        bar.set_bounds(0.0, 0.0, 900.0);
+        let last = *bar.slots(20.0).last().expect("four slots");
+        let beyond = last.left + last.width + 20.0;
+        assert_eq!(bar.reorder_end(beyond, 10.0, 20.0), Some(3));
+        // Inside the last tab there is a tab to hit, so the end rule abstains.
+        assert_eq!(bar.reorder_end(last.left + 2.0, 10.0, 20.0), None);
+        // Below the row there is nothing to drag onto.
+        assert_eq!(bar.reorder_end(beyond, 60.0, 20.0), None);
     }
 
     #[test]

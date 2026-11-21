@@ -966,11 +966,64 @@ impl State {
         self.window.request_redraw();
     }
 
+    /// Slides the dragged tab to whichever slot the pointer is over.
+    ///
+    /// Reordering is live rather than decided on the drop: the strip is the only
+    /// feedback the gesture has, and a tab that jumps into place on release has
+    /// to be aimed at rather than pushed. Moving the tab under the pointer leaves
+    /// the pointer over that same tab afterwards, so the row cannot flicker
+    /// between two positions -- which is why the plain hit test is enough here
+    /// and no half-way threshold is needed.
+    fn drag_tab_to(&mut self, x: f32, y: f32) {
+        let Some(from) = self.tab_drag else {
+            return;
+        };
+        if from >= self.tabs.len() {
+            return;
+        }
+        let target = self
+            .tab_at(x as f64, y as f64)
+            .or_else(|| self.past_strip_end(x, y));
+        let Some(to) = target else {
+            return;
+        };
+        if to == from || to >= self.tabs.len() {
+            return;
+        }
+        nn_app::tabbar::move_tab(&mut self.tabs, from, to);
+        // The document did not change, only where its tab sits, so the index
+        // follows the tab and nothing is reloaded.
+        self.active = to;
+        self.tab_drag = Some(to);
+        self.tab_press = Some((to, x as f64, y as f64));
+        self.sync_tabs();
+        self.sync_other_tabs();
+        self.window.request_redraw();
+    }
+
+    /// The last tab, for a pointer dragged past the end of the row.
+    ///
+    /// [`Self::tab_at`] answers nothing over the empty space beyond the last tab,
+    /// so without this a tab dragged to the end would stop one place short. The
+    /// pane's own rectangle is checked first: a drag heading for the other view
+    /// must not slide along this one on the way.
+    fn past_strip_end(&self, x: f32, y: f32) -> Option<usize> {
+        if self.tab_bar.layout().is_vertical() {
+            return None;
+        }
+        let (first, _) = self.pane_rects();
+        if !first.contains(x, y) || y >= self.strip_band().1 {
+            return None;
+        }
+        self.tab_bar.reorder_end(x, y, UI_LINE_HEIGHT)
+    }
+
     /// Finishes a tab drag.
     ///
-    /// A tab released over the other view moves there. Released anywhere else it
-    /// stays put: reordering inside one strip is a different gesture, and one
-    /// this editor does not claim to have.
+    /// A tab released over the other view moves there. Released inside its own
+    /// strip it stays where the drag left it, which is Notepad++'s behaviour: the
+    /// reorder is the gesture, and the drop only has to decide between the strip
+    /// and the pane beside it.
     fn drop_tab(&mut self) {
         let dragged = self.tab_drag.take();
         self.tab_press = None;
@@ -8439,9 +8492,12 @@ impl State {
         // caret: dragging a tab must not drag out a selection underneath it.
         if let Some((index, press_x, press_y)) = self.tab_press {
             let moved = (x - press_x).abs() + (y - press_y).abs();
-            if moved > TAB_DRAG_SLOP && self.tab_drag != Some(index) {
+            if self.tab_drag.is_none() && moved > TAB_DRAG_SLOP {
                 self.tab_drag = Some(index);
                 self.window.request_redraw();
+            }
+            if self.tab_drag.is_some() {
+                self.drag_tab_to(x as f32, y as f32);
             }
             return;
         }
