@@ -417,6 +417,7 @@
                 <Item id="Up/Down  Left/Right  Enter  Esc" name="Nahoru/Dolů  Vlevo/Vpravo  Enter  Esc"/>
                 <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Nahoru/Dolů  Vlevo/Vpravo  Enter otevřít  Esc zavřít"/>
                 <Item id="Replace" name="Nahradit"/>
+                <Item id="Replace All" name="Nahradit vše"/>
                 <Item id="Replace:" name="Nahradit:"/>
                 <Item id="Find" name="Najít"/>
                 <Item id="Find in projects:" name="Najít v projektech:"/>

@@ -474,10 +474,11 @@ can be set for the current document or for every document and cleared again.
 
 ### Search
 
-The find bar is one line: a field, three toggles (match case, whole word,
-regular expression), a match counter and the buttons. It is incremental in the
-sense that matters -- the count updates as you type -- and it never moves the
-caret until you ask for the next match.
+The find bar is two rows: the pattern over a row of nine setting chips, with the
+match counter and the four action buttons at the right end of each row. `Ctrl+H`
+adds the replacement row between them. It is incremental in the sense that
+matters -- the count updates as you type -- and it never moves the caret until
+you ask for the next match.
 
 "Find (Volatile) Next" and its previous sibling search without changing what is
 remembered as the search. "Select and Find Next" starts a selection at the
@@ -1266,16 +1267,37 @@ edit, so a user who replaces two hundred occurrences can undo it in one step.
 
 ### The find bar
 
-A single-line field, the three toggles, a match counter showing `n of m`, and
-the four buttons. The bar is docked along the bottom of the pane, above the
-status bar. `Enter` finds the next match, `Shift+Enter` the previous, `Escape`
-closes the bar and returns the keyboard to the text.
+Two rows docked along the bottom of the pane, above the status bar: the pattern
+on the first, the settings on the second. A match counter at the right end of the
+pattern row reads `n/m`, and four buttons close the settings row -- Find Next,
+Replace, Replace All, Close, laid out from the right in that order so that Close
+never shifts when a translation lengthens a label. `Escape` closes the bar and
+returns the keyboard to the text.
 
-`Ctrl+H` opens the same bar with the replace row under the find row, and `Ctrl+F`
-puts it back to one row without losing the pattern. The label column is as wide
-as the widest label as drawn, not as wide as a constant: "Replace:" in a
-proportional face is wider than "Find:", and a translated label can be half again
-as long, so a fixed column ends up under the field's text.
+The settings row is nine chips. `Aa` is match case. `W` is whole word; in regex
+mode the same chip turns into `\n` and means "a dot matches a newline" instead,
+because a whole word is not a thing a regular expression has and the row has no
+room for a tenth chip. `N`, `E` and `.*` are the three search modes, and exactly
+one of them is lit: Normal takes the pattern literally, Extended reads `\n`,
+`\r`, `\t`, `\0`, `\\`, `\xHH` and `\uHHHH` as escapes and leaves an escape it
+does not know as the two characters it is, and `.*` hands the pattern to the
+regex crate. `∞` is wrap: with it on, a search that runs off the end continues at
+the first match; with it off the search stops at the end and leaves the caret
+where it is. `▭` confines the search to the selection, read live from the editor
+on every refresh and falling back to the whole document once the selection is
+empty -- a match has to lie entirely inside the range, because replacing one that
+starts before it would write outside the text the user meant to touch. `↑` and
+`↓` pick the direction, and exactly one is lit.
+
+`Enter` does what the bar is set up to do: Find Next in the direction that is
+lit, Replace when the caret is in the replacement field, and Replace All with
+`Ctrl` held. `Shift+Enter` takes the opposite direction.
+
+`Ctrl+H` opens the same bar with a replacement row between the pattern and the
+settings, and `Ctrl+F` puts it back to two rows without losing the pattern. The
+label column is as wide as the widest label as drawn, not as wide as a constant:
+"Replace:" in a proportional face is wider than "Find:", and a translated label
+can be half again as long, so a fixed column ends up under the field's text.
 
 `Ctrl+V` pastes into whichever of the two fields has the caret, so a pattern
 copied from a file or a terminal does not have to be retyped. The line breaks

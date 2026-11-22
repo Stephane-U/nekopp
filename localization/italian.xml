@@ -460,6 +460,7 @@
                 <Item id="Sync Horizontal Scroll" name="Sincronizza scorrimento orizzontale"/>
                 <Item id="Sync Vertical Scroll" name="Sincronizza scorrimento verticale"/>
                 <Item id="Replace" name="Sostituisci"/>
+                <Item id="Replace All" name="Sostituisci tutto"/>
                 <Item id="Replace:" name="Sostituisci:"/>
                 <Item id="Print" name="Stampa"/>
                 <Item id="Up/Down  Left/Right  Enter  Esc" name="Su/Giù  Sinistra/Destra  Invio  Esc"/>

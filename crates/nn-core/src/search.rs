@@ -20,8 +20,28 @@ pub struct SearchOptions {
     pub case_sensitive: bool,
     /// Only match when the hit is not part of a longer word.
     pub whole_word: bool,
-    /// Treat the pattern as a regular expression.
-    pub regex: bool,
+    /// How the pattern itself is read.
+    pub mode: SearchMode,
+    /// In [`SearchMode::Regex`], let `.` match a newline.
+    ///
+    /// Off is the default, and it is Notepad++'s ". matches newline" checkbox:
+    /// with it off a pattern cannot cross a line ending by accident, which is
+    /// what a search almost always wants.
+    pub dot_matches_newline: bool,
+}
+
+/// How a pattern is read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SearchMode {
+    /// Literal text, `*` and `\` being nothing but characters.
+    #[default]
+    Normal,
+    /// Literal text with escapes: `\n`, `\r`, `\t`, `\0`, `\\`, `\xHH` and
+    /// `\uHHHH`. Notepad++ calls this Extended, and it is how a pattern ever
+    /// contains a tab or a line ending without being a regular expression.
+    Extended,
+    /// A regular expression.
+    Regex,
 }
 
 /// Why a pattern could not be compiled.
@@ -56,25 +76,29 @@ impl Search {
     /// An empty pattern compiles to a matcher that never matches, which keeps
     /// callers from special-casing the empty find field.
     pub fn new(pattern: &str, options: SearchOptions) -> Result<Self, SearchError> {
-        let matcher = if options.regex {
-            if pattern.is_empty() {
-                Matcher::Literal {
-                    needle: String::new(),
-                    case_sensitive: true,
-                }
-            } else {
-                let source = if options.case_sensitive {
-                    pattern.to_string()
-                } else {
-                    format!("(?i){pattern}")
-                };
-                Matcher::Regex(regex::Regex::new(&source).map_err(|e| SearchError(e.to_string()))?)
+        let matcher = match options.mode {
+            SearchMode::Regex if !pattern.is_empty() => {
+                let re = regex::RegexBuilder::new(pattern)
+                    .case_insensitive(!options.case_sensitive)
+                    .dot_matches_new_line(options.dot_matches_newline)
+                    .build()
+                    .map_err(|e| SearchError(e.to_string()))?;
+                Matcher::Regex(re)
             }
-        } else {
-            Matcher::Literal {
+            // An empty pattern compiles to a matcher that never matches, which
+            // keeps callers from special-casing the empty find field.
+            SearchMode::Regex => Matcher::Literal {
+                needle: String::new(),
+                case_sensitive: true,
+            },
+            SearchMode::Extended => Matcher::Literal {
+                needle: unescape(pattern),
+                case_sensitive: options.case_sensitive,
+            },
+            SearchMode::Normal => Matcher::Literal {
                 needle: pattern.to_string(),
                 case_sensitive: options.case_sensitive,
-            }
+            },
         };
         Ok(Self {
             matcher,
@@ -165,6 +189,59 @@ impl Search {
         caps.expand(replacement, &mut out);
         out
     }
+}
+
+/// Reads the escapes Notepad++ reads in Extended mode.
+///
+/// `\n`, `\r`, `\t`, `\0`, `\\`, `\xHH` and `\uHHHH` are translated; anything
+/// else is left as the two characters it was written with, because a pattern is
+/// a user's text and guessing at an escape it did not mean is worse than leaving
+/// it to match literally. `\xHH` is a character code, not a byte: `\xE9` is `é`,
+/// which is what a user typing a Latin-1 code point expects.
+fn unescape(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    let mut chars = pattern.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some('t') => out.push('\t'),
+            Some('0') => out.push('\0'),
+            Some('\\') => out.push('\\'),
+            Some(letter @ ('x' | 'u')) => {
+                let digits = if letter == 'x' { 2 } else { 4 };
+                let hex: String = chars.by_ref().take(digits).collect();
+                let code = if hex.chars().count() == digits
+                    && hex.chars().all(|c| c.is_ascii_hexdigit())
+                {
+                    u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32)
+                } else {
+                    None
+                };
+                match code {
+                    Some(c) => out.push(c),
+                    None => push_literal(&mut out, letter, &hex),
+                }
+            }
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+/// Puts an escape that did not parse back the way it was written.
+fn push_literal(out: &mut String, letter: char, digits: &str) {
+    out.push('\\');
+    out.push(letter);
+    out.push_str(digits);
 }
 
 /// Finds `needle` in `haystack`, returning byte ranges.
@@ -323,7 +400,7 @@ mod tests {
             SearchOptions {
                 case_sensitive: true,
                 whole_word: true,
-                regex: false,
+                ..Default::default()
             },
         );
         assert_eq!(s.find_all(&d), vec![0..3, 18..21]);
@@ -337,7 +414,7 @@ mod tests {
             SearchOptions {
                 case_sensitive: true,
                 whole_word: true,
-                regex: false,
+                ..Default::default()
             },
         );
         assert_eq!(s.find_all(&d), vec![0..3]);
@@ -349,7 +426,7 @@ mod tests {
         let s = search(
             r"\d+",
             SearchOptions {
-                regex: true,
+                mode: SearchMode::Regex,
                 ..Default::default()
             },
         );
@@ -362,9 +439,9 @@ mod tests {
         let s = search(
             "foo",
             SearchOptions {
-                regex: true,
+                mode: SearchMode::Regex,
                 case_sensitive: false,
-                whole_word: false,
+                ..Default::default()
             },
         );
         assert_eq!(s.find_all(&d).len(), 2);
@@ -375,11 +452,97 @@ mod tests {
         assert!(Search::new(
             "(",
             SearchOptions {
-                regex: true,
+                mode: SearchMode::Regex,
                 ..Default::default()
             }
         )
         .is_err());
+    }
+
+    fn extended(pattern: &str) -> Search {
+        search(
+            pattern,
+            SearchOptions {
+                case_sensitive: true,
+                mode: SearchMode::Extended,
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn extended_reads_tab_and_newline_escapes() {
+        let d = doc("a\tb\ncd");
+        assert_eq!(extended(r"\t").find_all(&d), vec![1..2]);
+        assert_eq!(extended(r"b\nc").find_all(&d), vec![2..5]);
+    }
+
+    #[test]
+    fn extended_reads_a_hex_code_point() {
+        let d = doc("caf\u{e9} \u{20ac}");
+        assert_eq!(extended(r"caf\xE9").find_all(&d), vec![0..4]);
+        assert_eq!(extended(r"\u20AC").find_all(&d), vec![5..6]);
+    }
+
+    #[test]
+    fn extended_leaves_unknown_escapes_alone() {
+        // A backslash a user did not mean as an escape has to stay one, or a
+        // Windows path would be found only under some other name.
+        for pattern in [r"\d", r"a\xZZ", r"a\u12", "trailing \\"] {
+            assert_eq!(unescape(pattern), pattern);
+        }
+        assert_eq!(unescape(r"\x41"), "A");
+        assert_eq!(unescape(r"\\"), "\\");
+    }
+
+    #[test]
+    fn extended_still_honours_whole_word() {
+        let d = doc("foo foobar foo");
+        let s = search(
+            "foo",
+            SearchOptions {
+                case_sensitive: true,
+                whole_word: true,
+                mode: SearchMode::Extended,
+                ..Default::default()
+            },
+        );
+        assert_eq!(s.find_all(&d), vec![0..3, 11..14]);
+    }
+
+    #[test]
+    fn normal_mode_treats_escapes_as_text() {
+        // Notepad++'s Normal mode is literal: a pattern with a backslash finds
+        // the backslash, which is what makes it the safe default.
+        let d = doc(r"a\n b");
+        assert_eq!(plain(r"\n").find_all(&d), vec![1..3]);
+    }
+
+    #[test]
+    fn a_dot_does_not_cross_a_line_break_by_default() {
+        let d = doc("ab\ncd");
+        let s = search(
+            "a.+d",
+            SearchOptions {
+                mode: SearchMode::Regex,
+                ..Default::default()
+            },
+        );
+        assert!(s.find_all(&d).is_empty());
+    }
+
+    #[test]
+    fn a_dot_crosses_a_line_break_when_asked() {
+        let d = doc("ab\ncd");
+        let s = search(
+            "a.+d",
+            SearchOptions {
+                mode: SearchMode::Regex,
+                dot_matches_newline: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(s.find_all(&d), vec![0..5]);
     }
 
     #[test]
@@ -428,7 +591,7 @@ mod tests {
         let s = search(
             r"(\w+) = (\d+)",
             SearchOptions {
-                regex: true,
+                mode: SearchMode::Regex,
                 ..Default::default()
             },
         );

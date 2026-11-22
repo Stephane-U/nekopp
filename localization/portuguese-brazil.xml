@@ -463,6 +463,7 @@
                 <Item id="Sync Horizontal Scroll" name="Sincronizar rolagem horizontal"/>
                 <Item id="Sync Vertical Scroll" name="Sincronizar rolagem vertical"/>
                 <Item id="Replace" name="Substituir"/>
+                <Item id="Replace All" name="Substituir tudo"/>
                 <Item id="Replace:" name="Substituir:"/>
                 <Item id="Font Size" name="Tamanho da fonte"/>
                 <Item id="A GPU-rendered text editor" name="Um editor de texto renderizado por GPU"/>

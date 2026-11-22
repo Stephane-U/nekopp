@@ -422,6 +422,7 @@
                 <Item id="Export to:" name="Експорт до:"/>
                 <Item id="Load session:" name="Завантажити сеанс:"/>
                 <Item id="Replace" name="Замінити"/>
+                <Item id="Replace All" name="Замінити все"/>
                 <Item id="Replace:" name="Замінити:"/>
                 <Item id="REC" name="ЗАП"/>
                 <Item id="Run:" name="Запустити:"/>

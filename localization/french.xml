@@ -452,6 +452,7 @@
                 <Item id="Find in files:" name="Rechercher dans les fichiers :"/>
                 <Item id="Find in projects:" name="Rechercher dans les projets :"/>
                 <Item id="Replace" name="Remplacer"/>
+                <Item id="Replace All" name="Remplacer tout"/>
                 <Item id="Replace:" name="Remplacer :"/>
                 <Item id="Rename to:" name="Renommer en :"/>
                 <Item id="Backup on Save" name="Sauvegarde lors de l'enregistrement"/>

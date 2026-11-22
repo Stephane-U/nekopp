@@ -419,6 +419,7 @@
                 <Item id="Insert at column:" name="Einfügen in Spalte:"/>
                 <Item id="Preferences" name="Einstellungen"/>
                 <Item id="Replace" name="Ersetzen"/>
+                <Item id="Replace All" name="Alle ersetzen"/>
                 <Item id="Replace:" name="Ersetzen:"/>
                 <Item id="Export to:" name="Exportieren nach:"/>
                 <Item id="Import theme from:" name="Farbschema importieren von:"/>

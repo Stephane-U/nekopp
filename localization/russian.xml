@@ -419,6 +419,7 @@
                 <Item id="length:" name="длина:"/>
                 <Item id="Load session:" name="Загрузить сеанс:"/>
                 <Item id="Replace" name="Заменить"/>
+                <Item id="Replace All" name="Заменить всё"/>
                 <Item id="Replace:" name="Заменить:"/>
                 <Item id="REC" name="ЗАП"/>
                 <Item id="Run:" name="Запустить:"/>

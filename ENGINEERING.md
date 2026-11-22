@@ -8888,3 +8888,87 @@ after the widest label.
 --check`: up to date, 276,090 bytes, 66 pages A4, 106 bookmarks.
 
 `cargo fmt` was not run.
+
+## Seventy-first pass
+
+### The bar becomes the dialog
+
+Notepad++ keeps its search options in a dialog: a row of checkboxes, a direction
+pair, and four buttons. The bar here had a pattern field, three toggles and two
+buttons, so `Ctrl+H` could replace one match at a time and nothing more. The user
+asked for the feature list rather than for the shape, so the shapes stayed: three
+rows at most -- pattern, replacement, settings -- and the settings row is nine
+chips and four buttons.
+
+The chips are `Aa` case, `W` whole word, `N`, `E`, `.*` the three search modes,
+`∞` wrap, `▭` in selection, `↑` and `↓` the direction. Exactly one mode is lit and
+exactly one direction is lit, so the row reads as two radio groups with the rest
+as switches. A chip is a rectangle with shaped text, laid out and hit-tested by
+the same `layout()`, which is what stops a control from being clickable where it
+is not drawn.
+
+The buttons are right-aligned and placed from the right, `Close` first, so the one
+button that is always in the same place stays in the same place when a translation
+is longer. Twenty-three catalogs gained the "Replace All" label in this pass.
+
+### The chip that changes its name
+
+`W` turns into `\n` when the mode is `.*`, and then it means ". matches newline".
+That is Notepad++'s compromise and it is the right one: a whole word is not a
+property a regular expression has, the two settings are never both meaningful, and
+a tenth chip would make the row a dialog again.
+
+Two marks are not the obvious glyphs. A circular arrow for wrap and a
+carriage-return arrow for the newline escape both came out as tofu boxes -- the
+interface font on this machine has neither -- so the chips read `∞` and `\n`. The
+first says the search goes round; the second is the escape the pattern has to
+carry anyway.
+
+### Three modes in the core
+
+`SearchMode` is `Normal`, `Extended`, `Regex`, and it sits next to the
+`SearchOptions` it steers in `nn-core`, because the find bar is not the only
+caller: find-in-files compiles the same options over a whole tree.
+
+Extended is a small unescaper -- `\n`, `\r`, `\t`, `\0`, `\\`, `\xHH`, `\uHHHH` --
+and an escape it does not recognise stays the two characters it is, so a Windows
+path in the pattern is not silently mangled. It runs before the matcher is built,
+which is what keeps whole word and case folding working on the unescaped text.
+
+### Enter does what the row says
+
+`Enter` replaces when the caret is in the replacement row, finds the next match
+otherwise, and takes Replace All with `Ctrl` held; `Shift+Enter` walks the other
+way. `Enter` always meaning "next match" is why the replacement field read as a
+form: you type a replacement, press `Enter`, and the text does not change.
+
+Wrap decides what happens at the edge, and it is a switch rather than a policy:
+with `∞` on a search that runs off the end continues at the first match, with it
+off the search stops and leaves the caret where it was.
+
+### Verification, with the mouse
+
+Dragging was the one thing the keyboard could not fake here: `shift+up` through
+XTest moves the caret without extending a selection on this platform, so the
+selection for the in-selection chip came from twelve synthetic motion events with
+the button held down.
+
+That gave the evidence directly. With `▭` off the counter read `1/4` and four
+matches were boxed in the document; with `▭` on over a selection holding one of
+them, `1/1` and one box. Wrap next: `∞` off, `Ctrl+End`, `Enter`, `Enter`, and the
+counter stayed at `4/4` with the caret where it was; `∞` back on and one `Enter`
+put the counter at `1/4` with the caret on the first match.
+
+A stale window from the previous pass's multi-file test -- a full-screen debug
+window that still held the input focus -- swallowed the first round of synthetic
+clicks. It is gone; the clicks land on the bar now.
+
+`cargo test --offline --all`: 1957 passed, 0 failed -- 1002 in `nn-app`, 885 in
+`nn-core`, 70 in `nn-mcp`. Twenty-four are new: seven for the escapes and the
+modes in `search.rs`, seventeen for the chips, the buttons, wrap, the selection
+restriction and the two-row and three-row heights in `findbar.rs`.
+
+`cargo clippy --offline --all-targets`: 0 warnings. `python3 docs/build-pdf.py
+--check`: up to date, 280,400 bytes, 66 pages A4, 107 bookmarks.
+
+`cargo fmt` was not run.

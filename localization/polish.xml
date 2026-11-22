@@ -456,6 +456,7 @@
                 <Item id="Off" name="Wyłączone"/>
                 <Item id="On" name="Włączone"/>
                 <Item id="Replace" name="Zamień"/>
+                <Item id="Replace All" name="Zamień wszystko"/>
                 <Item id="Replace:" name="Zamień:"/>
                 <Item id="Save Current Macro" name="Zapisz bieżące makro"/>
                 <Item id="Save as:" name="Zapisz jako:"/>

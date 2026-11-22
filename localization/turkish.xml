@@ -415,6 +415,7 @@
                 <Item id="LARGE" name="BÜYÜK"/>
                 <Item id="Run:" name="Çalıştır:"/>
                 <Item id="Replace" name="Değiştir"/>
+                <Item id="Replace All" name="Tümünü değiştir"/>
                 <Item id="Replace:" name="Değiştir:"/>
                 <Item id="Sync Vertical Scroll" name="Dikey kaydırmayı eşitle"/>
                 <Item id="File Dialog" name="Dosya iletişim kutusu"/>

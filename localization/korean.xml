@@ -424,6 +424,7 @@
                 <Item id="Character code:" name="문자 코드:"/>
                 <Item id="Minimap" name="미니맵"/>
                 <Item id="Replace" name="바꾸기"/>
+                <Item id="Replace All" name="모두 바꾸기"/>
                 <Item id="Replace:" name="바꾸기:"/>
                 <Item id="Save a copy as:" name="사본을 다른 이름으로 저장:"/>
                 <Item id="Insert at column:" name="삽입할 열:"/>

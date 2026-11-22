@@ -4168,9 +4168,29 @@ impl State {
     }
 
     /// Recomputes matches and hands them to the view for highlighting.
+    ///
+    /// With "in selection" on, the matches are confined to what is selected
+    /// right now. The selection is read here rather than stored in the bar
+    /// because it changes as the user drags, and a range remembered from the
+    /// click that turned the setting on would search a document that no longer
+    /// matches the screen.
     fn refresh_find(&mut self) {
         let active = self.active;
-        self.find.refresh(&self.tabs[active].editor.doc);
+        let within = if self.find.in_selection {
+            let editor = &self.tabs[active].editor;
+            let start = editor.selection_start();
+            let end = editor.selection_end();
+            let (start, end) = (start.min(end), start.max(end));
+            if end > start {
+                Some(start..end)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        self.find
+            .refresh_within(&self.tabs[active].editor.doc, within);
         let matches = self.find.matches.clone();
         let current = self.find.current_match();
         self.view.set_matches(matches, current);
@@ -4313,11 +4333,19 @@ impl State {
                 redraw(self);
                 true
             }
+            // Enter acts on what the bar is doing, the way Notepad++ does: in
+            // the replacement field it replaces the match under the caret, in
+            // the pattern field it walks on. Shift walks the other way, which
+            // used to be the only direction there was.
             Key::Named(NamedKey::Enter) => {
                 if ctrl {
                     self.replace_all();
+                } else if self.find.focus == nn_app::findbar::Field::Replacement {
+                    self.replace_current();
+                } else if shift {
+                    self.step_match(!self.find.up);
                 } else {
-                    self.step_match(shift);
+                    self.step_match(self.find.up);
                 }
                 redraw(self);
                 true
@@ -5263,6 +5291,28 @@ impl State {
             self.dragging = false;
             self.window.request_redraw();
             return;
+        }
+
+        // The find bar is docked above the status bar, so a press in its band
+        // belongs to it: a chip flips a setting, a button runs its command, and
+        // a press in either field puts the caret there. Nothing used to look at
+        // the bar at all, so the settings were drawn but unreachable.
+        if self.find.open {
+            let top = self.find_bar_top();
+            if (y as f32) >= top {
+                let hit = self.find.hit_at(
+                    x as f32,
+                    y as f32,
+                    self.gpu.config.width as f32,
+                    top,
+                    line_height,
+                    self.view.padding(),
+                );
+                self.apply_find_hit(hit);
+                self.dragging = false;
+                self.window.request_redraw();
+                return;
+            }
         }
 
         // The divider is grabbed before the panes are: a drag that started on
@@ -7502,6 +7552,37 @@ impl State {
     fn history_top(&self) -> f32 {
         let height = self.gpu.config.height as f32;
         height - self.status_height() - self.history_height()
+    }
+
+    /// The y of the find bar's top edge.
+    ///
+    /// The same arithmetic the renderer uses, so a press lands on the chip the
+    /// pointer is over. The bar is zero tall when it is closed, which puts this
+    /// on the status bar's edge and lets the check above skip the whole thing.
+    fn find_bar_top(&self) -> f32 {
+        let height = self.gpu.config.height as f32;
+        height
+            - self.status_height()
+            - self.history_height()
+            - self.results_height()
+            - self.find.height(UI_LINE_HEIGHT, self.view.padding())
+    }
+
+    /// Runs whatever a press on the find bar landed on.
+    fn apply_find_hit(&mut self, hit: Option<nn_app::findbar::Hit>) {
+        use nn_app::findbar::{Button, Hit};
+        match hit {
+            Some(Hit::Chip(chip)) => {
+                self.find.activate(chip);
+                self.refresh_find();
+            }
+            Some(Hit::Button(Button::FindNext)) => self.step_match(self.find.up),
+            Some(Hit::Button(Button::Replace)) => self.replace_current(),
+            Some(Hit::Button(Button::ReplaceAll)) => self.replace_all(),
+            Some(Hit::Button(Button::Close)) => self.close_find(),
+            Some(Hit::Field(field)) => self.find.focus_field(field),
+            None => {}
+        }
     }
 
     /// The directory a find-in-files search runs over by default.

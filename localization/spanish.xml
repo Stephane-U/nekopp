@@ -456,6 +456,7 @@
                 <Item id="Preferences" name="Preferencias"/>
                 <Item id="REC" name="REC"/>
                 <Item id="Replace" name="Reemplazar"/>
+                <Item id="Replace All" name="Reemplazar todo"/>
                 <Item id="Replace:" name="Reemplazar:"/>
                 <Item id="Play macro times:" name="Repeticiones de la macro:"/>
                 <Item id="Sel:" name="Selección:"/>

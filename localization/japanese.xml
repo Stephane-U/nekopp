@@ -455,6 +455,7 @@
                 <Item id="Edit..." name="編集..."/>
                 <Item id="Zoom Out" name="縮小"/>
                 <Item id="Replace" name="置換"/>
+                <Item id="Replace All" name="すべて置換"/>
                 <Item id="Replace:" name="置換:"/>
                 <Item id="Autosave" name="自動保存"/>
                 <Item id="Ln:" name="行:"/>

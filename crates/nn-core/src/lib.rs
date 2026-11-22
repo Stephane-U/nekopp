@@ -66,7 +66,7 @@ pub use run::{
     expand as expand_run, missing_program, program_of, RunCommand, RunContext, RunList,
     MACROS as RUN_MACROS,
 };
-pub use search::{Search, SearchError, SearchOptions};
+pub use search::{Search, SearchError, SearchMode, SearchOptions};
 pub use selection::{map_position, Selection, Selections};
 pub use symbols::{scan as scan_symbols, Kind as SymbolKind, Symbol};
 pub use udl::{Construct, Rgb8, Udl, UdlLexer, UdlSet};

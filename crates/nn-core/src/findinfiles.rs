@@ -36,7 +36,7 @@ pub struct FindInFiles {
     pub pattern: String,
     /// The directory to walk.
     pub directory: PathBuf,
-    /// Case, whole word, regex.
+    /// Case, whole word, and how the pattern is read.
     pub options: SearchOptions,
     /// `*.rs;*.toml` style. Empty means every file.
     pub filters: Vec<String>,
@@ -286,6 +286,7 @@ fn glob_match(pattern: &str, name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::SearchMode;
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("npp-fif-{name}-{}", std::process::id()));
@@ -477,7 +478,7 @@ mod tests {
         let dir = temp_dir("regex");
         std::fs::write(dir.join("a.txt"), "fn main() {}\nlet x = 1;\n").unwrap();
         let mut search = FindInFiles::new(r"fn\s+\w+", &dir);
-        search.options.regex = true;
+        search.options.mode = SearchMode::Regex;
         let hits = search.run().unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].line, 0);
@@ -514,7 +515,7 @@ mod tests {
     #[test]
     fn an_invalid_regex_is_an_error() {
         let mut search = FindInFiles::new("(", "/tmp");
-        search.options.regex = true;
+        search.options.mode = SearchMode::Regex;
         assert!(search.run().is_err());
     }
 }

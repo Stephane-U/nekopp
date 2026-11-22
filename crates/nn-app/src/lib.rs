@@ -65,7 +65,7 @@ pub use chrome::{Chrome, Mode};
 pub use cli::Args;
 pub use complete::{CompletionMode, CompletionPopup, Item, ParamHint};
 pub use context::{ContextMenu, Entry};
-pub use findbar::{Field, FindBar, Toggle};
+pub use findbar::{Button, Chip, Field, FindBar, Hit};
 pub use folder::FolderPanel;
 pub use functionlist::FunctionList;
 pub use gpu::Gpu;

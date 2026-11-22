@@ -410,6 +410,7 @@
                 <Item id="A GPU-rendered text editor" name="En textredigerare som ritas upp av GPU:n"/>
                 <Item id="Simple" name="Enkel"/>
                 <Item id="Replace" name="Ersätt"/>
+                <Item id="Replace All" name="Ersätt alla"/>
                 <Item id="Replace:" name="Ersätt:"/>
                 <Item id="Export to:" name="Exportera till:"/>
                 <Item id="File Dialog" name="Fildialog"/>

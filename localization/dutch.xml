@@ -460,6 +460,7 @@
                 <Item id="Zoom Out" name="Uitzoomen"/>
                 <Item id="Sync Vertical Scroll" name="Verticaal scrollen synchroniseren"/>
                 <Item id="Replace" name="Vervangen"/>
+                <Item id="Replace All" name="Alles vervangen"/>
                 <Item id="Replace:" name="Vervangen:"/>
                 <Item id="Volatile Find" name="Vluchtig zoeken"/>
                 <Item id="Preferences" name="Voorkeuren"/>

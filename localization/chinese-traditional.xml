@@ -416,6 +416,7 @@
                 <Item id="Import from:" name="匯入來源:"/>
                 <Item id="Export to:" name="匯出目標:"/>
                 <Item id="Replace" name="取代"/>
+                <Item id="Replace All" name="全部取代"/>
                 <Item id="Replace:" name="取代:"/>
                 <Item id="Save a copy as:" name="另存副本為:"/>
                 <Item id="Save as:" name="另存新檔:"/>

@@ -448,6 +448,7 @@
                 <Item id="Date time format:" name="日期时间格式:"/>
                 <Item id="Volatile Find" name="易失查找"/>
                 <Item id="Replace" name="替换"/>
+                <Item id="Replace All" name="全部替换"/>
                 <Item id="Replace:" name="替换:"/>
                 <Item id="Find" name="查找"/>
                 <Item id="Find:" name="查找:"/>

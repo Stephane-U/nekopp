@@ -420,6 +420,7 @@
                 <Item id="Print" name="הדפסה"/>
                 <Item id="Insert at column:" name="הוספה בעמודה:"/>
                 <Item id="Replace" name="החלפה"/>
+                <Item id="Replace All" name="החלף הכל"/>
                 <Item id="Replace:" name="החלפה:"/>
                 <Item id="Preferences" name="העדפות"/>
                 <Item id="Run:" name="הפעלה:"/>

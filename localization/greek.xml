@@ -410,6 +410,7 @@
                 <Item id="Open:" name="Άνοιγμα:"/>
                 <Item id="Backup on Save" name="Αντίγραφο ασφαλείας κατά την αποθήκευση"/>
                 <Item id="Replace" name="Αντικατάσταση"/>
+                <Item id="Replace All" name="Αντικατάσταση όλων"/>
                 <Item id="Replace:" name="Αντικατάσταση:"/>
                 <Item id="Simple" name="Απλό"/>
                 <Item id="Save a copy as:" name="Αποθήκευση αντιγράφου ως:"/>

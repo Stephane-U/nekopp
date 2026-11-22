@@ -413,6 +413,7 @@
                 <Item id="A GPU-rendered text editor" name="En GPU-akselerert teksteditor"/>
                 <Item id="Simple" name="Enkel"/>
                 <Item id="Replace" name="Erstatt"/>
+                <Item id="Replace All" name="Erstatt alle"/>
                 <Item id="Replace:" name="Erstatt:"/>
                 <Item id="File Dialog" name="Fildialog"/>
                 <Item id="Volatile Find" name="Flyktig søk"/>

@@ -430,6 +430,7 @@
                 <Item id="Import theme from:" name="Importă tema din:"/>
                 <Item id="Load session:" name="Încarcă sesiunea:"/>
                 <Item id="Replace" name="Înlocuiește"/>
+                <Item id="Replace All" name="Înlocuiește tot"/>
                 <Item id="Replace:" name="Înlocuiește:"/>
                 <Item id="Insert at column:" name="Inserează la coloana:"/>
                 <Item id="Tab Width" name="Lățimea tabulatorului"/>
