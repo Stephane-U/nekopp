@@ -1500,6 +1500,7 @@ dependencies = [
  "serde",
  "wgpu",
  "winit",
+ "x11rb",
  "zbus",
 ]
 

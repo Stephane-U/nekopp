@@ -41,6 +41,8 @@ use nn_core::{
     Macro, Motion, PlainLexer, Projects, SortKey, SortOptions, SortOrder, Step, Tree, Typed, UdlSet,
     MAX_CANDIDATES,
 };
+use winit::platform::startup_notify::{EventLoopExtStartupNotify, WindowAttributesExtStartupNotify};
+use winit::platform::x11::WindowAttributesExtX11;
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
@@ -9000,11 +9002,33 @@ impl ApplicationHandler<UserEvent> for App {
             // The same kitten the desktop entry and the packages carry, so the
             // taskbar and the launcher agree on what this program is.
             .with_window_icon(nn_app::window_icon())
+            // The window class is the desktop's handle on this program: the
+            // taskbar icon, the desktop entry's `StartupWMClass` and the window
+            // manager's rules all match on it. Left to the toolkit it is the
+            // name the binary was invoked by, so a launcher symlink called `nn`
+            // would arrive as a second, icon-less application. Pinned here so
+            // every name the binary answers to is one window class.
+            .with_name("npp", "npp")
             // The accessibility adapter refuses to attach to a window that is
             // already visible, so the window is created hidden and shown once
             // the adapter exists. The gap is one call wide and nothing is drawn
             // in it.
             .with_visible(false);
+        // A launcher that opens a file -- a right click in the file manager, a
+        // desktop entry, `xdg-open` -- hands the process a startup token in the
+        // environment. Attaching it is what tells the window manager the launch
+        // was the user's doing: without it the new window is not given the
+        // focus until it is clicked, and the launcher keeps its spinner running
+        // until the startup notification times out. Both of those are the
+        // "slow and no cursor" a right click used to feel like.
+        let token = event_loop.read_token_from_env();
+        // Unset before anything here can spawn a child: an inherited token makes
+        // the child ask for the focus its parent already took.
+        winit::platform::startup_notify::reset_activation_token_env();
+        let attrs = match token {
+            Some(token) => attrs.with_activation_token(token),
+            None => attrs,
+        };
         let window = Arc::new(event_loop.create_window(attrs).expect("create window"));
         // The GPU is opened here rather than inside `State::new` so a machine
         // with no usable adapter gets a message and an exit code instead of a
@@ -9250,6 +9274,12 @@ fn main() {
                 let mut waiter = if args.wait { client.waiter().ok() } else { None };
                 let request = request_for(&args);
                 if client.send(&request).is_ok() {
+                    // The launch is over as far as this process is concerned, and
+                    // no window is going to be created to say so. Until it is
+                    // said the desktop keeps its spinner turning over work that
+                    // is already done, which is what makes the file manager feel
+                    // slow. See `nn_app::startup`.
+                    nn_app::startup::complete();
                     if let Some(waiter) = waiter.as_mut() {
                         for path in &request.paths {
                             let _ = waiter.wait_for(path);

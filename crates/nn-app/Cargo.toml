@@ -44,3 +44,7 @@ serde = { version = "1", features = ["derive"] }
 # what lets the portal wait be bounded (see `portal::with_timeout`).
 async-io = "2"
 futures-lite = "2"
+# Sends the startup notification the winit window would have sent, on the one
+# launch path that creates no window. Already in the graph as a winit
+# dependency, and the features are the ones winit asks for.
+x11rb = { version = "0.13", default-features = false }

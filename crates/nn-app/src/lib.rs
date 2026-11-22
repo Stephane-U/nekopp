@@ -44,6 +44,8 @@ pub mod shortcuts;
 #[cfg(target_os = "linux")]
 pub mod single;
 pub mod snapshot;
+#[cfg(target_os = "linux")]
+pub mod startup;
 pub mod statusbar;
 pub mod styles;
 pub mod tabbar;

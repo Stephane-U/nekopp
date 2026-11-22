@@ -130,6 +130,14 @@ the session bus name `org.npp.Editor`, and a later launch calls `Open` on it wit
 absolute paths, the requested caret position, and whether the caller wants to be
 told when the document closes. The second process then exits.
 
+The handoff also ends the desktop's startup notification. A launcher that starts
+a program puts the pointer into its busy state and waits for the program to say
+the launch is over, which a program normally does by opening a window. A launch
+that hands its files to a running editor opens no window, so the second process
+sends the message itself before it exits. Without it the pointer kept turning
+until the desktop's own timeout gave up, seconds after the file had opened,
+which is what made the file manager feel slow.
+
 The bus is optional. A bare TTY, a container or a CI run with no session bus gets
 a standalone editor rather than an error. `--new-instance` skips the handoff and
 starts a second full editor, which is what a user wants when comparing two files
