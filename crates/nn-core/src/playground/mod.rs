@@ -311,7 +311,8 @@ impl Playground {
         }
         for token in &self.page.tokens {
             token.cards(arrive, &mut cards);
-            // The shadow keeps a lifted token from looking pasted on.
+            // A drop shadow, so a loose word sits on the paper rather than being
+            // printed on it.
             cards.push(Card {
                 ch: ' ',
                 style: 0,
@@ -320,7 +321,7 @@ impl Playground {
                 pitch: 0.0,
                 roll: 0.0,
                 size: [token.width() * 1.3, 0.3],
-                alpha: 0.22 * (1.0 - token.pos[2] * 0.5).clamp(0.0, 1.0),
+                alpha: 0.20,
                 kind: CardKind::Dot,
             });
         }
@@ -545,16 +546,19 @@ mod tests {
     }
 
     #[test]
-    fn a_long_frame_is_clamped_so_nothing_tunnels_through_the_page() {
+    fn a_long_frame_keeps_a_batted_token_on_the_page() {
         let mut playground = open();
         for token in &mut playground.page.tokens {
-            token.pos[2] = 6.0;
+            token.vel = [14.0, 14.0];
             token.rest = false;
         }
         // A second and a half of wall clock, which is a stalled window.
         playground.step(1.5, &Input::default());
         for token in &playground.page().tokens {
-            assert!(token.pos[2] >= 0.0, "fell through: {token:?}");
+            assert!(token.pos[0] > 0.0, "{token:?}");
+            assert!(token.pos[0] < playground.page().width(), "{token:?}");
+            assert!(token.pos[1] > 0.0, "{token:?}");
+            assert!(token.pos[1] < playground.page().rows as f32, "{token:?}");
         }
     }
 
@@ -616,12 +620,10 @@ mod tests {
                 },
             );
             for token in &playground.page().tokens {
-                assert!(token.pos[2] >= 0.0, "{token:?}");
                 assert!(token.pos[0] > 0.0);
                 assert!(token.pos[0] < playground.page().width());
                 assert!(token.pos[1] > 0.0);
                 assert!(token.pos[1] < playground.page().rows as f32);
-                assert!(token.pos[2] < 6.0);
             }
         }
     }

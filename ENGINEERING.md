@@ -9618,3 +9618,106 @@ and both preference rows now say "page" where they said "room".
 
 `python3 docs/build-pdf.py` then `--check`: up to date, 309,573 bytes, 72 pages
 A4, 112 bookmarks -- the same page count, 1,200 bytes heavier than the room's.
+
+## Seventy-eighth pass: no gravity, and a face that is a face
+
+Two complaints in one line: "no more gravity and as I said before, the kitten does
+not look like a cute kitten at all". Both were right, and both were the
+seventy-seventh pass stopping halfway. It had moved the cat onto the page and left
+the cat itself alone: a profile animal in a world that pulled words downhill.
+
+### The page is flat, so nothing falls
+
+`GRAVITY` and `RESTITUTION` are gone from `scene.rs`. A token's `vel` is two floats
+rather than three, `step_tokens` integrates `x` and `y` only, multiplies both by
+`1 - DRAG * dt` with `DRAG = 1.6`, and sets a token to rest once it is under 0.06
+cells a second. Paper drag, not a floor.
+
+Gravity had a consequence that only showed over a minute of simulation: every word
+ever knocked about ended in the same place, a heap along the bottom of the page.
+The rug of punctuation is already there, and words drifting down onto it are
+litter, not play. Without gravity a struck word slides and stops where the strike
+put it, which is what a word on a sheet of paper does. `bat` no longer sets a
+vertical kick either, because a bounce was the other half of the same mistake.
+
+### A profile head is a dog
+
+The silhouette was the real problem, and it was structural. A head built facing
+`+z` and turned with the rest of the body by `yaw` -- always ±π/2 -- is seen from
+the side: one eye, half a muzzle, an ear in the middle of the skull, no face. At
+two lines tall there is no detail budget that repairs that. The reader gets a
+quadruped with something on its head, and the something is a dog.
+
+So the animal is built in two spaces. `blocks()` turns the body by `yaw` and the
+head by `head_yaw` about the head's own anchor. `head_yaw` follows intent with a
+`dt * 2.4` ease: ±0.34 rad while she is following or pouncing on something ahead
+of her, 0.30 while asleep, zero otherwise. She looks at the reader, and turns her
+head only when she has a reason to.
+
+The proportions carry the rest, and each one is a decision rather than a number
+picked to fit. Head `[0.86, 0.72, 0.58]` against body `[0.66, 0.50, 0.76]`: the
+head is as wide as the body is long, which is the whole difference between a
+kitten and a cat and cannot be traded for detail. Eye `[0.18, 0.23, 0.08]`, a
+fifth of the face, with a white glint inside it. A muzzle short enough to sit under
+the eye -- the seventy-seventh pass's long muzzle is what made a snout. Ears wide
+at the base (`[0.34, 0.24, 0.20]`) and narrower at the tip (`[0.20, 0.24, 0.16]`),
+with the pink of the inside only in the part that stands above the crown, because
+pink lower down is a pink band across the forehead. A chin narrower than the
+cheeks.
+
+`height()` measures the boxes now (`pos[1] + size[1] * 0.5` against the cat's own
+`pos[1]`) instead of returning a constant. The ears are the top of the animal, and
+a constant maintained by hand reports the animal that was, not the one on screen.
+
+### A box must never be wider than the one in front of it
+
+`render.rs` lights every face it draws, so a top face left visible inside a
+silhouette is a bright horizontal band, and a band across a face is a muzzle nobody
+drew. That was the bug behind three failed attempts at a face: wide cheeks and a
+jaw box behind a narrow nose produced a cream stripe from ear to ear. The rule that
+fixed it is the one in the module header: stacked boxes overlap, and each is
+narrower than the box in front of it, so the wider box hides its top face behind
+the narrower one and the only faces that show are the ones turned toward the
+reader.
+
+The second half of the flattening is arithmetic. `lit` was `base * (0.52 + 0.48 *
+lambert + rim)`; on a stack of boxes with slightly different normals that is a
+staircase of brightness, which reads as stripes rather than as fur. It is
+`base * (0.74 + 0.26 * lambert + rim)` with `rim` at 0.16 instead of 0.22, and the
+animal reads as one colour with a lit side.
+
+### Print the shape, do not read it
+
+Two throwaway tools, both deleted as soon as they had answered: an ASCII dump of
+the silhouette -- every box projected, sorted and printed in the terminal -- and a
+numbers dump of the head's boxes in front-to-back order. The band across the muzzle
+was found by looking at that ordering and seeing a wider box behind a narrower one.
+No amount of reading `blocks()` would have shown it. The habit is worth keeping:
+when a shape is wrong, print the shape.
+
+Poses came out of the same argument. Sitting lowers the hips to a `[0, 1.08, 0.10]`
+anchor and folds the hind legs under, so a sitting cat is seen front-on by the
+reader; sleeping replaces the body with a loaf `[0.84, 0.58, 1.06]`, lays the head
+along the front of it and curls the tail up by the nose. The tail is a quadratic
+bow in the (z, y) plane with the root, bow and tip all outside the rump, because
+the old tail centred on the body had half of itself buried inside the cat.
+
+### Verification
+
+`cargo test --offline --all`: 2144 tests (1087 in `nn-app`, 957 in `nn-core`, 100
+in `nn-mcp`), 0 failed -- two of them new in `kitten.rs`: the face is what makes it
+a kitten (head width against body length, the eye a fifth, two eyes and three nose
+boxes), and the head looks at the reader while the body does not (`|yaw|` near π/2,
+`|head_yaw|` under 0.5, two eyes at the same height). `cargo clippy
+--offline --all-targets`: 0 warnings. `cargo fmt` was not run.
+
+Frames at 0, 4, 6, 12 and 200 seconds of simulation time were rendered and
+inspected: standing, walking, sitting and curled up, every one of them a kitten --
+big head, big dark eyes with glints, cream muzzle, pink nose, pink-backed ears,
+four socks, a curled cream-tipped tail, and no words at the bottom of the page.
+
+`docs/nekopp-features.md` lost the gravity sentence from the token row, gained the
+two spaces and the three bodies, and no longer calls her two and a quarter lines
+tall. `python3 docs/build-pdf.py` then `--check`: up to date, 310,388 bytes, 72
+pages A4, 112 bookmarks -- the same page count, 815 bytes heavier than the pass
+before.

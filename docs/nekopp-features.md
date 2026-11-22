@@ -1772,8 +1772,8 @@ exists falls back to the built-in pair rather than failing to start.
 
 "View > Playground" (`Ctrl+Alt+K`) hands the window to a page: a line-number
 gutter, rows of code at the editor's own line height, furniture drawn in
-characters, a rug of punctuation along the bottom, and a kitten two and a quarter
-lines tall who walks across the text, follows the pointer, bats loose words around
+characters, a rug of punctuation along the bottom, and a kitten two lines tall who
+walks across the text, follows the pointer, bats loose words around
 and eventually falls asleep. `Escape` gives the window back. The document is never
 read and never written, so a screenshot of the mode cannot show anyone's work and
 five minutes in the page cost no undo step.
@@ -1792,17 +1792,33 @@ smaller window with fewer of both, and looks the same on any display.
 | The page | A gutter of line numbers, rows of code, the bottom five rows a rug of scattered punctuation, and a corner label on a line kept clear for it |
 | The furniture | Two to four pieces drawn in characters -- a table, a plant, a lamp, a shelf, a framed picture -- each standing in its own cleared box in the lower half of the page |
 | The kitten | Walks, sits, crouches, pounces and bats a token, blinks, flicks its tail; turns to follow the pointer |
-| The tokens | Whole words lifted off the material, with the syntax colour they had on the line they came from; physics, gravity and a shadow on the page |
+| The tokens | Whole words lifted off the material, with the syntax colour they had on the line they came from; they drift across the page, slow down and settle, with no gravity pulling them anywhere and a shadow under each |
 | Sleep | Three minutes with no input and it curls up where it stands |
 | Dimming | Four minutes and the page starts to dim, the way a screensaver does |
 | Rebuild | Five minutes and the page is rebuilt from the next seed, the old one fading out over two and a half seconds |
 
-The kitten is a dozen boxes and no skeleton: a body, a head, two ears, four legs,
-four paws, a muzzle, a nose, two eyes and a tail on a travelling wave. At two and
-a quarter lines that is enough to read as a cat, and it means the renderer has one
-mesh and one draw call whatever the pose is. Her eyes are on the sides of her head
-and her ears in a row along the body, because she is always seen in profile; put
-them where they belong on a real cat and the reader gets one ear and no eye.
+The kitten is a few dozen boxes and no skeleton: a body, a head, two ears, four
+legs with cream socks, a muzzle, a chin, a nose, two eyes and a tail on a bow
+outside the rump. Two lines tall is enough to read as a kitten, and it means the
+renderer has one mesh and one draw call whatever the pose is.
+
+She is built in two spaces, not one. The body faces along the page and is turned
+a quarter turn, so it is in profile and the length of the cat runs left to right
+along the lines. The head is built in its own space with its own small turn, so
+the face looks out at the reader. That is the difference between a kitten and a
+small dog: a head in profile shows one eye, half a muzzle and no face, so the head
+is instead as wide as the body is long and carries the whole of it -- two dark
+eyes a fifth of the face with a white glint in each, cream cheeks and chin, a pink
+nose, and ears wide at the base and narrow at the tip with the pink of the inside
+showing where they stand above the crown.
+
+There are three bodies. Walking, standing, crouching and pouncing share one.
+Sitting front-on lowers the hips, folds the hind legs under and brings the tail
+down around them. Sleeping replaces the lot with a loaf, the head laid along the
+front of it and the tail curled up by the nose. Boxes that stack overlap, and no
+box is wider than the one in front of it, because the renderer lights every face:
+a top face left showing inside a silhouette is a bright band across the animal,
+and a band across a face is a muzzle nobody drew.
 
 The material is a corpus compiled into the binary, in eight flavours: Rust, C,
 Java, Python, JSON, XML, UN/EDIFACT and CSV. The first six are coloured by the

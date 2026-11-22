@@ -1,17 +1,26 @@
 //! The kitten: what it does, and what it looks like doing it.
 //!
-//! The whole animal is a handful of boxes: a body, a head, two ears, four legs,
-//! four paws, a muzzle, a nose, two eyes and six tail segments. At two and a
-//! quarter lines tall that is enough to read as a cat, and it means the renderer
-//! has one mesh and one draw call whatever the pose is. A smooth-skinned quadruped
-//! would be a rig, a weight table and a mesh tool for something the size of a
-//! postage stamp.
+//! The whole animal is a few dozen boxes, and every one of them is there to make
+//! a kitten out of a silhouette: a head as wide as the body is long, a muzzle
+//! short enough to stay under the eye, an eye a fifth of the face with a white
+//! glint in it, ears wide at the base and narrow at the tip with the pink of the
+//! inside showing, cream chin, bib and socks, and a tail on a bow that curls up
+//! beside the rump. At two lines tall those are the cues that survive; whiskers
+//! and fur are not. A smooth-skinned quadruped would be a rig, a weight table and
+//! a mesh tool for something the size of a postage stamp.
 //!
-//! The cat is built facing `+z` in its own space, and `+z` on the page comes out
-//! towards the reader. So it is turned a quarter turn to walk along the page --
-//! `yaw` is always `±PI/2` -- which is also what puts it in profile, the way a
-//! small animal on a page reads best. It moves in `x` and `y`, up and down lines
-//! of text, and never in `z`.
+//! Two spaces, not one. The body is built facing `+z` and turned a quarter turn
+//! to walk along the page -- `yaw` is always `±PI/2` -- so it is in profile, with
+//! the length of the cat running left to right along the lines. The head is built
+//! in its own space and turned by `head_yaw` about its own anchor, which is nearly
+//! nothing, so the face looks out at the reader. A head in profile shows one eye,
+//! half a muzzle and no face at all: that is a dog, or a rabbit, or a biscuit. The
+//! cat moves in `x` and `y`, up and down lines of text, and never in `z`.
+//!
+//! Boxes that stack have to overlap, and a box must never be wider than the one
+//! in front of it: the renderer lights every face, so a top face left showing
+//! inside a silhouette is a bright band across the cat, and a band across a face
+//! is a muzzle nobody drew.
 //!
 //! The behaviour is a small state machine with a timer per state. It sees three
 //! things: where the pointer is on the page, how long ago anything happened, and
@@ -92,6 +101,14 @@ pub struct Kitten {
     pub speed: f32,
     /// 0 upright, 1 crouched.
     pub crouch: f32,
+    /// 0 standing, 1 sitting: blended, so she lowers herself instead of snapping.
+    pub sit: f32,
+    /// Which way the head looks, in radians, independent of which way she walks.
+    ///
+    /// The body is always in profile -- a cat is a long animal and a page is wide
+    /// -- but a head in profile shows one eye and no muzzle, which is why she
+    /// walks sideways and looks at the reader. Zero faces out of the page.
+    pub head_yaw: f32,
     /// Height above the floor from a pounce.
     pub hop: f32,
     /// 0 open, 1 shut.
@@ -123,6 +140,8 @@ impl Kitten {
             phase: 0.0,
             speed: 0.0,
             crouch: 0.0,
+            sit: 0.0,
+            head_yaw: 0.0,
             hop: 0.0,
             blink: 0.0,
             breath: 0.0,
@@ -133,9 +152,14 @@ impl Kitten {
 
     /// How tall the kitten stands, in lines.
     ///
-    /// The ears are the top: the head's centre plus half its height plus the ear.
+    /// Measured off the boxes rather than off a constant, because the ears are the
+    /// top and a silhouette resized by hand is exactly what a stale constant lies
+    /// about.
     pub fn height(&self) -> f32 {
-        HEAD[1] + HEAD_SIZE[1] * 0.5 + EAR_SIZE[1]
+        self.blocks()
+            .iter()
+            .map(|block| block.pos[1] + block.size[1] * 0.5 - self.pos[1])
+            .fold(0.0f32, f32::max)
     }
 
     /// Where a paw lands when it strikes.
@@ -196,6 +220,15 @@ impl Kitten {
             self.choose(dt, senses);
         }
         self.move_by(dt, senses);
+        // The head follows her intention, and comes back to the reader when she
+        // has none: a face turned away is a cat with no face.
+        let want = match self.mood {
+            Mood::Follow | Mood::Pounce if self.target[0] > self.pos[0] => 0.34,
+            Mood::Follow | Mood::Pounce => -0.34,
+            Mood::Sleep => 0.30,
+            _ => 0.0,
+        };
+        self.head_yaw += (want - self.head_yaw) * (dt * 2.4).min(1.0);
         self.mood == Mood::Bat && self.timer > 0.28 && self.timer < 0.42
     }
 
@@ -316,6 +349,13 @@ impl Kitten {
         }
         let crouch = if self.mood == Mood::Sleep { 0.0 } else { self.crouch };
         self.crouch += (crouch - self.crouch) * (dt * 8.0).min(1.0);
+        // A cat sits down when it has nothing to do, and gets up before it moves.
+        let sit = match self.mood {
+            Mood::Sit | Mood::Groom => 1.0,
+            Mood::Sleep => 0.0,
+            _ => 0.0,
+        };
+        self.sit += (sit - self.sit) * (dt * 3.4).min(1.0);
         let _ = senses;
     }
 
@@ -324,197 +364,468 @@ impl Kitten {
     }
 
     /// The boxes that draw it, in world space.
+    ///
+    /// Standing and sitting are two layouts of the same parts, blended by `sit`,
+    /// so a cat that decides to sit down lowers itself over a few frames instead
+    /// of being replaced by a different cat. Asleep is a layout of its own: a
+    /// curled cat shares no useful coordinates with a standing one.
+    ///
+    /// The body turns with `yaw`; the head turns with `head_yaw` about its own
+    /// anchor, which is what puts a face on a profile.
     pub fn blocks(&self) -> Vec<Block> {
-        let mut out = Vec::with_capacity(24);
-        let (sin, cos) = self.yaw.sin_cos();
         let asleep = self.mood == Mood::Sleep;
-        let breathing = (self.breath * 1.9).sin() * 0.02;
-        // Walking lifts and drops the body, and a pounce stretches it out.
+        let (body, anchor) = if asleep {
+            (self.asleep_body(), self.head_anchor(true))
+        } else {
+            let sit = self.sit.clamp(0.0, 1.0);
+            let standing = self.awake_body(false);
+            let sitting = self.awake_body(true);
+            let body = standing
+                .iter()
+                .zip(sitting.iter())
+                .map(|(up, down)| up.blend(down, sit))
+                .collect();
+            let stand = self.head_anchor_at(false);
+            let seat = self.head_anchor_at(true);
+            let anchor = [
+                stand[0] + (seat[0] - stand[0]) * sit,
+                stand[1] + (seat[1] - stand[1]) * sit,
+                stand[2] + (seat[2] - stand[2]) * sit,
+            ];
+            (body, anchor)
+        };
+
+        let mut out = Vec::with_capacity(body.len() + 16);
+        for part in &body {
+            out.push(self.place(part, self.yaw, part.at));
+        }
+        // The head anchor is in the cat's own space; its parts are in the head's.
+        let (sin, cos) = self.yaw.sin_cos();
+        let centre = [
+            self.pos[0] + anchor[0] * cos + anchor[2] * sin,
+            self.pos[1] + anchor[1],
+            self.pos[2] - anchor[0] * sin + anchor[2] * cos + STAND,
+        ];
+        for part in self.head_parts(asleep) {
+            let (hsin, hcos) = self.head_yaw.sin_cos();
+            let at = [
+                part.at[0] * hcos + part.at[2] * hsin,
+                part.at[1],
+                -part.at[0] * hsin + part.at[2] * hcos,
+            ];
+            out.push(Block {
+                pos: [centre[0] + at[0], centre[1] + at[1], centre[2] + at[2]],
+                size: part.size,
+                yaw: self.head_yaw,
+                shade: part.shade,
+            });
+        }
+        out
+    }
+
+    /// One part, turned for the page and put where the cat is.
+    fn place(&self, part: &Part, yaw: f32, at: [f32; 3]) -> Block {
+        let (sin, cos) = yaw.sin_cos();
+        Block {
+            pos: [
+                self.pos[0] + at[0] * cos + at[2] * sin,
+                self.pos[1] + at[1],
+                self.pos[2] - at[0] * sin + at[2] * cos + STAND,
+            ],
+            size: part.size,
+            yaw,
+            shade: part.shade,
+        }
+    }
+
+    /// Where the head sits, standing or sitting, before this frame's motion.
+    fn head_anchor_at(&self, sitting: bool) -> [f32; 3] {
+        let motion = self.motion();
+        if sitting {
+            [0.0, 1.08, 0.10]
+        } else {
+            [
+                0.0,
+                HEAD[1] + motion.lift - motion.settle * 0.7,
+                HEAD[2],
+            ]
+        }
+    }
+
+    /// Where the head sits this frame.
+    fn head_anchor(&self, asleep: bool) -> [f32; 3] {
+        if asleep {
+            [0.0, 0.52, 0.50]
+        } else {
+            let sit = self.sit.clamp(0.0, 1.0);
+            let stand = self.head_anchor_at(false);
+            let seat = self.head_anchor_at(true);
+            [
+                stand[0] + (seat[0] - stand[0]) * sit,
+                stand[1] + (seat[1] - stand[1]) * sit,
+                stand[2] + (seat[2] - stand[2]) * sit,
+            ]
+        }
+    }
+
+    /// The face, in its own space: across `x`, up `y`, out of the nose `z`.
+    ///
+    /// A face is symmetric, so it is built once and not per pose; the only
+    /// difference between awake and asleep is that the eyes shut and the ears
+    /// fold.
+    fn head_parts(&self, asleep: bool) -> Vec<Part> {
+        let eye = EYE[1] * (1.0 - self.blink).max(0.12);
+        let mut out = Vec::with_capacity(16);
+        if asleep {
+            out.push(Part::new([0.0, 0.0, 0.0], [0.62, 0.54, 0.50], Shade::Fur));
+            out.push(Part::new([0.0, 0.06, 0.06], [0.52, 0.32, 0.40], Shade::Fur));
+        } else {
+            out.push(Part::new([0.0, 0.02, 0.0], HEAD_SIZE, Shade::Fur));
+            // The crown: a narrower box set back on top of the skull, because a
+            // square forehead on a cat reads as a bear. Set back, so that it does
+            // not stand in front of the ears and eat them.
+            out.push(Part::new(
+                [0.0, 0.30, -0.10],
+                [0.68, 0.24, 0.44],
+                Shade::Fur,
+            ));
+        }
+        // The chin: narrower than the skull and tucked under it, so the jaw tapers
+        // instead of ending on a straight line. Narrower, because a box that is
+        // wider than the one in front of it shows its own top face across the
+        // face, and a bright band across a face is a muzzle that nobody drew.
+        out.push(Part::new(
+            [0.0, -0.40, 0.00],
+            [0.66, 0.16, 0.50],
+            Shade::Fur,
+        ));
+        out.push(Part::new(
+            [0.0, -0.16, 0.30],
+            [0.36, 0.22, 0.12],
+            Shade::FurLight,
+        ));
+        out.push(Part::new(
+            [0.0, -0.10, 0.37],
+            [0.15, 0.07, 0.05],
+            Shade::Nose,
+        ));
+        out.push(Part::new(
+            [0.0, -0.24, 0.35],
+            [0.08, 0.03, 0.05],
+            Shade::FurDark,
+        ));
+
+        for side in [-1.0f32, 1.0] {
+            if asleep {
+                // A shut eye is a line, and the glint is hidden inside it so the
+                // two faces keep the same parts.
+                out.push(Part::new(
+                    [side * 0.18, -0.02, 0.24],
+                    [0.15, 0.04, 0.08],
+                    Shade::Eye,
+                ));
+                out.push(Part::new(
+                    [side * 0.18, -0.02, 0.25],
+                    [0.01, 0.01, 0.01],
+                    Shade::FurLight,
+                ));
+                out.push(Part::new(
+                    [side * 0.22, 0.28, -0.06],
+                    [0.24, 0.14, 0.18],
+                    Shade::FurDark,
+                ));
+                out.push(Part::new(
+                    [side * 0.24, 0.36, -0.08],
+                    [0.16, 0.12, 0.12],
+                    Shade::FurDark,
+                ));
+                out.push(Part::new(
+                    [side * 0.22, 0.30, 0.03],
+                    [0.11, 0.07, 0.03],
+                    Shade::Nose,
+                ));
+            } else {
+                // Eyes: a fifth of the head wide and a third tall, set either side
+                // of the muzzle, each with a white glint in its top corner.
+                out.push(Part::new(
+                    [side * 0.21, 0.00, 0.26],
+                    [EYE[0], eye, EYE[2]],
+                    Shade::Eye,
+                ));
+                out.push(Part::new(
+                    [side * 0.24, 0.09, 0.30],
+                    [0.06, (eye * 0.30).max(0.03), 0.04],
+                    Shade::FurLight,
+                ));
+                // Ears: a wide base and a narrower tip, both tall enough to stand
+                // above the crown and in front of it, dark against the fur, with
+                // the pink of the inside on the face of the base.
+                out.push(Part::new(
+                    [side * 0.28, 0.44, 0.08],
+                    EAR_SIZE,
+                    Shade::FurDark,
+                ));
+                out.push(Part::new(
+                    [side * 0.30, 0.62, 0.06],
+                    [0.20, 0.24, 0.16],
+                    Shade::FurDark,
+                ));
+                out.push(Part::new(
+                    [side * 0.28, 0.52, 0.20],
+                    [0.13, 0.12, 0.05],
+                    Shade::Nose,
+                ));
+            }
+        }
+        out
+    }
+
+    /// What the walk and the breath do to the pose.
+    fn motion(&self) -> Motion {
+        let breath = (self.breath * 1.9).sin() * 0.02;
         let bob = if self.speed > 0.2 {
             (self.phase * 2.0).sin() * 0.05
         } else {
             0.0
         };
-        let lift = self.hop + bob;
-        let stretch = 1.0 + self.hop * 0.06;
-        let settle = self.crouch * 0.35;
-
-        let mut place = |local: [f32; 3], size: [f32; 3], shade: Shade| {
-            let x = local[0] * cos + local[2] * sin;
-            let z = -local[0] * sin + local[2] * cos;
-            out.push(Block {
-                pos: [self.pos[0] + x, self.pos[1] + local[1], self.pos[2] + z + STAND],
-                size,
-                yaw: self.yaw,
-                shade,
-            });
-        };
-
-        // Body: lower and longer when asleep, squashed when crouched. Short,
-        // because a kitten is mostly head and the head is the thing that makes it
-        // read as a kitten rather than as a small dog.
-        let (body_y, body_z, body_size) = if asleep {
-            (0.5, 0.1, [1.05, 0.6, 1.6])
-        } else {
-            (
-                0.92 + lift - settle,
-                0.0,
-                [
-                    1.02,
-                    (0.82 + breathing) * (1.0 - 0.18 * self.crouch),
-                    1.24 * stretch,
-                ],
-            )
-        };
-        place([0.0, body_y, body_z], body_size, Shade::Fur);
-        // The back, a shade darker, which is what makes it read as round.
-        place(
-            [0.0, body_y + body_size[1] * 0.28, body_z - 0.15],
-            [body_size[0] * 0.86, body_size[1] * 0.34, body_size[2] * 0.8],
-            Shade::FurDark,
-        );
-        // Chest and rump, so the silhouette is not one slab. Asleep they sink
-        // into the body rather than standing proud of it, or the cat reads as a
-        // crate with a lid.
-        if !asleep {
-            place(
-                [0.0, body_y + 0.02, body_z + 0.54 * stretch],
-                [0.8, 0.62, 0.4],
-                Shade::FurLight,
-            );
+        Motion {
+            lift: self.hop + bob,
+            settle: self.crouch * 0.35,
+            stretch: 1.0 + self.hop * 0.06,
+            breath,
         }
-        place(
-            [0.0, body_y + if asleep { -0.02 } else { 0.05 }, body_z - 0.56],
-            if asleep {
-                [1.0, 0.6, 0.46]
-            } else {
-                [1.0, 0.84, 0.46]
-            },
-            Shade::Fur,
-        );
+    }
 
-        // Head: forward and up when awake, tucked down and forward when asleep.
-        let head = if asleep {
-            [0.0, 0.56, 1.02]
+    /// The body, standing or sitting, part for part in the same order.
+    ///
+    /// The silhouette is decided before the cat: a short barrel, a haunch behind
+    /// it, a cream bib at the chest, four legs and their socks on the page, and a
+    /// tail on an arc outside the rump instead of growing through it. The two
+    /// poses are laid out box for box so that one can be blended into the other.
+    fn awake_body(&self, sitting: bool) -> Vec<Part> {
+        let motion = self.motion();
+        // A sitting cat does not bob with a walk it is not doing, and it is not
+        // stretched by a pounce it is not making.
+        let moving = if sitting { 0.0 } else { 1.0 };
+        let lift = motion.lift * moving;
+        let settle = motion.settle * moving;
+        let stretch = 1.0 + (motion.stretch - 1.0) * moving;
+        let breath = motion.breath;
+        let crouch = self.crouch * moving;
+        let mut out = Vec::with_capacity(20);
+
+        if sitting {
+            // Sitting down drops the rear onto the haunch and stands the chest up
+            // over it, which is the whole difference between the two poses.
+            out.push(Part::new([0.0, 0.33, -0.06], [0.72, 0.56, 0.62], Shade::Fur));
+            out.push(Part::new([0.0, 0.28, -0.32], [0.76, 0.44, 0.26], Shade::Fur));
+            out.push(Part::new([0.0, 0.52, -0.04], [0.58, 0.10, 0.62], Shade::FurDark));
+            out.push(Part::new([0.0, 0.56, 0.30], [0.30, 0.30, 0.12], Shade::FurLight));
+            out.push(Part::new([0.0, 0.50, 0.06], [0.60, 0.46, 0.46], Shade::Fur));
         } else {
-            [HEAD[0], HEAD[1] + lift - settle * 0.7, HEAD[2] * stretch]
-        };
-        let head_size = if asleep {
-            [1.0, 0.56, 0.8]
-        } else {
-            HEAD_SIZE
-        };
-        place(head, head_size, Shade::Fur);
-        // Muzzle and nose, at the front of the head, which is the side the cat
-        // walks towards.
-        place(
-            [head[0], head[1] - 0.22, head[2] + 0.46],
-            [0.5, 0.3, 0.26],
-            Shade::FurLight,
-        );
-        place(
-            [head[0], head[1] - 0.2, head[2] + 0.6],
-            [0.14, 0.12, 0.11],
-            Shade::Nose,
-        );
-        // Eyes and ears are laid out for the view the reader has: the cat is
-        // always in profile, so its eyes belong on the sides of its head and its
-        // two ears side by side along the body. Put them on the front face, which
-        // is where they go on a real cat, and the reader sees one ear and no eye.
-        let eye_y = if asleep { 0.04 } else { 0.18 * (1.0 - self.blink) + 0.04 };
-        for side in [-1.0f32, 1.0] {
-            place(
+            out.push(Part::new(
+                [0.0, 0.66 + lift - settle, -0.02],
                 [
-                    head[0] + side * (head_size[0] * 0.5 - 0.02),
-                    head[1] + 0.14,
-                    head[2] + 0.2,
+                    BODY[0],
+                    (BODY[1] + breath) * (1.0 - 0.16 * crouch),
+                    BODY[2] * stretch,
                 ],
-                [0.09, eye_y, 0.16],
-                Shade::Eye,
-            );
-            place(
-                [
-                    head[0] + side * 0.16,
-                    head[1] + head_size[1] * 0.5 + EAR_SIZE[1] * 0.18,
-                    head[2] - 0.26 + side * 0.26,
-                ],
-                if asleep {
-                    [0.24, 0.14, 0.3]
-                } else {
-                    EAR_SIZE
-                },
+                Shade::Fur,
+            ));
+            out.push(Part::new(
+                [0.0, 0.68 + lift - settle, -0.32],
+                [0.72, 0.54, 0.36],
+                Shade::Fur,
+            ));
+            out.push(Part::new(
+                [0.0, 0.88 + lift - settle, -0.02],
+                [0.54, 0.10, 0.72],
                 Shade::FurDark,
-            );
+            ));
+            out.push(Part::new(
+                [0.0, 0.58 + lift - settle, 0.34],
+                [0.60, 0.30, 0.12],
+                Shade::FurLight,
+            ));
+            out.push(Part::new(
+                [0.0, 0.84 + lift - settle, 0.14],
+                [0.46, 0.22, 0.34],
+                Shade::Fur,
+            ));
         }
 
-        // Legs: the front pair swings with the walk, the back pair against it.
-        let swing = |offset: f32| {
-            if asleep {
-                0.0
-            } else if self.speed > 0.2 {
-                (self.phase * 2.0 + offset).sin() * 0.16
-            } else {
-                0.0
-            }
-        };
+        // Two front legs and two back ones, each with a cream sock: four thin
+        // columns are what says "quadruped" at this size, and the socks are what
+        // say where the page is.
         for side in [-1.0f32, 1.0] {
-            let front = swing(0.0);
-            let back = swing(std::f32::consts::PI);
-            if asleep {
-                place([side * 0.4, 0.2, 0.5], [0.3, 0.3, 0.5], Shade::FurLight);
-                place([side * 0.4, 0.2, -0.4], [0.3, 0.3, 0.5], Shade::FurLight);
+            if sitting {
+                out.push(Part::new(
+                    [side * 0.17, 0.36, 0.30],
+                    [0.17, 0.60, 0.17],
+                    Shade::Fur,
+                ));
+                out.push(Part::new(
+                    [side * 0.30, 0.26, -0.24],
+                    [0.20, 0.36, 0.34],
+                    Shade::Fur,
+                ));
+                out.push(Part::new(
+                    [side * 0.17, 0.06, 0.42],
+                    [0.21, 0.13, 0.24],
+                    Shade::FurLight,
+                ));
+                out.push(Part::new(
+                    [side * 0.30, 0.06, 0.04],
+                    [0.21, 0.13, 0.24],
+                    Shade::FurLight,
+                ));
             } else {
-                place(
-                    [side * 0.34, 0.38 + lift * 0.4, 0.46 + front],
-                    [0.22, 0.68, 0.22],
+                let step = lift * 0.4;
+                out.push(Part::new(
+                    [side * 0.19, 0.24 + step, 0.22],
+                    [0.18, 0.40, 0.19],
                     Shade::Fur,
-                );
-                place(
-                    [side * 0.34, 0.38 + lift * 0.4, -0.44 + back],
-                    [0.24, 0.68, 0.24],
+                ));
+                out.push(Part::new(
+                    [side * 0.19, 0.24 + step, -0.34],
+                    [0.20, 0.40, 0.21],
                     Shade::Fur,
-                );
-                place(
-                    [side * 0.34, 0.09, 0.5 + front],
-                    [0.28, 0.16, 0.34],
+                ));
+                out.push(Part::new(
+                    [side * 0.20, 0.06, 0.28],
+                    [0.22, 0.13, 0.25],
                     Shade::FurLight,
-                );
-                place(
-                    [side * 0.34, 0.09, -0.4 + back],
-                    [0.28, 0.16, 0.34],
+                ));
+                out.push(Part::new(
+                    [side * 0.20, 0.06, -0.32],
+                    [0.22, 0.13, 0.25],
                     Shade::FurLight,
-                );
+                ));
             }
         }
 
-        // Tail: six segments on a travelling wave, wrapped round when asleep.
+        // Tail: six overlapping boxes along a bow that starts inside the rump and
+        // ends in the air beside it. A circle centred on the body buries half the
+        // tail in it; the bow keeps all of it outside the silhouette it grows
+        // from, and each box is longer than the gap to the next so the six read as
+        // one tail.
+        let wave = (self.tail * 0.9).sin() * 0.04;
+        let (root, bow, tip) = if sitting {
+            ([-0.26, 0.30], [-0.70, 0.52], [-0.50, 0.90])
+        } else {
+            ([-0.30, 0.62], [-0.74, 0.95], [-0.60, 1.35])
+        };
         for segment in 0..6 {
             let t = segment as f32 / 5.0;
-            let wave = if asleep {
-                (t * 2.4 - self.tail * 0.4).sin() * 0.5 * t
-            } else {
-                (self.tail - t * 1.5).sin() * 0.34 * t
-            };
-            place(
+            let back = (1.0 - t) * (1.0 - t);
+            let across = 2.0 * (1.0 - t) * t;
+            let forward = t * t;
+            let thick = 0.19 - t * 0.05;
+            out.push(Part::new(
                 [
-                    wave * 0.9,
-                    if asleep {
-                        0.25 + t * 0.1
-                    } else {
-                        0.86 + t * 0.44 + wave * 0.3
-                    },
-                    -0.66 - t * 0.26 + wave * 0.5,
+                    t * 0.10 + wave,
+                    root[1] * back + bow[1] * across + tip[1] * forward + lift * t,
+                    root[0] * back + bow[0] * across + tip[0] * forward,
                 ],
-                [0.17 - t * 0.04, 0.17 - t * 0.04, 0.26 - t * 0.03],
-                if segment % 2 == 0 {
-                    Shade::Fur
-                } else {
+                [thick, thick - 0.01, 0.30 - t * 0.05],
+                if segment >= 5 {
                     Shade::FurLight
+                } else {
+                    Shade::Fur
                 },
-            );
+            ));
         }
         out
     }
+
+    /// The curled body: a loaf with a head tucked against the front of it.
+    fn asleep_body(&self) -> Vec<Part> {
+        let wave = (self.tail * 0.6).sin() * 0.02;
+        let mut out = Vec::with_capacity(16);
+        out.push(Part::new([0.0, 0.36, -0.04], [0.84, 0.58, 1.06], Shade::Fur));
+        out.push(Part::new([0.0, 0.36, -0.42], [0.88, 0.60, 0.44], Shade::Fur));
+        out.push(Part::new([0.0, 0.60, -0.04], [0.62, 0.10, 0.82], Shade::FurDark));
+        out.push(Part::new([0.0, 0.26, 0.44], [0.48, 0.28, 0.20], Shade::FurLight));
+
+        for side in [-1.0f32, 1.0] {
+            out.push(Part::new(
+                [side * 0.20, 0.16, 0.30],
+                [0.20, 0.18, 0.26],
+                Shade::FurLight,
+            ));
+            out.push(Part::new(
+                [side * 0.28, 0.16, -0.28],
+                [0.24, 0.18, 0.30],
+                Shade::FurLight,
+            ));
+            out.push(Part::new(
+                [side * 0.20, 0.06, 0.40],
+                [0.20, 0.10, 0.20],
+                Shade::FurLight,
+            ));
+            out.push(Part::new(
+                [side * 0.28, 0.06, -0.20],
+                [0.20, 0.10, 0.20],
+                Shade::FurLight,
+            ));
+        }
+
+        // The tail lies along her flank and curls up by her nose.
+        for segment in 0..5 {
+            let t = segment as f32 / 4.0;
+            let thick = 0.17 - t * 0.04;
+            out.push(Part::new(
+                [0.44 + wave * t, 0.24 + t * 0.10, -0.30 + t * 0.78],
+                [thick, thick - 0.01, 0.32 - t * 0.03],
+                if segment >= 3 {
+                    Shade::FurLight
+                } else {
+                    Shade::Fur
+                },
+            ));
+        }
+        out
+    }
+}
+
+/// One box of the animal in its own space, before it is turned for the page.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Part {
+    at: [f32; 3],
+    size: [f32; 3],
+    shade: Shade,
+}
+
+impl Part {
+    fn new(at: [f32; 3], size: [f32; 3], shade: Shade) -> Self {
+        Self { at, size, shade }
+    }
+
+    /// A part partway between two poses, keeping the shade of the first.
+    fn blend(&self, other: &Part, t: f32) -> Part {
+        let mix = |a: f32, b: f32| a + (b - a) * t;
+        Part {
+            at: [
+                mix(self.at[0], other.at[0]),
+                mix(self.at[1], other.at[1]),
+                mix(self.at[2], other.at[2]),
+            ],
+            size: [
+                mix(self.size[0], other.size[0]),
+                mix(self.size[1], other.size[1]),
+                mix(self.size[2], other.size[2]),
+            ],
+            shade: self.shade,
+        }
+    }
+}
+
+/// What the walk and the breath do to a pose, in cells.
+struct Motion {
+    lift: f32,
+    settle: f32,
+    stretch: f32,
+    breath: f32,
 }
 
 /// How far in front of the page the cat stands, in cells.
@@ -535,14 +846,19 @@ fn room_to_walk(width: f32, rows: f32) -> (f32, f32, f32, f32) {
     (left, right, bottom, top)
 }
 
-/// Where the head sits when the kitten is awake, in its own space.
-const HEAD: [f32; 3] = [0.0, 1.38, 0.74];
-/// The head's size: as tall as the body and deeper than it is wide, which is the
-/// whole trick of a kitten seen from the side.
-const HEAD_SIZE: [f32; 3] = [0.9, 1.0, 1.06];
-/// An ear's size: tall, narrow, and separated from its twin, or the pair reads as
-/// a hat.
-const EAR_SIZE: [f32; 3] = [0.22, 0.46, 0.24];
+/// Where the head sits when the kitten is standing, in its own space.
+const HEAD: [f32; 3] = [0.0, 1.30, 0.10];
+/// The head's size: as wide as the body is long, which is the whole trick of a
+/// kitten. A head smaller than that is a cat, and a cat is not what we drew.
+const HEAD_SIZE: [f32; 3] = [0.86, 0.72, 0.58];
+/// An ear's size at its base. The tip is narrower and sits above it: wide at the
+/// bottom and narrow at the top is what makes the pair read as ears, not a hat.
+const EAR_SIZE: [f32; 3] = [0.34, 0.24, 0.20];
+/// The body's size, standing: short, because a kitten is mostly head.
+const BODY: [f32; 3] = [0.66, 0.50, 0.76];
+/// An eye's size when open: a fifth of the head wide, which is the difference
+/// between a face and a dot.
+const EYE: [f32; 3] = [0.18, 0.23, 0.08];
 
 #[cfg(test)]
 mod tests {
@@ -569,13 +885,60 @@ mod tests {
     fn it_is_made_of_boxes_and_the_ears_are_the_top() {
         let kitten = Kitten::default();
         let blocks = kitten.blocks();
-        assert!(blocks.len() >= 22, "{}", blocks.len());
+        assert!(blocks.len() >= 30, "{}", blocks.len());
         let top = blocks
             .iter()
-            .map(|block| block.pos[1] + block.size[1] * 0.5)
-            .fold(0.0f32, f32::max);
-        // Measured from the cat's own feet, which are wherever it is standing.
-        assert!((top - kitten.pos[1] - kitten.height()).abs() < 0.35, "{top}");
+            .copied()
+            .max_by(|a, b| (a.pos[1] + a.size[1] * 0.5).total_cmp(&(b.pos[1] + b.size[1] * 0.5)))
+            .expect("a cat is not empty");
+        // The ears are the top of the cat: dark against the fur, and narrower
+        // than the skull, so that the pair reads as ears and not as a hat.
+        assert_eq!(top.shade, Shade::FurDark);
+        assert!(top.size[0] < HEAD_SIZE[0], "{:?}", top.size);
+        assert!(top.pos[1] > kitten.pos[1] + HEAD[1], "{:?}", top.pos);
+    }
+
+    #[test]
+    fn the_face_is_what_makes_it_a_kitten() {
+        // A head as wide as the body is long, an eye a fifth of the face, and the
+        // two of them with a nose between: below these numbers it is a cat, and
+        // at the size a cat is drawn here a cat is a dog.
+        let head = HEAD_SIZE[0];
+        let body = BODY[2];
+        assert!(head >= body * 0.95, "{head} wide on {body} long is a cat");
+        let fifth = EYE[0] / HEAD_SIZE[0];
+        assert!((0.18..0.24).contains(&fifth), "{fifth}");
+        let blocks = Kitten::default().blocks();
+        let eyes = blocks.iter().filter(|b| b.shade == Shade::Eye).count();
+        let noses = blocks.iter().filter(|b| b.shade == Shade::Nose).count();
+        assert_eq!(eyes, 2);
+        // One nose on the muzzle and a pink inside to each ear.
+        assert_eq!(noses, 3);
+    }
+
+    #[test]
+    fn the_head_looks_at_the_reader_and_the_body_does_not() {
+        let mut rng = Rng::new(11);
+        let mut kitten = Kitten::new(10.0, 20.0);
+        for _ in 0..(120 * 2) {
+            kitten.think(
+                1.0 / 120.0,
+                &mut senses(&mut rng, Some([30.0, 20.0, 0.0]), 0.0),
+            );
+        }
+        // The body walks along the page; the face stays turned to the reader,
+        // within a few degrees either way.
+        assert!((kitten.yaw.abs() - std::f32::consts::FRAC_PI_2).abs() < 0.01);
+        assert!(kitten.head_yaw.abs() < 0.5, "{}", kitten.head_yaw);
+        let eyes: Vec<_> = kitten
+            .blocks()
+            .into_iter()
+            .filter(|b| b.shade == Shade::Eye)
+            .collect();
+        assert_eq!(eyes.len(), 2);
+        // Two eyes at the same height, one either side of the middle.
+        assert!((eyes[0].pos[1] - eyes[1].pos[1]).abs() < 0.01);
+        assert!(eyes[0].pos[0] < eyes[1].pos[0]);
     }
 
     #[test]

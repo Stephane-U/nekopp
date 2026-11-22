@@ -60,8 +60,8 @@ const HINT_INSET: f32 = 14.0;
 /// Fixed rather than taken from the theme: a cat is ginger whatever the syntax
 /// highlighting is doing. They are adjusted for the background -- see
 /// [`readable`] -- so they stay visible on a light theme.
-const FUR: Rgb = Rgb(214, 158, 96);
-const FUR_DARK: Rgb = Rgb(174, 120, 66);
+const FUR: Rgb = Rgb(228, 172, 112);
+const FUR_DARK: Rgb = Rgb(190, 134, 78);
 const FUR_LIGHT: Rgb = Rgb(246, 236, 214);
 const NOSE: Rgb = Rgb(226, 136, 148);
 const EYE: Rgb = Rgb(40, 36, 46);

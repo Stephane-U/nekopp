@@ -41,10 +41,10 @@ const NEAR: f32 = 1.0;
 /// How far the depth range reaches past the eye.
 const FAR: f32 = 16.0;
 /// How much a box is sheared to the right by its own depth.
-const SHEAR_X: f32 = 0.36;
+const SHEAR_X: f32 = 0.26;
 /// How much a box is sheared down by its own depth: the camera is a little above
 /// the page, so what is nearer to the reader sits lower on it.
-const SHEAR_Y: f32 = -0.22;
+const SHEAR_Y: f32 = -0.13;
 /// The corner radius of the boxes, in cell units.
 const BOX_RADIUS: f32 = 0.2;
 /// How many steps each face of a box is divided into.
@@ -114,7 +114,7 @@ fn lit(base: vec3<f32>, world: vec3<f32>, normal: vec3<f32>, rim_amount: f32) ->
     let lambert = abs(dot(n, lamp));
     let to_eye = normalize(globals.eye.xyz - world);
     let rim = pow(1.0 - abs(dot(n, to_eye)), 2.0) * rim_amount;
-    return base * (0.52 + 0.48 * lambert + rim);
+    return base * (0.74 + 0.26 * lambert + rim);
 }
 
 /// The screensaver's dimming, and nothing else.
@@ -137,7 +137,7 @@ fn fs_glyph(in: VsOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_box(in: VsOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(dimmed(lit(in.color.rgb, in.world, in.normal, 0.22)), in.color.a);
+    return vec4<f32>(dimmed(lit(in.color.rgb, in.world, in.normal, 0.16)), in.color.a);
 }
 
 @fragment

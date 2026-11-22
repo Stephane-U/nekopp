@@ -46,10 +46,12 @@ const UNDER_PAW: usize = 8;
 const MAX_SPEED: f32 = 14.0;
 /// The fastest a batted token may spin.
 const MAX_SPIN: f32 = 16.0;
-/// How hard the page pulls a lifted token back down.
-const GRAVITY: f32 = -24.0;
-/// How much of its speed a token keeps when it lands.
-const RESTITUTION: f32 = 0.3;
+/// How fast a token loses its speed to the page, per second.
+///
+/// The page has no gravity: a word the kitten bats slides away, turns, and
+/// stops where the friction leaves it. A page that pulled its own letters down
+/// would be a page with a floor, and this one is a sheet of paper seen head on.
+const DRAG: f32 = 1.6;
 
 /// One loose token: a word the kitten can knock about.
 #[derive(Debug, Clone, PartialEq)]
@@ -60,8 +62,8 @@ pub struct Token {
     pub styles: Vec<u8>,
     /// Centre, in cells: `x` right, `y` up the page, `z` out of it.
     pub pos: [f32; 3],
-    /// Velocity, in cells per second.
-    pub vel: [f32; 3],
+    /// Velocity along the page, in cells per second.
+    pub vel: [f32; 2],
     /// Turn in the page's own plane, in radians.
     pub roll: f32,
     /// Tipped off the page, in radians.
@@ -272,7 +274,7 @@ impl Page {
     ///
     /// Fixed steps are the caller's job: one step of `1/120` and one of `1/60` are
     /// not the same integration, and a jump of half a second -- which a loaded
-    /// machine will produce -- would send a token through the page.
+    /// machine will produce -- would send a token off the page.
     pub fn step_tokens(&mut self, dt: f32) {
         let width = self.width();
         let top = self.rows as f32;
@@ -280,31 +282,23 @@ impl Page {
             if token.rest {
                 continue;
             }
-            token.vel[2] += GRAVITY * dt;
             token.pos[0] += token.vel[0] * dt;
             token.pos[1] += token.vel[1] * dt;
-            token.pos[2] += token.vel[2] * dt;
             token.roll += token.spin * dt;
-            token.spin *= 1.0 - 2.4 * dt;
-            // A tumbling token tips back toward the page as it slows: a card that
-            // lands standing on its edge looks broken.
+            // Paper drag, not a floor: the word keeps going until it does not.
+            let keep = (1.0 - DRAG * dt).max(0.0);
+            token.vel[0] *= keep;
+            token.vel[1] *= keep;
+            token.spin *= (1.0 - 2.4 * dt).max(0.0);
+            // A sliding token settles flat as it slows: a card that stops standing
+            // on its edge looks broken.
             token.pitch += (0.0 - token.pitch) * 3.0 * dt;
-
-            if token.pos[2] < 0.0 {
-                token.pos[2] = 0.0;
-                if token.vel[2] < 0.0 {
-                    token.vel[2] = -token.vel[2] * RESTITUTION;
-                    if token.vel[2].abs() < 0.6 {
-                        token.vel[2] = 0.0;
-                    }
-                }
-                token.vel[0] *= 1.0 - 5.0 * dt;
-                token.vel[1] *= 1.0 - 5.0 * dt;
-                if token.vel[0].hypot(token.vel[1]) < 0.06 && token.vel[2] == 0.0 {
-                    token.rest = true;
-                    token.pitch *= 0.9;
-                    token.roll %= std::f32::consts::TAU;
-                }
+            if token.vel[0].hypot(token.vel[1]) < 0.06 && token.spin.abs() < 0.3 {
+                token.vel = [0.0, 0.0];
+                token.spin = 0.0;
+                token.pitch = 0.0;
+                token.rest = true;
+                token.roll %= std::f32::consts::TAU;
             }
             // The edge of the page is the edge of the world.
             let half = token.width() * 0.5;
@@ -331,8 +325,8 @@ impl Page {
     /// Pushes a token near `at` away from the kitten.
     ///
     /// The paw is not an engine: a token the kitten keeps its paw on for a dozen
-    /// frames takes one shove, not a dozen, which is why the lift is a maximum
-    /// here and not a sum.
+    /// frames takes one shove, not a dozen, which is why the push is damped by
+    /// paper drag rather than summed.
     pub fn bat(&mut self, at: [f32; 3], reach: f32, power: f32) {
         for token in &mut self.tokens {
             let dx = token.pos[0] - at[0];
@@ -344,7 +338,6 @@ impl Page {
             let scale = power / distance.max(0.4);
             token.vel[0] = (token.vel[0] + dx * scale).clamp(-MAX_SPEED, MAX_SPEED);
             token.vel[1] = (token.vel[1] + dy * scale).clamp(-MAX_SPEED, MAX_SPEED);
-            token.vel[2] = token.vel[2].max(power * 0.5).min(MAX_SPEED * 0.5);
             token.spin = (token.spin + power * 2.2).clamp(-MAX_SPIN, MAX_SPIN);
             token.rest = false;
         }
@@ -540,7 +533,7 @@ fn loose_tokens(rng: &mut Rng, flavour: Flavour, columns: u32, rows: u32) -> Vec
                 rng.range(1.0, (rows.saturating_sub(FLOOR_MARGIN) as f32).max(2.0)),
                 0.0,
             ],
-            vel: [0.0, 0.0, 0.0],
+            vel: [0.0, 0.0],
             roll: rng.range(-0.5, 0.5),
             pitch: 0.0,
             spin: 0.0,
@@ -624,12 +617,11 @@ mod tests {
             assert!(token.pos[0] < page.width(), "{token:?}");
             assert!(token.pos[1] > 0.0, "{token:?}");
             assert!(token.pos[1] < page.rows as f32, "{token:?}");
-            assert!(token.pos[2] >= 0.0, "{token:?}");
         }
     }
 
     #[test]
-    fn a_token_lands_instead_of_drifting_for_ever() {
+    fn a_batted_token_stops_instead_of_drifting_for_ever() {
         let mut page = page();
         page.bat([page.width() * 0.5, 20.0, 0.0], 8.0, 6.0);
         for _ in 0..(120 * 40) {
