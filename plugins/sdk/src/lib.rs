@@ -44,7 +44,8 @@
 //!
 //! The `.wasm` in `target/wasm32-unknown-unknown/release/` is the plugin. Copy
 //! it into the editor's `plugins` directory -- `Plugins > Open Plugins Folder`
-//! -- and it appears in the menu, once per command, as `Name - Command`.
+//! -- switch it on in `Plugins > Manage Plugins...`, and `npp-mcp` can run each
+//! of its commands over a document.
 
 #![deny(missing_docs)]
 

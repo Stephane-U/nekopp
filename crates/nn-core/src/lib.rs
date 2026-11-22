@@ -18,7 +18,9 @@ pub mod highlighter;
 pub mod lang;
 pub mod lexer;
 pub mod lines;
+pub mod paths;
 pub mod pdf;
+pub mod plugin;
 pub mod print;
 pub mod project;
 pub mod recorder;
@@ -57,6 +59,7 @@ pub use lang::{
 };
 pub use lexer::{style, CLikeLexer, ConfigLexer, LexState, Lexer, PlainLexer};
 pub use lines::{Case, SortKey, SortOptions, SortOrder};
+pub use plugin::{Bridge, DocumentHost, Inventory, Outcome, Plugins};
 pub use project::{Project, Projects, MAX_PROJECTS};
 pub use recorder::{Macro, Step};
 pub use run::{

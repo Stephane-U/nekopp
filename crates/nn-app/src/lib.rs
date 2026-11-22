@@ -29,9 +29,7 @@ pub mod menu;
 pub mod minimap;
 pub mod nppimport;
 pub mod palette;
-pub mod plugin;
 pub mod pluginlist;
-pub mod paths;
 pub mod portal;
 pub mod peeker;
 pub mod prefs;
@@ -77,7 +75,12 @@ pub use menu::{Action, BrowserKind, MatchMode, MenuBar, Sort, WindowSort};
 pub use minimap::Minimap;
 pub use nppimport::{Export, Import};
 pub use palette::Palette;
-pub use plugin::{Bridge, Command, DocumentHost, Inventory, Outcome, Plugins};
+// Both of these live in `nn-core`: the MCP server reads the same configuration
+// directory and runs the same plugins, and a second copy of either rule would be
+// a second way for the two binaries to disagree about where a plugin is.
+pub use nn_core::paths;
+pub use nn_core::plugin;
+pub use nn_core::plugin::{Bridge, DocumentHost, Inventory, Outcome, Plugins};
 pub use peeker::DocumentPeeker;
 pub use pluginlist::{PluginList, Row as PluginRow};
 pub use prefs::Preferences;

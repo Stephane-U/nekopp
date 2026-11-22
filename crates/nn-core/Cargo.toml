@@ -8,3 +8,9 @@ rust-version.workspace = true
 ropey.workspace = true
 memchr.workspace = true
 regex = "1.13"
+
+[features]
+# The fixture plugin in `plugin::fixture`. Off by default: the editor and the
+# documentation server load real `.wasm` files, and only the tests of the two
+# crates that run one need a module to point at.
+fixture = []

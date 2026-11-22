@@ -8159,3 +8159,126 @@ The window, on `:9` at 1100x750, with the five `.wasm` installed:
 bytes, 104 bookmarks.
 
 `cargo fmt` was not run.
+
+## Sixty-third pass: the menu keeps only the switches, the server runs the commands
+
+The dropdown still listed one row per command of every running plugin, and the
+user said no: nothing about a loaded plugin belongs in it. They were right, and
+the reason is the same one that removed the `Load`/`Unload` rows a pass earlier.
+A row per command is a row that arrives when a plugin is switched on and leaves
+when it is switched off -- under a pointer that may be over the row that moved --
+and the manager, one row up, already answers "what is installed and what is it
+doing". What was missing was not the row. It was a way to *use* a command once
+the editor stopped advertising it, which is the second half of the request: the
+plugins a machine has should be part of what `npp-mcp` can do.
+
+### What the dropdown is now
+
+Three rows, always the same three, and a note when the folder is empty:
+
+```
+Manage Plugins...
+Open Plugins Folder...
+Reload Plugins
+No Plugins Installed        (only when the folder holds nothing)
+```
+
+`plugin_items` takes a `usize` instead of a `PluginSource`, and the bar keeps
+that number so a language change rebuilds the note in the new language. There is
+no `Action::Plugin(plugin, command)`, no dispatch arm, no `run_plugin`, and the
+`plugins` menu no longer needs to be rebuilt on every toggle -- which is also why
+the dropdown cannot change length under the pointer any more.
+
+### Where a command goes instead
+
+`npp-mcp` grew two tools. `list_plugins` answers with every installed plugin:
+name, file, on or off, and its commands, plus the exact `run_plugin_command`
+arguments for the first one that is runnable -- a hint that names something that
+exists on this machine rather than in the documentation. `run_plugin_command`
+takes `plugin`, `command` and `text`, runs the command over that text through
+the same interpreter, and answers with what the plugin left:
+
+```
+| JSON | `npp_json.wasm` | on | Pretty Print, Minify, Validate |
+| XML  | `npp_xml.wasm`  | off | Pretty Print, Linearize, ... |
+```
+
+Two rules the implementation turns on. First, a plugin switched off in the
+manager is switched off over the protocol as well: the server reads the same
+`plugin <name>` lines from `settings.txt`, so the protocol cannot be a way round
+a switch the user has already set. Second, the answer is two content blocks at
+most -- the document on its own, then what the plugin reported. The document
+block has to be usable as it stands, because a caller that asked for minified
+JSON should not have to strip a header off it; and a command that only moves the
+caret, or only logs, would otherwise look like it did nothing. A selection set
+by the plugin and the caret it left are reported in the second block, in bytes,
+for the same reason: a protocol client has no editor to look at.
+
+The folder is read at startup and again when a call needs something it does not
+have, so a plugin switched on in the editor five minutes ago is usable by the
+next call rather than by the next process. Reading it is a scan: each module is
+instantiated once to read its name and commands and then dropped.
+
+### What moved
+
+None of that could be built on the old layout, where the plugin host lived in
+`nn-app` beside the window. `plugin.rs` and `paths.rs` moved to `nn-core`
+(31 and 18 tests with them, which is why `nn-app` went from 987 tests to 938 and
+`nn-core` from 816 to 866). `nn-app` re-exports both, so `nn_app::plugin` and
+`nn_app::paths` still name the same things and no call site changed.
+
+Two consequences worth naming. `Plugins::commands()` and its `Command` type
+existed to build menu rows; with the rows gone it had no caller, so it went, and
+the inventory's `commands` field became a `Vec<String>` of the names instead of
+a count of them -- the count was never read by anything, and the names are what
+`npp-mcp` lists. The names come from the running module when there is one and
+from the scan otherwise, so a plugin rebuilt on disk and switched on again
+reports the commands it has now.
+
+The rule for what a `plugin <name>` line means became `nn_core::plugin::enabled_line`,
+used by `Settings::parse` and by the server. Two readers, one rule: `npp-mcp`
+must not disagree with the editor about whether a plugin is on, and a rule
+written twice is a rule that disagrees the first time one side is corrected.
+
+`nn-core` gained a `fixture` feature: the two-command test plugin that used to
+live inside `#[cfg(test)]` is a module now, because `nn-mcp` tests its tools
+against the same bytes. `nn-core`'s own tests turn it on with `cfg(test)`;
+`nn-mcp` asks for it as a dev-dependency, so neither binary ships it.
+
+### Verification
+
+`cargo build --offline --release`: clean, 2m14s. `cargo test --offline --release`:
+938 passed in `nn-app`, 866 in `nn-core`, 70 in `nn-mcp`, 1874 in all, no
+failures. `cd plugins && cargo test --offline --release`: 47 passed.
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+The window, on `:9` at 1400x1000, with `npp_json.wasm` and `npp_xml.wasm`
+installed and `plugin JSON` in `settings.txt`:
+
+- `Plugins` opens on exactly three rows -- `Manage Plugins...`, `Open Plugins
+  Folder...`, `Reload Plugins` -- with one plugin switched on and two installed.
+  No command rows, no `Load ...`, no `Unload ...`, and no `No Plugins Installed`
+  because the folder is not empty.
+
+A session with the same profile, driving `target/release/npp-mcp` over stdio:
+
+```
+npp-mcp 0.1.0: 103 sections, 73 shortcuts, 1 of 2 plugins enabled, ...
+```
+
+- `list_plugins` returned both plugins, `JSON` on and `XML` off, with
+  `Pretty Print, Minify, Validate` and the five XML commands, and the example
+  `{"plugin": "JSON", "command": "Pretty Print", "text": "..."}`.
+- `run_plugin_command` on `JSON`/`Minify` over a three-line document answered
+  `{"a":1,"b":[2,3]}` in the first block and `selected bytes 0..17` in the second.
+- On `JSON`/`Validate` over `{"a": }` it answered with the text unchanged and
+  `invalid JSON at line 1, column 7: expected a value` plus `caret at byte 6`.
+- On `XML`/`Pretty Print`, which is switched off, it was a tool error:
+  `plugin "XML" is switched off; switch it on in Plugins > Manage Plugins...`.
+
+`python3 docs/build-pdf.py`: wrote `docs/nekopp-features.pdf`, 62 pages A4,
+268,620 bytes, 105 bookmarks. `pdftotext` finds "Plugins over MCP" and
+`list_plugins answers with one row per installed plugin` in the text layer, so
+the new subsection is in the PDF rather than only in the markdown.
+
+`cargo fmt` was not run.

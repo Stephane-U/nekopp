@@ -16,3 +16,14 @@ path = "src/main.rs"
 # JSON: a hand-written parser and a hand-written serialiser would be two more
 # things to test than the protocol itself.
 serde_json = "1"
+# The plugin tools run the editor's own WebAssembly interpreter over text a
+# client sends, and read the editor's configuration directory to find it. Both
+# are `nn-core`, which has no window and no renderer: a second implementation of
+# the ABI for the protocol would be a second thing for a plugin to be wrong about.
+nn-core = { path = "../nn-core" }
+
+[dev-dependencies]
+# `fixture` is the two-command plugin in `nn_core::plugin`. A tool that runs a
+# command cannot be tested without a module to run, and a copy of the bytes here
+# would stop being a plugin the first time the ABI moved.
+nn-core = { path = "../nn-core", features = ["fixture"] }

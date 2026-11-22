@@ -8,13 +8,17 @@
 
 use std::io;
 
-use nn_mcp::{Server, SERVER_NAME, SERVER_VERSION};
+use nn_mcp::{Installed, Server, SERVER_NAME, SERVER_VERSION};
 
 fn main() {
-    let server = Server::new();
+    // Read once, here, so the library has no opinion about the filesystem and
+    // a test can hand the server a folder of its own.
+    let plugins = Installed::load();
+    let (installed, enabled) = (plugins.installed(), plugins.enabled());
+    let server = Server::with_plugins(plugins);
     let sections = server.document().sections.len();
     let shortcuts = server.inventory().shortcuts().len();
-    eprintln!("{SERVER_NAME} {SERVER_VERSION}: {sections} sections, {shortcuts} shortcuts, one JSON object per line on stdio");
+    eprintln!("{SERVER_NAME} {SERVER_VERSION}: {sections} sections, {shortcuts} shortcuts, {enabled} of {installed} plugins enabled, one JSON object per line on stdio");
 
     let stdin = io::stdin();
     let stdout = io::stdout();

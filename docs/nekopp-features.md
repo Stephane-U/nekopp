@@ -994,23 +994,24 @@ beside it, and Space toggles the row under the cursor. A newly installed plugin
 starts disabled, so the manager is where a user goes first. "Open Plugins
 Folder..." follows, because it is how a user gets from "no plugins" to having
 one, and "Reload Plugins" sits beside it: it re-reads the folder, so a `.wasm`
-file copied in by hand is discovered without a restart. Below them are the
-running plugins: one row per command, labelled `Plugin - Command`; a flat list
-rather than a submenu per plugin, but the plugin's name is in the label either
-way. Nothing else in this menu switches a plugin: a `Load <name>` row per
-disabled plugin and an `Unload <name>` row per enabled one made the dropdown a
-second copy of the manager, and a copy whose rows move under the cursor every
-time one of them is used. With nothing in the folder the menu still has a row
-saying so: an empty dropdown reads as a bug rather than as an empty list. A
-folder that holds plugins with none switched on gets no such row -- saying "none
-installed" about five installed plugins would be worse than saying nothing.
+file copied in by hand is discovered without a restart.
+
+Those three rows are the whole menu. A plugin's commands are not rows here, and
+neither is its state: what a running plugin adds is reached through the `npp-mcp`
+server, which answers `list_plugins` with the plugins this machine has and
+`run_plugin_command` with what one of their commands made of a document. A
+dropdown that grows a row per command is a dropdown whose rows arrive and leave
+while the pointer is over it, and the manager one row up already says what is
+installed. With nothing in the folder the menu still has a row saying so: an
+empty dropdown reads as a bug rather than as an empty list. A folder that holds
+plugins gets no such row -- saying "none installed" about five installed plugins
+would be worse than saying nothing.
 
 Plugins are described in "Plugins".
 
 - Manage Plugins...
 - Open Plugins Folder...
 - Reload Plugins
-- One row per command of an enabled plugin, labelled `Plugin - Command`
 - No Plugins Installed (when the folder is empty)
 
 ### Window
@@ -1935,8 +1936,8 @@ Loading and unloading are not menu rows of their own. They were, one
 the pair made the Plugins dropdown a second, worse copy of the manager: the rows
 shifted every time one of them was used, so the row the user was aiming at was
 not the row under the pointer, and there were two places to look for the same
-state. The manager is the one place now, and the dropdown lists commands and
-nothing else.
+state. The manager is the one place now, and the dropdown is the three rows that
+open it.
 
 ### Managing plugins
 
@@ -1950,11 +1951,38 @@ that hides the disabled half is a manager for people who have already enabled
 them.
 
 "Open Plugins Folder..." opens the directory, and "Import plugin(s)..." in the
-Settings menu copies a `.wasm` file into it. Each command of an enabled plugin
-gets a row in the Plugins menu, labelled `Plugin - Command`, and each enabled
-plugin an `Unload <name>` row. A file that fails to load is recorded rather than
-skipped silently: a plugin that does not appear in the menu is a bug report
-waiting to happen, and the log says which file and why.
+Settings menu copies a `.wasm` file into it. Switching a plugin on puts its
+commands within reach of `npp-mcp` and changes nothing in the editor's menus,
+because no row of any menu belongs to a plugin. A file that fails to load is
+recorded rather than skipped silently: a plugin whose commands never run is a
+bug report waiting to happen, and the log says which file and why.
+
+### Plugins over MCP
+
+`npp-mcp` serves the plugins this machine has, so the commands a plugin adds are
+reachable from anything that speaks the Model Context Protocol. It reads the same
+directory the editor reads and honours the same `plugin <name>` lines in
+`settings.txt`: a plugin switched off in the manager is switched off over the
+protocol, because a way round a switch is not a feature.
+
+`list_plugins` answers with one row per installed plugin -- its name, its file,
+whether it is on, and the commands it offers -- and with the arguments to use
+when one of them is runnable. `run_plugin_command` takes `plugin`, `command` and
+`text`, runs that command over the text with the interpreter and the host
+functions the editor uses, and answers with what the plugin left. Offsets in
+`caret` and `selection` are bytes, as everywhere on the plugin side of the
+boundary, and a selection may name its ends in either order.
+
+The first content block is the document and nothing else, so a caller that asked
+for minified JSON can use the answer as it stands. When the plugin reported
+something -- "valid JSON", the line and column of a parse error, a refusal
+because the document is read-only -- that goes in a second block, and a command
+that only moved the caret or the selection says where it left them: a protocol
+client has no caret to look at.
+
+The folder is read again when a call needs something it does not have, so a
+plugin switched on since the server started is usable by the next call rather
+than by the next process.
 
 ## Localisation
 

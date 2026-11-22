@@ -577,10 +577,13 @@ impl Settings {
                 "plugin" => {
                     // One line per plugin, because a name is a phrase with
                     // spaces in it and a single line of them would need a
-                    // separator no plugin name is allowed to contain.
-                    let name = value.trim();
-                    if !name.is_empty() && !settings.enabled_plugins.iter().any(|n| n == name) {
-                        settings.enabled_plugins.push(name.to_string());
+                    // separator no plugin name is allowed to contain. The rule
+                    // for what a line means lives in the plugin host: the MCP
+                    // server reads the same lines without this parser.
+                    if let Some(name) = nn_core::plugin::enabled_line(line) {
+                        if !settings.enabled_plugins.iter().any(|n| n == name) {
+                            settings.enabled_plugins.push(name.to_string());
+                        }
                     }
                 }
                 "file_dialog" => {

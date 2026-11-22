@@ -422,8 +422,8 @@ mod tests {
     #[test]
     fn a_shortcut_line_without_a_chord_is_just_a_label() {
         assert_eq!(
-            split_shortcut("One row per plugin command, labelled `Plugin - Command`").0,
-            "One row per plugin command, labelled `Plugin - Command`"
+            split_shortcut("A row with no chord in it").0,
+            "A row with no chord in it"
         );
         assert_eq!(
             split_shortcut("New (`Ctrl+N`)"),

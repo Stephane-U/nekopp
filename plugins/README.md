@@ -1,12 +1,12 @@
 # Neko++ plugins
 
-A plugin is a WebAssembly module the editor offers in the `Plugins` menu, one
-row per command. Having the file in the plugins directory is what installs it;
-switching it on is a separate step, and a newly installed plugin starts
-disabled. `Plugins > Manage Plugins...` lists every plugin the editor found,
-says whether it is on, and toggles it. The module cannot open a file, spawn a
-process or reach the network: the host functions below are its entire surface,
-so a plugin is only as dangerous as an editing command can be.
+A plugin is a WebAssembly module that adds editing commands to the editor and to
+the `npp-mcp` server that ships with it. Having the file in the plugins directory
+is what installs it; switching it on is a separate step, and a newly installed
+plugin starts disabled. `Plugins > Manage Plugins...` lists every plugin the
+editor found, says whether it is on, and toggles it. The module cannot open a
+file, spawn a process or reach the network: the host functions below are its
+entire surface, so a plugin is only as dangerous as an editing command can be.
 
 This directory is a separate Cargo workspace because the plugins are built for
 `wasm32-unknown-unknown`, not for the host. The editor's own `cargo build` at
@@ -35,14 +35,20 @@ rebuild is picked up without restarting (the plugins that were on stay on).
 
 ## Switching one on
 
-Installing is not enabling. A plugin that is present but switched off offers no
-commands and no menu row: the `Plugins` menu lists commands, and a switched-off
-plugin has none to list. Open `Plugins > Manage Plugins...`, which shows every
-plugin in the directory with `Enabled` or `Disabled` beside it, move to a row with
-the arrow keys and press Space. The row flips, the status bar says
-`Loaded <Name>` or `Unloaded <Name>`, and the `Plugins` menu grows or loses that
-plugin's commands immediately -- there is no restart and no reload in between.
-`Esc` closes the list.
+Installing is not enabling. A plugin that is present but switched off cannot be
+run: no row of any menu belongs to a plugin, so the state lives in the manager
+and nowhere else. Open `Plugins > Manage Plugins...`, which shows every plugin in
+the directory with `Enabled` or `Disabled` beside it, move to a row with the
+arrow keys and press Space. The row flips, the status bar says `Loaded <Name>` or
+`Unloaded <Name>`, and `npp-mcp` can run that plugin's commands from its next
+call -- there is no restart and no reload of the editor in between. `Esc` closes
+the list.
+
+The commands a plugin adds are not reached from the editor's menus. They are
+served by `npp-mcp`, which reads the same directory and the same `settings.txt`:
+`list_plugins` reports what is installed and what each plugin can do, and
+`run_plugin_command` runs one command over a string and answers with the text the
+plugin left.
 
 The choice is remembered in `settings.txt` in the same directory, one line per
 enabled plugin:
@@ -80,8 +86,7 @@ nn_plugin::plugin! {
 
 The crate needs `crate-type = ["cdylib"]`. Name the file `npp_<something>.wasm`
 if you want `build.sh` to install it for you; nothing else depends on the file
-name. A plugin with several commands gets several menu rows, shown as
-`Name - Command`.
+name. A plugin with several commands offers each of them to `npp-mcp` by name.
 
 The SDK is in [`sdk/`](sdk/src/lib.rs) and its `host` module is the typed
 version of the ABI table below: `text`, `line`, `lines`, `range`, `replace`,
@@ -145,8 +150,8 @@ apart.
 | [`xml`](xml/src/lib.rs) | Pretty Print, Linearize, Check Well-Formedness, Escape Entities, Unescape Entities |
 
 `align` and `halfwidth` work on the selection when there is one and on the
-whole document otherwise, which is what makes them usable from a menu that has
-no way to ask which was meant. `surround` wraps the selection; with nothing
+whole document otherwise, which is what makes them usable from a command that
+has no way to ask which was meant. `surround` wraps the selection; with nothing
 selected it inserts the pair and leaves the caret between them. `json` follows
 the same rule as `align` and `halfwidth`, because JSON is a document on its own
 and a selection is often just the part of it being worked on. `xml` prints and

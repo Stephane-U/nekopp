@@ -13,12 +13,14 @@
 //! a successful call with `isError` -- are exactly the parts that are written and
 //! tested here.
 
+use std::cell::RefCell;
 use std::io::{BufRead, Write};
 
 use serde_json::{json, Map, Value};
 
 use crate::commands::Inventory;
 use crate::doc::Document;
+use crate::plugins::Installed;
 use crate::search;
 
 /// The MCP revision this server speaks.
@@ -48,6 +50,13 @@ pub const INDEX_URI: &str = "nekopp://features";
 pub struct Server {
     doc: Document,
     inventory: Inventory,
+    /// The editor's plugins, and the ones switched on.
+    ///
+    /// Behind a `RefCell` because a request never mutates the server -- every
+    /// method below takes `&self` -- while running a command does leave the
+    /// module's memory changed. That is the one piece of state a tool call
+    /// keeps, and the cell is where it lives.
+    plugins: RefCell<Installed>,
 }
 
 impl Default for Server {
@@ -57,11 +66,25 @@ impl Default for Server {
 }
 
 impl Server {
-    /// Build a server over the embedded reference.
+    /// Build a server over the embedded reference, with no plugins.
+    ///
+    /// A caller that wants the machine's plugins builds them and hands them
+    /// over: the library must not go looking at the filesystem behind a
+    /// caller's back, and a test that did would answer differently on a
+    /// developer's machine than in a clean checkout.
     pub fn new() -> Self {
+        Self::with_plugins(Installed::default())
+    }
+
+    /// Build a server over the embedded reference and `plugins`.
+    pub fn with_plugins(plugins: Installed) -> Self {
         let doc = Document::embedded();
         let inventory = Inventory::from_document(&doc);
-        Self { doc, inventory }
+        Self {
+            doc,
+            inventory,
+            plugins: RefCell::new(plugins),
+        }
     }
 
     /// The reference, for a caller that wants to inspect what is served.
@@ -189,7 +212,9 @@ impl Server {
                 "`get_section` returns one as markdown, `list_sections` is the table ",
                 "of contents, `list_shortcuts` is the whole default keymap, and ",
                 "`get_command` answers about a single command. Every section is also ",
-                "a resource: nekopp://features/<slug>, indexed by nekopp://features."
+                "a resource: nekopp://features/<slug>, indexed by nekopp://features. ",
+                "`list_plugins` is what the editor's WebAssembly plugins add, and ",
+                "`run_plugin_command` runs one of their commands over text you send."
             ),
         }))
     }
@@ -209,6 +234,8 @@ impl Server {
             "list_sections" => Ok(tool_text(self.table_of_contents())),
             "list_shortcuts" => Ok(tool_text(self.shortcut_table())),
             "get_command" => self.get_command(&arguments),
+            "list_plugins" => Ok(self.list_plugins()),
+            "run_plugin_command" => self.run_plugin_command(&arguments),
             other => Err((INVALID_PARAMS, format!("unknown tool: {other}"))),
         }
     }
@@ -297,6 +324,103 @@ impl Server {
                 "No command is called \"{name}\". `list_shortcuts` has the bound ones."
             ))),
         }
+    }
+
+    /// Every installed plugin, with its commands and whether it is switched on.
+    fn list_plugins(&self) -> Value {
+        let mut plugins = self.plugins.borrow_mut();
+        // The folder belongs to the user and changes under a server that has
+        // been running for hours: read it again, so a plugin switched on five
+        // minutes ago is listed now rather than after a restart.
+        plugins.reload();
+        let rows = plugins.rows();
+        let dir = plugins.dir().map(|dir| dir.display().to_string()).unwrap_or_default();
+        if rows.is_empty() {
+            return tool_text(if dir.is_empty() {
+                "No plugins: the configuration directory could not be found, so there is no folder to read.".to_string()
+            } else {
+                format!(
+                    "No plugins are installed in `{dir}`.\n\nA `.wasm` file dropped there is picked up by the next call; `Plugins > Open Plugins Folder...` in the editor opens the folder."
+                )
+            });
+        }
+
+        let on = rows.iter().filter(|row| row.enabled).count();
+        let mut text = format!(
+            "{} plugin{} installed in `{dir}`, {on} switched on.\n\n| Plugin | File | State | Commands |\n|---|---|---|---|\n",
+            rows.len(),
+            if rows.len() == 1 { "" } else { "s" },
+        );
+        for row in &rows {
+            text.push_str(&format!(
+                "| {} | `{}` | {} | {} |\n",
+                row.name,
+                row.file,
+                if row.enabled { "on" } else { "off" },
+                if row.commands.is_empty() {
+                    "none".to_string()
+                } else {
+                    row.commands.join(", ")
+                }
+            ));
+        }
+        for failure in plugins.failures() {
+            text.push_str(&format!("\n{failure}\n"));
+        }
+        // The example names something that exists: a hint that names a plugin
+        // this machine does not have is a hint that fails when it is followed.
+        match rows.iter().find(|row| row.enabled && !row.commands.is_empty()) {
+            Some(row) => text.push_str(&format!(
+                "\nRun one with `run_plugin_command`: {{\"plugin\": \"{}\", \"command\": \"{}\", \"text\": \"...\"}}\nA plugin that is switched off is switched on in `Plugins > Manage Plugins...` in the editor.\n",
+                row.name, row.commands[0]
+            )),
+            None => text.push_str(
+                "\nNo plugin is switched on, so there is no command to run yet. `Plugins > Manage Plugins...` in the editor switches one on.\n",
+            ),
+        }
+        tool_text(text)
+    }
+
+    /// Runs one command of one plugin over the text the caller sent.
+    fn run_plugin_command(&self, arguments: &Value) -> Result<Value, (i64, String)> {
+        let plugin = required_string(arguments, "plugin")?;
+        let command = required_string(arguments, "command")?;
+        let text = match arguments.get("text") {
+            Some(Value::String(text)) => text.clone(),
+            Some(_) => {
+                return Err((INVALID_PARAMS, "`text` must be a string".to_string()));
+            }
+            None => {
+                return Err((
+                    INVALID_PARAMS,
+                    "missing required argument `text`".to_string(),
+                ))
+            }
+        };
+        let caret = optional_index(arguments, "caret")?.unwrap_or(0);
+        let selection = optional_selection(arguments, "selection")?.unwrap_or((0, 0));
+
+        let outcome = match self
+            .plugins
+            .borrow_mut()
+            .run(&plugin, &command, &text, caret, selection)
+        {
+            Ok(outcome) => outcome,
+            // A command that could not run is a successful call with a failed
+            // tool, which is the protocol's own rule: only a request the server
+            // cannot understand is an error object.
+            Err(error) => return Ok(tool_error(format!("{error}\n"))),
+        };
+
+        let mut notes = outcome.log.clone();
+        // A client cannot see a caret, so a command that only moves it has to
+        // say where it went or the command looks like it did nothing.
+        if let Some((start, end)) = outcome.selection {
+            notes.push(format!("selected bytes {start}..{end}"));
+        } else if let Some(caret) = outcome.caret {
+            notes.push(format!("caret at byte {caret}"));
+        }
+        Ok(tool_document(outcome.text.unwrap_or(text), notes))
     }
 
     /// The section that documents a command, from the menu it lives in.
@@ -424,6 +548,23 @@ fn tool_error(text: String) -> Value {
     })
 }
 
+/// A successful tool call that returns a document: the text the plugin left
+/// behind, and a second block when it had anything to say.
+///
+/// Two blocks rather than a header on the text, because the first block is the
+/// answer: a client that asked for minified JSON should not have to strip a line
+/// off it before using it.
+fn tool_document(text: String, notes: Vec<String>) -> Value {
+    let mut content = vec![json!({"type": "text", "text": text})];
+    if !notes.is_empty() {
+        content.push(json!({
+            "type": "text",
+            "text": format!("The plugin reported:\n{}", notes.join("\n")),
+        }));
+    }
+    json!({"content": content, "isError": false})
+}
+
 fn error_response(id: Value, code: i64, message: &str) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message}})
 }
@@ -446,6 +587,46 @@ fn required_string(arguments: &Value, name: &str) -> Result<String, (i64, String
             INVALID_PARAMS,
             format!("missing required argument `{name}`"),
         )),
+    }
+}
+
+/// An optional count of bytes.
+///
+/// A byte offset rather than a character offset, because that is the unit the
+/// plugin ABI speaks and the unit the answer is measured in. Named in the tool
+/// schema so a caller can see which one it is being asked for.
+fn optional_index(arguments: &Value, name: &str) -> Result<Option<usize>, (i64, String)> {
+    match arguments.get(name) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Number(number)) => match number.as_u64() {
+            Some(value) => Ok(Some(value as usize)),
+            None => Err((INVALID_PARAMS, format!("`{name}` must be 0 or more"))),
+        },
+        Some(_) => Err((INVALID_PARAMS, format!("`{name}` must be a number"))),
+    }
+}
+
+/// An optional `[start, end]` pair of byte offsets.
+///
+/// Either order: a selection dragged backwards is still a selection, and the
+/// plugin host puts the ends in order before the ABI sees them.
+fn optional_selection(
+    arguments: &Value,
+    name: &str,
+) -> Result<Option<(usize, usize)>, (i64, String)> {
+    match arguments.get(name) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Array(values)) if values.len() == 2 => {
+            let mut ends = [0usize; 2];
+            for (index, value) in values.iter().enumerate() {
+                let Some(number) = value.as_u64() else {
+                    return Err((INVALID_PARAMS, format!("`{name}` needs two numbers")));
+                };
+                ends[index] = number as usize;
+            }
+            Ok(Some((ends[0], ends[1])))
+        }
+        Some(_) => Err((INVALID_PARAMS, format!("`{name}` must be [start, end]"))),
     }
 }
 
@@ -524,12 +705,52 @@ fn tools() -> Vec<Value> {
                 "required": ["name"]
             }
         }),
+        json!({
+            "name": "list_plugins",
+            "description": "List the WebAssembly plugins installed for the editor: each one's name, its file, whether it is switched on, and the commands it offers. Only a plugin that is switched on can be run.",
+            "inputSchema": {"type": "object", "properties": {}}
+        }),
+        json!({
+            "name": "run_plugin_command",
+            "description": "Run one command of one of the editor's WebAssembly plugins over a string, and return what the plugin made of the text. `list_plugins` says which plugins and commands this machine has.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "plugin": {
+                        "type": "string",
+                        "description": "The plugin's name, as `list_plugins` spells it, e.g. \"JSON\"."
+                    },
+                    "command": {
+                        "type": "string",
+                        "description": "The command's name, as `list_plugins` spells it, e.g. \"Minify\"."
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "The document to work on. It may be empty."
+                    },
+                    "caret": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Byte offset of the caret. Defaults to 0, the start of the document."
+                    },
+                    "selection": {
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 0},
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Byte offsets of a selection, in either order. A command that works on a range uses it; without one it works on the whole document."
+                    }
+                },
+                "required": ["plugin", "command", "text"]
+            }
+        }),
     ]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn server() -> Server {
         Server::new()
@@ -632,7 +853,9 @@ mod tests {
                 "get_section",
                 "list_sections",
                 "list_shortcuts",
-                "get_command"
+                "get_command",
+                "list_plugins",
+                "run_plugin_command"
             ]
         );
         for tool in tools {
@@ -703,10 +926,10 @@ mod tests {
             "params": {"name": "list_sections", "arguments": {}}
         }));
         let text = text_of(&response);
-        assert!(text.starts_with("Neko++ Feature Reference -- 27 chapters, 75 subsections"));
+        assert!(text.starts_with("Neko++ Feature Reference -- 27 chapters, 76 subsections"));
         assert!(text.contains("## The Menus -- nekopp://features/the-menus"));
         assert!(text.contains("  ### File -- nekopp://features/file"));
-        assert_eq!(text.lines().count(), 103);
+        assert_eq!(text.lines().count(), 104);
     }
 
     #[test]
@@ -795,7 +1018,7 @@ mod tests {
     fn resources_list_the_index_and_every_section() {
         let response = call(json!({"jsonrpc": "2.0", "id": 15, "method": "resources/list"}));
         let resources = result_of(&response)["resources"].as_array().unwrap();
-        assert_eq!(resources.len(), 103);
+        assert_eq!(resources.len(), 104);
         assert_eq!(resources[0]["uri"], INDEX_URI);
         assert_eq!(resources[0]["mimeType"], "text/markdown");
         assert!(resources
@@ -861,6 +1084,146 @@ mod tests {
     fn prompts_list_is_empty_rather_than_absent() {
         let response = call(json!({"jsonrpc": "2.0", "id": 20, "method": "prompts/list"}));
         assert_eq!(result_of(&response), &json!({"prompts": []}));
+    }
+
+    /// A server over a fresh folder holding the fixture plugin.
+    ///
+    /// The folder is this test's own, so nothing here depends on what the
+    /// machine running the tests happens to have installed.
+    fn server_with_plugins(name: &str, enabled: &[&str]) -> (Server, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("npp-mcp-server-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("npp_test.wasm"), nn_core::plugin::fixture::module()).unwrap();
+        let names: Vec<String> = enabled.iter().map(|name| name.to_string()).collect();
+        let server = Server::with_plugins(Installed::load_in(&dir, &names));
+        (server, dir)
+    }
+
+    fn tool_request(id: u32, name: &str, arguments: Value) -> Value {
+        json!({
+            "jsonrpc": "2.0", "id": id, "method": "tools/call",
+            "params": {"name": name, "arguments": arguments}
+        })
+    }
+
+    fn block(response: &Value, index: usize) -> &str {
+        result_of(response)["content"][index]["text"]
+            .as_str()
+            .expect("a text block")
+    }
+
+    #[test]
+    fn list_plugins_names_every_plugin_and_its_commands() {
+        let (server, dir) = server_with_plugins("list", &["Test"]);
+        let response = server
+            .handle(&tool_request(30, "list_plugins", json!({})))
+            .unwrap();
+        let text = text_of(&response);
+        assert_eq!(result_of(&response)["isError"], false);
+        assert!(text.contains("1 plugin installed"), "{text}");
+        assert!(text.contains("1 switched on"), "{text}");
+        assert!(text.contains("| Test | `npp_test.wasm` | on | Uppercase, Log |"), "{text}");
+        // The hint names a command that is really there, so following it works.
+        assert!(text.contains(r#""plugin": "Test", "command": "Uppercase""#), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn list_plugins_marks_a_switched_off_plugin_and_offers_nothing_to_run() {
+        let (server, dir) = server_with_plugins("list-off", &[]);
+        let response = server
+            .handle(&tool_request(31, "list_plugins", json!({})))
+            .unwrap();
+        let text = text_of(&response);
+        assert!(text.contains("| Test | `npp_test.wasm` | off | Uppercase, Log |"), "{text}");
+        assert!(text.contains("No plugin is switched on"), "{text}");
+        assert!(!text.contains("run_plugin_command`: {"), "{text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn list_plugins_with_no_folder_says_so_without_an_error() {
+        let response = call(tool_request(32, "list_plugins", json!({})));
+        assert_eq!(result_of(&response)["isError"], false);
+        assert!(text_of(&response).contains("No plugins:"));
+    }
+
+    #[test]
+    fn run_plugin_command_returns_the_text_the_plugin_left() {
+        let (server, dir) = server_with_plugins("run", &["Test"]);
+        let response = server
+            .handle(&tool_request(
+                33,
+                "run_plugin_command",
+                json!({"plugin": "Test", "command": "Uppercase", "text": "original"}),
+            ))
+            .unwrap();
+        assert_eq!(result_of(&response)["isError"], false);
+        // One block, and it is the answer: nothing to strip off it.
+        assert_eq!(result_of(&response)["content"].as_array().unwrap().len(), 1);
+        assert_eq!(block(&response, 0), "REPLACED");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_plugin_that_only_reports_answers_with_the_text_and_a_second_block() {
+        let (server, dir) = server_with_plugins("report", &["Test"]);
+        let response = server
+            .handle(&tool_request(
+                34,
+                "run_plugin_command",
+                json!({"plugin": "Test", "command": "Log", "text": "original"}),
+            ))
+            .unwrap();
+        // The document is unchanged and the log is not part of it.
+        assert_eq!(block(&response, 0), "original");
+        assert!(block(&response, 1).contains("The plugin reported:"), "{response}");
+        assert!(block(&response, 1).contains("REPLACED"), "{response}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_switched_off_plugin_is_a_tool_error_that_says_where_the_switch_is() {
+        let (server, dir) = server_with_plugins("refused", &[]);
+        let response = server
+            .handle(&tool_request(
+                35,
+                "run_plugin_command",
+                json!({"plugin": "Test", "command": "Uppercase", "text": "original"}),
+            ))
+            .unwrap();
+        assert_eq!(result_of(&response)["isError"], true);
+        assert!(text_of(&response).contains("switched off"));
+        assert!(text_of(&response).contains("Manage Plugins"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_unknown_command_is_a_tool_error_that_lists_the_ones_there_are() {
+        let (server, dir) = server_with_plugins("bad-command", &["Test"]);
+        let response = server
+            .handle(&tool_request(
+                36,
+                "run_plugin_command",
+                json!({"plugin": "Test", "command": "Downcase", "text": ""}),
+            ))
+            .unwrap();
+        assert_eq!(result_of(&response)["isError"], true);
+        assert!(text_of(&response).contains("has no command called \"Downcase\""));
+        assert!(text_of(&response).contains("Uppercase, Log"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_call_without_text_is_an_invalid_params_error() {
+        let response = call(tool_request(
+            37,
+            "run_plugin_command",
+            json!({"plugin": "Test", "command": "Uppercase"}),
+        ));
+        assert_eq!(response["error"]["code"], -32602);
+        assert!(response["error"]["message"].as_str().unwrap().contains("`text`"));
     }
 
     #[test]

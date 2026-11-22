@@ -1039,7 +1039,8 @@ fn main() {
 
     if let Some(dir) = &flags.plugins {
         // The same path the editor takes at startup: load every `.wasm` in the
-        // directory, then point the menu at the commands.
+        // directory, then tell the menu how many there are. The commands are
+        // not menu rows; `plugin_run` reaches one directly.
         let mut plugins = nn_app::Plugins::discover(std::path::Path::new(dir));
         for index in 0..plugins.available() {
             let _ = plugins.enable(index);
@@ -1047,10 +1048,7 @@ fn main() {
         for line in plugins.describe() {
             println!("plugin: {line}");
         }
-        menu.set_plugins(nn_app::menu::PluginSource {
-            commands: plugins.commands(),
-            installed: plugins.available(),
-        });
+        menu.set_plugins(plugins.available());
         if let Some(spec) = &flags.plugin_run {
             // `plugin:command`, so one flag can reach any command of any
             // plugin without a second flag to say which plugin.

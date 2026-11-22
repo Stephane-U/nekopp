@@ -25,7 +25,6 @@ use nn_app::{
     TabBar, TabColour, TabInfo, TabLayout, Theme, ThemeChoice, Toolbar, Tooltip, WindowSort,
 };
 use nn_app::context;
-use nn_app::plugin::Context;
 use nn_app::renderer::{UI_FONT_SIZE, UI_LINE_HEIGHT};
 use nn_app::layout::{self, Rect};
 use nn_app::nppimport;
@@ -5600,7 +5599,6 @@ impl State {
             Action::Language(index) => self.set_language(Language::Udl(index)),
             Action::LanguagePlain => self.set_language(Language::Plain),
             Action::LanguageBuiltIn(index) => self.set_language(Language::Spec(index)),
-            Action::Plugin(plugin, command) => self.run_plugin(plugin, command),
             // The placeholder row in an empty Plugins menu.
             Action::NoOp => {}
             Action::ShortcutMapper => {
@@ -6863,7 +6861,12 @@ impl State {
         }
         self.plugins = load_plugins();
         self.sync_plugin_menu();
-        let commands = self.plugins.commands().len();
+        let commands: usize = self
+            .plugins
+            .inventory()
+            .iter()
+            .map(|entry| entry.commands.len())
+            .sum();
         self.status.set_message(Some(format!(
             "Imported {}: {} command(s)",
             name.to_string_lossy(),
@@ -7580,73 +7583,13 @@ impl State {
         self.menu.set_languages(&names);
     }
 
-    /// Rewrites the Plugins menu from the loaded plugins.
-    fn sync_plugin_menu(&mut self) {
-        let source = nn_app::menu::PluginSource {
-            commands: self.plugins.commands(),
-            installed: self.plugins.available(),
-        };
-        self.menu.set_plugins(source);
-    }
-
-    /// Runs one command of one plugin against the active document.
+    /// Rewrites the Plugins menu for a folder holding what it holds now.
     ///
-    /// The plugin works on a copy, so a command that traps leaves the document
-    /// untouched. A command that succeeds is applied as one edit, which is what
-    /// makes it one undo step: a plugin that rewrites a thousand lines should
-    /// be undone with one keystroke, not a thousand.
-    fn run_plugin(&mut self, plugin: usize, command: usize) {
-        let Some(tab) = self.tabs.get(self.active) else {
-            return;
-        };
-        let text = tab.editor.doc.text();
-        // The editor counts characters and a plugin counts bytes, so the whole
-        // crossing is converted here: in one place, once per command, rather
-        // than in every plugin that has to open a document.
-        let context = Context {
-            text: &text,
-            caret: tab.editor.doc.char_to_byte(tab.editor.caret()),
-            selection: (
-                tab.editor.doc.char_to_byte(tab.editor.selection_start()),
-                tab.editor.doc.char_to_byte(tab.editor.selection_end()),
-            ),
-            read_only: tab.editor.doc.is_read_only(),
-        };
-        let outcome = match self.plugins.run(plugin, command, &context) {
-            Ok(outcome) => outcome,
-            Err(error) => {
-                self.status.set_message(Some(format!("Plugin failed: {error}")));
-                self.window.request_redraw();
-                return;
-            }
-        };
-        for line in &outcome.log {
-            println!("[plugin] {line}");
-        }
-        if let Some(new) = outcome.text {
-            if new != text {
-                self.after_edit(|ed| {
-                    let len = ed.doc.len_chars();
-                    ed.replace_ranges(&[(0..len, new.clone())]);
-                });
-            }
-        }
-        // A selection *is* a caret with an anchor, so a command that sets one
-        // has said where the user now is and a separate caret would contradict
-        // it. `set_caret` alone still works for a command that only moves.
-        if let Some((start, end)) = outcome.selection {
-            let (start, end) = {
-                let doc = &self.tab().editor.doc;
-                (doc.byte_to_char(start), doc.byte_to_char(end))
-            };
-            self.tab_mut().editor.select_range(start..end);
-            self.tab_mut().editor.ensure_caret_visible();
-        } else if let Some(caret) = outcome.caret {
-            let caret = self.tab().editor.doc.byte_to_char(caret);
-            self.tab_mut().editor.set_caret(caret);
-            self.tab_mut().editor.ensure_caret_visible();
-        }
-        self.window.request_redraw();
+    /// One number crosses: the menu says "No Plugins Installed" or it does not.
+    /// Nothing else in it depends on the disk, which is why switching a plugin
+    /// on does not change the length of the dropdown under the pointer.
+    fn sync_plugin_menu(&mut self) {
+        self.menu.set_plugins(self.plugins.available());
     }
 
     /// Opens the go-to-line prompt.

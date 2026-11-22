@@ -1,29 +1,35 @@
 //! Loading WebAssembly plugins and running their commands.
 //!
-//! The interpreter lives in `nn-core::wasm`; this module is the bridge between
-//! it and the editor. Two things happen here. First, a plugin is given a
+//! The interpreter lives in [`crate::wasm`]; this module is the bridge between
+//! it and a document. Two things happen here. First, a plugin is given a
 //! [`Bridge`] -- a scratch copy of the document, the caret, and a log -- rather
 //! than the document itself, so a command that traps halfway through leaves the
-//! editor's text untouched. Second, the bridge is read back afterwards and the
-//! change applied in one step, which is what makes a plugin's edit a single
-//! undo entry instead of a hundred.
+//! text untouched. Second, the bridge is read back afterwards and the change
+//! applied in one step, which is what makes a plugin's edit a single undo entry
+//! instead of a hundred.
 //!
 //! Plugins are discovered in `plugins/` under the configuration directory, one
-//! `.wasm` file each. A file that fails to load is recorded rather than
-//! skipped silently: a plugin that does not appear in the menu is a bug report
-//! waiting to happen, and the log says which file and why.
+//! `.wasm` file each. A file that fails to load is recorded rather than skipped
+//! silently: a plugin whose commands never run is a bug report waiting to
+//! happen, and the log says which file and why.
 //!
 //! Loading is not a startup step. [`Plugins::enable`] and [`Plugins::disable`]
-//! switch one plugin on or off from the manager, and the directory is the list
-//! of what is installed while the editor's idea of what is *running* is a
-//! second, narrower list that a user can edit without restarting.
+//! switch one plugin on or off, and the directory is the list of what is
+//! installed while the editor's idea of what is *running* is a second, narrower
+//! list that a user can edit without restarting.
+//!
+//! This module is in `nn-core` rather than beside the window because there is
+//! no window in it: `npp` runs a command against the document being edited and
+//! `npp-mcp` runs the same command against text a client handed it. One
+//! implementation behind both is what stops a plugin from behaving one way in
+//! the editor and another over the protocol.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use nn_core::wasm::abi;
-use nn_core::wasm::{Error, Host, Plugin, Value};
+use crate::wasm::abi;
+use crate::wasm::{Error, Host, Plugin, Value};
 
 /// What a plugin is given to work on: the document, and where the user is in it.
 ///
@@ -295,14 +301,6 @@ pub struct Outcome {
     pub log: Vec<String>,
 }
 
-/// One row of the Plugins menu.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Command {
-    pub plugin: usize,
-    pub index: usize,
-    pub label: String,
-}
-
 /// A running plugin: the module, and the cell its host writes into.
 struct Loaded {
     plugin: Plugin,
@@ -320,9 +318,9 @@ struct Entry {
     /// What the module calls itself, read once when the folder was scanned.
     name: String,
     path: PathBuf,
-    /// How many commands the module offered at scan time, so the manager can
-    /// say something useful about a plugin that is switched off.
-    commands: usize,
+    /// The commands the module offered at scan time, so something useful can be
+    /// said about a plugin that is switched off.
+    commands: Vec<String>,
     /// The module and its bridge, when the plugin is enabled.
     loaded: Option<Loaded>,
 }
@@ -334,11 +332,13 @@ pub struct Inventory {
     pub name: String,
     /// The file it came from, without its directory.
     pub file: String,
-    /// Whether the module is instantiated and its commands are in the menu.
+    /// Whether the module is instantiated and its commands can be run.
     pub enabled: bool,
-    /// How many commands it offers. Read at scan time, so the manager can say
-    /// something useful about a plugin that is switched off.
-    pub commands: usize,
+    /// The commands it offers, by the name the module gives each one.
+    ///
+    /// Read from the running module when there is one and from the scan when
+    /// there is not, so a switched-off plugin still says what it would add.
+    pub commands: Vec<String>,
 }
 
 /// Every plugin in the folder, the ones that are running, and every file that
@@ -346,7 +346,7 @@ pub struct Inventory {
 ///
 /// The folder is the list of what is installed and this struct is the list of
 /// what is running: a plugin that is installed but switched off keeps its name,
-/// its path and its command count, and nothing of the module. That is the state
+/// its path and its command names, and nothing of the module. That is the state
 /// the user asked for when they switched it off, and it is also why a rebuilt
 /// file comes back as the new build when it is switched on again.
 #[derive(Default)]
@@ -420,6 +420,11 @@ impl Plugins {
     }
 
     /// One row per installed plugin, in folder order.
+    ///
+    /// The command names come from the running module when there is one, and
+    /// from the scan otherwise, so a plugin rebuilt on disk and switched on
+    /// again reports the commands it has now rather than the ones the old file
+    /// had when the folder was read.
     pub fn inventory(&self) -> Vec<Inventory> {
         self.entries
             .iter()
@@ -432,7 +437,10 @@ impl Plugins {
                     .unwrap_or("?")
                     .to_owned(),
                 enabled: entry.loaded.is_some(),
-                commands: entry.commands,
+                commands: match &entry.loaded {
+                    Some(loaded) => loaded.plugin.commands().to_vec(),
+                    None => entry.commands.clone(),
+                },
             })
             .collect()
     }
@@ -531,34 +539,6 @@ impl Plugins {
         Some(entry.name.clone())
     }
 
-    /// Every command of every running plugin, in folder order.
-    ///
-    /// `plugin` is the entry's index in the folder, not a count of the running
-    /// ones: the menu hands it straight back to [`run`](Self::run), and an index
-    /// that survives switching a neighbour off is one less way for the two
-    /// lists to disagree.
-    pub fn commands(&self) -> Vec<Command> {
-        let mut out = Vec::new();
-        for (plugin, entry) in self.entries.iter().enumerate() {
-            let Some(loaded) = &entry.loaded else {
-                continue;
-            };
-            for (index, name) in loaded.plugin.commands().iter().enumerate() {
-                out.push(Command {
-                    plugin,
-                    index,
-                    label: format!("{} - {name}", entry.name),
-                });
-            }
-        }
-        out
-    }
-
-    /// The menu labels, which is what the menu bar wants.
-    pub fn labels(&self) -> Vec<String> {
-        self.commands().into_iter().map(|command| command.label).collect()
-    }
-
     /// One line per running plugin and per file that did not load, for the log.
     pub fn describe(&self) -> Vec<String> {
         let mut out: Vec<String> = self
@@ -613,195 +593,234 @@ impl Plugins {
     }
 }
 
-/// Reads a plugin's name and command count without keeping it running.
+/// Reads a plugin's name and commands without keeping it running.
 ///
 /// The name lives in the module's own data, so the only way to ask is to
 /// instantiate it. The instance is dropped on the way out: installation is a
 /// file, and this is a scan.
-fn probe(path: &Path, stem: &str) -> Result<(String, usize), String> {
+fn probe(path: &Path, stem: &str) -> Result<(String, Vec<String>), String> {
     let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
     let bridge = Rc::new(RefCell::new(Bridge::default()));
     let host = DocumentHost::new(Rc::clone(&bridge));
     let plugin = Plugin::load(&bytes, stem, Box::new(host)).map_err(|error| error.to_string())?;
-    Ok((plugin.name().to_owned(), plugin.commands().len()))
+    Ok((plugin.name().to_owned(), plugin.commands().to_vec()))
+}
+
+/// The plugin a settings line switches on, if it is one.
+///
+/// The line is `plugin <name>`: the keyword, a space, and a name that may hold
+/// spaces of its own. One line per plugin because a name is a phrase -- "Half
+/// Width" -- and a list of them on one line would need a separator that no
+/// plugin name is allowed to contain.
+///
+/// Both readers of the file go through here: the editor, which parses the rest
+/// of its keywords in the same loop, and `npp-mcp`, which reads these lines and
+/// nothing else. A rule written twice is a rule that disagrees with itself the
+/// first time one side is corrected.
+pub fn enabled_line(line: &str) -> Option<&str> {
+    let (keyword, value) = line.trim().split_once(' ')?;
+    if keyword != "plugin" {
+        return None;
+    }
+    let name = value.trim();
+    (!name.is_empty()).then_some(name)
+}
+
+/// A plugin to load, for the tests of anything that has to load one.
+///
+/// Two commands: `Uppercase` replaces the document with `REPLACED`, and `Log`
+/// logs `REPLACED` and leaves the text alone.
+///
+/// Assembled here from the same constants the interpreter uses rather than kept
+/// as a `.wasm` file in the tree, because a fixture nothing rebuilds is a
+/// fixture that stops describing the ABI the first time the ABI moves. A
+/// module rather than a `#[cfg(test)]` item because `nn-mcp` tests its plugin
+/// tools against the same bytes: the editor and the server that runs its
+/// plugins should not each keep their own idea of what a plugin is.
+///
+/// Behind the `fixture` feature, so neither binary ships it; `cfg(test)` turns
+/// it on for this crate's own tests.
+#[cfg(any(test, feature = "fixture"))]
+pub mod fixture {
+    use crate::wasm::abi;
+
+fn leb(mut value: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    loop {
+        let byte = (value & 0x7F) as u8;
+        value >>= 7;
+        if value == 0 {
+            out.push(byte);
+            return out;
+        }
+        out.push(byte | 0x80);
+    }
+}
+
+fn sleb(mut value: i32) -> Vec<u8> {
+    let mut out = Vec::new();
+    loop {
+        let byte = (value & 0x7F) as u8;
+        value >>= 7;
+        let done = (value == 0 && byte & 0x40 == 0) || (value == -1 && byte & 0x40 != 0);
+        if done {
+            out.push(byte);
+            return out;
+        }
+        out.push(byte | 0x80);
+    }
+}
+
+fn section(id: u8, body: Vec<u8>) -> Vec<u8> {
+    let mut out = vec![id];
+    out.extend(leb(body.len() as u32));
+    out.extend(body);
+    out
+}
+
+fn vec_of(items: &[Vec<u8>]) -> Vec<u8> {
+    let mut out = leb(items.len() as u32);
+    for item in items {
+        out.extend_from_slice(item);
+    }
+    out
+}
+
+fn const_i32(value: i32) -> Vec<u8> {
+    let mut out = vec![0x41];
+    out.extend(sleb(value));
+    out
+}
+
+/// A plugin with two commands. Command 0 replaces the document with
+/// `REPLACED`; command 1 logs `REPLACED` and leaves the text alone.
+///
+/// The data segment is laid out as `Test\0Uppercase\0Log\0REPLACED\0`, so
+/// the name is at 0, the first command name at 5, the second at 15, and the
+/// replacement text at 19.
+pub fn module() -> Vec<u8> {
+    let mut data = Vec::new();
+    for text in ["Test", "Uppercase", "Log", "REPLACED"] {
+        data.extend_from_slice(text.as_bytes());
+        data.push(0);
+    }
+
+    // 0: () -> i32, 1: (i32) -> i32, 2: (i32, i32) -> i32,
+    // 3: (i32, i32) -> (), 4: (i32) -> ()
+    let types = vec_of(&[
+        vec![0x60, 0, 1, 0x7F],
+        vec![0x60, 1, 0x7F, 1, 0x7F],
+        vec![0x60, 2, 0x7F, 0x7F, 1, 0x7F],
+        vec![0x60, 2, 0x7F, 0x7F, 0],
+        vec![0x60, 1, 0x7F, 0],
+    ]);
+
+    // Imports: text_replace (type 2) then log (type 3).
+    let mut imports = leb(2);
+    for (name, ty) in [("text_replace", 2u32), ("log", 3)] {
+        imports.extend(leb(abi::HOST_MODULE.len() as u32));
+        imports.extend_from_slice(abi::HOST_MODULE.as_bytes());
+        imports.extend(leb(name.len() as u32));
+        imports.extend_from_slice(name.as_bytes());
+        imports.push(0x00);
+        imports.extend(leb(ty));
+    }
+
+    let mut name_body = const_i32(0);
+    name_body.push(0x0B);
+
+    let mut count_body = const_i32(2);
+    count_body.push(0x0B);
+
+    // local.get 0, i32.eqz, if (result i32) 5 else 15 end
+    let mut command_body = vec![0x20, 0, 0x45, 0x04, 0x7F];
+    command_body.extend(const_i32(5));
+    command_body.push(0x05);
+    command_body.extend(const_i32(15));
+    command_body.push(0x0B);
+    command_body.push(0x0B);
+
+    // local.get 0, i32.eqz, if
+    //   i32.const 19, i32.const 8, call 0, drop
+    // else
+    //   i32.const 19, i32.const 8, call 1
+    // end
+    let mut run_body = vec![0x20, 0, 0x45, 0x04, 0x40];
+    run_body.extend(const_i32(19));
+    run_body.extend(const_i32(8));
+    run_body.extend_from_slice(&[0x10, 0, 0x1A]);
+    run_body.push(0x05);
+    run_body.extend(const_i32(19));
+    run_body.extend(const_i32(8));
+    run_body.extend_from_slice(&[0x10, 1]);
+    run_body.push(0x0B);
+    run_body.push(0x0B);
+
+    let funcs = [(0u32, name_body), (0, count_body), (1, command_body), (4, run_body)];
+    let function_section = vec_of(&funcs.iter().map(|(t, _)| leb(*t)).collect::<Vec<_>>());
+    let code_section = vec_of(
+        &funcs
+            .iter()
+            .map(|(_, body)| {
+                let mut locals = vec![0u8];
+                locals.extend_from_slice(body);
+                let mut out = leb(locals.len() as u32);
+                out.extend(locals);
+                out
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let exports = [
+        (abi::EXPORT_NAME, 2u32),
+        (abi::EXPORT_COMMAND_COUNT, 3),
+        (abi::EXPORT_COMMAND_NAME, 4),
+        (abi::EXPORT_RUN, 5),
+    ];
+    let export_section = vec_of(
+        &exports
+            .iter()
+            .map(|(name, index)| {
+                let mut out = leb(name.len() as u32);
+                out.extend_from_slice(name.as_bytes());
+                out.push(0x00);
+                out.extend(leb(*index));
+                out
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let mut data_body = leb(1);
+    data_body.extend_from_slice(&[0x00, 0x41, 0x00, 0x0B]);
+    data_body.extend(leb(data.len() as u32));
+    data_body.extend_from_slice(&data);
+
+    let mut bytes = b"\0asm".to_vec();
+    bytes.extend_from_slice(&[1, 0, 0, 0]);
+    bytes.extend(section(1, types));
+    bytes.extend(section(2, imports));
+    bytes.extend(section(3, function_section));
+    bytes.extend(section(5, vec_of(&[vec![0x00, 1]])));
+    bytes.extend(section(7, export_section));
+    bytes.extend(section(10, code_section));
+    bytes.extend(section(11, data_body));
+    bytes
+}
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn leb(mut value: u32) -> Vec<u8> {
-        let mut out = Vec::new();
-        loop {
-            let byte = (value & 0x7F) as u8;
-            value >>= 7;
-            if value == 0 {
-                out.push(byte);
-                return out;
-            }
-            out.push(byte | 0x80);
-        }
-    }
-
-    fn sleb(mut value: i32) -> Vec<u8> {
-        let mut out = Vec::new();
-        loop {
-            let byte = (value & 0x7F) as u8;
-            value >>= 7;
-            let done = (value == 0 && byte & 0x40 == 0) || (value == -1 && byte & 0x40 != 0);
-            if done {
-                out.push(byte);
-                return out;
-            }
-            out.push(byte | 0x80);
-        }
-    }
-
-    fn section(id: u8, body: Vec<u8>) -> Vec<u8> {
-        let mut out = vec![id];
-        out.extend(leb(body.len() as u32));
-        out.extend(body);
-        out
-    }
-
-    fn vec_of(items: &[Vec<u8>]) -> Vec<u8> {
-        let mut out = leb(items.len() as u32);
-        for item in items {
-            out.extend_from_slice(item);
-        }
-        out
-    }
-
-    fn const_i32(value: i32) -> Vec<u8> {
-        let mut out = vec![0x41];
-        out.extend(sleb(value));
-        out
-    }
-
-    /// A plugin with two commands. Command 0 replaces the document with
-    /// `REPLACED`; command 1 logs `REPLACED` and leaves the text alone.
-    ///
-    /// The data segment is laid out as `Test\0Uppercase\0Log\0REPLACED\0`, so
-    /// the name is at 0, the first command name at 5, the second at 15, and the
-    /// replacement text at 19.
-    fn build() -> Vec<u8> {
-        let mut data = Vec::new();
-        for text in ["Test", "Uppercase", "Log", "REPLACED"] {
-            data.extend_from_slice(text.as_bytes());
-            data.push(0);
-        }
-
-        // 0: () -> i32, 1: (i32) -> i32, 2: (i32, i32) -> i32,
-        // 3: (i32, i32) -> (), 4: (i32) -> ()
-        let types = vec_of(&[
-            vec![0x60, 0, 1, 0x7F],
-            vec![0x60, 1, 0x7F, 1, 0x7F],
-            vec![0x60, 2, 0x7F, 0x7F, 1, 0x7F],
-            vec![0x60, 2, 0x7F, 0x7F, 0],
-            vec![0x60, 1, 0x7F, 0],
-        ]);
-
-        // Imports: text_replace (type 2) then log (type 3).
-        let mut imports = leb(2);
-        for (name, ty) in [("text_replace", 2u32), ("log", 3)] {
-            imports.extend(leb(abi::HOST_MODULE.len() as u32));
-            imports.extend_from_slice(abi::HOST_MODULE.as_bytes());
-            imports.extend(leb(name.len() as u32));
-            imports.extend_from_slice(name.as_bytes());
-            imports.push(0x00);
-            imports.extend(leb(ty));
-        }
-
-        let mut name_body = const_i32(0);
-        name_body.push(0x0B);
-
-        let mut count_body = const_i32(2);
-        count_body.push(0x0B);
-
-        // local.get 0, i32.eqz, if (result i32) 5 else 15 end
-        let mut command_body = vec![0x20, 0, 0x45, 0x04, 0x7F];
-        command_body.extend(const_i32(5));
-        command_body.push(0x05);
-        command_body.extend(const_i32(15));
-        command_body.push(0x0B);
-        command_body.push(0x0B);
-
-        // local.get 0, i32.eqz, if
-        //   i32.const 19, i32.const 8, call 0, drop
-        // else
-        //   i32.const 19, i32.const 8, call 1
-        // end
-        let mut run_body = vec![0x20, 0, 0x45, 0x04, 0x40];
-        run_body.extend(const_i32(19));
-        run_body.extend(const_i32(8));
-        run_body.extend_from_slice(&[0x10, 0, 0x1A]);
-        run_body.push(0x05);
-        run_body.extend(const_i32(19));
-        run_body.extend(const_i32(8));
-        run_body.extend_from_slice(&[0x10, 1]);
-        run_body.push(0x0B);
-        run_body.push(0x0B);
-
-        let funcs = [(0u32, name_body), (0, count_body), (1, command_body), (4, run_body)];
-        let function_section = vec_of(&funcs.iter().map(|(t, _)| leb(*t)).collect::<Vec<_>>());
-        let code_section = vec_of(
-            &funcs
-                .iter()
-                .map(|(_, body)| {
-                    let mut locals = vec![0u8];
-                    locals.extend_from_slice(body);
-                    let mut out = leb(locals.len() as u32);
-                    out.extend(locals);
-                    out
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        let exports = [
-            (abi::EXPORT_NAME, 2u32),
-            (abi::EXPORT_COMMAND_COUNT, 3),
-            (abi::EXPORT_COMMAND_NAME, 4),
-            (abi::EXPORT_RUN, 5),
-        ];
-        let export_section = vec_of(
-            &exports
-                .iter()
-                .map(|(name, index)| {
-                    let mut out = leb(name.len() as u32);
-                    out.extend_from_slice(name.as_bytes());
-                    out.push(0x00);
-                    out.extend(leb(*index));
-                    out
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        let mut data_body = leb(1);
-        data_body.extend_from_slice(&[0x00, 0x41, 0x00, 0x0B]);
-        data_body.extend(leb(data.len() as u32));
-        data_body.extend_from_slice(&data);
-
-        let mut bytes = b"\0asm".to_vec();
-        bytes.extend_from_slice(&[1, 0, 0, 0]);
-        bytes.extend(section(1, types));
-        bytes.extend(section(2, imports));
-        bytes.extend(section(3, function_section));
-        bytes.extend(section(5, vec_of(&[vec![0x00, 1]])));
-        bytes.extend(section(7, export_section));
-        bytes.extend(section(10, code_section));
-        bytes.extend(section(11, data_body));
-        bytes
-    }
-
     fn plugins() -> Plugins {
         let bridge = Rc::new(RefCell::new(Bridge::default()));
         let host = DocumentHost::new(Rc::clone(&bridge));
-        let plugin = Plugin::load(&build(), "test", Box::new(host)).unwrap();
+        let plugin = Plugin::load(&fixture::module(), "test", Box::new(host)).unwrap();
         Plugins {
             entries: vec![Entry {
                 name: "Test".to_string(),
                 path: PathBuf::from("test.wasm"),
-                commands: 2,
+                commands: vec!["Uppercase".to_string(), "Log".to_string()],
                 loaded: Some(Loaded { plugin, bridge }),
             }],
             failures: Vec::new(),
@@ -813,7 +832,10 @@ mod tests {
         let plugins = plugins();
         assert_eq!(plugins.len(), 1);
         assert_eq!(plugins.available(), 1);
-        assert_eq!(plugins.labels(), vec!["Test - Uppercase", "Test - Log"]);
+        assert_eq!(
+            plugins.inventory()[0].commands,
+            vec!["Uppercase".to_string(), "Log".to_string()]
+        );
     }
 
     #[test]
@@ -887,8 +909,8 @@ mod tests {
     #[test]
     fn a_directory_of_plugins_lists_in_name_order() {
         let dir = folder("npp-plugin-test-order");
-        std::fs::write(dir.join("b.wasm"), build()).unwrap();
-        std::fs::write(dir.join("a.wasm"), build()).unwrap();
+        std::fs::write(dir.join("b.wasm"), fixture::module()).unwrap();
+        std::fs::write(dir.join("a.wasm"), fixture::module()).unwrap();
         std::fs::write(dir.join("notes.txt"), b"ignored").unwrap();
         let plugins = Plugins::discover(&dir);
         assert_eq!(plugins.available(), 2);
@@ -906,37 +928,39 @@ mod tests {
     #[test]
     fn discovery_leaves_every_plugin_switched_off() {
         let dir = folder("npp-plugin-test-off");
-        std::fs::write(dir.join("one.wasm"), build()).unwrap();
-        std::fs::write(dir.join("two.wasm"), build()).unwrap();
+        std::fs::write(dir.join("one.wasm"), fixture::module()).unwrap();
+        std::fs::write(dir.join("two.wasm"), fixture::module()).unwrap();
         let plugins = Plugins::discover(&dir);
         assert_eq!(plugins.available(), 2);
-        // Installed, named, with its command count, and not running: the scan
+        // Installed, named, with its command names, and not running: the scan
         // reads the module only far enough to fill in the row.
         assert_eq!(plugins.len(), 0);
         assert!(plugins.names().is_empty());
-        assert!(plugins.commands().is_empty());
         let inventory = plugins.inventory();
         assert!(inventory.iter().all(|entry| !entry.enabled));
-        assert!(inventory.iter().all(|entry| entry.commands == 2));
+        assert!(inventory
+            .iter()
+            .all(|entry| entry.commands == vec!["Uppercase", "Log"]));
         assert!(inventory.iter().all(|entry| entry.name == "Test"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn switching_a_plugin_on_puts_its_commands_in_the_menu() {
+    fn switching_a_plugin_on_makes_its_commands_runnable() {
         let dir = folder("npp-plugin-test-enable");
-        std::fs::write(dir.join("a.wasm"), build()).unwrap();
-        std::fs::write(dir.join("b.wasm"), build()).unwrap();
+        std::fs::write(dir.join("a.wasm"), fixture::module()).unwrap();
+        std::fs::write(dir.join("b.wasm"), fixture::module()).unwrap();
         let mut plugins = Plugins::discover(&dir);
         assert_eq!(plugins.enable(1).as_deref(), Ok("Test"));
         assert_eq!(plugins.len(), 1);
-        // The command index is the folder index, so switching the first one on
-        // does not shift the second one's rows.
-        let commands = plugins.commands();
-        assert_eq!(commands.len(), 2);
-        assert!(commands.iter().all(|command| command.plugin == 1));
-        assert!(plugins.inventory()[1].enabled);
-        assert!(!plugins.inventory()[0].enabled);
+        // The plugin index is the folder index, so switching the first one on
+        // does not shift the second one's commands.
+        let inventory = plugins.inventory();
+        assert!(inventory[1].enabled);
+        assert!(!inventory[0].enabled);
+        assert_eq!(inventory[1].commands, vec!["Uppercase", "Log"]);
+        let outcome = plugins.run(1, 0, &doc("original", 0, (0, 0))).unwrap();
+        assert_eq!(outcome.text.as_deref(), Some("REPLACED"));
         assert_eq!(plugins.enable(1).as_deref(), Ok("Test"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -944,7 +968,7 @@ mod tests {
     #[test]
     fn a_command_of_a_switched_off_plugin_is_refused() {
         let dir = folder("npp-plugin-test-refused");
-        std::fs::write(dir.join("a.wasm"), build()).unwrap();
+        std::fs::write(dir.join("a.wasm"), fixture::module()).unwrap();
         let mut plugins = Plugins::discover(&dir);
         assert!(matches!(
             plugins.run(0, 0, &doc("", 0, (0, 0))),
@@ -958,11 +982,13 @@ mod tests {
         let mut plugins = plugins();
         assert_eq!(plugins.names(), vec!["Test".to_string()]);
         assert_eq!(plugins.disable(0).as_deref(), Some("Test"));
-        // Installed but not running: the row stays, the commands go.
+        // Installed but not running: the row stays, and the commands it would
+        // add are still named, because the file they come from is still there.
         assert_eq!(plugins.available(), 1);
         assert_eq!(plugins.len(), 0);
-        assert!(plugins.commands().is_empty());
-        assert!(!plugins.inventory()[0].enabled);
+        let inventory = plugins.inventory();
+        assert!(!inventory[0].enabled);
+        assert_eq!(inventory[0].commands, vec!["Uppercase", "Log"]);
         // The manager's cursor is a click behind the state, so an index that is
         // already off has to answer rather than panic.
         assert_eq!(plugins.disable(0), None);
@@ -973,7 +999,7 @@ mod tests {
     fn a_plugin_switched_off_is_read_back_from_its_file() {
         let dir = folder("npp-plugin-test-reenable");
         let path = dir.join("test.wasm");
-        std::fs::write(&path, build()).unwrap();
+        std::fs::write(&path, fixture::module()).unwrap();
         let mut plugins = Plugins::discover(&dir);
         assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
         assert_eq!(plugins.len(), 1);
@@ -983,7 +1009,7 @@ mod tests {
         assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
         assert_eq!(plugins.len(), 1);
         assert!(plugins.inventory()[0].enabled);
-        assert_eq!(plugins.labels(), vec!["Test - Uppercase", "Test - Log"]);
+        assert_eq!(plugins.inventory()[0].commands, vec!["Uppercase", "Log"]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -991,7 +1017,7 @@ mod tests {
     fn a_plugin_whose_file_is_gone_stays_switched_off() {
         let dir = folder("npp-plugin-test-gone");
         let path = dir.join("test.wasm");
-        std::fs::write(&path, build()).unwrap();
+        std::fs::write(&path, fixture::module()).unwrap();
         let mut plugins = Plugins::discover(&dir);
         assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
         std::fs::remove_file(&path).unwrap();
@@ -1015,8 +1041,8 @@ mod tests {
     #[test]
     fn the_saved_names_switch_on_only_what_is_installed() {
         let dir = folder("npp-plugin-test-saved");
-        std::fs::write(dir.join("a.wasm"), build()).unwrap();
-        std::fs::write(dir.join("b.wasm"), build()).unwrap();
+        std::fs::write(dir.join("a.wasm"), fixture::module()).unwrap();
+        std::fs::write(dir.join("b.wasm"), fixture::module()).unwrap();
         let mut plugins = Plugins::discover(&dir);
         // A name that names nothing -- a deleted or renamed plugin -- is not an
         // error: the settings file is allowed to be out of date.
@@ -1031,7 +1057,7 @@ mod tests {
     #[test]
     fn the_inventory_names_the_file_behind_each_plugin() {
         let dir = folder("npp-plugin-test-inventory");
-        std::fs::write(dir.join("npp_test.wasm"), build()).unwrap();
+        std::fs::write(dir.join("npp_test.wasm"), fixture::module()).unwrap();
         let plugins = Plugins::discover(&dir);
         assert_eq!(
             plugins.inventory(),
@@ -1039,7 +1065,7 @@ mod tests {
                 name: "Test".to_string(),
                 file: "npp_test.wasm".to_string(),
                 enabled: false,
-                commands: 2,
+                commands: vec!["Uppercase".to_string(), "Log".to_string()],
             }]
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -1197,6 +1223,20 @@ mod tests {
         assert_eq!(call(&mut host, abi::LINE_COUNT, &[]), 3);
         assert_eq!(call(&mut host, abi::LINE_START, &[2]), 4);
         assert_eq!(call(&mut host, abi::LINE_LEN, &[2]), 0);
+    }
+
+    #[test]
+    fn a_settings_line_names_the_plugin_it_switches_on() {
+        assert_eq!(enabled_line("plugin JSON"), Some("JSON"));
+        // A name with spaces, and whitespace that came from a hand edit.
+        assert_eq!(enabled_line("plugin  Half Width  "), Some("Half Width"));
+        // A keyword without a value says nothing, and a different keyword is
+        // not this one however it starts.
+        assert_eq!(enabled_line("plugin"), None);
+        assert_eq!(enabled_line("plugin   "), None);
+        assert_eq!(enabled_line("plugins JSON"), None);
+        assert_eq!(enabled_line("# plugin JSON"), None);
+        assert_eq!(enabled_line("theme dark"), None);
     }
 
     #[test]
