@@ -8709,8 +8709,8 @@ impl State {
     /// Scrolls the active editor so the minimap row under `y` sits at the top.
     /// `row_at` clamps, so dragging past either end parks the view at that end.
     fn minimap_scroll_to(&mut self, y: f64) {
-        let (top, height) = self.view.minimap_rect();
         let total = self.tabs[self.active].editor.doc.visible_line_count();
+        let (top, height) = self.view.minimap_rect(total);
         let row = self.view.minimap().row_at(y as f32, top, height, total);
         let editor = &mut self.tabs[self.active].editor;
         editor.viewport.first_line = row;

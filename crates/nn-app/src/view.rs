@@ -659,8 +659,11 @@ impl EditorView {
     }
 
     /// The minimap column as `(top, height)` in window pixels.
-    pub fn minimap_rect(&self) -> (f32, f32) {
-        (self.top(), self.text_height())
+    ///
+    /// The height follows the document rather than the pane, so the column
+    /// cannot be measured without knowing how many rows there are to show.
+    pub fn minimap_rect(&self, total: usize) -> (f32, f32) {
+        (self.top(), Minimap::column_height(total, self.text_height()))
     }
 
     /// The minimap, for hit testing and toggling.

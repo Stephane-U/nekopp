@@ -1803,6 +1803,11 @@ The picture is cached and rebuilt only when the document changes. Reaching into
 a rope is a tree descent per line, so doing it per frame would cost more than
 drawing the text itself.
 
+The column is as tall as the document needs and no taller. It grows at two
+pixels a row and stops at the bottom of the pane, so a long file still fills the
+edge while a short one leaves most of the edge empty. A five-line file used to be
+spread over the whole column, which made it read as a five-hundred-line one.
+
 ### Document List
 
 Every open document with its title, the active one marked. Choosing a row

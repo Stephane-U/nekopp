@@ -29,6 +29,26 @@ const MAX_RUNS: usize = 6;
 /// thumbnail needs and makes a rebuild expensive on a large file.
 const MAX_BANDS: usize = 512;
 
+/// Height of one document row in the column, in pixels.
+///
+/// The column is built from this rather than from the pane, so it grows with
+/// the document and stops where the pane ends. Two pixels rather than one so
+/// consecutive lines stay distinguishable in a short file.
+const ROW_HEIGHT: f32 = 2.0;
+
+/// Rows the column is worth even for a nearly empty document, so the strip is
+/// something a user can see and aim at rather than a two-pixel sliver.
+const MIN_ROWS: usize = 3;
+
+/// Where the picture goes: how tall the column is, how many bands divide it,
+/// and how many pixels one band covers.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Layout {
+    column: f32,
+    bands: usize,
+    band_h: f32,
+}
+
 /// One cached rectangle of the picture.
 struct Run {
     band: u16,
@@ -129,6 +149,28 @@ impl Minimap {
         ((t * total as f32) as usize).min(total - 1)
     }
 
+    /// The height the column takes for a document of `total` rows, in pixels.
+    ///
+    /// Follows the document and stops at the space the pane has. A long file
+    /// still fills the edge, which is what makes the picture readable as a map;
+    /// a short one gets a short strip, because five lines stretched over six
+    /// hundred pixels reads as a six hundred line file.
+    pub fn column_height(total: usize, available: f32) -> f32 {
+        let rows = total.max(MIN_ROWS) as f32;
+        (rows * ROW_HEIGHT).min(available.max(0.0))
+    }
+
+    /// The column geometry for a document of `total` rows in `available` pixels.
+    fn layout(total: usize, available: f32) -> Layout {
+        let column = Minimap::column_height(total, available);
+        let bands = (column.round() as usize).clamp(1, MAX_BANDS);
+        Layout {
+            column,
+            bands,
+            band_h: column / bands as f32,
+        }
+    }
+
     /// Queues the background, the document picture, and the viewport box.
     ///
     /// `right` is the window edge the column is flush against.
@@ -146,23 +188,28 @@ impl Minimap {
         if !self.enabled || self.suppressed || height < 4.0 {
             return;
         }
+        // The document length is read before the background, because the
+        // background is only as tall as the picture it holds.
+        let total = doc.visible_line_count();
+        let Layout {
+            column,
+            bands,
+            band_h,
+        } = Self::layout(total, height);
         let left = right - self.width;
         quads.push(
             left,
             top,
             self.width,
-            height,
+            column,
             palette.theme.minimap_background.to_linear(),
         );
-        quads.push(left, top, 1.0, height, palette.theme.bar_border.to_linear());
+        quads.push(left, top, 1.0, column, palette.theme.bar_border.to_linear());
 
-        let total = doc.visible_line_count();
         if total == 0 {
             return;
         }
 
-        let bands = (height as usize).clamp(1, MAX_BANDS);
-        let band_h = height / bands as f32;
         let key = CacheKey {
             revision: doc.revision(),
             bands,
@@ -184,11 +231,13 @@ impl Minimap {
             );
         }
 
-        // The viewport box, so the picture says where the window is.
+        // The viewport box, so the picture says where the window is. Mapped
+        // against the column rather than the pane: a short document is all
+        // visible at once, so its box covers the strip and stops there.
         let visible = vp.visible_line_count().max(1);
-        let box_top = top + vp.first_line as f32 * height / total as f32;
-        let box_height = (visible as f32 * height / total as f32).max(6.0);
-        let box_height = box_height.min(top + height - box_top);
+        let box_top = top + vp.first_line as f32 * column / total as f32;
+        let box_height = (visible as f32 * column / total as f32).max(6.0);
+        let box_height = box_height.min(top + column - box_top);
         quads.push(
             left,
             box_top,
@@ -387,5 +436,42 @@ mod tests {
         // A second build of an unchanged document produces the same picture.
         m.build(&mut doc, 8, &palette);
         assert_eq!(m.runs.len(), first);
+    }
+
+    #[test]
+    fn a_short_document_gets_a_short_column() {
+        // Five lines is ten pixels, not a column down the whole edge: this is
+        // the case that made a short file look like a long one.
+        assert_eq!(Minimap::column_height(5, 600.0), 5.0 * ROW_HEIGHT);
+        let layout = Minimap::layout(5, 600.0);
+        assert_eq!(layout.column, 10.0);
+        assert_eq!(layout.bands, 10);
+        assert_eq!(layout.band_h, 1.0);
+    }
+
+    #[test]
+    fn a_long_document_still_fills_the_column() {
+        let layout = Minimap::layout(1000, 600.0);
+        assert_eq!(layout.column, 600.0);
+        // Capped, so a tall pane does not turn into an expensive rebuild.
+        assert_eq!(layout.bands, MAX_BANDS);
+        assert_eq!(layout.band_h, 600.0 / MAX_BANDS as f32);
+    }
+
+    #[test]
+    fn the_column_never_outgrows_the_pane() {
+        assert_eq!(Minimap::column_height(100_000, 300.0), 300.0);
+        assert_eq!(Minimap::layout(100_000, 300.0).bands, 300);
+        // A pane too short to hold a full document still gets a whole number of
+        // bands, so the picture is never squeezed to nothing.
+        assert_eq!(Minimap::layout(1000, 0.0).column, 0.0);
+        assert_eq!(Minimap::layout(1000, 0.0).bands, 1);
+    }
+
+    #[test]
+    fn an_empty_document_keeps_a_strip_to_aim_at() {
+        let expected = MIN_ROWS as f32 * ROW_HEIGHT;
+        assert_eq!(Minimap::column_height(0, 600.0), expected);
+        assert_eq!(Minimap::column_height(1, 600.0), expected);
     }
 }
