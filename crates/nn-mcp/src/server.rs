@@ -303,7 +303,21 @@ impl Server {
 
     fn get_command(&self, arguments: &Value) -> Result<Value, (i64, String)> {
         let name = required_string(arguments, "name")?;
-        match self.inventory.lookup(&name) {
+        let found = self.inventory.lookup(&name);
+        // Two vocabularies answer to a command name: the keymap's action names
+        // and the table `run_command` takes. A name in that table gets the
+        // table's answer, because the menu's row for it may be a submenu or a
+        // prompt -- unless the keymap has the same action bound, which is the
+        // richer answer and the one a person browsing the menus expects.
+        if let Some(op) = nn_core::ops::find(&name) {
+            let bound = found
+                .and_then(|command| command.action.as_deref())
+                .is_some_and(|action| action.eq_ignore_ascii_case(op.name));
+            if !bound {
+                return Ok(tool_text(ops_card(op)));
+            }
+        }
+        match found {
             Some(command) => {
                 let mut text = format!("{}\n", command.label);
                 text.push_str(&format!(
@@ -334,7 +348,9 @@ impl Server {
                 Ok(tool_text(text))
             }
             None => Ok(tool_error(format!(
-                "No command is called \"{name}\". `list_shortcuts` has the bound ones."
+                "No command is called \"{name}\". `list_shortcuts` has the bound ones \
+                 and `list_commands` the {} that work on text.",
+                nn_core::ops::commands().len()
             ))),
         }
     }
@@ -438,25 +454,7 @@ impl Server {
         }
 
         match crate::live::call(&Value::Object(call.clone()).to_string()) {
-            Ok(answer) => {
-                // The editor always answers with JSON; a client seeing plain
-                // text is more useful than an error about the editor's output.
-                let parsed: Value = serde_json::from_str(&answer)
-                    .unwrap_or_else(|_| Value::String(answer.clone()));
-                match parsed.get("error") {
-                    Some(error) => {
-                        let message = error["message"]
-                            .as_str()
-                            .map(str::to_string)
-                            .unwrap_or_else(|| error.to_string());
-                        Ok(tool_error(format!("{message}\n")))
-                    }
-                    None => Ok(tool_text(format!(
-                        "{}\n",
-                        serde_json::to_string_pretty(&parsed).unwrap_or(answer)
-                    ))),
-                }
-            }
+            Ok(answer) => Ok(live_answer(&answer)),
             // Nothing to talk to is a failed tool, not a broken request: the
             // client asked correctly, the editor just is not open.
             Err(error) => Ok(tool_error(format!("{error}\n"))),
@@ -610,6 +608,51 @@ pub fn section_uri(slug: &str) -> String {
 }
 
 /// A successful tool call: one text block and no error flag.
+/// What a live call answers with, given the JSON the editor printed.
+///
+/// An `error` object is a refusal -- a document that is not open, a command that
+/// does not exist -- and becomes a failed tool with the editor's own words, not a
+/// broken request. Anything else is the editor's answer, pretty printed. Text
+/// that is not JSON at all is passed through: a client seeing the words is better
+/// than an error about the editor's output.
+fn live_answer(answer: &str) -> Value {
+    let parsed: Value =
+        serde_json::from_str(answer).unwrap_or_else(|_| Value::String(answer.to_string()));
+    match parsed.get("error") {
+        Some(error) => {
+            let message = error["message"]
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| error.to_string());
+            tool_error(format!("{message}\n"))
+        }
+        None => tool_text(format!(
+            "{}\n",
+            serde_json::to_string_pretty(&parsed).unwrap_or_else(|_| answer.to_string())
+        )),
+    }
+}
+
+/// One command from the table `run_command` takes, as `get_command` describes it.
+///
+/// This is the answer for a name the keymap does not bind, which is every one of
+/// the text commands whose menu row is a submenu or a prompt: `sort_lines` and
+/// `split_lines` have no row of their own, but a caller has their names.
+fn ops_card(command: &nn_core::ops::Command) -> String {
+    let options = if command.params.is_empty() {
+        "none".to_string()
+    } else {
+        let names: Vec<&str> = command.params.iter().map(|param| param.name()).collect();
+        names.join(", ")
+    };
+    format!(
+        "{}\naction:   {}\nruns:     without a window, through `run_command`\noptions:  {options}\ntable:    one of the {} commands that work on text; `list_commands` names them all\n",
+        command.name,
+        command.name,
+        nn_core::ops::commands().len()
+    )
+}
+
 fn tool_text(text: String) -> Value {
     json!({
         "content": [{"type": "text", "text": text}],
@@ -774,7 +817,7 @@ fn tools() -> Vec<Value> {
         }),
         json!({
             "name": "get_command",
-            "description": "Look up one command by menu label (\"Print Now\") or action name (\"print_now\"): its default shortcut, its action, and the menu path it lives at.",
+            "description": "Look up one command by menu label (\"Print Now\"), by action name (\"print_now\"), or by one of the names `run_command` takes (\"sort_asc\"): its default shortcut, its action, the menu path it lives at when it has one, and whether it runs with no window.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -1144,6 +1187,7 @@ mod tests {
         }));
         assert_eq!(result_of(&response)["isError"], true);
         assert!(text_of(&response).contains("No command is called"));
+        assert!(text_of(&response).contains("list_commands"), "{}", text_of(&response));
     }
 
     #[test]
@@ -1321,40 +1365,30 @@ mod tests {
         assert!(text_of(&response).contains("No plugins:"));
     }
 
-    /// A stand-in editor for the live tool: prints what it was told to print.
-    fn fake_editor(body: &str) -> std::path::PathBuf {
-        let directory = std::env::temp_dir().join(format!("nn-mcp-live-{}", std::process::id()));
-        std::fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("npp");
-        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
-        path
-    }
-
-    // One test for the whole environment variable: `NPP_BIN` is process wide, so
-    // two tests setting it would race each other.
     #[test]
-    fn live_call_forwards_the_call_and_turns_an_error_answer_into_a_failed_tool() {
-        let answering = fake_editor(r#"printf '{"ok":true,"count":1}'"#);
-        std::env::set_var("NPP_BIN", &answering);
+    fn a_live_answer_is_the_editors_json_or_its_refusal() {
+        let answered = live_answer(r#"{"ok":true,"count":1}"#);
+        assert_eq!(answered["isError"], false);
+        assert!(answered["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"count\": 1"));
 
-        let response = call(tool_request(70, "live_call", json!({"method": "document.list"})));
-        assert_eq!(result_of(&response)["isError"], false);
-        assert!(block(&response, 0).contains("\"count\": 1"), "{}", block(&response, 0));
-
-        let refusing = fake_editor(
-            r#"printf '{"error":{"code":"unknown_document","message":"no tab has that path"}}'"#,
+        let refused = live_answer(
+            r#"{"error":{"code":"unknown_document","message":"no tab has that path"}}"#,
         );
-        std::env::set_var("NPP_BIN", &refusing);
-        let response = call(tool_request(71, "live_call", json!({"method": "document.get"})));
-        assert_eq!(result_of(&response)["isError"], true);
-        assert!(block(&response, 0).contains("no tab has that path"));
+        assert_eq!(refused["isError"], true);
+        assert!(refused["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("no tab has that path"));
 
-        std::env::remove_var("NPP_BIN");
+        let plain = live_answer("not json at all");
+        assert_eq!(plain["isError"], false);
+        assert!(plain["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("not json at all"));
     }
 
     #[test]
@@ -1434,6 +1468,46 @@ mod tests {
         assert!(text.starts_with("37 commands work on text"), "{text}");
         assert!(text.contains("- sort_asc\n"), "{text}");
         assert!(text.contains("- trim_trailing\n"), "{text}");
+    }
+
+    #[test]
+    fn get_command_knows_the_names_run_command_takes() {
+        let response = call(tool_request(73, "get_command", json!({"name": "sort_asc"})));
+        let text = block(&response, 0);
+        assert_eq!(result_of(&response)["isError"], false, "{text}");
+        assert!(text.contains("action:   sort_asc"), "{text}");
+        assert!(text.contains("runs:     without a window"), "{text}");
+        assert!(text.contains("options:  none"), "{text}");
+
+        // `sort_lines` is the row whose menu is a submenu of fourteen sorts: no
+        // menu row is called this, and a caller still has the name.
+        let options = call(tool_request(74, "get_command", json!({"name": "sort_lines"})));
+        let text = block(&options, 0);
+        assert!(text.contains("options:  sort_key, sort_order, case_sensitive"), "{text}");
+    }
+
+    #[test]
+    fn get_command_prefers_the_keymap_when_the_action_is_bound() {
+        // upper_case is in both tables; the keymap's answer carries a shortcut,
+        // a menu path and a section, so it is the one to give.
+        let response = call(tool_request(75, "get_command", json!({"name": "upper_case"})));
+        let text = block(&response, 0);
+        assert!(text.contains("shortcut: Ctrl+Shift+U"), "{text}");
+        assert!(text.contains("menu:     Edit > Convert Case to > UPPERCASE"), "{text}");
+    }
+
+    #[test]
+    fn every_name_run_command_takes_is_one_get_command_answers() {
+        for command in nn_core::ops::commands() {
+            let response = call(tool_request(76, "get_command", json!({"name": command.name})));
+            assert_eq!(
+                result_of(&response)["isError"],
+                false,
+                "get_command does not know {}: {}",
+                command.name,
+                block(&response, 0)
+            );
+        }
     }
 
     #[test]

@@ -58,7 +58,7 @@ wrong and what to try instead.
 | `get_section` | `section`: a heading or a slug | that section as markdown, plus its resource URI |
 | `list_sections` | none | the table of contents: 28 chapters, 81 subsections |
 | `list_shortcuts` | none | all 73 default key bindings with their commands and action names |
-| `get_command` | `name`: a menu label or an action name | the shortcut, the action, the menu path, and the section that documents it |
+| `get_command` | `name`: a menu label, an action name, or a `run_command` name | the shortcut, the action, the menu path, the section that documents it, and whether it runs with no window |
 | `list_plugins` | none | every installed plugin: its name, its file, whether it is switched on, and its commands |
 | `run_plugin_command` | `plugin`, `command`, `text`, optional `caret`, `selection` | what the plugin made of the text, plus its log when it wrote one |
 | `run_command` | `command`, `text` or `path`, optional `write` and the command's options | the text after the command ran, or a note that the file was written; no window involved |

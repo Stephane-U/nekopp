@@ -9319,3 +9319,62 @@ tools to ten. The chapter is four sections, so the three count assertions in
 `doc.rs` and `server.rs` moved from 105/106 to 109/110 and from 27 chapters and 78
 subsections to 28 and 81 -- the counts are the document's own shape, which is why
 they are asserted rather than computed.
+
+## Seventy-fifth pass: one lookup, two vocabularies
+
+`get_command {"name": "sort_asc"}` answered "No command is called sort_asc" in
+the same session that `run_command {"command": "sort_asc"}` sorted a list. Two
+tables had grown names and only one of them was reachable through the lookup:
+`Inventory` joins the keymap table with the menu tree, and `nn_core::ops` is the
+text commands, and `sort_asc` lives in the second with no keymap row to join.
+
+The join is also why `sort_lines` was wrong in the other direction. `Inventory::lookup`
+falls back to "a label containing the query" when it finds nothing exact, so
+`sort_lines` matched the menu row "Sort Lines..." -- a row whose own action is
+none, because the menu reaches it through a submenu of fourteen sorts. A caller
+asking about a command got a menu label with no action and no answer to "can I run
+this".
+
+The order is now: a name in the table gets the table's answer, with the options it
+reads and no menu path, unless the keymap binds the same action -- then the
+keymap's answer wins, because it carries a shortcut, a menu path and a resource.
+`upper_case` is in both and comes back with `Ctrl+Shift+U`; `sort_asc` is only in
+the table and comes back with `options: none`; `duplicate_line` is only in the
+keymap and still says `runs: in a window`.
+
+Four tests: the table's names answer without a shortcut, the options are listed
+for the one command that reads three, the keymap wins when both know the name, and
+a sweep asserts that every name `run_command` takes is one `get_command` answers
+without `isError`. The unknown-name error now names both lists instead of only
+`list_shortcuts`.
+
+### A test that failed four runs in fifteen
+
+The full-suite run this pass failed once in `live::tests`, then passed, then failed
+again. The message was `could not run /tmp/nn-mcp-live-<pid>-0/npp: Text file busy
+(os error 26)`: the tests wrote a stand-in editor into a temporary directory and
+ran it, and on Linux `execve` refuses a file that any process still holds open for
+writing. Two test threads overlap -- one writing its script, one forking to run
+another -- and the fork inherits the writing descriptor. Moving from a path per
+thread to a path per call removed most of it and not all: a `static` counter is
+per process, but the window is the fork, not the name.
+
+The fix is to stop writing executables in tests. `/bin/echo` prints its arguments,
+so it proves the call arrives after `--call` word for word; `/bin/ls` refuses an
+argument it does not know, and the test compares against what the same `ls` prints
+when run from the test, so it is about the plumbing rather than about a French
+translation of `ls`; `/bin/false` is a refusal with nothing to say. Twelve
+consecutive runs of the suite: no failures.
+
+The same pass found a second, quieter hazard. The `live_call` handler test set
+`NPP_BIN` in the process environment to point at a stand-in editor, and
+`std::env::set_var` is not thread-safe while other tests spawn processes. That test
+is gone; the handler's answer is now a pure function, `live_answer(&str) -> Value`,
+with four assertions -- the editor's JSON, its error object as a failed tool, and
+text that is not JSON passed through as words.
+
+Verification: 100 tests in `nn-mcp` (98 before), and the live sweep of all 37
+names returned 0 errors -- 5 resolved through the keymap, 32 through the table.
+`cargo test --offline --all`: 2064 passed, 0 failed. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run. PDF: up to date, 301,578
+bytes, 70 pages A4, 111 bookmarks.

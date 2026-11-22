@@ -2282,7 +2282,10 @@ talk to: `NPP_BIN` first, then a sibling of `npp-mcp`, then PATH.
 The two tools are chosen by what the work touches. Text that only needs
 transforming goes to `run_command`: no window, no focus, no session. Work that has
 to happen in the window someone is looking at goes to `live_call`. `get_command`
-says which command needs the window and which does not.
+says which command needs the window and which does not, and it answers to both
+vocabularies: `upper_case` comes back with its shortcut and its menu path because
+the keymap binds it, and `sort_asc` comes back with the options it reads and no
+menu path because its row is one of fourteen behind a submenu.
 
 ## Localisation
 

@@ -111,56 +111,53 @@ fn run(binary: &Path, json: &str) -> Result<String, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
 
-    /// A stand-in for the editor: prints the arguments it was given, or fails
-    /// with the message it was told to fail with.
-    fn fake(body: &str) -> PathBuf {
-        let directory = std::env::temp_dir().join(format!(
-            "nn-mcp-live-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        std::fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("npp");
-        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-        path
-    }
+    // The stand-in editors are programs that already exist, rather than scripts
+    // written into a temporary directory: a file this process has just created is
+    // a file some sibling thread may still hold open for writing when another
+    // test forks, and `exec` answers that with "Text file busy" every few runs.
 
     #[test]
-    fn a_call_is_passed_through_word_for_word() {
-        let path = fake(r#"printf '%s' "$2""#);
+    fn a_call_is_passed_through_after_the_flag_word_for_word() {
         let json = r#"{"method":"command.run","command":"sort_asc"}"#;
-        assert_eq!(run(&path, json), Ok(json.to_string()));
-    }
-
-    #[test]
-    fn the_call_arrives_after_the_flag() {
-        let path = fake(r#"printf '%s' "$1""#);
-        assert_eq!(run(&path, "{}"), Ok("--call".to_string()));
+        // `/bin/echo` prints its arguments, one space between them, so what comes
+        // back is the exact command line the editor would have been given.
+        assert_eq!(
+            run(Path::new("/bin/echo"), json),
+            Ok(format!("--call {json}"))
+        );
     }
 
     #[test]
     fn a_refusal_is_the_message_the_editor_printed() {
-        let path = fake(r#"echo 'npp: no window is running' >&2; exit 1"#);
+        // `ls` refuses an argument it does not know and says why on stderr, which
+        // is the shape of an editor refusing a call. The expected text is what the
+        // same command prints when it is run here, so the test is about the
+        // plumbing and not about what a translation of `ls` happens to say.
+        let expected = Command::new("/bin/ls")
+            .args(["--call", "{}"])
+            .output()
+            .expect("ls runs")
+            .stderr;
+        let expected = String::from_utf8_lossy(&expected).trim().to_string();
+        assert!(!expected.is_empty(), "this test needs ls to complain");
         assert_eq!(
-            run(&path, "{}"),
-            Err(Error::Refused("npp: no window is running".to_string()))
+            run(Path::new("/bin/ls"), "{}"),
+            Err(Error::Refused(expected))
         );
     }
 
     #[test]
     fn a_refusal_with_nothing_to_say_still_says_something() {
-        let path = fake("exit 1");
-        let message = run(&path, "{}").unwrap_err().to_string();
+        let message = run(Path::new("/bin/false"), "{}").unwrap_err().to_string();
         assert!(message.contains("printed nothing and failed"), "{message}");
     }
 
     #[test]
     fn a_binary_that_cannot_be_run_is_named() {
-        let path = Path::new("/nonexistent/npp");
-        let message = run(path, "{}").unwrap_err().to_string();
+        let message = run(Path::new("/nonexistent/npp"), "{}")
+            .unwrap_err()
+            .to_string();
         assert!(message.contains("/nonexistent/npp"), "{message}");
     }
 
