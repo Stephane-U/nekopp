@@ -468,6 +468,12 @@
                 <Item id="Play macro times:" name="Число выполнений макроса:"/>
                 <Item id="Tab Width" name="Ширина табуляции"/>
                 <Item id="Export to:" name="Экспорт в:"/>
+            <Item id="Count" name="Подсчитать"/>
+            <Item id="Find All in Current Document" name="Найти всё в текущем документе"/>
+            <Item id="Find All in All Opened Documents" name="Найти всё во всех открытых документах"/>
+            <Item id="Replace All in All Opened Documents" name="Заменить всё во всех открытых документах"/>
+            <Item id="Mark All" name="Пометить всё"/>
+            <Item id="Clear Marks" name="Очистить пометки"/>
             </Main>
         </Menu>
     </Native-Langue>

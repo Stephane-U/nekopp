@@ -468,6 +468,12 @@
                 <Item id="Toolbar" name="Værktøjslinje"/>
                 <Item id="Zoom In" name="Zoom ind"/>
                 <Item id="Zoom Out" name="Zoom ud"/>
+            <Item id="Count" name="Tæl"/>
+            <Item id="Find All in Current Document" name="Find alle i aktuelt dokument"/>
+            <Item id="Find All in All Opened Documents" name="Find alle i alle åbne dokumenter"/>
+            <Item id="Replace All in All Opened Documents" name="Erstat alle i alle åbne dokumenter"/>
+            <Item id="Mark All" name="Markér alle"/>
+            <Item id="Clear Marks" name="Ryd markeringer"/>
             </Main>
         </Menu>
     </Native-Langue>

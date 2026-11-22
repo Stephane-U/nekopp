@@ -468,6 +468,12 @@
                 <Item id="Volatile Find" name="휘발성 찾기"/>
                 <Item id="Up/Down  Left/Right  Enter  Esc" name="↑/↓  ←/→  Enter  Esc"/>
                 <Item id="Up/Down  Left/Right  Enter open  Esc close" name="↑/↓  ←/→  Enter 열기  Esc 닫기"/>
+            <Item id="Count" name="개수 세기"/>
+            <Item id="Find All in Current Document" name="현재 문서에서 모두 찾기"/>
+            <Item id="Find All in All Opened Documents" name="열린 모든 문서에서 모두 찾기"/>
+            <Item id="Replace All in All Opened Documents" name="열린 모든 문서에서 모두 바꾸기"/>
+            <Item id="Mark All" name="모두 표시"/>
+            <Item id="Clear Marks" name="표시 지우기"/>
             </Main>
         </Menu>
     </Native-Langue>

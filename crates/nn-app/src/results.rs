@@ -67,12 +67,27 @@ impl ResultsPanel {
 
     /// Replaces the hit list and opens the panel.
     pub fn set_hits(&mut self, hits: Vec<Hit>) {
+        self.set_hits_named(hits, String::new());
+    }
+
+    /// Replaces the hit list and opens the panel under a header of the
+    /// caller's choosing.
+    ///
+    /// Find in Files writes its own summary -- hits, files, and how many files
+    /// were searched -- and "Find All in Current Document" writes
+    /// `Search "x" (3 hits in 1 file)`, which is Notepad++'s wording. An empty
+    /// header falls back to the plain count.
+    pub fn set_hits_named(&mut self, hits: Vec<Hit>, header: String) {
         let files = self.count_files(&hits);
         let noun = if files == 1 { "file" } else { "files" };
-        self.header_text = match hits.len() {
-            0 => "No results".to_string(),
-            1 => format!("1 result in {files} {noun}"),
-            n => format!("{n} results in {files} {noun}"),
+        self.header_text = if header.is_empty() {
+            match hits.len() {
+                0 => "No results".to_string(),
+                1 => format!("1 result in {files} {noun}"),
+                n => format!("{n} results in {files} {noun}"),
+            }
+        } else {
+            header
         };
         self.hits = hits;
         self.scroll = 0;
@@ -297,6 +312,7 @@ mod tests {
             line,
             column: 0,
             text: format!("line {line}"),
+            tab: None,
         }
     }
 
@@ -324,6 +340,17 @@ mod tests {
         let mut p = panel();
         p.set_hits(vec![hit(0), hit(1)]);
         assert_eq!(p.header_text, "2 results in 1 file");
+    }
+
+    #[test]
+    fn a_named_header_is_used_as_it_stands() {
+        let mut p = panel();
+        p.set_hits_named(
+            vec![hit(0), hit(1), hit(2)],
+            "Search \"fn\" (3 hits, 1 file)".to_string(),
+        );
+        assert_eq!(p.header_text, "Search \"fn\" (3 hits, 1 file)");
+        assert!(p.is_open());
     }
 
     #[test]

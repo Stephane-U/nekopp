@@ -468,6 +468,12 @@
                 <Item id="Shortcuts" name="Συντομεύσεις"/>
                 <Item id="Folder:" name="Φάκελος:"/>
                 <Item id="Load session:" name="Φόρτωση συνεδρίας:"/>
+            <Item id="Count" name="Μέτρηση"/>
+            <Item id="Find All in Current Document" name="Εύρεση όλων στο τρέχον έγγραφο"/>
+            <Item id="Find All in All Opened Documents" name="Εύρεση όλων σε όλα τα ανοιχτά έγγραφα"/>
+            <Item id="Replace All in All Opened Documents" name="Αντικατάσταση όλων σε όλα τα ανοιχτά έγγραφα"/>
+            <Item id="Mark All" name="Επισήμανση όλων"/>
+            <Item id="Clear Marks" name="Εκκαθάριση σημάνσεων"/>
             </Main>
         </Menu>
     </Native-Langue>

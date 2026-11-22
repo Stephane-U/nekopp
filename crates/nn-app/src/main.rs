@@ -448,6 +448,24 @@ enum ReadScope {
     All,
 }
 
+/// "1 hit" or "3 hits", for a search results header.
+fn hits_noun(count: usize) -> String {
+    if count == 1 {
+        "1 hit".to_string()
+    } else {
+        format!("{count} hits")
+    }
+}
+
+/// "1 file" or "3 files", for a search results header.
+fn files_noun(count: usize) -> String {
+    if count == 1 {
+        "1 file".to_string()
+    } else {
+        format!("{count} files")
+    }
+}
+
 /// Percent-encodes `text` for use as a query string value.
 ///
 /// Only the characters that would otherwise change the meaning of the URL are
@@ -1344,7 +1362,7 @@ impl State {
         let bottom = self.status_height()
             + self.history_height()
             + self.results_height()
-            + self.find.height(UI_LINE_HEIGHT, self.view.padding());
+            + self.find.height(width, UI_LINE_HEIGHT, self.view.padding());
         let inset = self.column_inset();
         (inset, top, width - 2.0 * inset, (height - top - bottom).max(1.0))
     }
@@ -1755,6 +1773,7 @@ impl State {
         state.update_title();
         state.load_settings();
         state.load_projects();
+        state.load_find_history();
         state.sync_language_menu();
         state.sync_plugin_menu();
         state.sync_palette();
@@ -4224,6 +4243,7 @@ impl State {
     fn close_find(&mut self) {
         let anchor = self.incremental_anchor.take();
         self.find.close(self.settings.volatile_find);
+        self.save_find_history();
         if let Some((caret, first_line, top_offset)) = anchor {
             let editor = &mut self.tab_mut().editor;
             editor.set_caret(caret);
@@ -4327,6 +4347,39 @@ impl State {
         alt: bool,
     ) -> bool {
         let redraw = |state: &Self| state.window.request_redraw();
+        // An open history list is a mode of its own: Escape closes it rather
+        // than the bar, Enter takes the entry the arrows are on, and the arrows
+        // walk the list instead of the caret.
+        if let Some(field) = self.find.history_open() {
+            match &event.logical_key {
+                Key::Named(NamedKey::Escape) => {
+                    self.find.close_history();
+                    redraw(self);
+                    return true;
+                }
+                Key::Named(NamedKey::Enter) => {
+                    if let Some(pick) = self.find.history_pick() {
+                        self.find.pick_history(field, pick);
+                        self.refresh_find();
+                    } else {
+                        self.find.close_history();
+                    }
+                    redraw(self);
+                    return true;
+                }
+                Key::Named(NamedKey::ArrowDown) => {
+                    self.find.move_history(1);
+                    redraw(self);
+                    return true;
+                }
+                Key::Named(NamedKey::ArrowUp) => {
+                    self.find.move_history(-1);
+                    redraw(self);
+                    return true;
+                }
+                _ => {}
+            }
+        }
         match &event.logical_key {
             Key::Named(NamedKey::Escape) => {
                 self.close_find();
@@ -4384,6 +4437,14 @@ impl State {
             }
             Key::Named(NamedKey::End) => {
                 self.find.end();
+                redraw(self);
+                true
+            }
+            // Notepad++'s combo boxes drop their history with Alt+Down, and so
+            // does this one: the fields have no room for a second meaning for
+            // the plain arrows.
+            Key::Named(NamedKey::ArrowDown | NamedKey::ArrowUp) if alt => {
+                self.find.toggle_history(self.find.focus);
                 redraw(self);
                 true
             }
@@ -5299,19 +5360,35 @@ impl State {
         // the bar at all, so the settings were drawn but unreachable.
         if self.find.open {
             let top = self.find_bar_top();
-            if (y as f32) >= top {
-                let hit = self.find.hit_at(
-                    x as f32,
-                    y as f32,
-                    self.gpu.config.width as f32,
-                    top,
-                    line_height,
-                    self.view.padding(),
-                );
+            let hit = self.find.hit_at(
+                x as f32,
+                y as f32,
+                self.gpu.config.width as f32,
+                top,
+                line_height,
+                self.view.padding(),
+            );
+            // The open history list hangs over the document above the bar, so a
+            // press in its band belongs to it even though it is outside the
+            // bar's own rectangle.
+            let in_list = matches!(hit, Some(nn_app::findbar::Hit::HistoryEntry(_)));
+            // The band ends at the bar's own bottom: everything below it belongs
+            // to the results panel, which sits between the bar and the status
+            // bar, and a press there must open its hit instead of doing nothing.
+            let bottom =
+                top + self
+                    .find
+                    .height(self.gpu.config.width as f32, line_height, self.view.padding());
+            let inside = (y as f32) >= top && (y as f32) < bottom;
+            if inside || in_list {
                 self.apply_find_hit(hit);
                 self.dragging = false;
                 self.window.request_redraw();
                 return;
+            }
+            if self.find.history_open().is_some() {
+                // A press anywhere else is a decision to leave the list alone.
+                self.find.close_history();
             }
         }
 
@@ -7565,7 +7642,11 @@ impl State {
             - self.status_height()
             - self.history_height()
             - self.results_height()
-            - self.find.height(UI_LINE_HEIGHT, self.view.padding())
+            - self.find.height(
+                self.gpu.config.width as f32,
+                UI_LINE_HEIGHT,
+                self.view.padding(),
+            )
     }
 
     /// Runs whatever a press on the find bar landed on.
@@ -7576,13 +7657,217 @@ impl State {
                 self.find.activate(chip);
                 self.refresh_find();
             }
-            Some(Hit::Button(Button::FindNext)) => self.step_match(self.find.up),
+            Some(Hit::Button(Button::FindNext)) => {
+                self.find.remember();
+                self.step_match(self.find.up);
+            }
+            Some(Hit::Button(Button::Count)) => self.count_matches(),
+            Some(Hit::Button(Button::FindAll)) => self.find_all_in_document(),
+            Some(Hit::Button(Button::FindAllAll)) => self.find_all_in_opened_documents(),
             Some(Hit::Button(Button::Replace)) => self.replace_current(),
             Some(Hit::Button(Button::ReplaceAll)) => self.replace_all(),
+            Some(Hit::Button(Button::ReplaceAllAll)) => self.replace_all_in_opened_documents(),
+            Some(Hit::Button(Button::MarkAll)) => self.mark_all_matches(),
+            Some(Hit::Button(Button::ClearMarks)) => self.clear_marks(),
             Some(Hit::Button(Button::Close)) => self.close_find(),
+            Some(Hit::Swap(chip)) => {
+                self.find.swap(chip);
+                self.refresh_find();
+            }
             Some(Hit::Field(field)) => self.find.focus_field(field),
+            Some(Hit::HistoryToggle(field)) => self.find.toggle_history(field),
+            Some(Hit::HistoryEntry(index)) => {
+                if let Some(field) = self.find.history_open() {
+                    self.find.pick_history(field, index);
+                    self.refresh_find();
+                }
+            }
             None => {}
         }
+        self.window.request_redraw();
+    }
+
+    /// Reports how many matches the pattern has, without moving the caret.
+    fn count_matches(&mut self) {
+        self.refresh_find();
+        let count = self.find.matches.len();
+        self.status.set_message(Some(match count {
+            0 => "No match".to_string(),
+            1 => "1 match".to_string(),
+            n => format!("{n} matches"),
+        }));
+    }
+
+    /// One results row per match `search` finds in tab `index`.
+    ///
+    /// The tab number travels with the row, so the panel can jump to a buffer
+    /// that has never been saved, which has no path to open.
+    fn hits_in_tab(&self, search: &nn_core::Search, index: usize) -> Vec<nn_core::Hit> {
+        let doc = &self.tabs[index].editor.doc;
+        let path = doc
+            .path()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_else(|| std::path::PathBuf::from(format!("new {}", index + 1)));
+        search
+            .find_all(doc)
+            .into_iter()
+            .map(|range| {
+                let line = doc.char_to_line(range.start);
+                let column = range.start - doc.line_to_char(line);
+                nn_core::Hit {
+                    path: path.clone(),
+                    line,
+                    column,
+                    text: doc.line(line).trim_end().to_string(),
+                    tab: Some(index),
+                }
+            })
+            .collect()
+    }
+
+    /// Lists every match in the active document, Notepad++'s "Find All in
+    /// Current Document".
+    fn find_all_in_document(&mut self) {
+        self.refresh_find();
+        let pattern = self.find.query.text().to_string();
+        if pattern.is_empty() {
+            return;
+        }
+        self.find.remember();
+        let hits = match self.find.search() {
+            Some(search) => self.hits_in_tab(search, self.active),
+            None => return,
+        };
+        let files = if hits.is_empty() { 0 } else { 1 };
+        let header = format!(
+            "Search \"{pattern}\" ({}, {})",
+            hits_noun(hits.len()),
+            files_noun(files)
+        );
+        self.results.set_hits_named(hits, header);
+    }
+
+    /// Lists every match in every open document, Notepad++'s "Find All in All
+    /// Opened Documents".
+    fn find_all_in_opened_documents(&mut self) {
+        self.refresh_find();
+        let pattern = self.find.query.text().to_string();
+        if pattern.is_empty() {
+            return;
+        }
+        self.find.remember();
+        let mut hits = Vec::new();
+        let mut files = 0usize;
+        if let Some(search) = self.find.search() {
+            for index in 0..self.tabs.len() {
+                let found = self.hits_in_tab(search, index);
+                if !found.is_empty() {
+                    files += 1;
+                }
+                hits.extend(found);
+            }
+        }
+        let searched = self.tabs.len();
+        let header = format!(
+            "Search \"{pattern}\" ({}, {files} of {})",
+            hits_noun(hits.len()),
+            files_noun(searched)
+        );
+        self.results.set_hits_named(hits, header);
+    }
+
+    /// Replaces every match in every open document.
+    ///
+    /// Each document gets its own undo group, the way a Replace All on that
+    /// document would, and the highlighting is refreshed from the top because
+    /// the first replacement can shift every line after it.
+    fn replace_all_in_opened_documents(&mut self) {
+        let template = self.find.replacement.text().to_string();
+        let mut replaced = 0usize;
+        let mut files = 0usize;
+        let tabs = self.tabs.len();
+        if let Some(search) = self.find.search() {
+            for index in 0..tabs {
+                let tab = &mut self.tabs[index];
+                let matches = search.find_all(&tab.editor.doc);
+                if matches.is_empty() {
+                    continue;
+                }
+                let edits: Vec<_> = matches
+                    .into_iter()
+                    .map(|m| {
+                        let text = search.expand(&tab.editor.doc, m.clone(), &template);
+                        (m, text)
+                    })
+                    .collect();
+                replaced += edits.len();
+                files += 1;
+                tab.editor.replace_ranges(&edits);
+                if !tab.editor.doc.is_large() {
+                    tab.highlighter.highlight_from(&mut tab.editor.doc, 0);
+                    tab.folder.apply_from(&mut tab.editor.doc, 0);
+                }
+            }
+        }
+        if replaced == 0 {
+            self.status.set_message(Some("No match".to_string()));
+            return;
+        }
+        self.refresh_find();
+        self.refresh_brace();
+        self.refresh_smart();
+        self.refresh_symbols();
+        self.refresh_history();
+        self.update_title();
+        self.status.set_message(Some(format!(
+            "Replaced {replaced} occurrence(s) in {files} file(s)"
+        )));
+    }
+
+    /// Marks every match of the bar's pattern, Notepad++'s "Mark All".
+    ///
+    /// The marks are the bar's own matches rather than the word under the caret,
+    /// so the Mark tab's pattern box and its options are the ones that decide
+    /// what a match is.
+    fn mark_all_matches(&mut self) {
+        self.refresh_find();
+        if self.find.query.text().is_empty() {
+            self.status.set_message(Some("Nothing to mark".to_string()));
+            return;
+        }
+        self.find.remember();
+        let ranges = self.find.matches.clone();
+        let purge = self.find.purge_marks;
+        let bookmark_lines = self.find.bookmark_lines;
+        if purge {
+            // "Purge for each search" drops the marks the previous searches
+            // left, whichever style they were made in. Clearing only the bar's
+            // own slot would make the option a no-op, because marking replaces
+            // that slot anyway.
+            self.tab_mut().editor.clear_all_styles();
+        }
+        let count = self.tab_mut().editor.set_marks(0, ranges.clone());
+        if bookmark_lines {
+            let doc = &mut self.tab_mut().editor.doc;
+            for range in &ranges {
+                let line = doc.char_to_line(range.start);
+                if !doc.is_bookmarked(line) {
+                    doc.toggle_bookmark(line);
+                }
+            }
+        }
+        self.status
+            .set_message(Some(format!("Marked {count} occurrence(s)")));
+    }
+
+    /// Drops the marks a mark left, and the bookmarks with them when the bar is
+    /// set to bookmark its lines.
+    fn clear_marks(&mut self) {
+        self.tab_mut().editor.clear_style(0);
+        if self.find.bookmark_lines {
+            self.tab_mut().editor.doc.clear_bookmarks();
+        }
+        self.status.set_message(Some("Marks cleared".to_string()));
     }
 
     /// The directory a find-in-files search runs over by default.
@@ -7626,7 +7911,12 @@ impl State {
         let Some(hit) = self.results.hits().get(index).cloned() else {
             return;
         };
-        self.open_path(&hit.path);
+        match hit.tab {
+            // A hit from "Find All in Current Document" came out of a buffer,
+            // which may have no path at all: it names its tab instead.
+            Some(tab) if tab < self.tabs.len() => self.switch_tab(tab),
+            _ => self.open_path(&hit.path),
+        }
         self.tab_mut().editor.goto_position(hit.line, hit.column);
         self.tab_mut().editor.ensure_caret_visible();
         self.window.request_redraw();
@@ -7777,6 +8067,54 @@ impl State {
             return;
         };
         self.projects = Projects::parse(&text);
+    }
+
+    /// Reads the patterns and replacements used before.
+    ///
+    /// Kept in its own file rather than in the session: the session is about
+    /// which files are open, and a search history that vanished because the
+    /// files did would be a history of the wrong thing.
+    fn load_find_history(&mut self) {
+        let Some(path) = nn_app::paths::config_file("find_history.txt") else {
+            return;
+        };
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return;
+        };
+        let mut patterns = Vec::new();
+        let mut replacements = Vec::new();
+        for line in text.lines() {
+            if let Some(rest) = line.strip_prefix("find ") {
+                patterns.push(rest.to_string());
+            } else if let Some(rest) = line.strip_prefix("replace ") {
+                replacements.push(rest.to_string());
+            }
+        }
+        self.find.set_history(patterns, replacements);
+    }
+
+    /// Writes the search history, so the next launch remembers it.
+    ///
+    /// Both fields are remembered first: the bar only files its text away when
+    /// a search runs or the bar closes, and quitting with a half-typed pattern
+    /// is neither.
+    fn save_find_history(&mut self) {
+        self.find.remember();
+        let Some(path) = nn_app::paths::config_file("find_history.txt") else {
+            return;
+        };
+        let mut text = String::new();
+        for pattern in &self.find.history {
+            text.push_str("find ");
+            text.push_str(pattern);
+            text.push('\n');
+        }
+        for replacement in &self.find.replacement_history {
+            text.push_str("replace ");
+            text.push_str(replacement);
+            text.push('\n');
+        }
+        nn_app::paths::write(&path, &text);
     }
 
     /// Writes the project file.
@@ -9294,6 +9632,7 @@ impl ApplicationHandler<UserEvent> for App {
                 // away, and the next launch offers it back.
                 state.snapshot_now();
                 state.save_session();
+                state.save_find_history();
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {

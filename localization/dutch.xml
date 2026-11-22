@@ -468,6 +468,12 @@
                 <Item id="Search URL:" name="Zoek-URL:"/>
                 <Item id="Find" name="Zoeken"/>
                 <Item id="Find:" name="Zoeken:"/>
+            <Item id="Count" name="Tellen"/>
+            <Item id="Find All in Current Document" name="Alles zoeken in huidig document"/>
+            <Item id="Find All in All Opened Documents" name="Alles zoeken in alle geopende documenten"/>
+            <Item id="Replace All in All Opened Documents" name="Alles vervangen in alle geopende documenten"/>
+            <Item id="Mark All" name="Alles markeren"/>
+            <Item id="Clear Marks" name="Markeringen wissen"/>
             </Main>
         </Menu>
     </Native-Langue>

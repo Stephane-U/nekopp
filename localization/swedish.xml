@@ -468,6 +468,12 @@
                 <Item id="Toolbar" name="Verktygsfält"/>
                 <Item id="Zoom In" name="Zooma in"/>
                 <Item id="Zoom Out" name="Zooma ut"/>
+            <Item id="Count" name="Räkna"/>
+            <Item id="Find All in Current Document" name="Sök alla i aktuellt dokument"/>
+            <Item id="Find All in All Opened Documents" name="Sök alla i alla öppna dokument"/>
+            <Item id="Replace All in All Opened Documents" name="Ersätt alla i alla öppna dokument"/>
+            <Item id="Mark All" name="Markera alla"/>
+            <Item id="Clear Marks" name="Rensa markeringar"/>
             </Main>
         </Menu>
     </Native-Langue>

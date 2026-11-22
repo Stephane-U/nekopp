@@ -1,9 +1,15 @@
 //! The find and replace bar.
 //!
-//! Up to three rows along the bottom of the window: the pattern and its match
-//! count, the replacement when Replace is open, and a row of settings and
-//! buttons under them. It owns its own state and its own layout so that the
-//! editor view only has to ask it for rectangles and text areas.
+//! A stack of rows along the bottom of the window: the pattern and its match
+//! count, the replacement when Replace is open, a row of setting chips, and the
+//! action buttons under them. It owns its own state and its own layout so that
+//! the editor view only has to ask it for rectangles and text areas.
+//!
+//! The buttons are on their own rows because Notepad++'s Find dialog has ten of
+//! them, and ten buttons carrying words cannot share a line with eleven chips in
+//! a window of any width. They wrap instead: the bar grows a row when the next
+//! button does not fit, which is also what keeps a translation -- usually longer
+//! than the English -- from drawing one button on top of another.
 //!
 //! The bar is keyboard-first: `Ctrl+F` opens it, typing goes into the query,
 //! `Enter` walks through the matches in the direction the bar is set to,
@@ -42,6 +48,15 @@ const CHIP_GAP: f32 = 6.0;
 /// Padding inside a button, left and right of its word.
 const BUTTON_PAD: f32 = 10.0;
 
+/// Width of the little arrow that opens a field's history.
+const TOGGLE_W: f32 = 18.0;
+
+/// How many remembered patterns a field keeps.
+pub const MAX_HISTORY: usize = 20;
+
+/// How many of them the open list shows at once.
+const VISIBLE_HISTORY: usize = 8;
+
 /// One of the settings in the bar's option row, drawn as a chip.
 ///
 /// A chip carries a mark rather than a word. Notepad++ writes these out as
@@ -67,10 +82,14 @@ pub enum Chip {
     Up,
     /// Search downwards.
     Down,
+    /// Drop a bookmark on every line a mark lands on.
+    Bookmark,
+    /// Clear the previous marks before marking again.
+    Purge,
 }
 
 /// The chips, in the order they are drawn.
-pub const CHIPS: [Chip; 9] = [
+pub const CHIPS: [Chip; 11] = [
     Chip::Case,
     Chip::Word,
     Chip::Normal,
@@ -80,6 +99,8 @@ pub const CHIPS: [Chip; 9] = [
     Chip::Selection,
     Chip::Up,
     Chip::Down,
+    Chip::Bookmark,
+    Chip::Purge,
 ];
 
 impl Chip {
@@ -106,6 +127,10 @@ impl Chip {
             Chip::Selection => "\u{25ad}",
             Chip::Up => "\u{2191}",
             Chip::Down => "\u{2193}",
+            // Chips carry a mark, so the two Mark-tab settings get a letter
+            // each: B for the bookmark, P for the purge.
+            Chip::Bookmark => "B",
+            Chip::Purge => "P",
         }
     }
 
@@ -122,28 +147,51 @@ impl Chip {
             Chip::Selection => bar.in_selection,
             Chip::Up => bar.up,
             Chip::Down => !bar.up,
+            Chip::Bookmark => bar.bookmark_lines,
+            Chip::Purge => bar.purge_marks,
         }
     }
 }
 
-/// A button in the bar's option row.
+/// A button in the bar's action rows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Button {
     /// Walk to the next match in the chosen direction.
     FindNext,
+    /// Report how many matches there are, without moving.
+    Count,
+    /// List every match in the active document.
+    FindAll,
+    /// List every match in every open document.
+    FindAllAll,
     /// Replace the current match and walk on.
     Replace,
-    /// Replace every match.
+    /// Replace every match in the active document.
     ReplaceAll,
+    /// Replace every match in every open document.
+    ReplaceAllAll,
+    /// Highlight every match in the active document.
+    MarkAll,
+    /// Drop the highlights a mark left.
+    ClearMarks,
     /// Close the bar.
     Close,
 }
 
 /// The buttons, in the order they are drawn, left to right.
-pub const BUTTONS: [Button; 4] = [
+///
+/// Notepad++'s own order, "Find Next" through "Close", with the replacement's
+/// three buttons in the middle where it puts them.
+pub const BUTTONS: [Button; 10] = [
     Button::FindNext,
+    Button::Count,
+    Button::FindAll,
+    Button::FindAllAll,
     Button::Replace,
     Button::ReplaceAll,
+    Button::ReplaceAllAll,
+    Button::MarkAll,
+    Button::ClearMarks,
     Button::Close,
 ];
 
@@ -152,9 +200,59 @@ impl Button {
     pub fn label(self) -> &'static str {
         match self {
             Button::FindNext => "Find Next",
+            Button::Count => "Count",
+            Button::FindAll => "Find All in Current Document",
+            Button::FindAllAll => "Find All in All Opened Documents",
             Button::Replace => "Replace",
             Button::ReplaceAll => "Replace All",
+            Button::ReplaceAllAll => "Replace All in All Opened Documents",
+            Button::MarkAll => "Mark All",
+            Button::ClearMarks => "Clear Marks",
             Button::Close => "Close",
+        }
+    }
+
+    /// Whether the button only makes sense once the replacement row is open.
+    pub fn replace_only(self) -> bool {
+        matches!(
+            self,
+            Button::Replace | Button::ReplaceAll | Button::ReplaceAllAll
+        )
+    }
+}
+
+/// One of the three things Notepad++'s swap button can do.
+///
+/// The dialog has one button and a pull-down to choose between the three; a
+/// bar docked along the bottom has room for three small buttons and no room for
+/// a menu, and three buttons are one click each rather than two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwapChip {
+    /// Exchange the two fields.
+    Swap,
+    /// Copy the pattern into the replacement, leaving the pattern alone.
+    FindToReplace,
+    /// Copy the replacement into the pattern, leaving the replacement alone.
+    ReplaceToFind,
+}
+
+/// The swap buttons, in the order they are drawn.
+pub const SWAP_CHIPS: [SwapChip; 3] = [
+    SwapChip::Swap,
+    SwapChip::FindToReplace,
+    SwapChip::ReplaceToFind,
+];
+
+impl SwapChip {
+    /// The mark drawn on the button.
+    ///
+    /// `<>` and the two arrows are ASCII: the interface font is a monospace
+    /// face with no `⇅`, and a box where a mark should be reads as a fault.
+    pub fn mark(self) -> &'static str {
+        match self {
+            SwapChip::Swap => "<>",
+            SwapChip::FindToReplace => "->",
+            SwapChip::ReplaceToFind => "<-",
         }
     }
 }
@@ -166,8 +264,14 @@ pub enum Hit {
     Chip(Chip),
     /// A button.
     Button(Button),
+    /// One of the swap buttons.
+    Swap(SwapChip),
     /// One of the two text fields.
     Field(Field),
+    /// The arrow that opens a field's history.
+    HistoryToggle(Field),
+    /// One entry of an open history list, counted from the most recent.
+    HistoryEntry(usize),
 }
 
 /// A rectangle in window coordinates.
@@ -387,6 +491,18 @@ pub struct FindBar {
     pub in_selection: bool,
     /// Whether the search runs upwards.
     pub up: bool,
+    /// Whether a mark also drops a bookmark on its line.
+    pub bookmark_lines: bool,
+    /// Whether a search drops the previous marks before marking again.
+    pub purge_marks: bool,
+    /// Patterns searched for before, most recent first.
+    pub history: Vec<String>,
+    /// Replacements used before, most recent first.
+    pub replacement_history: Vec<String>,
+    /// Which field's history list is open.
+    history_open: Option<Field>,
+    /// Which entry of it the pointer or the arrow keys are on.
+    history_pick: Option<usize>,
     /// Whether the selection follows the pattern as it is typed.
     incremental: bool,
     /// How to match.
@@ -400,6 +516,7 @@ pub struct FindBar {
     compiled: Option<Search>,
     stale: bool,
     family: Family<'static>,
+    metrics: Metrics,
     char_width: f32,
     label_find: Buffer,
     label_replace: Buffer,
@@ -411,11 +528,19 @@ pub struct FindBar {
     /// language, and a translated label can be half again as long.
     label_w: f32,
     /// The mark on each chip, shaped, and the mark it was last shaped from.
-    chips: [Buffer; 9],
-    chip_marks: [&'static str; 9],
+    chips: [Buffer; 11],
+    chip_marks: [&'static str; 11],
+    /// The mark on each swap button, shaped once.
+    swaps: [Buffer; 3],
+    /// The little arrow that opens a history list, shaped once.
+    history_glyph: Buffer,
+    /// The entries of the open history list, shaped.
+    history_rows: Vec<Buffer>,
+    /// The entry text each row was shaped from.
+    history_shaped: Vec<String>,
     /// The word on each button, shaped, and its width once shaped.
-    buttons: [Buffer; 4],
-    button_w: [f32; 4],
+    buttons: [Buffer; 10],
+    button_w: [f32; 10],
     buttons_shaped: bool,
     count: Buffer,
     count_text: String,
@@ -442,6 +567,12 @@ impl FindBar {
             wrap: true,
             in_selection: false,
             up: false,
+            bookmark_lines: false,
+            purge_marks: false,
+            history: Vec::new(),
+            replacement_history: Vec::new(),
+            history_open: None,
+            history_pick: None,
             incremental: false,
             options: SearchOptions::default(),
             matches: Vec::new(),
@@ -450,6 +581,7 @@ impl FindBar {
             compiled: None,
             stale: true,
             family,
+            metrics,
             char_width,
             label_find: label("Find:"),
             label_replace: label("Replace:"),
@@ -460,9 +592,13 @@ impl FindBar {
             chips: std::array::from_fn(|i| label(CHIPS[i].mark(SearchMode::Normal))),
             // Empty, so the first frame shapes every chip rather than trusting
             // a mark that was never laid out.
-            chip_marks: [""; 9],
+            chip_marks: [""; 11],
+            swaps: std::array::from_fn(|i| label(SWAP_CHIPS[i].mark())),
+            history_glyph: label("\u{25be}"),
+            history_rows: Vec::new(),
+            history_shaped: Vec::new(),
             buttons: std::array::from_fn(|i| label(BUTTONS[i].label())),
-            button_w: [0.0; 4],
+            button_w: [0.0; 10],
             buttons_shaped: false,
             count: label(""),
             count_text: String::new(),
@@ -576,6 +712,8 @@ impl FindBar {
     pub fn close(&mut self, volatile: bool) {
         self.open = false;
         self.incremental = false;
+        self.remember();
+        self.close_history();
         if volatile {
             self.matches.clear();
             self.current = None;
@@ -784,6 +922,8 @@ impl FindBar {
             Chip::Selection => self.in_selection = !self.in_selection,
             Chip::Up => self.up = true,
             Chip::Down => self.up = false,
+            Chip::Bookmark => self.bookmark_lines = !self.bookmark_lines,
+            Chip::Purge => self.purge_marks = !self.purge_marks,
         }
         self.stale = true;
     }
@@ -807,16 +947,182 @@ impl FindBar {
         self.compiled.as_ref()
     }
 
+    /// Puts remembered history in place, from the file the app keeps it in.
+    pub fn set_history(&mut self, patterns: Vec<String>, replacements: Vec<String>) {
+        self.history = patterns;
+        self.history.truncate(MAX_HISTORY);
+        self.replacement_history = replacements;
+        self.replacement_history.truncate(MAX_HISTORY);
+    }
+
+    /// Files both fields' text away at the front of their history.
+    ///
+    /// Called when the bar closes and whenever a search runs, so a pattern used
+    /// twice in one session is remembered whether or not the bar was closed.
+    /// Empty text is not a search and is not remembered.
+    pub fn remember(&mut self) {
+        remember_into(&mut self.history, self.query.text());
+        remember_into(&mut self.replacement_history, self.replacement.text());
+    }
+
+    /// The entries a field's history holds.
+    pub fn history_entries(&self, field: Field) -> &[String] {
+        match field {
+            Field::Query => &self.history,
+            Field::Replacement => &self.replacement_history,
+        }
+    }
+
+    /// Which field's history list is open, if any.
+    pub fn history_open(&self) -> Option<Field> {
+        self.history_open
+    }
+
+    /// Which entry the pointer or the arrow keys are on.
+    pub fn history_pick(&self) -> Option<usize> {
+        self.history_pick
+    }
+
+    /// Opens a field's history list, or closes it when it is already open.
+    pub fn toggle_history(&mut self, field: Field) {
+        self.history_open = if self.history_open == Some(field) {
+            None
+        } else {
+            Some(field)
+        };
+        self.history_pick = None;
+    }
+
+    /// Closes the history list.
+    pub fn close_history(&mut self) {
+        self.history_open = None;
+        self.history_pick = None;
+    }
+
+    /// Puts the text of history entry `index` into its field.
+    pub fn pick_history(&mut self, field: Field, index: usize) {
+        let Some(text) = self.history_entries(field).get(index).cloned() else {
+            return;
+        };
+        self.set_field_text(field, &text);
+        self.close_history();
+    }
+
+    /// Moves the highlight through the open list, wrapping at both ends.
+    pub fn move_history(&mut self, delta: isize) {
+        let Some(field) = self.history_open else {
+            return;
+        };
+        let count = self.history_entries(field).len().min(VISIBLE_HISTORY);
+        if count == 0 {
+            return;
+        }
+        let next = match self.history_pick {
+            // The first arrow press lands on the nearest entry rather than on
+            // the one after it: the list opens with nothing picked, and Down
+            // has to mean "the most recent one".
+            None if delta > 0 => 0,
+            None => count as isize - 1,
+            Some(current) => (current as isize + delta).rem_euclid(count as isize),
+        };
+        self.history_pick = Some(next as usize);
+    }
+
+    /// Replaces the text of one field, wholesale.
+    pub fn set_field_text(&mut self, field: Field, text: &str) {
+        let target = match field {
+            Field::Query => &mut self.query,
+            Field::Replacement => &mut self.replacement,
+        };
+        target.set_text(text);
+        if field == Field::Query {
+            self.stale = true;
+        }
+    }
+
+    /// Runs one of the swap buttons.
+    ///
+    /// The pattern is marked stale by `set_field_text`, so the matches follow
+    /// the new pattern rather than the one the bar was holding.
+    pub fn swap(&mut self, chip: SwapChip) {
+        match chip {
+            SwapChip::Swap => {
+                let query = self.query.text().to_string();
+                let replacement = self.replacement.text().to_string();
+                self.set_field_text(Field::Query, &replacement);
+                self.set_field_text(Field::Replacement, &query);
+            }
+            SwapChip::FindToReplace => {
+                let query = self.query.text().to_string();
+                self.set_field_text(Field::Replacement, &query);
+            }
+            SwapChip::ReplaceToFind => {
+                let replacement = self.replacement.text().to_string();
+                self.set_field_text(Field::Query, &replacement);
+            }
+        }
+    }
+
     /// The height the bar occupies, in pixels.
     ///
-    /// Two rows in find mode -- the pattern and the settings -- and three with
-    /// the replacement open.
-    pub fn height(&self, line_height: f32, padding: f32) -> f32 {
+    /// The two fields, the chips, and however many rows the buttons need at this
+    /// width: a narrow window wraps them rather than clipping the last one.
+    pub fn height(&self, width: f32, line_height: f32, padding: f32) -> f32 {
         if !self.open {
             return 0.0;
         }
-        let rows = if self.replace { 3.0 } else { 2.0 };
-        rows * line_height + 2.0 * padding
+        let fields = if self.replace { 2.0 } else { 1.0 };
+        let buttons = self.button_rows(width, padding).len().max(1) as f32;
+        (fields + 1.0 + buttons) * line_height + 2.0 * padding
+    }
+
+    /// The buttons that fit on each row, as indices into [`BUTTONS`].
+    ///
+    /// Greedy, left to right, in the order they are drawn. A button wider than
+    /// the whole row is squeezed to the row rather than dropped: it is still the
+    /// button that does the thing, and a missing button is a missing feature.
+    fn button_rows(&self, width: f32, padding: f32) -> Vec<Vec<usize>> {
+        let left = padding + self.label_w;
+        let available = ((width - padding) - left).max(80.0);
+        let mut rows: Vec<Vec<usize>> = Vec::new();
+        let mut current: Vec<usize> = Vec::new();
+        let mut used = 0.0;
+        for (index, button) in BUTTONS.iter().enumerate() {
+            if button.replace_only() && !self.replace {
+                continue;
+            }
+            let w = self.button_w[index].max(44.0).min(available);
+            let extra = if current.is_empty() {
+                w
+            } else {
+                CHIP_GAP + w
+            };
+            if !current.is_empty() && used + extra > available {
+                rows.push(std::mem::take(&mut current));
+                used = w;
+            } else {
+                used += extra;
+            }
+            current.push(index);
+        }
+        if !current.is_empty() {
+            rows.push(current);
+        }
+        // A greedy fill can leave one button alone on the last row, under a row
+        // that is packed to the edge. Moving the last button of the row above
+        // down evens the two out, which is the difference between a bar that
+        // looks laid out and one that looks wrapped.
+        while rows.len() > 1 {
+            let last = rows[rows.len() - 1].len();
+            let above = rows[rows.len() - 2].len();
+            if last != 1 || above <= 2 {
+                break;
+            }
+            let count = rows.len();
+            let moved = rows[count - 2].pop().expect("a row of buttons");
+            rows[count - 1].insert(0, moved);
+        }
+        rows
     }
 
     /// Rebuilds the shaped buffers.
@@ -836,6 +1142,12 @@ impl FindBar {
             self.label_w = widest_line(&self.label_find)
                 .max(widest_line(&self.label_replace))
                 + LABEL_GAP;
+            // The swap marks and the history arrow never change, so they are
+            // shaped with the labels rather than on every frame.
+            self.history_glyph.shape_until_scroll(font_system, false);
+            for swap in self.swaps.iter_mut() {
+                swap.shape_until_scroll(font_system, false);
+            }
             self.labels_shaped = true;
         }
 
@@ -867,6 +1179,30 @@ impl FindBar {
 
         self.query.refresh(font_system, self.family);
         self.replacement.refresh(font_system, self.family);
+
+        // The open history list, reshaped only when its entries changed: it is
+        // drawn over the document, and reshaping it on every frame would shape
+        // text nobody can see change.
+        let entries: Vec<String> = match self.history_open {
+            Some(field) => self
+                .history_entries(field)
+                .iter()
+                .take(VISIBLE_HISTORY)
+                .cloned()
+                .collect(),
+            None => Vec::new(),
+        };
+        if entries != self.history_shaped {
+            self.history_rows.resize_with(entries.len(), || {
+                Buffer::new_empty(self.metrics)
+            });
+            for (buffer, text) in self.history_rows.iter_mut().zip(&entries) {
+                buffer.set_size(None, None);
+                buffer.set_text(text, &Attrs::new().family(self.family), Shaping::Basic, None);
+                buffer.shape_until_scroll(font_system, false);
+            }
+            self.history_shaped = entries;
+        }
 
         let text = self.count_label();
         if text != self.count_text {
@@ -905,44 +1241,94 @@ impl FindBar {
         let row = line_height;
         let find_y = top + padding;
         let replace_y = find_y + row;
-        let options_y = find_y + if self.replace { 2.0 } else { 1.0 } * row;
+        let chips_y = find_y + if self.replace { 2.0 } else { 1.0 } * row;
+        let buttons_y = chips_y + row;
 
         let count_w = 72.0;
         let right = width - padding;
         let label_x = padding;
-        // The fields run to the match count and no further: with the settings
-        // moved to their own row there is nothing left to dodge on this one.
         let field_x = padding + self.label_w;
+
+        // Each row ends at a little history arrow; the pattern's row leaves the
+        // match counter beyond it, the replacement's row the three swap buttons.
+        let swap_w = 3.0 * CHIP_W + 2.0 * 4.0;
         let count_x = right - count_w;
-        let field_w = (count_x - CHIP_GAP - field_x).max(40.0);
-        let field = |y: f32| Rect {
+        let query_right = count_x - CHIP_GAP - TOGGLE_W - CHIP_GAP;
+        let replace_right = right - swap_w - CHIP_GAP - TOGGLE_W - CHIP_GAP;
+        let query_field = Rect {
             x: field_x,
-            y,
-            w: field_w,
+            y: find_y,
+            w: (query_right - field_x).max(40.0),
+            h: row,
+        };
+        let replace_field = Rect {
+            x: field_x,
+            y: replace_y,
+            w: (replace_right - field_x).max(40.0),
             h: row,
         };
 
-        // The buttons take the right end of the option row, laid out right to
-        // left in reverse order, so Close is always the furthest one out: a
-        // button that shifts when a translation gets longer is a button people
-        // click wrong.
-        let mut buttons = [Rect {
+        // The arrows sit at the right edge of their own row's field, so each
+        // one is beside the text it drops down.
+        let toggle = |rect: Rect| Rect {
+            x: rect.x + rect.w + CHIP_GAP,
+            y: rect.y + 2.0,
+            w: TOGGLE_W,
+            h: row - 4.0,
+        };
+        let history_toggle = [toggle(query_field), toggle(replace_field)];
+
+        let mut swaps = [Rect {
             x: 0.0,
             y: 0.0,
             w: 0.0,
             h: 0.0,
-        }; 4];
-        let mut x = right;
-        for index in (0..BUTTONS.len()).rev() {
-            let w = self.button_w[index].max(44.0);
-            x -= w;
-            buttons[index] = Rect {
+        }; 3];
+        let mut x = right - swap_w;
+        for rect in swaps.iter_mut() {
+            *rect = Rect {
                 x,
-                y: options_y + 2.0,
-                w,
+                y: replace_y + 2.0,
+                w: CHIP_W,
                 h: row - 4.0,
             };
-            x -= CHIP_GAP;
+            x += CHIP_W + 4.0;
+        }
+
+        // The buttons take rows of their own under the chips, each row packed
+        // right to left so Close ends at the window's edge. A button that
+        // shifted when a translation got longer would be a button people click
+        // wrong.
+        let mut buttons = vec![
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 0.0,
+                h: 0.0,
+            };
+            BUTTONS.len()
+        ];
+        let mut y = buttons_y + 2.0;
+        for indices in self.button_rows(width, padding) {
+            let mut widths = Vec::with_capacity(indices.len());
+            let mut total = 0.0;
+            for &index in &indices {
+                let w = self.button_w[index].max(44.0);
+                total += w;
+                widths.push(w);
+            }
+            total += CHIP_GAP * (indices.len().saturating_sub(1)) as f32;
+            let mut x = (right - total).max(label_x);
+            for (&index, w) in indices.iter().zip(widths) {
+                buttons[index] = Rect {
+                    x,
+                    y,
+                    w,
+                    h: row - 4.0,
+                };
+                x += w + CHIP_GAP;
+            }
+            y += row;
         }
 
         // The chips start where the fields do, so the settings read as a column
@@ -952,30 +1338,64 @@ impl FindBar {
             y: 0.0,
             w: 0.0,
             h: 0.0,
-        }; 9];
+        }; 11];
         let mut x = field_x;
         for rect in chips.iter_mut() {
             *rect = Rect {
                 x,
-                y: options_y + 2.0,
+                y: chips_y + 2.0,
                 w: CHIP_W,
                 h: row - 4.0,
             };
             x += CHIP_W + 4.0;
         }
 
+        // The open history list, drawn upwards from its field so the most recent
+        // entry is the one nearest the text it would fill in.
+        let mut history = Vec::new();
+        let mut dropdown = None;
+        if let Some(field) = self.history_open {
+            let anchor = match field {
+                Field::Query => query_field,
+                Field::Replacement => replace_field,
+            };
+            let count = self.history_entries(field).len().min(VISIBLE_HISTORY);
+            let w = anchor.w.clamp(160.0, 460.0);
+            for index in 0..count {
+                history.push(Rect {
+                    x: anchor.x,
+                    y: anchor.y - (index as f32 + 1.0) * row,
+                    w,
+                    h: row,
+                });
+            }
+            if count > 0 {
+                dropdown = Some(Rect {
+                    x: anchor.x,
+                    y: anchor.y - count as f32 * row,
+                    w,
+                    h: count as f32 * row,
+                });
+            }
+        }
+
         BarLayout {
-            height: self.height(line_height, padding),
+            height: self.height(width, line_height, padding),
             find_y,
             replace_y,
-            options_y,
+            options_y: chips_y,
+            buttons_y,
             label_x,
             field_x,
-            field_w,
-            field_query: field(find_y),
-            field_replace: field(replace_y),
+            field_w: query_field.w,
+            field_query: query_field,
+            field_replace: replace_field,
             chips,
             buttons,
+            swaps,
+            history_toggle,
+            history,
+            dropdown,
             count_x,
             count_w,
             row,
@@ -999,6 +1419,13 @@ impl FindBar {
             return None;
         }
         let layout = self.layout(width, top, line_height, padding);
+        // The open list is over the document, so it is tested first: a click on
+        // an entry must not also move the caret in the text underneath.
+        for (index, rect) in layout.history.iter().enumerate() {
+            if rect.contains(x, y) {
+                return Some(Hit::HistoryEntry(index));
+            }
+        }
         for (index, rect) in layout.chips.iter().enumerate() {
             if rect.contains(x, y) {
                 return Some(Hit::Chip(CHIPS[index]));
@@ -1007,6 +1434,26 @@ impl FindBar {
         for (index, rect) in layout.buttons.iter().enumerate() {
             if rect.contains(x, y) {
                 return Some(Hit::Button(BUTTONS[index]));
+            }
+        }
+        if self.replace {
+            for (index, rect) in layout.swaps.iter().enumerate() {
+                if rect.contains(x, y) {
+                    return Some(Hit::Swap(SWAP_CHIPS[index]));
+                }
+            }
+        }
+        for (index, rect) in layout.history_toggle.iter().enumerate() {
+            if rect.contains(x, y) {
+                let field = if index == 0 {
+                    Field::Query
+                } else {
+                    Field::Replacement
+                };
+                if field == Field::Replacement && !self.replace {
+                    continue;
+                }
+                return Some(Hit::HistoryToggle(field));
             }
         }
         if layout.field_query.contains(x, y) {
@@ -1055,15 +1502,42 @@ impl FindBar {
         // A button is a raised rectangle with its word inside it, drawn even
         // when it is not hovered: a word floating on the bar does not read as
         // something to press.
-        for rect in layout.buttons.iter() {
+        let raised = mix(theme.bar_background, theme.foreground, 0.12).to_linear();
+        for rect in layout
+            .buttons
+            .iter()
+            .chain(layout.swaps.iter())
+            .chain(layout.history_toggle.iter())
+        {
+            quads.push(rect.x, rect.y, rect.w, rect.h, raised);
+            quads.push(rect.x, rect.y, rect.w, 1.0, theme.bar_border.to_linear());
+        }
+
+        // The open history list, above the bar and over the document. It is
+        // drawn last so that it covers whatever the bar has already queued.
+        if let Some(rect) = layout.dropdown {
+            quads.push(rect.x, rect.y, rect.w, rect.h, theme.menu_background.to_linear());
+            quads.push(rect.x, rect.y, rect.w, 1.0, theme.bar_border.to_linear());
             quads.push(
                 rect.x,
-                rect.y,
+                rect.y + rect.h - 1.0,
                 rect.w,
-                rect.h,
-                mix(theme.bar_background, theme.foreground, 0.12).to_linear(),
+                1.0,
+                theme.bar_border.to_linear(),
             );
-            quads.push(rect.x, rect.y, rect.w, 1.0, theme.bar_border.to_linear());
+            quads.push(rect.x, rect.y, 1.0, rect.h, theme.bar_border.to_linear());
+            quads.push(
+                rect.x + rect.w - 1.0,
+                rect.y,
+                1.0,
+                rect.h,
+                theme.bar_border.to_linear(),
+            );
+        }
+        if let Some(pick) = self.history_pick {
+            if let Some(rect) = layout.history.get(pick) {
+                quads.push(rect.x, rect.y, rect.w, rect.h, theme.selection.to_linear());
+            }
         }
 
         // The caret in the focused field, over the selection it is about to
@@ -1105,13 +1579,18 @@ impl FindBar {
             return Vec::new();
         }
         let layout = self.layout(width, top, line_height, padding);
+        // The open history list reaches above the bar, so the bounds have to
+        // start where the list does or its top rows would be clipped away.
+        let list_top = layout
+            .dropdown
+            .map_or(top, |rect| top.min(rect.y));
         let bounds = TextBounds {
             left: 0,
-            top: top as i32,
+            top: list_top as i32,
             right: width as i32,
             bottom: (top + layout.height) as i32,
         };
-        let mut areas = Vec::with_capacity(8);
+        let mut areas = Vec::with_capacity(16);
 
         areas.push(TextArea {
             buffer: &self.label_find,
@@ -1148,13 +1627,63 @@ impl FindBar {
             });
         }
         for (index, rect) in layout.buttons.iter().enumerate() {
+            // A button that does not fit in this row at this width was never
+            // placed, and drawing its word at zero would paste it in the corner.
+            if rect.w == 0.0 {
+                continue;
+            }
             areas.push(TextArea {
                 buffer: &self.buttons[index],
                 left: rect.x + BUTTON_PAD,
-                top: layout.options_y,
+                top: rect.y - 2.0,
                 scale: 1.0,
                 bounds,
                 default_color: theme.foreground.to_cosmic(),
+                custom_glyphs: &[],
+            });
+        }
+        if self.replace {
+            for (index, rect) in layout.swaps.iter().enumerate() {
+                areas.push(TextArea {
+                    buffer: &self.swaps[index],
+                    left: rect.x + 3.0,
+                    top: rect.y - 2.0,
+                    scale: 1.0,
+                    bounds,
+                    default_color: theme.foreground.to_cosmic(),
+                    custom_glyphs: &[],
+                });
+            }
+        }
+        for (index, rect) in layout.history_toggle.iter().enumerate() {
+            if index == 1 && !self.replace {
+                continue;
+            }
+            areas.push(TextArea {
+                buffer: &self.history_glyph,
+                left: rect.x + 5.0,
+                top: rect.y - 2.0,
+                scale: 1.0,
+                bounds,
+                default_color: theme.bar_label.to_cosmic(),
+                custom_glyphs: &[],
+            });
+        }
+        for (index, rect) in layout.history.iter().enumerate() {
+            let Some(buffer) = self.history_rows.get(index) else {
+                continue;
+            };
+            areas.push(TextArea {
+                buffer,
+                left: rect.x + 4.0,
+                top: rect.y,
+                scale: 1.0,
+                bounds,
+                default_color: if self.history_pick == Some(index) {
+                    theme.toggle_on_text.to_cosmic()
+                } else {
+                    theme.foreground.to_cosmic()
+                },
                 custom_glyphs: &[],
             });
         }
@@ -1200,8 +1729,10 @@ pub struct BarLayout {
     pub find_y: f32,
     /// Top of the replace row.
     pub replace_y: f32,
-    /// Top of the settings and buttons row.
+    /// Top of the chips row.
     pub options_y: f32,
+    /// Top of the first button row.
+    pub buttons_y: f32,
     /// Left edge of the labels.
     pub label_x: f32,
     /// Left edge of the text fields.
@@ -1212,16 +1743,38 @@ pub struct BarLayout {
     pub field_query: Rect,
     /// The replacement field, on the row a click would find it.
     pub field_replace: Rect,
-    /// The nine setting chips.
-    pub chips: [Rect; 9],
-    /// The four buttons.
-    pub buttons: [Rect; 4],
+    /// The eleven setting chips.
+    pub chips: [Rect; 11],
+    /// The buttons, one rectangle each, in [`BUTTONS`] order.
+    pub buttons: Vec<Rect>,
+    /// The three swap buttons, on the replacement row.
+    pub swaps: [Rect; 3],
+    /// The two history arrows, pattern first.
+    pub history_toggle: [Rect; 2],
+    /// The rows of the open history list, most recent first and each above the
+    /// one before it.
+    pub history: Vec<Rect>,
+    /// The background of the open history list.
+    pub dropdown: Option<Rect>,
     /// Left edge of the match counter.
     pub count_x: f32,
     /// Width of the match counter.
     pub count_w: f32,
     /// Height of one row.
     pub row: f32,
+}
+
+/// Puts `text` at the front of a history list, once.
+///
+/// The list is most-recent-first and holds each pattern once, so using the same
+/// pattern twice does not fill it with a run of one entry.
+fn remember_into(list: &mut Vec<String>, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    list.retain(|entry| entry != text);
+    list.insert(0, text.to_string());
+    list.truncate(MAX_HISTORY);
 }
 
 /// The widest line of a shaped buffer, in pixels.
@@ -1555,15 +2108,15 @@ mod tests {
     fn the_bar_grows_a_row_for_the_replacement() {
         let mut bar = bar();
         bar.open_find();
-        let find = bar.height(20.0, 8.0);
+        let find = bar.height(900.0, 20.0, 8.0);
         bar.open_replace();
-        assert_eq!(bar.height(20.0, 8.0), find + 20.0);
+        assert_eq!(bar.height(900.0, 20.0, 8.0), find + 20.0);
     }
 
     #[test]
     fn a_closed_bar_has_no_height_and_takes_no_clicks() {
         let bar = bar();
-        assert_eq!(bar.height(20.0, 8.0), 0.0);
+        assert_eq!(bar.height(900.0, 20.0, 8.0), 0.0);
         assert_eq!(bar.hit_at(10.0, 10.0, 900.0, 0.0, 20.0, 8.0), None);
     }
 
@@ -1600,7 +2153,7 @@ mod tests {
     #[test]
     fn every_button_is_clickable_where_it_is_drawn() {
         let mut bar = bar();
-        bar.open_find();
+        bar.open_replace();
         bar.prepare(&mut FontSystem::new());
         let layout = bar.layout(900.0, 700.0, 20.0, 8.0);
         for (index, rect) in layout.buttons.iter().enumerate() {
@@ -1617,18 +2170,21 @@ mod tests {
     }
 
     #[test]
-    fn the_buttons_leave_room_for_the_chips() {
+    fn the_buttons_sit_on_their_own_rows_under_the_chips() {
         let mut bar = bar();
-        bar.open_find();
+        bar.open_replace();
         bar.prepare(&mut FontSystem::new());
         let layout = bar.layout(900.0, 0.0, 20.0, 8.0);
-        let last_chip = layout.chips[8];
-        assert!(
-            last_chip.x + last_chip.w < layout.buttons[0].x,
-            "chips end at {} and the first button starts at {}",
-            last_chip.x + last_chip.w,
-            layout.buttons[0].x
-        );
+        let chip = layout.chips[0];
+        for (index, rect) in layout.buttons.iter().enumerate() {
+            assert!(
+                rect.y >= chip.y + chip.h,
+                "button {index} at {} overlaps the chips at {}",
+                rect.y,
+                chip.y
+            );
+        }
+        assert!(layout.buttons_y > layout.options_y);
     }
 
     #[test]
@@ -1780,5 +2336,208 @@ mod tests {
         assert_eq!(bar.matches.len(), 1);
         bar.refresh(&document);
         assert_eq!(bar.matches.len(), 2);
+    }
+
+    #[test]
+    fn a_pattern_is_remembered_once_and_most_recent_first() {
+        let mut bar = bar();
+        bar.open_find();
+        for pattern in ["alpha", "beta", "alpha"] {
+            bar.query.set_text(pattern);
+            bar.remember();
+        }
+        assert_eq!(bar.history, vec!["alpha", "beta"]);
+        // An empty pattern is not a search and is not remembered.
+        bar.query.set_text("");
+        bar.remember();
+        assert_eq!(bar.history, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn closing_the_bar_files_both_fields_away() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.query.set_text("needle");
+        bar.replacement.set_text("haystack");
+        bar.close(true);
+        assert_eq!(bar.history, vec!["needle"]);
+        assert_eq!(bar.replacement_history, vec!["haystack"]);
+    }
+
+    #[test]
+    fn an_entry_of_the_history_fills_its_field() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.set_history(vec!["one".into(), "two".into()], Vec::new());
+        bar.toggle_history(Field::Query);
+        assert_eq!(bar.history_open(), Some(Field::Query));
+        bar.pick_history(Field::Query, 1);
+        assert_eq!(bar.query.text(), "two");
+        assert_eq!(bar.history_open(), None);
+    }
+
+    #[test]
+    fn the_arrows_walk_the_open_history_and_wrap() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.set_history(
+            vec!["one".into(), "two".into(), "three".into()],
+            Vec::new(),
+        );
+        bar.toggle_history(Field::Query);
+        bar.move_history(1);
+        assert_eq!(bar.history_pick(), Some(0));
+        bar.move_history(1);
+        assert_eq!(bar.history_pick(), Some(1));
+        bar.move_history(-1);
+        bar.move_history(-1);
+        assert_eq!(bar.history_pick(), Some(2));
+        bar.toggle_history(Field::Query);
+        assert_eq!(bar.history_open(), None);
+    }
+
+    #[test]
+    fn the_swap_button_exchanges_the_two_fields() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.query.set_text("left");
+        bar.replacement.set_text("right");
+        bar.swap(SwapChip::Swap);
+        assert_eq!(bar.query.text(), "right");
+        assert_eq!(bar.replacement.text(), "left");
+    }
+
+    #[test]
+    fn the_two_copy_buttons_leave_one_field_alone() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.query.set_text("left");
+        bar.replacement.set_text("right");
+        bar.swap(SwapChip::FindToReplace);
+        assert_eq!(bar.query.text(), "left");
+        assert_eq!(bar.replacement.text(), "left");
+        bar.swap(SwapChip::ReplaceToFind);
+        assert_eq!(bar.query.text(), "left");
+    }
+
+    #[test]
+    fn the_swap_buttons_are_only_there_with_the_replacement() {
+        let mut bar = bar();
+        bar.open_find();
+        let layout = bar.layout(900.0, 700.0, 20.0, 8.0);
+        let swap = layout.swaps[0];
+        assert_eq!(
+            bar.hit_at(swap.x + 2.0, swap.y + 2.0, 900.0, 700.0, 20.0, 8.0),
+            None
+        );
+        bar.open_replace();
+        let layout = bar.layout(900.0, 700.0, 20.0, 8.0);
+        let swap = layout.swaps[0];
+        assert_eq!(
+            bar.hit_at(swap.x + 2.0, swap.y + 2.0, 900.0, 700.0, 20.0, 8.0),
+            Some(Hit::Swap(SwapChip::Swap))
+        );
+    }
+
+    #[test]
+    fn the_history_arrow_and_its_entries_are_clickable() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.set_history(vec!["one".into(), "two".into()], Vec::new());
+        bar.toggle_history(Field::Query);
+        bar.prepare(&mut FontSystem::new());
+        let layout = bar.layout(900.0, 700.0, 20.0, 8.0);
+        let toggle = layout.history_toggle[0];
+        assert_eq!(
+            bar.hit_at(toggle.x + 2.0, toggle.y + 2.0, 900.0, 700.0, 20.0, 8.0),
+            Some(Hit::HistoryToggle(Field::Query))
+        );
+        // The list grows upwards, above the field it belongs to.
+        assert_eq!(layout.history.len(), 2);
+        assert!(layout.history[0].y + layout.history[0].h <= layout.field_query.y);
+        assert!(layout.history[1].y < layout.history[0].y);
+        let row = layout.history[1];
+        assert_eq!(
+            bar.hit_at(row.x + 2.0, row.y + 2.0, 900.0, 700.0, 20.0, 8.0),
+            Some(Hit::HistoryEntry(1))
+        );
+    }
+
+    #[test]
+    fn a_narrow_bar_wraps_the_buttons_onto_another_row() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.prepare(&mut FontSystem::new());
+        let wide = bar.layout(1200.0, 0.0, 20.0, 8.0);
+        let narrow = bar.layout(520.0, 0.0, 20.0, 8.0);
+        let wide_rows: Vec<f32> = wide.buttons.iter().map(|rect| rect.y).collect();
+        let narrow_rows: Vec<f32> = narrow.buttons.iter().map(|rect| rect.y).collect();
+        let distinct = |rows: &[f32]| {
+            let mut seen: Vec<f32> = rows.to_vec();
+            seen.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            seen.dedup();
+            seen.len()
+        };
+        assert!(
+            distinct(&narrow_rows) > distinct(&wide_rows),
+            "narrow {narrow_rows:?} vs wide {wide_rows:?}"
+        );
+        assert!(narrow.height > wide.height);
+    }
+
+    #[test]
+    fn the_buttons_stay_inside_the_window_when_it_is_narrow() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.prepare(&mut FontSystem::new());
+        let layout = bar.layout(520.0, 0.0, 20.0, 8.0);
+        for rect in layout.buttons.iter().filter(|rect| rect.w > 0.0) {
+            assert!(
+                rect.x >= 0.0 && rect.x + rect.w <= 520.0,
+                "button at {} is off the edge",
+                rect.x
+            );
+        }
+    }
+
+    #[test]
+    fn the_history_list_starts_at_the_field_it_belongs_to() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.set_history(Vec::new(), vec!["x".into()]);
+        bar.toggle_history(Field::Replacement);
+        let layout = bar.layout(900.0, 700.0, 20.0, 8.0);
+        let row = layout.history[0];
+        assert_eq!(row.x, layout.field_replace.x);
+        assert!(row.y + row.h <= layout.field_replace.y);
+    }
+
+    #[test]
+    fn every_control_fits_inside_the_height_the_bar_reserves() {
+        // The renderer reserves `height` pixels for the bar and draws the rows
+        // from the top of that band, so a row that reaches past it is drawn over
+        // the status bar -- which is exactly what a mistyped row count does.
+        for replace in [false, true] {
+            for width in [520.0, 900.0, 1100.0, 1600.0] {
+                let mut bar = bar();
+                if replace {
+                    bar.open_replace();
+                } else {
+                    bar.open_find();
+                }
+                bar.prepare(&mut FontSystem::new());
+                let top = 600.0;
+                let layout = bar.layout(width, top, 20.0, 8.0);
+                let bottom = top + layout.height;
+                for rect in layout.buttons.iter().filter(|rect| rect.w > 0.0) {
+                    assert!(
+                        rect.y + rect.h <= bottom,
+                        "replace {replace} width {width}: button bottom {} past {bottom}",
+                        rect.y + rect.h
+                    );
+                }
+                assert!(layout.options_y + 20.0 <= bottom);
+            }
+        }
     }
 }

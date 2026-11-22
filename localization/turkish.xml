@@ -468,6 +468,12 @@
                 <Item id="None" name="Yok"/>
                 <Item id="Up/Down  Left/Right  Enter  Esc" name="Yukarı/Aşağı  Sol/Sağ  Enter  Esc"/>
                 <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Yukarı/Aşağı  Sol/Sağ  Enter aç  Esc kapat"/>
+            <Item id="Count" name="Say"/>
+            <Item id="Find All in Current Document" name="Geçerli belgede tümünü bul"/>
+            <Item id="Find All in All Opened Documents" name="Tüm açık belgelerde tümünü bul"/>
+            <Item id="Replace All in All Opened Documents" name="Tüm açık belgelerde tümünü değiştir"/>
+            <Item id="Mark All" name="Tümünü işaretle"/>
+            <Item id="Clear Marks" name="İşaretleri temizle"/>
             </Main>
         </Menu>
     </Native-Langue>

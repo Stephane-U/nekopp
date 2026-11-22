@@ -468,6 +468,12 @@
                 <Item id="A GPU-rendered text editor" name="Un editor di testo visualizzato tramite GPU"/>
                 <Item id="Search URL:" name="URL di ricerca:"/>
                 <Item id="Go to line:" name="Vai alla riga:"/>
+            <Item id="Count" name="Conta"/>
+            <Item id="Find All in Current Document" name="Trova tutto nel documento corrente"/>
+            <Item id="Find All in All Opened Documents" name="Trova tutto in tutti i documenti aperti"/>
+            <Item id="Replace All in All Opened Documents" name="Sostituisci tutto in tutti i documenti aperti"/>
+            <Item id="Mark All" name="Contrassegna tutto"/>
+            <Item id="Clear Marks" name="Cancella contrassegni"/>
             </Main>
         </Menu>
     </Native-Langue>

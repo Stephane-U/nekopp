@@ -468,6 +468,12 @@
                 <Item id="Import from:" name="Імпорт з:"/>
                 <Item id="Import plugin from:" name="Імпорт плагіна з:"/>
                 <Item id="Import theme from:" name="Імпорт теми з:"/>
+            <Item id="Count" name="Підрахувати"/>
+            <Item id="Find All in Current Document" name="Знайти все в поточному документі"/>
+            <Item id="Find All in All Opened Documents" name="Знайти все в усіх відкритих документах"/>
+            <Item id="Replace All in All Opened Documents" name="Замінити все в усіх відкритих документах"/>
+            <Item id="Mark All" name="Позначити все"/>
+            <Item id="Clear Marks" name="Очистити позначки"/>
             </Main>
         </Menu>
     </Native-Langue>

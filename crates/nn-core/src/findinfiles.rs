@@ -27,6 +27,13 @@ pub struct Hit {
     pub column: usize,
     /// The line's text, trimmed for display.
     pub text: String,
+    /// The open tab holding the match, when the search ran over buffers
+    /// rather than files.
+    ///
+    /// A buffer with no path -- an untitled document -- has no file to open, so
+    /// a hit from "Find All in Current Document" carries the tab it came from
+    /// and the panel jumps there instead of touching the filesystem.
+    pub tab: Option<usize>,
 }
 
 /// What to search and where.
@@ -222,6 +229,7 @@ impl FindInFiles {
                 line,
                 column,
                 text: text[line_start..line_end].trim_end().to_string(),
+                tab: None,
             });
         }
     }

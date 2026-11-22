@@ -468,6 +468,12 @@
                 <Item id="Toolbar" name="Verktøylinje"/>
                 <Item id="Zoom In" name="Zoom inn"/>
                 <Item id="Zoom Out" name="Zoom ut"/>
+            <Item id="Count" name="Tell"/>
+            <Item id="Find All in Current Document" name="Søk alle i gjeldende dokument"/>
+            <Item id="Find All in All Opened Documents" name="Søk alle i alle åpne dokumenter"/>
+            <Item id="Replace All in All Opened Documents" name="Erstatt alle i alle åpne dokumenter"/>
+            <Item id="Mark All" name="Merk alle"/>
+            <Item id="Clear Marks" name="Fjern merker"/>
             </Main>
         </Menu>
     </Native-Langue>

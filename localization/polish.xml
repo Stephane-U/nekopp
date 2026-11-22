@@ -468,6 +468,12 @@
                 <Item id="Find in files:" name="Znajdź w plikach:"/>
                 <Item id="Find in projects:" name="Znajdź w projektach:"/>
                 <Item id="Find:" name="Znajdź:"/>
+            <Item id="Count" name="Policz"/>
+            <Item id="Find All in Current Document" name="Znajdź wszystko w bieżącym dokumencie"/>
+            <Item id="Find All in All Opened Documents" name="Znajdź wszystko we wszystkich otwartych dokumentach"/>
+            <Item id="Replace All in All Opened Documents" name="Zamień wszystko we wszystkich otwartych dokumentach"/>
+            <Item id="Mark All" name="Zaznacz wszystko"/>
+            <Item id="Clear Marks" name="Wyczyść znaczniki"/>
             </Main>
         </Menu>
     </Native-Langue>

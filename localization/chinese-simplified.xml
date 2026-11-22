@@ -468,6 +468,12 @@
                 <Item id="Rename to:" name="重命名为:"/>
                 <Item id="length:" name="长度:"/>
                 <Item id="Preferences" name="首选项"/>
+            <Item id="Count" name="计数"/>
+            <Item id="Find All in Current Document" name="在当前文档中查找全部"/>
+            <Item id="Find All in All Opened Documents" name="在所有打开的文档中查找全部"/>
+            <Item id="Replace All in All Opened Documents" name="在所有打开的文档中全部替换"/>
+            <Item id="Mark All" name="全部标记"/>
+            <Item id="Clear Marks" name="清除标记"/>
             </Main>
         </Menu>
     </Native-Langue>

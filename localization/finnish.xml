@@ -468,6 +468,12 @@
                 <Item id="Verbose" name="Yksityiskohtainen"/>
                 <Item id="Up/Down  Left/Right  Enter  Esc" name="Ylös/Alas  Vasen/Oikea  Enter  Esc"/>
                 <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Ylös/Alas  Vasen/Oikea  Enter avaa  Esc sulje"/>
+            <Item id="Count" name="Laske"/>
+            <Item id="Find All in Current Document" name="Etsi kaikki nykyisestä asiakirjasta"/>
+            <Item id="Find All in All Opened Documents" name="Etsi kaikki kaikista avoimista asiakirjoista"/>
+            <Item id="Replace All in All Opened Documents" name="Korvaa kaikki kaikissa avoimissa asiakirjoissa"/>
+            <Item id="Mark All" name="Merkitse kaikki"/>
+            <Item id="Clear Marks" name="Tyhjennä merkit"/>
             </Main>
         </Menu>
     </Native-Langue>

@@ -468,6 +468,12 @@
                 <Item id="Verbose" name="Verbeux"/>
                 <Item id="Zoom Out" name="Zoom arrière"/>
                 <Item id="Zoom In" name="Zoom avant"/>
+            <Item id="Count" name="Compter"/>
+            <Item id="Find All in Current Document" name="Tout rechercher dans le document courant"/>
+            <Item id="Find All in All Opened Documents" name="Tout rechercher dans tous les documents ouverts"/>
+            <Item id="Replace All in All Opened Documents" name="Tout remplacer dans tous les documents ouverts"/>
+            <Item id="Mark All" name="Tout marquer"/>
+            <Item id="Clear Marks" name="Effacer les marques"/>
             </Main>
         </Menu>
     </Native-Langue>

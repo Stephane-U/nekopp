@@ -233,7 +233,13 @@ impl Renderer {
         } else {
             0.0
         };
-        let bar_height = find.height(ui, padding);
+        // The bar is measured after it is prepared: a button's width comes from
+        // the shaped label, and a first frame laid out with the widths still at
+        // zero fits every button on one row while the frame itself draws two --
+        // the second row then hangs over the status bar. Preparing here also
+        // sizes the label column, which the fields are placed against.
+        find.prepare(&mut self.font_system);
+        let bar_height = find.height(width, ui, padding);
         let functions_width = if show_functions {
             functions.width(char_width)
         } else {
@@ -313,7 +319,6 @@ impl Renderer {
             pane.tabs.prepare(&mut self.font_system);
         }
         prompt.prepare(&mut self.font_system);
-        find.prepare(&mut self.font_system);
         status.update(panes[0].editor);
         status.prepare(&mut self.font_system);
         results.prepare(&mut self.font_system, width);

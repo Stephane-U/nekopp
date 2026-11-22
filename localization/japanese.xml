@@ -468,6 +468,12 @@
                 <Item id="length:" name="長さ:"/>
                 <Item id="Open" name="開く"/>
                 <Item id="Open:" name="開く:"/>
+            <Item id="Count" name="検索件数"/>
+            <Item id="Find All in Current Document" name="現在の文書内をすべて検索"/>
+            <Item id="Find All in All Opened Documents" name="開いているすべての文書内を検索"/>
+            <Item id="Replace All in All Opened Documents" name="開いているすべての文書内をすべて置換"/>
+            <Item id="Mark All" name="すべてマーク"/>
+            <Item id="Clear Marks" name="マークをクリア"/>
             </Main>
         </Menu>
     </Native-Langue>

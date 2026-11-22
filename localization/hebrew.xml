@@ -471,6 +471,12 @@
                 <Item id="Date time format:" name="תבנית תאריך ושעה:"/>
                 <Item id="File Dialog" name="תיבת דו־שיח לקבצים"/>
                 <Item id="Folder:" name="תיקייה:"/>
+            <Item id="Count" name="ספירה"/>
+            <Item id="Find All in Current Document" name="מצא הכול במסמך הנוכחי"/>
+            <Item id="Find All in All Opened Documents" name="מצא הכול בכל המסמכים הפתוחים"/>
+            <Item id="Replace All in All Opened Documents" name="החלף הכול בכל המסמכים הפתוחים"/>
+            <Item id="Mark All" name="סמן הכול"/>
+            <Item id="Clear Marks" name="נקה סימונים"/>
             </Main>
         </Menu>
     </Native-Langue>

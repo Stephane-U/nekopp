@@ -1689,6 +1689,20 @@ impl Editor {
         self.marks(style).len()
     }
 
+    /// Replaces the marks in `style` with `ranges`, and returns how many there
+    /// are.
+    ///
+    /// Mark All computes its own matches -- the search bar's pattern with the
+    /// bar's options, which is not what the caret is on -- so it cannot go
+    /// through `style_all_occurrences`.
+    pub fn set_marks(&mut self, style: usize, ranges: Vec<Range<usize>>) -> usize {
+        let Some(slot) = self.marks.get_mut(style) else {
+            return 0;
+        };
+        *slot = ranges;
+        slot.len()
+    }
+
     /// Paints just the occurrence the caret is on, or the selection.
     ///
     /// Returns false when there is nothing to paint, which is the caller's cue to
@@ -1916,6 +1930,19 @@ mod tests {
         assert_eq!(ed.marks(0), [4..7, 12..15]);
         ed.undo();
         assert_eq!(ed.marks(0), [0..3, 8..11]);
+    }
+
+    #[test]
+    fn setting_marks_replaces_whatever_was_there() {
+        let mut ed = editor("foo bar foo baz foo");
+        assert_eq!(ed.set_marks(0, vec![0..3, 8..11]), 2);
+        assert_eq!(ed.marks(0), [0..3, 8..11]);
+        let overwritten: Vec<Range<usize>> = std::iter::once(4..7).chain(std::iter::once(16..19)).collect();
+        assert_eq!(ed.set_marks(0, overwritten), 2);
+        assert_eq!(ed.marks(0), [4..7, 16..19]);
+        // A style the editor does not have marks in holds nothing.
+        let missing: Vec<Range<usize>> = std::iter::once(0..3).collect();
+        assert_eq!(ed.set_marks(MARK_STYLES, missing), 0);
     }
 
     #[test]

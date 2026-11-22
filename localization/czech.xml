@@ -468,6 +468,12 @@
                 <Item id="Backup on Save" name="Zálohovat při uložení"/>
                 <Item id="On" name="Zapnuto"/>
                 <Item id="Shortcuts" name="Zkratky"/>
+            <Item id="Count" name="Spočítat"/>
+            <Item id="Find All in Current Document" name="Najít vše v aktuálním dokumentu"/>
+            <Item id="Find All in All Opened Documents" name="Najít vše ve všech otevřených dokumentech"/>
+            <Item id="Replace All in All Opened Documents" name="Nahradit vše ve všech otevřených dokumentech"/>
+            <Item id="Mark All" name="Označit vše"/>
+            <Item id="Clear Marks" name="Vymazat značky"/>
             </Main>
         </Menu>
     </Native-Langue>

@@ -474,11 +474,40 @@ can be set for the current document or for every document and cleared again.
 
 ### Search
 
-The find bar is two rows: the pattern over a row of nine setting chips, with the
-match counter and the four action buttons at the right end of each row. `Ctrl+H`
-adds the replacement row between them. It is incremental in the sense that
-matters -- the count updates as you type -- and it never moves the caret until
-you ask for the next match.
+The find bar is docked along the bottom rather than floating: the pattern field,
+then a row of eleven setting chips, then the action buttons, which wrap into as
+many rows as the window's width needs. `Ctrl+H` adds the replacement field and
+its three swap buttons above the chips. Notepad++'s dialog has a Transparency
+pull-down; a bar docked to the window edge has nothing to fade over, so that one
+control has no counterpart here and nothing else from the dialog is missing.
+
+The eleven chips are the dialog's checkboxes in the dialog's order: match case,
+match whole word only (the slot becomes ". matches newline" once the pattern is
+a regular expression, because a whole word is not a thing a regex has), normal,
+extended and regular expression search mode, wrap around, in selection, and the
+two direction chips. The last two are the mark tab's, which a dialog gets from a
+second tab: "B" bookmarks every match as it marks it, and "P" is "Purge for each
+search", which clears the marks left by earlier searches before laying down the
+new ones. Without "P", marks of different styles accumulate, which is what makes
+several searches visible at once.
+
+Both fields remember what was searched for. `Alt+Down` or the little arrow at the
+right end of the field opens the list, and the twenty most recent entries are
+kept, eight of them visible at a time. The list hangs over the document, so a
+click in it counts as a click on the bar even though the list is outside the
+bar's own rectangle.
+
+The bar is incremental in the sense that matters -- the count updates as you
+type -- and it never moves the caret until you ask for the next match.
+
+Behind the bar sit the buttons Notepad++ 8.9 has: Find Next, Count, Find All in
+Current Document, Find All in All Opened Documents, Replace, Replace All, Replace
+All in All Opened Documents, Mark All, Clear Marks, and Close. The three
+replacement buttons only appear with `Ctrl+H`, the way the dialog disables them
+in find mode. "Find All" fills the results panel below the bar instead of
+opening the dialog's own list, and clicking a row there opens the file at the
+line. Each of the three swap buttons does one of the pull-down's three entries,
+because three small buttons cost one click where a pull-down costs two.
 
 "Find (Volatile) Next" and its previous sibling search without changing what is
 remembered as the search. "Select and Find Next" starts a selection at the
@@ -1267,34 +1296,56 @@ edit, so a user who replaces two hundred occurrences can undo it in one step.
 
 ### The find bar
 
-Two rows docked along the bottom of the pane, above the status bar: the pattern
-on the first, the settings on the second. A match counter at the right end of the
-pattern row reads `n/m`, and four buttons close the settings row -- Find Next,
-Replace, Replace All, Close, laid out from the right in that order so that Close
-never shifts when a translation lengthens a label. `Escape` closes the bar and
-returns the keyboard to the text.
+Docked along the bottom of the pane, above the status bar. The pattern comes
+first, then a row of settings chips, then the action buttons, which flow left to
+right and wrap onto another row when the window is too narrow to hold them in
+one. A match counter at the right end of the pattern row reads `n/m`. `Escape`
+closes the bar and returns the keyboard to the text.
 
-The settings row is nine chips. `Aa` is match case. `W` is whole word; in regex
-mode the same chip turns into `\n` and means "a dot matches a newline" instead,
-because a whole word is not a thing a regular expression has and the row has no
-room for a tenth chip. `N`, `E` and `.*` are the three search modes, and exactly
-one of them is lit: Normal takes the pattern literally, Extended reads `\n`,
-`\r`, `\t`, `\0`, `\\`, `\xHH` and `\uHHHH` as escapes and leaves an escape it
-does not know as the two characters it is, and `.*` hands the pattern to the
-regex crate. `∞` is wrap: with it on, a search that runs off the end continues at
-the first match; with it off the search stops at the end and leaves the caret
-where it is. `▭` confines the search to the selection, read live from the editor
-on every refresh and falling back to the whole document once the selection is
-empty -- a match has to lie entirely inside the range, because replacing one that
-starts before it would write outside the text the user meant to touch. `↑` and
-`↓` pick the direction, and exactly one is lit.
+The buttons are the dialog's own, in the dialog's order: Find Next, Count, Find
+All in Current Document, Find All in All Opened Documents, Replace, Replace All,
+Replace All in All Opened Documents, Mark All, Clear Marks and Close. The three
+replacement buttons only exist once `Ctrl+H` has opened the replacement row,
+which is the bar's way of greying out what the dialog disables. The two "Find
+All" buttons fill the results panel rather than a list of their own. Long labels
+wrap rather than truncate, and a greedy fill that would leave one button alone
+under a row packed to the edge moves a button down instead, which is the
+difference between a bar that looks laid out and one that looks wrapped.
+
+The settings row is eleven chips. `Aa` is match case. `W` is whole word; in
+regex mode the same chip turns into `\n` and means "a dot matches a newline"
+instead, because a whole word is not a thing a regular expression has and the
+row has no room for a twelfth chip. `N`, `E` and `.*` are the three search
+modes, and exactly one of them is lit: Normal takes the pattern literally,
+Extended reads `\n`, `\r`, `\t`, `\0`, `\\`, `\xHH` and `\uHHHH` as escapes and
+leaves an escape it does not know as the two characters it is, and `.*` hands the
+pattern to the regex crate. `∞` is wrap: with it on, a search that runs off the
+end continues at the first match; with it off the search stops at the end and
+leaves the caret where it is. `▭` confines the search to the selection, read live
+from the editor on every refresh and falling back to the whole document once the
+selection is empty -- a match has to lie entirely inside the range, because
+replacing one that starts before it would write outside the text the user meant
+to touch. `↑` and `↓` pick the direction, and exactly one is lit. The last two
+come from the dialog's mark tab: `B` bookmarks every line a mark lands on, and
+`P` is "Purge for each search", which wipes the marks of every style before the
+new ones go down. Purge off is what lets two searches of different styles stay
+visible at once; purge on is what stops the document filling with the last
+search's colours.
+
+Both fields keep a history, twenty entries deep and eight rows visible, opened by
+the arrow at the right end of the field or by `Alt+Down` when that field has the
+caret. The list grows upwards over the document, so a press inside it belongs to
+the bar even though it lies outside the bar's rectangle.
 
 `Enter` does what the bar is set up to do: Find Next in the direction that is
 lit, Replace when the caret is in the replacement field, and Replace All with
 `Ctrl` held. `Shift+Enter` takes the opposite direction.
 
 `Ctrl+H` opens the same bar with a replacement row between the pattern and the
-settings, and `Ctrl+F` puts it back to two rows without losing the pattern. The
+settings, plus the dialog's swap pull-down as three small buttons -- exchange the
+two fields, copy the pattern into the replacement, copy the replacement into the
+pattern -- because three buttons are one click each where a pull-down is two.
+`Ctrl+F` puts the bar back to find mode without losing the pattern. The
 label column is as wide as the widest label as drawn, not as wide as a constant:
 "Replace:" in a proportional face is wider than "Find:", and a translated label
 can be half again as long, so a fixed column ends up under the field's text.

@@ -468,6 +468,12 @@
                 <Item id="Font Size" name="Tamanho da fonte"/>
                 <Item id="A GPU-rendered text editor" name="Um editor de texto renderizado por GPU"/>
                 <Item id="Search URL:" name="URL de pesquisa:"/>
+            <Item id="Count" name="Contar"/>
+            <Item id="Find All in Current Document" name="Localizar tudo no documento atual"/>
+            <Item id="Find All in All Opened Documents" name="Localizar tudo em todos os documentos abertos"/>
+            <Item id="Replace All in All Opened Documents" name="Substituir tudo em todos os documentos abertos"/>
+            <Item id="Mark All" name="Marcar tudo"/>
+            <Item id="Clear Marks" name="Limpar marcas"/>
             </Main>
         </Menu>
     </Native-Langue>

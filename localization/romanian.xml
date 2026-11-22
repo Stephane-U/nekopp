@@ -468,6 +468,12 @@
                 <Item id="Print" name="Tipărește"/>
                 <Item id="A GPU-rendered text editor" name="Un editor de text randat cu GPU"/>
                 <Item id="Search URL:" name="URL de căutare:"/>
+            <Item id="Count" name="Numără"/>
+            <Item id="Find All in Current Document" name="Găsește tot în documentul curent"/>
+            <Item id="Find All in All Opened Documents" name="Găsește tot în toate documentele deschise"/>
+            <Item id="Replace All in All Opened Documents" name="Înlocuiește tot în toate documentele deschise"/>
+            <Item id="Mark All" name="Marchează tot"/>
+            <Item id="Clear Marks" name="Șterge marcajele"/>
             </Main>
         </Menu>
     </Native-Langue>

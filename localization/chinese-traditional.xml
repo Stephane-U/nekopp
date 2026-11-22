@@ -468,6 +468,12 @@
                 <Item id="Open:" name="開啟:"/>
                 <Item id="Off" name="關閉"/>
                 <Item id="Hash file:" name="雜湊檔案:"/>
+            <Item id="Count" name="計數"/>
+            <Item id="Find All in Current Document" name="在目前文件中尋找全部"/>
+            <Item id="Find All in All Opened Documents" name="在所有開啟的文件中尋找全部"/>
+            <Item id="Replace All in All Opened Documents" name="在所有開啟的文件中全部取代"/>
+            <Item id="Mark All" name="全部標記"/>
+            <Item id="Clear Marks" name="清除標記"/>
             </Main>
         </Menu>
     </Native-Langue>

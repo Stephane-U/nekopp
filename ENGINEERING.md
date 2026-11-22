@@ -8972,3 +8972,112 @@ restriction and the two-row and three-row heights in `findbar.rs`.
 --check`: up to date, 280,400 bytes, 66 pages A4, 107 bookmarks.
 
 `cargo fmt` was not run.
+
+## Seventy-second pass: every checkbox in the dialog, and four things the mouse found
+
+The previous pass gave the bar the dialog's checkboxes and its three search
+modes. This one finished the list. Notepad++ 8.9's search window is a sheet of
+five tabs -- Find, Replace, Mark, Find in Files, Find in Projects -- and the last
+two already existed here as the Search menu's own prompts, so what was missing
+was the rest of the first three: three buttons out of ten, two chips out of
+eleven, the history of both combo boxes, and the swap pull-down.
+
+### Ten buttons, and rows that wrap
+
+`BUTTONS` is now the dialog's whole set in the dialog's order: Find Next, Count,
+Find All in Current Document, Find All in All Opened Documents, Replace, Replace
+All, Replace All in All Opened Documents, Mark All, Clear Marks, Close. The three
+replacement rows are `replace_only()` and are skipped while the bar is in find
+mode, which is the bar's way of greying out what the dialog disables.
+
+Ten buttons do not fit on one row at 1100 pixels, and will not fit at any width
+once a translation lengthens four of the labels. `button_rows()` fills each row
+greedily from the widest label as drawn and starts another when the next button
+would pass the margin -- and then, if the last row has one button under a row
+packed to the edge, moves a button down, which is the difference between a bar
+that looks laid out and one that looks wrapped. `height()` grew a width
+parameter so it can answer "how tall am I at this width", and the two callers
+that reserve the bar's band -- `find_bar_top()` and `pane_area()` -- pass the
+window width.
+
+### Two chips from the Mark tab, and one of them was a no-op
+
+The Mark tab's search has a bookmark checkbox and "Purge for each search".
+`Chip::Bookmark` and `Chip::Purge` are those two, on the end of the settings row
+rather than on a tab, because a bar has no tabs.
+
+Purge is the interesting one. The first cut cleared the bar's own style slot
+before laying down the new marks, and that is a no-op by construction:
+`set_marks(0, ...)` replaces slot 0 whether or not it was cleared first. What
+the option means is that the marks the *previous* searches left go away,
+whichever style they were made in, so the branch now calls
+`clear_all_styles()`.
+
+### History in both fields
+
+Each field keeps the twenty patterns last searched for, eight visible at a time,
+opened by the arrow at the right end of the field or by `Alt+Down` when that
+field has the caret, the way the dialog's combo boxes drop theirs. Once the list
+is open it is a mode: the arrows walk it, `Enter` takes the entry, `Escape`
+closes the list and not the bar, and a click anywhere else leaves it alone. The
+list grows upwards over the document, so it lies outside the bar's rectangle and
+presses inside it are routed to the bar anyway.
+
+The history lives in `find_history.txt` beside the settings rather than in the
+session, because the session is about which files are open: a search history
+that vanished when the last tab closed would be a history of the wrong thing.
+
+### Swap, as three buttons
+
+The dialog has one button and a pull-down to choose what it does. A bar docked
+along the bottom of the window has room for three small buttons and no room for
+a menu, and three buttons are one click each where a pull-down is two.
+
+### Verification, with the mouse
+
+Same X11 session as the last pass, this time with the bar's layout printed on
+every press so a click can be traced from the pixel to the control that claimed
+it. That was worth doing: an apparent forty-pixel offset between where a chip was
+drawn and where it was clickable turned out to be a misread screenshot, not a
+bug -- sampling the PNG rows put the chips at 660, the first button row at 680
+and the second at 700 for a bar top of 610, and the logged rectangles are those
+rows. Every control was clicked and answered: Count read "4 matches", both
+"Find All" buttons filled the results panel, Replace moved `let foo` to
+`let BAR` with the counter going 1/4 to 1/3 and the next match selected, Replace
+All finished the rest, `B` bookmarked every marked line, `P` toggled, the three
+swap buttons swapped and the history list opened, took an entry and filled the
+field.
+
+Four defects came out of that session and none of them had failed a test:
+
+- A press anywhere below the bar was claimed by the bar. The press handler
+  tested `y >= top` with no bottom edge, so the results panel, which sits between
+  the bar and the status bar, could not be clicked at all.
+- The bar was measured before it was prepared. `find.prepare()` ran after
+  `find.height()` in the renderer, so the first frame was laid out with every
+  button width still at zero: all ten fitted on one row for the measurement
+  while the same frame drew two, and the second row hung over the status bar.
+  Preparing the bar before measuring it fixes both the frame and the label
+  column the fields are placed against.
+- The all-documents header counted hits as files. One document with four matches
+  read "4 of 4 files"; the file count now counts documents.
+- Purge cleared one style slot, as above.
+
+The purge fix has a pixel test rather than a status-message test: a style-2 mark
+was laid down with Search, Style All Occurrences of Token, and the region
+sampled at 1125 pixels of the style-2 colour. After Mark All with `P` on and a
+pattern that matches nothing, the same 1125 pixels are the smart-highlight blue
+and the style-2 green is gone from the frame, which is the option doing exactly
+what its name says.
+
+The layout print was temporary and is out of the source.
+
+`cargo test --offline --all`: 1971 passed, 0 failed -- 1015 in `nn-app`, 886 in
+`nn-core`, 70 in `nn-mcp`. Fourteen are new: the hit tests for the two new chips,
+the ten buttons, the three swap buttons and the history list, `set_marks` and
+`clear_all_styles` in the core, and the named results header.
+
+`cargo clippy --offline --all-targets`: 0 warnings. `python3 docs/build-pdf.py
+--check`: up to date, 284,602 bytes, 68 pages A4, 106 bookmarks.
+
+`cargo fmt` was not run.

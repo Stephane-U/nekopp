@@ -468,6 +468,12 @@
                 <Item id="Character code:" name="Zeichencode:"/>
                 <Item id="Ln:" name="Zeile:"/>
                 <Item id="lines:" name="Zeilen:"/>
+            <Item id="Count" name="Zählen"/>
+            <Item id="Find All in Current Document" name="Alle im aktuellen Dokument suchen"/>
+            <Item id="Find All in All Opened Documents" name="Alle in allen geöffneten Dokumenten suchen"/>
+            <Item id="Replace All in All Opened Documents" name="Alle in allen geöffneten Dokumenten ersetzen"/>
+            <Item id="Mark All" name="Alle markieren"/>
+            <Item id="Clear Marks" name="Markierungen löschen"/>
             </Main>
         </Menu>
     </Native-Langue>
