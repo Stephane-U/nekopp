@@ -373,6 +373,13 @@ pub struct Settings {
     /// highlights after the bar closes, which is what you want when the point of
     /// the search was to see every occurrence at once.
     pub volatile_find: bool,
+    /// Whether the search opens as Notepad++'s floating window instead of the
+    /// bar docked along the bottom.
+    ///
+    /// Off by default, because the bar was here first and it reserves no space
+    /// the text could have used. On, the same search is drawn as a sheet with
+    /// tabs -- the presentation Notepad++ ships.
+    pub find_floating: bool,
     /// Which chord runs which command.
     pub keymap: Keymap,
     /// Colours the user changed in the Style Configurator.
@@ -462,6 +469,7 @@ impl Default for Settings {
             toolbar: true,
             function_list: false,
             volatile_find: true,
+            find_floating: false,
             keymap: Keymap::default(),
             styles: Vec::new(),
             runs: RunList::default(),
@@ -539,6 +547,7 @@ impl Settings {
                 "toolbar" => settings.toolbar = value == "on",
                 "function_list" => settings.function_list = value == "on",
                 "volatile_find" => settings.volatile_find = value == "on",
+                "find_floating" => settings.find_floating = value == "on",
                 "style" => {
                     // `style <slot> #RRGGBB`.
                     if let Some((slot, color)) = value.split_once(' ') {
@@ -629,6 +638,7 @@ impl Settings {
         out.push_str(&format!("minimap {}\n", on_off(self.minimap)));
         out.push_str(&format!("function_list {}\n", on_off(self.function_list)));
         out.push_str(&format!("volatile_find {}\n", on_off(self.volatile_find)));
+        out.push_str(&format!("find_floating {}\n", on_off(self.find_floating)));
         out.push_str(&format!("toolbar {}\n", on_off(self.toolbar)));
         // Sorted here rather than trusted from the caller: the file is a
         // canonical record, and a stable order makes it diffable.
@@ -747,6 +757,7 @@ mod tests {
             toolbar: false,
             function_list: true,
             volatile_find: false,
+            find_floating: false,
             backup_mode: BackupMode::Verbose,
             backup_keep: 4,
             autosave_seconds: 30,

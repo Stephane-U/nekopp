@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="開いているすべての文書内をすべて置換"/>
             <Item id="Mark All" name="すべてマーク"/>
             <Item id="Clear Marks" name="マークをクリア"/>
+            <Item id="Floating Search" name="フローティング検索"/>
+            <Item id="Mark" name="マーク"/>
+            <Item id="Find what:" name="検索する文字列:"/>
+            <Item id="Replace with:" name="置換後の文字列:"/>
+            <Item id="Direction" name="検索方向"/>
+            <Item id="Search Mode" name="検索モード"/>
+            <Item id="Transparency" name="透過度"/>
+            <Item id="Match whole word only" name="単語単位で検索"/>
+            <Item id="Match case" name="大文字と小文字を区別"/>
+            <Item id="Wrap around" name="折り返して検索"/>
+            <Item id="In selection" name="選択範囲内"/>
+            <Item id="Bookmark line" name="行をマーク"/>
+            <Item id="Purge for each search" name="検索ごとにマークを消去"/>
+            <Item id=". matches newline" name=". は改行にも一致"/>
+            <Item id="Up" name="上へ"/>
+            <Item id="Down" name="下へ"/>
+            <Item id="Normal" name="標準"/>
+            <Item id="Extended" name="拡張"/>
+            <Item id="Regular expression" name="正規表現"/>
             </Main>
         </Menu>
     </Native-Langue>

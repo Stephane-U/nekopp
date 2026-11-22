@@ -52,7 +52,7 @@ const TITLE: &str = "Preferences";
 /// The hint line under the rows.
 const HINT: &str = "Up/Down  Left/Right  Enter open  Esc close";
 /// How many rows the dialog has.
-pub const ROWS: usize = 13;
+pub const ROWS: usize = 14;
 
 /// The settings the dialog edits, in row order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,6 +65,7 @@ pub enum Row {
     Toolbar,
     FunctionList,
     VolatileFind,
+    FloatingSearch,
     Backup,
     Autosave,
     FileDialog,
@@ -83,6 +84,7 @@ impl Row {
         Row::Toolbar,
         Row::FunctionList,
         Row::VolatileFind,
+        Row::FloatingSearch,
         Row::Backup,
         Row::Autosave,
         Row::FileDialog,
@@ -101,6 +103,7 @@ impl Row {
             Row::Toolbar => "Toolbar",
             Row::FunctionList => "Function List",
             Row::VolatileFind => "Volatile Find",
+            Row::FloatingSearch => "Floating Search",
             Row::Backup => "Backup on Save",
             Row::Autosave => "Autosave",
             Row::FileDialog => "File Dialog",
@@ -121,6 +124,7 @@ impl Row {
                 | Row::Toolbar
                 | Row::FunctionList
                 | Row::VolatileFind
+                | Row::FloatingSearch
                 | Row::Backup
                 | Row::FileDialog
         )
@@ -854,6 +858,7 @@ impl Preferences {
             Row::Toolbar => self.settings.toolbar = !self.settings.toolbar,
             Row::FunctionList => self.settings.function_list = !self.settings.function_list,
             Row::VolatileFind => self.settings.volatile_find = !self.settings.volatile_find,
+            Row::FloatingSearch => self.settings.find_floating = !self.settings.find_floating,
             // Three values rather than two, so it steps rather than toggles.
             Row::Backup => {
                 self.settings.backup_mode = if delta >= 0 {
@@ -917,6 +922,7 @@ impl Preferences {
             Row::Toolbar => on_off(self.settings.toolbar),
             Row::FunctionList => on_off(self.settings.function_list),
             Row::VolatileFind => on_off(self.settings.volatile_find),
+            Row::FloatingSearch => on_off(self.settings.find_floating),
             Row::Backup => self.tr(self.settings.backup_mode.label()).to_string(),
             Row::Autosave => {
                 if self.settings.autosave_seconds == 0 {

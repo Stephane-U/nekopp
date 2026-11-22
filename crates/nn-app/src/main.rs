@@ -13,7 +13,7 @@ use nn_app::{
     CompletionMode,
     CompletionPopup, ContextMenu,
     DocumentPeeker, EditorView, Entry, FileDialog,
-    FindBar, FolderPanel, FunctionList, Gpu, Import,
+    FindBar, FindDialog, FolderPanel, FunctionList, Gpu, Import,
     Item, KeyName, Keymap, MatchMode, MenuBar, Mode, Palette, PaneRef, ParamHint, PluginList,
     PluginMenu, PluginRow, Plugins, Preferences,
     PrintPreview,
@@ -609,6 +609,11 @@ struct State {
     active: usize,
     view: EditorView,
     find: FindBar,
+    /// The floating presentation of the same search.
+    ///
+    /// It draws the bar's state when the "Floating Search" preference is on, so
+    /// the two are never out of step: one search, two ways to show it.
+    find_dialog: FindDialog,
     tab_bar: TabBar,
     menu: MenuBar,
     toolbar: Toolbar,
@@ -1561,6 +1566,11 @@ impl State {
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
+        let find_dialog = FindDialog::new(
+            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            cosmic_text::Family::Monospace,
+            view.char_width(),
+        );
         let tab_bar = TabBar::new(
             cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
             cosmic_text::Family::Monospace,
@@ -1696,6 +1706,7 @@ impl State {
             active,
             view,
             find,
+            find_dialog,
             tab_bar,
             menu,
             toolbar,
@@ -2035,6 +2046,7 @@ impl State {
         self.status.set_catalog(catalog.clone());
         self.prompt.set_catalog(catalog.clone());
         self.find.set_catalog(catalog.clone());
+        self.find_dialog.set_catalog(catalog.clone());
         self.about.set_catalog(catalog.clone());
         self.toolbar.set_catalog(catalog);
     }
@@ -2059,6 +2071,9 @@ impl State {
         }
         self.toolbar.set_enabled(settings.toolbar);
         self.set_function_list(settings.function_list);
+        // The search keeps its pattern and options: the preference moves the
+        // presentation, not the search.
+        self.find.set_floating(settings.find_floating);
         self.menu.set_keymap(settings.keymap.clone());
         // Turning autosave off has to take the snapshot with it. Leaving it
         // behind would restore buffers on the next launch that the user had
@@ -3563,6 +3578,7 @@ impl State {
             ratio,
             self.focused_second,
             &mut self.find,
+            &mut self.find_dialog,
             &mut self.menu,
             &mut self.toolbar,
             &mut self.prompt,
@@ -4242,6 +4258,7 @@ impl State {
     /// not a cancellation.
     fn close_find(&mut self) {
         let anchor = self.incremental_anchor.take();
+        self.find_dialog.end_drag();
         self.find.close(self.settings.volatile_find);
         self.save_find_history();
         if let Some((caret, first_line, top_offset)) = anchor {
@@ -5341,6 +5358,32 @@ impl State {
             }
         }
 
+        // The floating Search window, when that is the presentation chosen: a
+        // press on it belongs to it, and a press anywhere else falls through to
+        // the document, because a search is not modal -- Find Next is only
+        // useful if you can still edit the text behind the dialog.
+        if self.find.open && self.find.floating() {
+            if let Some(hit) =
+                self.find_dialog
+                    .hit_at(&self.find, x as f32, y as f32, line_height)
+            {
+                match hit {
+                    nn_app::finddialog::DialogHit::Find(inner) => self.apply_find_hit(Some(inner)),
+                    nn_app::finddialog::DialogHit::Tab(tab) => self.show_find_tab(tab),
+                    nn_app::finddialog::DialogHit::Title => {
+                        self.find_dialog.begin_drag(x as f32, y as f32);
+                    }
+                    nn_app::finddialog::DialogHit::Transparency(fraction) => {
+                        self.find_dialog
+                            .set_transparency(fraction * nn_app::finddialog::MAX_TRANSPARENCY);
+                    }
+                }
+                self.dragging = false;
+                self.window.request_redraw();
+                return;
+            }
+        }
+
         if let Some(action) = self.toolbar.click(
             x as f32,
             y as f32,
@@ -5846,11 +5889,13 @@ impl State {
             Action::Find => {
                 self.incremental_anchor = None;
                 self.find.open_find();
+                self.find_dialog.set_tab(nn_app::finddialog::Tab::Find);
                 self.refresh_find();
             }
             Action::Replace => {
                 self.incremental_anchor = None;
                 self.find.open_replace();
+                self.find_dialog.set_tab(nn_app::finddialog::Tab::Replace);
                 self.refresh_find();
             }
             Action::IncrementalSearch => self.open_incremental_search(),
@@ -7650,6 +7695,26 @@ impl State {
     }
 
     /// Runs whatever a press on the find bar landed on.
+    /// Shows one tab of the floating Search window.
+    ///
+    /// The tabs are not three searches: Replace is the Find tab plus a
+    /// replacement row, and Mark is Find with the marking options. So switching
+    /// only says whether the replacement row is part of the sheet, and moves
+    /// the caret to the field the new tab is about -- the one you opened it to
+    /// type in.
+    fn show_find_tab(&mut self, tab: nn_app::finddialog::Tab) {
+        use nn_app::findbar::Field;
+        self.find_dialog.set_tab(tab);
+        self.find.replace = tab.replaces();
+        self.find
+            .focus_field(if tab.replaces() {
+                Field::Replacement
+            } else {
+                Field::Query
+            });
+        self.window.request_redraw();
+    }
+
     fn apply_find_hit(&mut self, hit: Option<nn_app::findbar::Hit>) {
         use nn_app::findbar::{Button, Hit};
         match hit {
@@ -9277,6 +9342,13 @@ impl State {
         // label without every one of those paths having to remember to.
         self.rest_tooltip(x as f32, y as f32);
 
+        // A press on the floating Search window's title bar drags the window.
+        if self.find_dialog.dragging() {
+            self.find_dialog.drag_to(x as f32, y as f32);
+            self.window.request_redraw();
+            return;
+        }
+
         // A press that landed on a tab is followed here rather than by the
         // caret: dragging a tab must not drag out a selection underneath it.
         if let Some((index, press_x, press_y)) = self.tab_press {
@@ -9667,6 +9739,7 @@ impl ApplicationHandler<UserEvent> for App {
                     } else {
                         state.minimap_drag = false;
                         state.unit_drag = None;
+                        state.find_dialog.end_drag();
                         state.drop_tab();
                         state.divider_drag = false;
                     }

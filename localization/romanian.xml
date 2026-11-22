@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Înlocuiește tot în toate documentele deschise"/>
             <Item id="Mark All" name="Marchează tot"/>
             <Item id="Clear Marks" name="Șterge marcajele"/>
+            <Item id="Floating Search" name="Căutare flotantă"/>
+            <Item id="Mark" name="Marchează"/>
+            <Item id="Find what:" name="Caută:"/>
+            <Item id="Replace with:" name="Înlocuiește cu:"/>
+            <Item id="Direction" name="Direcție"/>
+            <Item id="Search Mode" name="Mod de căutare"/>
+            <Item id="Transparency" name="Transparență"/>
+            <Item id="Match whole word only" name="Doar cuvânt întreg"/>
+            <Item id="Match case" name="Potrivește majusculele"/>
+            <Item id="Wrap around" name="Caută circular"/>
+            <Item id="In selection" name="În selecție"/>
+            <Item id="Bookmark line" name="Marchează linia"/>
+            <Item id="Purge for each search" name="Curăță la fiecare căutare"/>
+            <Item id=". matches newline" name=". corespunde sfârșitului de linie"/>
+            <Item id="Up" name="Sus"/>
+            <Item id="Down" name="Jos"/>
+            <Item id="Normal" name="Normal"/>
+            <Item id="Extended" name="Extins"/>
+            <Item id="Regular expression" name="Expresie regulată"/>
             </Main>
         </Menu>
     </Native-Langue>

@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Erstatt alle i alle åpne dokumenter"/>
             <Item id="Mark All" name="Merk alle"/>
             <Item id="Clear Marks" name="Fjern merker"/>
+            <Item id="Floating Search" name="Flytende søk"/>
+            <Item id="Mark" name="Merk"/>
+            <Item id="Find what:" name="Søk etter:"/>
+            <Item id="Replace with:" name="Erstatt med:"/>
+            <Item id="Direction" name="Retning"/>
+            <Item id="Search Mode" name="Søkemodus"/>
+            <Item id="Transparency" name="Gjennomsiktighet"/>
+            <Item id="Match whole word only" name="Bare hele ord"/>
+            <Item id="Match case" name="Skill mellom store og små bokstaver"/>
+            <Item id="Wrap around" name="Søk rundt"/>
+            <Item id="In selection" name="I utvalg"/>
+            <Item id="Bookmark line" name="Merk linje"/>
+            <Item id="Purge for each search" name="Fjern ved hver søking"/>
+            <Item id=". matches newline" name=". samsvarer med linjeskift"/>
+            <Item id="Up" name="Opp"/>
+            <Item id="Down" name="Ned"/>
+            <Item id="Normal" name="Normal"/>
+            <Item id="Extended" name="Utvidet"/>
+            <Item id="Regular expression" name="Regulært uttrykk"/>
             </Main>
         </Menu>
     </Native-Langue>

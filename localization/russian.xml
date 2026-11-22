@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Заменить всё во всех открытых документах"/>
             <Item id="Mark All" name="Пометить всё"/>
             <Item id="Clear Marks" name="Очистить пометки"/>
+            <Item id="Floating Search" name="Плавающий поиск"/>
+            <Item id="Mark" name="Пометить"/>
+            <Item id="Find what:" name="Найти:"/>
+            <Item id="Replace with:" name="Заменить на:"/>
+            <Item id="Direction" name="Направление"/>
+            <Item id="Search Mode" name="Режим поиска"/>
+            <Item id="Transparency" name="Прозрачность"/>
+            <Item id="Match whole word only" name="Только слово целиком"/>
+            <Item id="Match case" name="С учётом регистра"/>
+            <Item id="Wrap around" name="С переходом через границу"/>
+            <Item id="In selection" name="В выделенном фрагменте"/>
+            <Item id="Bookmark line" name="Пометить строку"/>
+            <Item id="Purge for each search" name="Очищать при каждом поиске"/>
+            <Item id=". matches newline" name=". соответствует переводу строки"/>
+            <Item id="Up" name="Вверх"/>
+            <Item id="Down" name="Вниз"/>
+            <Item id="Normal" name="Обычный"/>
+            <Item id="Extended" name="Расширенный"/>
+            <Item id="Regular expression" name="Регулярное выражение"/>
             </Main>
         </Menu>
     </Native-Langue>

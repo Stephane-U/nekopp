@@ -17,6 +17,7 @@ use crate::context::ContextMenu;
 use crate::about::AboutBox;
 use crate::peeker::DocumentPeeker;
 use crate::findbar::FindBar;
+use crate::finddialog::FindDialog;
 use crate::folder::FolderPanel;
 use crate::functionlist::FunctionList;
 use crate::layout::{self, Split};
@@ -162,6 +163,7 @@ impl Renderer {
         ratio: f32,
         focused_second: bool,
         find: &mut FindBar,
+        dialog: &mut FindDialog,
         menu: &mut MenuBar,
         toolbar: &mut Toolbar,
         prompt: &mut PromptBar,
@@ -333,6 +335,8 @@ impl Renderer {
         complete.prepare(&mut self.font_system);
         param_hint.set_viewport(height);
         param_hint.prepare(&mut self.font_system, &theme);
+        dialog.set_viewport(width, height);
+        dialog.prepare(&mut self.font_system, find);
         tooltip.set_viewport(width, height);
         tooltip.prepare(&mut self.font_system, &theme);
         context.set_viewport(width, height);
@@ -520,6 +524,9 @@ impl Renderer {
         // and below the modals: a label is an annotation on the window, and a
         // dialog is a replacement for it.
         tooltip.push_quads(&mut self.overlay, ui, &theme);
+        // The search sheet is a dialog, so it goes above the tooltip and below
+        // the peeker and the About box, which answer to a key and cover more.
+        dialog.push_quads(&mut self.overlay, find, ui, &theme);
         // The peeker covers the window, so it goes above the context menu.
         peeker.push_quads(&mut self.overlay, ui, &theme);
         // The About box is a dialog, so it goes above the peeker and below the
@@ -668,6 +675,7 @@ impl Renderer {
         menu_areas.extend(complete.text_areas(ui, &theme));
         menu_areas.extend(param_hint.text_areas(ui, &theme));
         menu_areas.extend(tooltip.text_areas(ui, &theme));
+        menu_areas.extend(dialog.text_areas(find, ui, &theme));
         menu_areas.extend(context.text_areas(ui, &theme));
         menu_areas.extend(peeker.text_areas(ui, &theme));
         menu_areas.extend(about.text_areas(ui, &theme));

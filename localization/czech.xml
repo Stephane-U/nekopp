@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Nahradit vše ve všech otevřených dokumentech"/>
             <Item id="Mark All" name="Označit vše"/>
             <Item id="Clear Marks" name="Vymazat značky"/>
+            <Item id="Floating Search" name="Plovoucí hledání"/>
+            <Item id="Mark" name="Označit"/>
+            <Item id="Find what:" name="Hledat:"/>
+            <Item id="Replace with:" name="Nahradit čím:"/>
+            <Item id="Direction" name="Směr"/>
+            <Item id="Search Mode" name="Režim hledání"/>
+            <Item id="Transparency" name="Průhlednost"/>
+            <Item id="Match whole word only" name="Jen celé slovo"/>
+            <Item id="Match case" name="Rozlišovat velikost písmen"/>
+            <Item id="Wrap around" name="Hledat dokola"/>
+            <Item id="In selection" name="Ve výběru"/>
+            <Item id="Bookmark line" name="Označit řádek"/>
+            <Item id="Purge for each search" name="Mazat při každém hledání"/>
+            <Item id=". matches newline" name=". odpovídá konci řádku"/>
+            <Item id="Up" name="Nahoru"/>
+            <Item id="Down" name="Dolů"/>
+            <Item id="Normal" name="Normální"/>
+            <Item id="Extended" name="Rozšířený"/>
+            <Item id="Regular expression" name="Regulární výraz"/>
             </Main>
         </Menu>
     </Native-Langue>

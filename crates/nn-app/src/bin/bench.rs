@@ -87,6 +87,10 @@ struct Flags {
     character_sets: bool,
     plugin_run: Option<String>,
     tab_layout: nn_app::TabLayout,
+    /// Which tab of the floating Search window to draw, when it is drawn.
+    floating_tab: Option<String>,
+    /// The transparency the floating Search window is drawn at, 0 to 0.9.
+    floating_transparency: f32,
 }
 use std::time::Instant;
 
@@ -94,7 +98,7 @@ use nn_app::plugin::Context;
 use nn_app::{
     Browser, Catalog, ChangeHistory, ChangeRow, CharPanel, Chrome, CompletionPopup, ContextMenu,
     AboutBox, DocumentPeeker,
-    EditorView, FindBar, FolderPanel,
+    EditorView, FindBar, FindDialog, FolderPanel,
     FunctionList, Item, Keymap, MenuBar, Mode, PaneRef, ParamHint,
     PluginList, PluginMenu, PluginRow, Preferences, PrintPreview, PromptBar, Renderer, ResultsPanel, Settings, Shortcuts, Split,
     StatusBar,
@@ -192,6 +196,10 @@ fn main() {
             "encoding_menu" => flags.encoding_menu = true,
             "character_sets" => flags.character_sets = true,
             "plugin_run" => flags.plugin_run = value,
+            "floating_tab" => flags.floating_tab = value,
+            "floating_transparency" => {
+                flags.floating_transparency = value.and_then(|v| v.parse().ok()).unwrap_or(0.0)
+            }
             "vtabs" => flags.tab_layout = nn_app::TabLayout::Vertical,
             "mtabs" => flags.tab_layout = nn_app::TabLayout::MultiLine,
             other => eprintln!("bench: unknown flag {other}"),
@@ -369,6 +377,11 @@ fn main() {
         view.char_width(),
     );
     let mut find = FindBar::new(
+        cosmic_text::Metrics::new(15.0, 20.0),
+        cosmic_text::Family::Monospace,
+        view.char_width(),
+    );
+    let mut dialog = FindDialog::new(
         cosmic_text::Metrics::new(15.0, 20.0),
         cosmic_text::Family::Monospace,
         view.char_width(),
@@ -905,6 +918,7 @@ fn main() {
             0.5,
             split.is_split() && flags.flip,
             &mut find,
+            &mut dialog,
             &mut menu,
             &mut toolbar,
             &mut prompt,
@@ -1141,8 +1155,22 @@ fn main() {
             Err(err) => eprintln!("bench: bad pattern: {err}"),
         }
     }
+    if flags.floating_tab.is_some() {
+        // The floating presentation: the same search state, drawn as
+        // Notepad++'s window instead of the docked bar.
+        find.set_floating(true);
+        if let Some(name) = &flags.floating_tab {
+            for tab in nn_app::finddialog::TABS {
+                if tab.label().eq_ignore_ascii_case(name) {
+                    dialog.set_tab(tab);
+                }
+            }
+        }
+        dialog.set_transparency(flags.floating_transparency);
+    }
     if let Some(pattern) = &flags.find {
         find.open_find();
+        find.set_floating(flags.floating_tab.is_some());
         find.query.set_text(pattern);
         find.refresh(&editor.doc);
         view.set_matches(find.matches.clone(), find.current_match());
@@ -1159,6 +1187,7 @@ fn main() {
             0.5,
             split.is_split() && flags.flip,
             &mut find,
+            &mut dialog,
             &mut menu,
             &mut toolbar,
             &mut prompt,
@@ -1191,17 +1220,17 @@ fn main() {
 
     report(
         "idle",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |_, _| {}),
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |_, _| {}),
     );
     report(
         "scroll",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, _| {
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, _| {
             ed.scroll_lines(1);
         }),
     );
     report(
         "type",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, hl| {
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, hl| {
             let line = ed.doc.char_to_line(ed.caret());
             ed.insert("x");
             hl.highlight_from(&mut ed.doc, line);
@@ -1292,6 +1321,7 @@ fn measure(
     highlighter: &mut Highlighter,
     view: &mut EditorView,
     find: &mut FindBar,
+    dialog: &mut FindDialog,
     tab_bar: &mut TabBar,
     menu: &mut MenuBar,
     toolbar: &mut Toolbar,
@@ -1338,6 +1368,7 @@ fn measure(
             0.5,
             false,
             find,
+            dialog,
             menu,
             toolbar,
             prompt,

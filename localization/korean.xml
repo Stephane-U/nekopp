@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="열린 모든 문서에서 모두 바꾸기"/>
             <Item id="Mark All" name="모두 표시"/>
             <Item id="Clear Marks" name="표시 지우기"/>
+            <Item id="Floating Search" name="떠 있는 검색"/>
+            <Item id="Mark" name="표시"/>
+            <Item id="Find what:" name="찾을 내용:"/>
+            <Item id="Replace with:" name="바꿀 내용:"/>
+            <Item id="Direction" name="방향"/>
+            <Item id="Search Mode" name="검색 모드"/>
+            <Item id="Transparency" name="투명도"/>
+            <Item id="Match whole word only" name="단어 단위로"/>
+            <Item id="Match case" name="대/소문자 일치"/>
+            <Item id="Wrap around" name="되돌아가서 찾기"/>
+            <Item id="In selection" name="선택 영역 안에서"/>
+            <Item id="Bookmark line" name="줄 표시"/>
+            <Item id="Purge for each search" name="검색할 때마다 지우기"/>
+            <Item id=". matches newline" name=". 은 줄바꿈과 일치"/>
+            <Item id="Up" name="위로"/>
+            <Item id="Down" name="아래로"/>
+            <Item id="Normal" name="보통"/>
+            <Item id="Extended" name="확장"/>
+            <Item id="Regular expression" name="정규식"/>
             </Main>
         </Menu>
     </Native-Langue>

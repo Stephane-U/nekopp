@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Alle in allen geöffneten Dokumenten ersetzen"/>
             <Item id="Mark All" name="Alle markieren"/>
             <Item id="Clear Marks" name="Markierungen löschen"/>
+            <Item id="Floating Search" name="Schwebende Suche"/>
+            <Item id="Mark" name="Markieren"/>
+            <Item id="Find what:" name="Suchen nach:"/>
+            <Item id="Replace with:" name="Ersetzen durch:"/>
+            <Item id="Direction" name="Richtung"/>
+            <Item id="Search Mode" name="Suchmodus"/>
+            <Item id="Transparency" name="Transparenz"/>
+            <Item id="Match whole word only" name="Nur ganzes Wort"/>
+            <Item id="Match case" name="Groß-/Kleinschreibung beachten"/>
+            <Item id="Wrap around" name="Umlaufend suchen"/>
+            <Item id="In selection" name="In Auswahl"/>
+            <Item id="Bookmark line" name="Zeile markieren"/>
+            <Item id="Purge for each search" name="Bei jeder Suche löschen"/>
+            <Item id=". matches newline" name=". trifft Zeilenumbruch"/>
+            <Item id="Up" name="Aufwärts"/>
+            <Item id="Down" name="Abwärts"/>
+            <Item id="Normal" name="Normal"/>
+            <Item id="Extended" name="Erweitert"/>
+            <Item id="Regular expression" name="Regulärer Ausdruck"/>
             </Main>
         </Menu>
     </Native-Langue>

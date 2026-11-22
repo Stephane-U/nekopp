@@ -926,10 +926,10 @@ mod tests {
             "params": {"name": "list_sections", "arguments": {}}
         }));
         let text = text_of(&response);
-        assert!(text.starts_with("Neko++ Feature Reference -- 27 chapters, 77 subsections"));
+        assert!(text.starts_with("Neko++ Feature Reference -- 27 chapters, 78 subsections"));
         assert!(text.contains("## The Menus -- nekopp://features/the-menus"));
         assert!(text.contains("  ### File -- nekopp://features/file"));
-        assert_eq!(text.lines().count(), 105);
+        assert_eq!(text.lines().count(), 106);
     }
 
     #[test]
@@ -1018,7 +1018,7 @@ mod tests {
     fn resources_list_the_index_and_every_section() {
         let response = call(json!({"jsonrpc": "2.0", "id": 15, "method": "resources/list"}));
         let resources = result_of(&response)["resources"].as_array().unwrap();
-        assert_eq!(resources.len(), 105);
+        assert_eq!(resources.len(), 106);
         assert_eq!(resources[0]["uri"], INDEX_URI);
         assert_eq!(resources[0]["mimeType"], "text/markdown");
         assert!(resources

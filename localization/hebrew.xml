@@ -477,6 +477,25 @@
             <Item id="Replace All in All Opened Documents" name="החלף הכול בכל המסמכים הפתוחים"/>
             <Item id="Mark All" name="סמן הכול"/>
             <Item id="Clear Marks" name="נקה סימונים"/>
+            <Item id="Floating Search" name="חיפוש צף"/>
+            <Item id="Mark" name="סמן"/>
+            <Item id="Find what:" name="חפש:"/>
+            <Item id="Replace with:" name="החלף ב־:"/>
+            <Item id="Direction" name="כיוון"/>
+            <Item id="Search Mode" name="מצב חיפוש"/>
+            <Item id="Transparency" name="שקיפות"/>
+            <Item id="Match whole word only" name="מילה שלמה בלבד"/>
+            <Item id="Match case" name="התאם רישיות"/>
+            <Item id="Wrap around" name="חיפוש מחזורי"/>
+            <Item id="In selection" name="בתוך הבחירה"/>
+            <Item id="Bookmark line" name="סמן שורה"/>
+            <Item id="Purge for each search" name="נקה בכל חיפוש"/>
+            <Item id=". matches newline" name=". תואם מעבר שורה"/>
+            <Item id="Up" name="למעלה"/>
+            <Item id="Down" name="למטה"/>
+            <Item id="Normal" name="רגיל"/>
+            <Item id="Extended" name="מורחב"/>
+            <Item id="Regular expression" name="ביטוי רגולרי"/>
             </Main>
         </Menu>
     </Native-Langue>

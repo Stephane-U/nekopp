@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Tüm açık belgelerde tümünü değiştir"/>
             <Item id="Mark All" name="Tümünü işaretle"/>
             <Item id="Clear Marks" name="İşaretleri temizle"/>
+            <Item id="Floating Search" name="Yüzen arama"/>
+            <Item id="Mark" name="İşaretle"/>
+            <Item id="Find what:" name="Bul:"/>
+            <Item id="Replace with:" name="Şununla değiştir:"/>
+            <Item id="Direction" name="Yön"/>
+            <Item id="Search Mode" name="Arama kipi"/>
+            <Item id="Transparency" name="Saydamlık"/>
+            <Item id="Match whole word only" name="Yalnızca tam sözcük"/>
+            <Item id="Match case" name="Büyük/küçük harf eşleşsin"/>
+            <Item id="Wrap around" name="Baştan devam et"/>
+            <Item id="In selection" name="Seçim içinde"/>
+            <Item id="Bookmark line" name="Satırı işaretle"/>
+            <Item id="Purge for each search" name="Her aramada temizle"/>
+            <Item id=". matches newline" name=". satır sonuyla eşleşsin"/>
+            <Item id="Up" name="Yukarı"/>
+            <Item id="Down" name="Aşağı"/>
+            <Item id="Normal" name="Normal"/>
+            <Item id="Extended" name="Genişletilmiş"/>
+            <Item id="Regular expression" name="Düzenli ifade"/>
             </Main>
         </Menu>
     </Native-Langue>

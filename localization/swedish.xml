@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Ersätt alla i alla öppna dokument"/>
             <Item id="Mark All" name="Markera alla"/>
             <Item id="Clear Marks" name="Rensa markeringar"/>
+            <Item id="Floating Search" name="Flytande sökning"/>
+            <Item id="Mark" name="Markera"/>
+            <Item id="Find what:" name="Sök efter:"/>
+            <Item id="Replace with:" name="Ersätt med:"/>
+            <Item id="Direction" name="Riktning"/>
+            <Item id="Search Mode" name="Sökmetod"/>
+            <Item id="Transparency" name="Genomskinlighet"/>
+            <Item id="Match whole word only" name="Endast hela ord"/>
+            <Item id="Match case" name="Skiftlägeskänslig"/>
+            <Item id="Wrap around" name="Sök runt"/>
+            <Item id="In selection" name="I markering"/>
+            <Item id="Bookmark line" name="Markera rad"/>
+            <Item id="Purge for each search" name="Rensa vid varje sökning"/>
+            <Item id=". matches newline" name=". matchar radbrytning"/>
+            <Item id="Up" name="Upp"/>
+            <Item id="Down" name="Ner"/>
+            <Item id="Normal" name="Normal"/>
+            <Item id="Extended" name="Utökad"/>
+            <Item id="Regular expression" name="Regelbundet uttryck"/>
             </Main>
         </Menu>
     </Native-Langue>

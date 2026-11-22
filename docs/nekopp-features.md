@@ -474,12 +474,14 @@ can be set for the current document or for every document and cleared again.
 
 ### Search
 
-The find bar is docked along the bottom rather than floating: the pattern field,
-then a row of eleven setting chips, then the action buttons, which wrap into as
-many rows as the window's width needs. `Ctrl+H` adds the replacement field and
-its three swap buttons above the chips. Notepad++'s dialog has a Transparency
-pull-down; a bar docked to the window edge has nothing to fade over, so that one
-control has no counterpart here and nothing else from the dialog is missing.
+The find bar is docked along the bottom by default: the pattern field, then a
+row of eleven setting chips, then the action buttons, which wrap into as many
+rows as the window's width needs. `Ctrl+H` adds the replacement field and its
+three swap buttons above the chips. Notepad++'s dialog has a Transparency
+pull-down; a bar docked to the window edge has nothing to fade over, which is why
+turning on "Floating Search" in Preferences exists: it draws the same search as
+the dialog, transparency included, and leaves the docked bar for those who would
+rather not lose the lines to a panel.
 
 The eleven chips are the dialog's checkboxes in the dialog's order: match case,
 match whole word only (the slot becomes ". matches newline" once the pattern is
@@ -1369,6 +1371,37 @@ default: a search you have finished with should not leave the document speckled.
 Turning it off keeps the highlights, which is what you want when the point of the
 search was to see every occurrence at once.
 
+### The floating Find window
+
+Preferences has one row, "Floating Search", that changes how `Ctrl+F` and
+`Ctrl+H` look and nothing else. Off, which is the default, the search is the bar
+docked along the bottom. On, it is a sheet over the document with three tabs --
+Find, Replace and Mark -- and the caption bar of Notepad++'s dialog: the pattern
+and the replacement as `Find what:` and `Replace with:`, a row of checkboxes, two
+groups of radio buttons for direction and search mode, a transparency slider, and
+the tab's buttons along the bottom.
+
+The tabs are not three searches. Replace is the Find tab plus the replacement
+row, and Mark is Find with the marking options in place of the wrap and
+selection ones, so switching keeps the pattern, the matches and the history. It
+also moves the caret to the field the tab is about: typing a replacement is why
+anybody opened the Replace tab.
+
+The checkboxes are the bar's chips under their own names: Match whole word only,
+Match case, Wrap around, In selection, Bookmark line, Purge for each search and
+". matches newline". The two whole-word-ish boxes share the bar's one chip, and
+the sheet dims whichever of them the current mode cannot honour -- Match whole
+word only in regex mode, ". matches newline" outside it -- so the row does not
+reflow under the pointer when the mode changes.
+
+The frame is dragged by its caption bar. The slider fades the panel and its text
+down to a tenth of their opacity and no further, because a dialog you cannot find
+is a dialog you have to close to get back. `Escape` closes it and returns the
+keyboard to the text, and a click outside it lands in the document: the window is
+not modal, and Find Next would be a poor button if it were the only thing you
+could press. The old docked bar is still one preference row away, and switching
+between the two keeps the search that was typed in either.
+
 ### Incremental search
 
 `Ctrl+Alt+I` opens the find bar in incremental mode: as the pattern grows, the
@@ -1742,6 +1775,7 @@ one the shortcut editor uses, and it is what makes Escape mean "forget it".
 | Toolbar | On or off | On |
 | Function List | On or off | Off |
 | Volatile Find | On or off | On |
+| Floating Search | On or off | Off |
 | Backup on Save | None, Simple, Verbose | None |
 | Autosave | Seconds between snapshots; zero is off | 7 |
 | File Dialog | System dialog (XDG portal) or built-in browser | System dialog |

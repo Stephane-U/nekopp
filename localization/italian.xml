@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Sostituisci tutto in tutti i documenti aperti"/>
             <Item id="Mark All" name="Contrassegna tutto"/>
             <Item id="Clear Marks" name="Cancella contrassegni"/>
+            <Item id="Floating Search" name="Ricerca flottante"/>
+            <Item id="Mark" name="Contrassegna"/>
+            <Item id="Find what:" name="Trova:"/>
+            <Item id="Replace with:" name="Sostituisci con:"/>
+            <Item id="Direction" name="Direzione"/>
+            <Item id="Search Mode" name="Modalità di ricerca"/>
+            <Item id="Transparency" name="Trasparenza"/>
+            <Item id="Match whole word only" name="Solo parola intera"/>
+            <Item id="Match case" name="Distingui maiuscole/minuscole"/>
+            <Item id="Wrap around" name="Torna all'inizio"/>
+            <Item id="In selection" name="Nella selezione"/>
+            <Item id="Bookmark line" name="Segna riga"/>
+            <Item id="Purge for each search" name="Elimina a ogni ricerca"/>
+            <Item id=". matches newline" name=". corrisponde a nuova riga"/>
+            <Item id="Up" name="Su"/>
+            <Item id="Down" name="Giù"/>
+            <Item id="Normal" name="Normale"/>
+            <Item id="Extended" name="Esteso"/>
+            <Item id="Regular expression" name="Espressione regolare"/>
             </Main>
         </Menu>
     </Native-Langue>

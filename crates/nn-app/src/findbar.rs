@@ -474,6 +474,15 @@ impl TextField {
 pub struct FindBar {
     /// Whether the bar is showing.
     pub open: bool,
+    /// Whether the same search is drawn as a floating window instead of a bar.
+    ///
+    /// The search itself does not change: the dialog draws this struct's state,
+    /// so the fields, the options, the matches and the history are the ones the
+    /// bar would have used. What changes is the presentation and the space it
+    /// takes -- a floating window covers the text for as long as it is up and
+    /// reserves no band at the bottom, so every caller that asks the bar for its
+    /// height has to get zero rather than a row count.
+    pub floating: bool,
     /// Whether the replace row is showing.
     pub replace: bool,
     /// The search pattern.
@@ -560,6 +569,7 @@ impl FindBar {
         };
         Self {
             open: false,
+            floating: false,
             replace: false,
             query: TextField::new(metrics, family),
             replacement: TextField::new(metrics, family),
@@ -973,6 +983,28 @@ impl FindBar {
         }
     }
 
+    /// Whether the search is drawn as a floating window.
+    pub fn floating(&self) -> bool {
+        self.floating
+    }
+
+    /// Draws the search as a floating window, or as the bar.
+    ///
+    /// The search state is untouched, so switching mid-search keeps the pattern,
+    /// the options and the matches: what moves is the presentation.
+    pub fn set_floating(&mut self, on: bool) {
+        self.floating = on;
+    }
+
+    /// A button's word in the current language.
+    ///
+    /// The floating window draws the same buttons from its own shaped buffers,
+    /// and a second copy of the translation would be a second thing to keep in
+    /// step -- so it asks here.
+    pub fn button_text(&self, button: Button) -> &str {
+        self.tr(button.label())
+    }
+
     /// Which field's history list is open, if any.
     pub fn history_open(&self) -> Option<Field> {
         self.history_open
@@ -1068,7 +1100,8 @@ impl FindBar {
     /// The two fields, the chips, and however many rows the buttons need at this
     /// width: a narrow window wraps them rather than clipping the last one.
     pub fn height(&self, width: f32, line_height: f32, padding: f32) -> f32 {
-        if !self.open {
+        // A floating window reserves no band: the text runs under it.
+        if !self.open || self.floating {
             return 0.0;
         }
         let fields = if self.replace { 2.0 } else { 1.0 };
@@ -1415,7 +1448,9 @@ impl FindBar {
         line_height: f32,
         padding: f32,
     ) -> Option<Hit> {
-        if !self.open {
+        // Floating, the bar is not on screen and the floating window answers
+        // clicks instead.
+        if !self.open || self.floating {
             return None;
         }
         let layout = self.layout(width, top, line_height, padding);
@@ -1475,7 +1510,7 @@ impl FindBar {
         padding: f32,
         theme: &Theme,
     ) {
-        if !self.open {
+        if !self.open || self.floating {
             return;
         }
         let layout = self.layout(width, top, line_height, padding);
@@ -1575,7 +1610,7 @@ impl FindBar {
         padding: f32,
         theme: &Theme,
     ) -> Vec<TextArea<'a>> {
-        if !self.open {
+        if !self.open || self.floating {
             return Vec::new();
         }
         let layout = self.layout(width, top, line_height, padding);

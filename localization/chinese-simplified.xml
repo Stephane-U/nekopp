@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="在所有打开的文档中全部替换"/>
             <Item id="Mark All" name="全部标记"/>
             <Item id="Clear Marks" name="清除标记"/>
+            <Item id="Floating Search" name="浮动查找"/>
+            <Item id="Mark" name="标记"/>
+            <Item id="Find what:" name="查找目标:"/>
+            <Item id="Replace with:" name="替换为:"/>
+            <Item id="Direction" name="方向"/>
+            <Item id="Search Mode" name="查找模式"/>
+            <Item id="Transparency" name="透明度"/>
+            <Item id="Match whole word only" name="全字匹配"/>
+            <Item id="Match case" name="区分大小写"/>
+            <Item id="Wrap around" name="循环查找"/>
+            <Item id="In selection" name="在选区内查找"/>
+            <Item id="Bookmark line" name="标记行"/>
+            <Item id="Purge for each search" name="每次查找前清除标记"/>
+            <Item id=". matches newline" name=". 匹配换行符"/>
+            <Item id="Up" name="向上"/>
+            <Item id="Down" name="向下"/>
+            <Item id="Normal" name="普通"/>
+            <Item id="Extended" name="扩展"/>
+            <Item id="Regular expression" name="正则表达式"/>
             </Main>
         </Menu>
     </Native-Langue>

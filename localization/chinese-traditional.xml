@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="在所有開啟的文件中全部取代"/>
             <Item id="Mark All" name="全部標記"/>
             <Item id="Clear Marks" name="清除標記"/>
+            <Item id="Floating Search" name="浮動尋找"/>
+            <Item id="Mark" name="標記"/>
+            <Item id="Find what:" name="尋找目標:"/>
+            <Item id="Replace with:" name="替換為:"/>
+            <Item id="Direction" name="方向"/>
+            <Item id="Search Mode" name="尋找模式"/>
+            <Item id="Transparency" name="透明度"/>
+            <Item id="Match whole word only" name="全字拼寫須符合"/>
+            <Item id="Match case" name="大小寫須相符"/>
+            <Item id="Wrap around" name="環繞尋找"/>
+            <Item id="In selection" name="在選取範圍內"/>
+            <Item id="Bookmark line" name="標記行"/>
+            <Item id="Purge for each search" name="每次尋找前清除標記"/>
+            <Item id=". matches newline" name=". 符合換行字元"/>
+            <Item id="Up" name="向上"/>
+            <Item id="Down" name="向下"/>
+            <Item id="Normal" name="一般"/>
+            <Item id="Extended" name="擴充"/>
+            <Item id="Regular expression" name="規則運算式"/>
             </Main>
         </Menu>
     </Native-Langue>

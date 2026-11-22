@@ -9081,3 +9081,100 @@ the ten buttons, the three swap buttons and the history list, `set_marks` and
 --check`: up to date, 284,602 bytes, 68 pages A4, 106 bookmarks.
 
 `cargo fmt` was not run.
+
+## Seventy-third pass: the search as a floating window, as a preference
+
+The bar had reached parity with Notepad++'s search window the hard way, one
+control at a time, in a band along the bottom of the window. The question that
+opened this pass was whether the *window* -- floated over the document, dragged
+by its title, with the same buttons in the same order -- was possible at all.
+It was, but the answer the user wanted was the one after it: keep both, and put
+the choice in Preferences under "Floating Search", off by default, so the bar
+that had just been finished is not taken away from anyone who likes it.
+
+### A view, not a second search
+
+`FindDialog` owns no pattern, no options, no matches, no history. It reads the
+`FindBar` it is handed: `is_open` is `find.open && find.floating()`, every
+control is a `findbar::Hit` -- the same enum the bar's own press handler
+answers -- and the matches it counts are the bar's matches. That is the whole
+reason toggling the preference mid-search keeps the search, and the reason the
+dialog needed no new search code: every control it draws except the tab strip,
+the title bar and the slider was already wired.
+
+Only three hits are the dialog's own. `DialogHit::Tab` switches tabs,
+`DialogHit::Title` starts a drag, and `DialogHit::Transparency(f32)` sets the
+panel's alpha from the fraction along the track. Everything else is wrapped:
+`DialogHit::Find(findbar::Hit)` and then the existing `apply_find_hit`, which
+knows every one of them.
+
+### The band that is not there
+
+The docked bar reserves a strip of the window: `FindBar::height()` is asked for
+it by `find_bar_top()` and again by `pane_area()`, and `hit_at`, `push_quads`
+and `text_areas` are asked what lives in the strip. So `floating` is answered in
+one place -- `height()` returns zero and the three others return early -- and
+every caller that reserves the band follows without being told, because zero is
+a width they already handle. The alternative, threading a flag through the four
+callers, is four places to forget.
+
+The dialog is not modal. A press inside it belongs to it, a press anywhere else
+falls through to the document, and a press on the toolbar is now tested *after*
+the dialog's, because the dialog is drawn above the toolbar and the last thing
+drawn should be the first thing hit. `Escape` closes both presentations through
+the same `close_find`, which also ends a drag in case the release lands outside
+the window.
+
+### Three defects the bench dumps found, none of them a test failure
+
+The dialog was written, its twenty-three unit tests passed, and the first
+rendered frame still came out wrong. `bench` grew `floating_tab=find|replace|mark`
+and `floating_transparency=`, and the dumps said:
+
+- Every button was missing its word, and the frame had been panicking on the
+  `expect("every drawn label is in the map")` that guards the shaped map --
+  except nobody had reached that path, because `new()` shaped the captions and
+  the checkboxes and forgot `BUTTONS`. Fourteen words, shaped nowhere, drawn
+  anyway.
+- "Find what:" and "Replace with:" were not on screen. `sheet()` lays the sheet
+  out from its own origin, so the caption position is `PAD`; `layout()` moves
+  every *rectangle* into window coordinates and left the one position behind.
+  The captions were drawn at x=12 against a frame at x=312 and clipped by the
+  frame's text bounds.
+- Close hung off the right edge of the Find tab. Five buttons do not fit 476
+  pixels in English and will not fit at any width once a translation lengthens
+  them; `button_rows()` now wraps greedily and both `rows()` and `sheet()` read
+  the same wrapping, and the frame is measured over all three tabs rather than
+  the current one, so no tab's buttons hang below it and the frame does not
+  change height under the pointer when a tab is switched.
+
+Three tests were added, one per defect: the buttons' rows fit the frame's inner
+width, the caption sits between the frame's left edge and the field, and every
+label the sheet draws is in the map -- the last one walks all three tabs through
+`prepare` and `text_areas`, which is where the missing fourteen would have
+panicked.
+
+### Verification, without a mouse
+
+Input injection is not available on this display: mutter holds a grab that
+swallows every XTest device event, the app ignores synthetic `XSendEvent` because
+it takes them from XI2, and an Xvfb fallback dies on lavapipe ("wgpu error: Out
+of Memory" in `Surface::configure`, no DRI3). So the drawing was verified by
+rendering: `bench "" 1100 750 6 out.ppm floating_tab=find` and the other two,
+cropped and read, which is how the three defects above were found; the click
+mapping is covered by the layout tests, which press at the centre of every
+rectangle `push_quads` draws and require the control it belongs to -- tabs,
+checkboxes, radios, modes, the four buttons per tab, both fields, their arrows,
+the three swaps and the slider.
+
+`cargo test --offline --all`: 1997 passed, 0 failed -- 1041 in `nn-app`, 886 in
+`nn-core`, 70 in `nn-mcp`. The three `nn-mcp` failures this pass started with
+were the reference's own guard doing its job: `docs/nekopp-features.md` grew a
+subsection and a preferences row, so 104 sections became 105 and the counts in
+`doc::tests` and `server::tests` were updated with it.
+
+`cargo clippy --offline --all-targets`: 0 warnings. `python3
+docs/build-pdf.py --check`: up to date, 287,307 bytes, 68 pages A4, 107
+bookmarks.
+
+`cargo fmt` was not run.

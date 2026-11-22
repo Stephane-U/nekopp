@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Alles vervangen in alle geopende documenten"/>
             <Item id="Mark All" name="Alles markeren"/>
             <Item id="Clear Marks" name="Markeringen wissen"/>
+            <Item id="Floating Search" name="Zwevend zoeken"/>
+            <Item id="Mark" name="Markeren"/>
+            <Item id="Find what:" name="Zoeken naar:"/>
+            <Item id="Replace with:" name="Vervangen door:"/>
+            <Item id="Direction" name="Richting"/>
+            <Item id="Search Mode" name="Zoekmodus"/>
+            <Item id="Transparency" name="Transparantie"/>
+            <Item id="Match whole word only" name="Alleen hele woorden"/>
+            <Item id="Match case" name="Hoofdlettergevoelig"/>
+            <Item id="Wrap around" name="Rondom zoeken"/>
+            <Item id="In selection" name="In selectie"/>
+            <Item id="Bookmark line" name="Regel markeren"/>
+            <Item id="Purge for each search" name="Wissen bij elke zoekopdracht"/>
+            <Item id=". matches newline" name=". komt overeen met regeleinde"/>
+            <Item id="Up" name="Omhoog"/>
+            <Item id="Down" name="Omlaag"/>
+            <Item id="Normal" name="Normaal"/>
+            <Item id="Extended" name="Uitgebreid"/>
+            <Item id="Regular expression" name="Reguliere expressie"/>
             </Main>
         </Menu>
     </Native-Langue>

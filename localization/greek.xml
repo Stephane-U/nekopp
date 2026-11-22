@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Αντικατάσταση όλων σε όλα τα ανοιχτά έγγραφα"/>
             <Item id="Mark All" name="Επισήμανση όλων"/>
             <Item id="Clear Marks" name="Εκκαθάριση σημάνσεων"/>
+            <Item id="Floating Search" name="Αιωρούμενη αναζήτηση"/>
+            <Item id="Mark" name="Σήμανση"/>
+            <Item id="Find what:" name="Εύρεση:"/>
+            <Item id="Replace with:" name="Αντικατάσταση με:"/>
+            <Item id="Direction" name="Κατεύθυνση"/>
+            <Item id="Search Mode" name="Λειτουργία αναζήτησης"/>
+            <Item id="Transparency" name="Διαφάνεια"/>
+            <Item id="Match whole word only" name="Μόνο ολόκληρη λέξη"/>
+            <Item id="Match case" name="Διάκριση πεζών-κεφαλαίων"/>
+            <Item id="Wrap around" name="Αναζήτηση με αναδίπλωση"/>
+            <Item id="In selection" name="Στην επιλογή"/>
+            <Item id="Bookmark line" name="Σήμανση γραμμής"/>
+            <Item id="Purge for each search" name="Εκκαθάριση σε κάθε αναζήτηση"/>
+            <Item id=". matches newline" name=". ταιριάζει με αλλαγή γραμμής"/>
+            <Item id="Up" name="Πάνω"/>
+            <Item id="Down" name="Κάτω"/>
+            <Item id="Normal" name="Κανονική"/>
+            <Item id="Extended" name="Εκτεταμένη"/>
+            <Item id="Regular expression" name="Κανονική έκφραση"/>
             </Main>
         </Menu>
     </Native-Langue>

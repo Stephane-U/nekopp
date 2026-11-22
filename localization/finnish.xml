@@ -474,6 +474,25 @@
             <Item id="Replace All in All Opened Documents" name="Korvaa kaikki kaikissa avoimissa asiakirjoissa"/>
             <Item id="Mark All" name="Merkitse kaikki"/>
             <Item id="Clear Marks" name="Tyhjennä merkit"/>
+            <Item id="Floating Search" name="Kelluva haku"/>
+            <Item id="Mark" name="Merkitse"/>
+            <Item id="Find what:" name="Etsi mitä:"/>
+            <Item id="Replace with:" name="Korvaa millä:"/>
+            <Item id="Direction" name="Suunta"/>
+            <Item id="Search Mode" name="Hakutila"/>
+            <Item id="Transparency" name="Läpinäkyvyys"/>
+            <Item id="Match whole word only" name="Vain kokonainen sana"/>
+            <Item id="Match case" name="Sama kirjainkoko"/>
+            <Item id="Wrap around" name="Hae ympäri"/>
+            <Item id="In selection" name="Valinnasta"/>
+            <Item id="Bookmark line" name="Merkitse rivi"/>
+            <Item id="Purge for each search" name="Tyhjennä joka haulla"/>
+            <Item id=". matches newline" name=". vastaa rivinvaihtoa"/>
+            <Item id="Up" name="Ylös"/>
+            <Item id="Down" name="Alas"/>
+            <Item id="Normal" name="Normaali"/>
+            <Item id="Extended" name="Laajennettu"/>
+            <Item id="Regular expression" name="Säännöllinen lauseke"/>
             </Main>
         </Menu>
     </Native-Langue>
