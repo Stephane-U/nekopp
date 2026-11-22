@@ -137,6 +137,25 @@ VS Code reads `.vscode/mcp.json` with a `servers` object instead of `mcpServers`
 }
 ```
 
+The Vibe CLI reads `[[mcp_servers]]` entries, in `~/.vibe/config.toml` for every
+project or in a trusted project's `.vibe/config.toml`, and writes one itself:
+
+```sh
+vibe mcp add nekopp --transport stdio --command /opt/DEV/nn/target/release/npp-mcp
+```
+
+```toml
+[[mcp_servers]]
+name = "nekopp"
+transport = "stdio"
+command = "/opt/DEV/nn/target/release/npp-mcp"
+args = []
+```
+
+Its seven tools arrive in the `mcp_nekopp` group, as `mcp_nekopp.search_features`,
+`mcp_nekopp.get_section` and so on, and `/mcp` in a session lists the server with
+the tools it published.
+
 `cargo run --release -p nn-mcp` works anywhere a configuration wants to build
 first, but the installed binary is the better command: it starts in a few
 milliseconds and does not depend on a toolchain.
