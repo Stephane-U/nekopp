@@ -1750,7 +1750,7 @@ impl State {
         state.sync_palette();
         // After the session, so a buffer that is both in the session and in the
         // snapshot is replaced rather than opened twice.
-        state.restore_snapshot();
+        state.restore_snapshot(path.is_some());
         state.watch_scheme();
         state
     }
@@ -2223,7 +2223,7 @@ impl State {
     ///
     /// A buffer whose file has since been deleted comes back untitled. The path
     /// is lost, which is a nuisance; the text is not, which is the promise.
-    fn restore_snapshot(&mut self) {
+    fn restore_snapshot(&mut self, named: bool) {
         let snapshot = Snapshot::load();
         if snapshot.is_empty() {
             return;
@@ -2284,7 +2284,13 @@ impl State {
         if placeholder {
             self.tabs.remove(0);
         }
-        self.active = self.tabs.len() - 1;
+        // A file named on the command line is the one the user asked to see, so
+        // the recovered buffers queue behind it instead of taking the front. The
+        // rest of the command line is applied after this, and activates what it
+        // opens, so only the first file would have been displaced.
+        if !named {
+            self.active = self.tabs.len() - 1;
+        }
         self.after_tab_change();
         self.status.set_message(Some(format!(
             "Restored {restored} unsaved buffer(s) from the last session"
@@ -2429,6 +2435,13 @@ impl State {
     /// The other pane is searched too, and focused when it is the one holding
     /// the file, because a split is a view of the same set of documents.
     fn open_path(&mut self, path: &std::path::Path) {
+        // Every way in -- the command line, a drop, a dialog answer, a request
+        // from a second process -- has to agree on what "this file" means, and
+        // the only form that still means the same file after a restart is the
+        // absolute one. `npp test/01-object.json` used to leave a tab, a session
+        // line and a recent entry all holding `test/01-object.json`, which named
+        // a file only until the next launch.
+        let path = &nn_app::paths::absolute(path);
         if let Some(index) = Self::tab_holding(&self.tabs, path) {
             self.active = index;
             self.after_tab_change();
@@ -2452,7 +2465,26 @@ impl State {
                 self.active = self.tabs.len() - 1;
                 self.after_tab_change();
             }
-            Err(err) => eprintln!("npp: cannot open {}: {err}", path.display()),
+            // A recent entry can outlive the file it names, and a click that
+            // does nothing looks like a broken menu rather than a missing file.
+            Err(err) => {
+                eprintln!("npp: cannot open {}: {err}", path.display());
+                self.status
+                    .set_message(Some(format!("Cannot open {}: {err}", path.display())));
+            }
+        }
+    }
+
+    /// Opens every file a dialog answered with.
+    ///
+    /// One place rather than a loop at each call site, because "open several"
+    /// has to mean the same thing whether the answer came from the system
+    /// dialog or from the built-in browser. `open_path` still decides what
+    /// "already open" means, and the last file opened is the one left in front,
+    /// which is what a user who picked a list expects to be looking at.
+    fn open_files(&mut self, paths: &[std::path::PathBuf]) {
+        for path in paths {
+            self.open_path(path);
         }
     }
 
@@ -4349,9 +4381,10 @@ impl State {
         match &event.logical_key {
             Key::Named(NamedKey::Escape) => self.browser.close(),
             Key::Named(NamedKey::Enter) => {
-                if let Some(path) = self.browser.enter() {
+                let paths = self.browser.enter();
+                if !paths.is_empty() {
                     self.browser.close();
-                    self.open_path(&path);
+                    self.open_files(&paths);
                 }
             }
             Key::Named(NamedKey::ArrowDown) => self.browser.move_selection(1),
@@ -4378,7 +4411,14 @@ impl State {
             Key::Named(NamedKey::Home) => self.browser.home(),
             Key::Named(NamedKey::End) => self.browser.end(),
             Key::Character(c) if ctrl => {
-                if c.to_lowercase() == "v" {
+                // One lowercased copy for both keys, so the whole arm costs one
+                // allocation whatever was pressed.
+                let key = c.to_lowercase();
+                if key == "a" {
+                    // The keyboard's way into a multiple selection, and the only
+                    // one that reaches the rows below the fold.
+                    self.browser.mark_all();
+                } else if key == "v" {
                     let pasted = self
                         .clipboard
                         .as_mut()
@@ -5010,11 +5050,21 @@ impl State {
         // The file browser is modal and drawn in the overlay pass, so it gets
         // first refusal over everything.
         if self.browser.is_open() {
+            // Ctrl and Shift are how a list names more than one row, so they are
+            // read here rather than in the browser: the modifiers are the
+            // window's state, and the widget is only told what happened.
+            let ctrl = self.modifiers.control_key();
+            let shift = self.modifiers.shift_key();
             if let Some(row) = self.browser.row_at(x as f32, y as f32) {
-                if row == self.browser.selected_index() {
-                    if let Some(path) = self.browser.enter() {
+                if shift {
+                    self.browser.mark_range(row, ctrl);
+                } else if ctrl {
+                    self.browser.toggle_mark(row);
+                } else if row == self.browser.selected_index() {
+                    let paths = self.browser.enter();
+                    if !paths.is_empty() {
                         self.browser.close();
-                        self.open_path(&path);
+                        self.open_files(&paths);
                     }
                 } else {
                     self.browser.set_selected(row);
@@ -7846,6 +7896,10 @@ impl State {
 
     /// Asks the user for a file, by whichever dialog this installation uses.
     ///
+    /// Both dialogs take several files: the open dialog names a list, and every
+    /// path in it becomes a tab. Only Save As is single, because one buffer is
+    /// one file.
+    ///
     /// The portal is tried first. It is the only dialog that can reach the
     /// user's bookmarks and network shares, and under Flatpak or snap it is the
     /// only one that can reach any file at all -- the application has no
@@ -7918,11 +7972,7 @@ impl State {
         self.portal_pending = false;
         match outcome {
             Outcome::Chosen(paths) => match kind {
-                nn_app::portal::Kind::Open => {
-                    for path in &paths {
-                        self.open_path(path);
-                    }
-                }
+                nn_app::portal::Kind::Open => self.open_files(&paths),
                 // A save dialog returns one path. More than one would mean the
                 // portal misunderstood the request, and writing the same buffer
                 // to several files is not something to guess at.

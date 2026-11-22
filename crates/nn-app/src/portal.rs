@@ -87,7 +87,7 @@ fn with_timeout<T>(
 /// Which dialog to show.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
-    /// Pick an existing file.
+    /// Pick existing files.
     Open,
     /// Pick a path to write.
     Save,
@@ -386,6 +386,13 @@ fn options(
             Value::from(filters_value(filters)),
         );
     }
+    // An open dialog may name more than one file, which is what Notepad++'s
+    // Open has always allowed. The answer is already a list of URIs, so this
+    // flag is the whole of the request; without it every portal returns exactly
+    // one, however many the user picked.
+    if kind == Kind::Open {
+        options.insert("multiple".to_string(), Value::from(true));
+    }
     if kind == Kind::Save {
         if let Some(name) = current_name {
             options.insert("current_name".to_string(), Value::from(name.to_string()));
@@ -654,6 +661,22 @@ mod tests {
             patterns: vec!["*.txt".to_string()],
         }];
         assert!(options("tok", Kind::Open, &filters, None).contains_key("filters"));
+    }
+
+    #[test]
+    fn an_open_dialog_asks_for_more_than_one_file() {
+        // Without this flag a portal answers with exactly one URI, however many
+        // files the user picked, and every way into the editor that goes through
+        // the system dialog opens one document at a time.
+        let options = options("tok", Kind::Open, &[], None);
+        assert_eq!(options.get("multiple"), Some(&Value::from(true)));
+    }
+
+    #[test]
+    fn a_save_dialog_asks_for_one_file() {
+        // The save answer is one buffer written to one path, so asking for a
+        // list would be asking a question the caller would have to refuse.
+        assert!(!options("tok", Kind::Save, &[], Some("notes.txt")).contains_key("multiple"));
     }
 
     #[test]

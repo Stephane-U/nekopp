@@ -71,8 +71,15 @@ impl Session {
     }
 
     /// Records `path` as the most recent file, moving it to the front.
+    ///
+    /// The path is made absolute first. A recent file is read back at the next
+    /// start, long after the directory it was typed in is gone, so an entry
+    /// stored as `test/01-object.json` would be asking for that path relative to
+    /// whatever directory the editor was launched in -- and would fail to open
+    /// for a reason the user could not see. The same rule makes the duplicate
+    /// check work: one file reached two ways is one entry.
     pub fn push_recent(&mut self, path: &Path) {
-        let path = path.to_path_buf();
+        let path = crate::paths::absolute(path);
         self.recent.retain(|p| p != &path);
         self.recent.insert(0, path);
         self.recent.truncate(MAX_RECENT);
@@ -277,6 +284,29 @@ mod tests {
         let session = Session::parse(text);
         assert!(session.tabs.is_empty());
         assert_eq!(session.recent, vec![PathBuf::from("/tmp/ok")]);
+    }
+
+    #[test]
+    fn a_recent_file_is_stored_as_an_absolute_path() {
+        // The list outlives the directory it was filled from: the session is
+        // written now and read at the next start, from whichever directory the
+        // editor is launched in.
+        let mut session = Session::default();
+        session.push_recent(Path::new("test/01-object.json"));
+        assert!(session.recent[0].is_absolute());
+        assert!(session.recent[0].ends_with("test/01-object.json"));
+    }
+
+    #[test]
+    fn one_file_reached_two_ways_is_one_entry() {
+        let mut session = Session::default();
+        session.push_recent(Path::new("test/01-object.json"));
+        let stored = session.recent[0].clone();
+        assert!(stored.is_absolute());
+        session.push_recent(&stored);
+        assert_eq!(session.recent.len(), 1);
+        session.push_recent(Path::new("test/01-object.json"));
+        assert_eq!(session.recent.len(), 1);
     }
 
     #[test]

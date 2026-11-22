@@ -133,6 +133,22 @@ pub fn complete_path(dir: &Path, stem: &str, limit: usize) -> Vec<String> {
     dirs
 }
 
+/// `path` as an absolute path, resolved against the working directory.
+///
+/// Nothing on disk is consulted and no symlink is resolved: a path that does not
+/// exist yet still gets the directory it would be created in, and a symlink keeps
+/// the name the user chose. That is the difference between this and
+/// `canonicalize`, and it is what makes the function safe to call on the way in:
+/// the editor must record the file the user named, not whatever it points at.
+///
+/// It exists because a relative path is only meaningful beside the directory it
+/// was typed in. The session file is written now and read at the next start,
+/// from whatever directory the editor happens to be launched in, so anything it
+/// stores has to be absolute to still mean the same file then.
+pub fn absolute(path: &Path) -> PathBuf {
+    std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
 /// Writes `text` to `path`, creating the directory first.
 ///
 /// Failures are ignored on purpose: a read-only home directory should not stop
@@ -147,6 +163,24 @@ pub fn write(path: &PathBuf, text: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_absolute_path_is_left_alone() {
+        assert_eq!(
+            absolute(Path::new("/tmp/notes.txt")),
+            PathBuf::from("/tmp/notes.txt")
+        );
+    }
+
+    #[test]
+    fn a_relative_path_is_resolved_against_the_working_directory() {
+        // `npp test/01-object.json` has to be recorded as the file it names, not
+        // as a path that only means that file in one directory.
+        let resolved = absolute(Path::new("test/01-object.json"));
+        let cwd = std::env::current_dir().expect("working directory");
+        assert!(resolved.is_absolute());
+        assert_eq!(resolved, cwd.join("test/01-object.json"));
+    }
 
     #[test]
     fn a_config_file_sits_under_the_app_directory() {

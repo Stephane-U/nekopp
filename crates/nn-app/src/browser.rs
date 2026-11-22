@@ -65,6 +65,22 @@ pub struct Browser {
     /// The visible entries, parent first, then directories, then files.
     entries: Vec<Entry>,
     selected: usize,
+    /// The rows marked for opening, as indices into `entries`, in the order
+    /// they were marked.
+    ///
+    /// Indices rather than paths, because a mark is a statement about a row on
+    /// screen. Every filter keystroke and every directory change rebuilds the
+    /// listing, and [`Browser::refresh`] drops the marks with it: an index that
+    /// outlived its listing would open whatever now sits at that number.
+    ///
+    /// Ordered rather than sorted, because the order is what the editor opens
+    /// them in: the last row marked becomes the last document opened, and the
+    /// last document opened is the one left in front. A set would answer in row
+    /// order, so a user who Ctrl+clicked the top row last would be shown the
+    /// bottom one.
+    marked: Vec<usize>,
+    /// The row a Shift+click measures its range from.
+    anchor: usize,
     /// The first visible index, so a long list can scroll.
     scroll: usize,
     /// The filter, which doubles as a path field for an absolute path.
@@ -96,6 +112,8 @@ impl Browser {
             dir: std::env::current_dir().unwrap_or_default(),
             entries: Vec::new(),
             selected: 0,
+            marked: Vec::new(),
+            anchor: 0,
             scroll: 0,
             filter: TextField::new(metrics, family),
             error: None,
@@ -163,6 +181,16 @@ impl Browser {
     /// The highlighted entry.
     pub fn selected_entry(&self) -> Option<&Entry> {
         self.entries.get(self.selected)
+    }
+
+    /// Whether the row at `index` is marked for opening.
+    pub fn is_marked(&self, index: usize) -> bool {
+        self.marked.contains(&index)
+    }
+
+    /// How many rows are marked.
+    pub fn marked_count(&self) -> usize {
+        self.marked.len()
     }
 
     /// Records the window size, so the dialog can centre itself.
@@ -233,6 +261,10 @@ impl Browser {
             is_dir: false,
         }));
         self.selected = self.selected.min(self.entries.len().saturating_sub(1));
+        // A rebuilt listing is a different set of rows, so nothing survives it
+        // but the cursor: an index that outlived its listing would open whatever
+        // now sits at that number.
+        self.select_only(self.selected);
         self.scroll_to_selection();
     }
 
@@ -244,6 +276,7 @@ impl Browser {
     pub fn move_selection(&mut self, delta: isize) {
         let last = self.entries.len().saturating_sub(1) as isize;
         self.selected = (self.selected as isize + delta).clamp(0, last) as usize;
+        self.select_only(self.selected);
         self.scroll_to_selection();
     }
 
@@ -251,8 +284,95 @@ impl Browser {
     pub fn set_selected(&mut self, index: usize) {
         if index < self.entries.len() {
             self.selected = index;
+            self.select_only(index);
             self.scroll_to_selection();
         }
+    }
+
+    /// Marks `index`, or unmarks it when it is already marked, and leaves the
+    /// cursor on it -- Ctrl+click.
+    ///
+    /// Unmarking is the half that makes a mistake recoverable without closing
+    /// the dialog, which is the same reason every file manager toggles.
+    pub fn toggle_mark(&mut self, index: usize) {
+        if index >= self.entries.len() || self.is_parent(index) {
+            return;
+        }
+        if let Some(at) = self.marked.iter().position(|row| *row == index) {
+            self.marked.remove(at);
+        } else {
+            self.marked.push(index);
+        }
+        self.selected = index;
+        self.anchor = index;
+        self.scroll_to_selection();
+    }
+
+    /// Marks every row between the anchor and `index` -- Shift+click.
+    ///
+    /// The anchor is the row of the last mark, so repeated Shift+clicks grow one
+    /// range rather than accumulating ranges nobody asked for. `extend` keeps
+    /// what is already marked, which is what Ctrl+Shift+click does everywhere; a
+    /// plain Shift+click replaces the selection.
+    pub fn mark_range(&mut self, index: usize, extend: bool) {
+        if index >= self.entries.len() {
+            return;
+        }
+        if !extend {
+            self.marked.clear();
+        }
+        let (low, high) = if self.anchor <= index {
+            (self.anchor, index)
+        } else {
+            (index, self.anchor)
+        };
+        for row in low..=high {
+            if !self.is_parent(row) && !self.marked.contains(&row) {
+                self.marked.push(row);
+            }
+        }
+        self.selected = index;
+        self.scroll_to_selection();
+    }
+
+    /// Marks every file in the listing -- Ctrl+A.
+    ///
+    /// Directories and the parent row are left alone: a mark says "open this",
+    /// and there is nothing in a directory to open.
+    pub fn mark_all(&mut self) {
+        self.marked = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| !entry.is_dir)
+            .map(|(index, _)| index)
+            .collect();
+    }
+
+    /// Makes `index` the whole selection.
+    ///
+    /// Every way of moving the cursor goes through here, because the row under
+    /// the cursor is what a plain click or an arrow key selects: a highlight the
+    /// user moved away from is not something to open, and Ctrl click and Shift
+    /// click are how the selection grows past it. Clicking a file and
+    /// Ctrl+clicking a second one therefore opens both, which is the gesture
+    /// every file dialog in the world answers the same way.
+    ///
+    /// The parent row selects nothing: it is navigation, and a highlighted row
+    /// means "this will open".
+    fn select_only(&mut self, index: usize) {
+        self.marked.clear();
+        if index < self.entries.len() && !self.is_parent(index) {
+            self.marked.push(index);
+        }
+        self.anchor = index;
+    }
+
+    /// Whether `index` is the parent row, which is a way out rather than a file.
+    fn is_parent(&self, index: usize) -> bool {
+        self.entries
+            .get(index)
+            .is_some_and(|entry| entry.name == "..")
     }
 
     /// Scrolls the minimum amount that puts the selection back on screen.
@@ -290,6 +410,7 @@ impl Browser {
         if let Some(name) = came_from {
             if let Some(index) = self.entries.iter().position(|entry| entry.name == name) {
                 self.selected = index;
+                self.select_only(index);
                 self.scroll_to_selection();
             }
         }
@@ -297,33 +418,56 @@ impl Browser {
 
     /// Acts on the highlighted entry.
     ///
-    /// Returns the path to open when the entry is a file, and `None` when it is
-    /// a directory — which the browser has already descended into.
+    /// Returns the files to open. That is one path for the ordinary case -- the
+    /// highlighted file -- and every marked path when rows are marked, because a
+    /// mark is the user naming the files they mean. A directory is descended
+    /// into and `..` goes up rather than being returned, so a navigation answers
+    /// with an empty list: the browser has already done the moving.
     ///
     /// A typed absolute path wins over the list, so a user who knows where they
     /// are going does not have to walk there.
-    pub fn enter(&mut self) -> Option<PathBuf> {
+    pub fn enter(&mut self) -> Vec<PathBuf> {
         let typed = self.filter.text().trim();
         if !typed.is_empty() {
             let path = PathBuf::from(typed);
             if path.is_absolute() && path.is_file() {
-                return Some(path);
+                return vec![path];
             }
         }
-        let entry = self.entries.get(self.selected)?.clone();
+        // The selection is what opens. It normally holds the cursor row too, so
+        // this is the ordinary case rather than a special one; a directory in it
+        // is dropped, because there is nothing in one to open. When it holds no
+        // file at all -- it is empty, or it is one directory -- the cursor below
+        // decides, and that is what descends, walks up, or opens the row it is
+        // sitting on.
+        if !self.marked.is_empty() {
+            let paths: Vec<PathBuf> = self
+                .marked
+                .iter()
+                .filter_map(|index| self.entries.get(*index))
+                .filter(|entry| !entry.is_dir)
+                .map(|entry| self.dir.join(&entry.name))
+                .collect();
+            if !paths.is_empty() {
+                return paths;
+            }
+        }
+        let Some(entry) = self.entries.get(self.selected).cloned() else {
+            return Vec::new();
+        };
         // `..` goes through `up` rather than `dir.join("..")`: joining leaves
         // the path unnormalised, so the next `parent()` would walk back into
         // the directory just left.
         if entry.name == ".." {
             self.up();
-            return None;
+            return Vec::new();
         }
         let path = self.dir.join(&entry.name);
         if entry.is_dir {
             self.descend(path);
-            None
+            Vec::new()
         } else {
-            Some(path)
+            vec![path]
         }
     }
 
@@ -352,6 +496,7 @@ impl Browser {
             .iter()
             .position(|entry| entry.name != "..")
             .unwrap_or(0);
+        self.select_only(self.selected);
         self.scroll = 0;
         self.scroll_to_selection();
     }
@@ -523,14 +668,44 @@ impl Browser {
         quads.push(left, top, 1.0, height, border);
         quads.push(left + width - 1.0, top, 1.0, height, border);
 
+        // Marked rows first, so the cursor's own highlight is still readable
+        // when it lands on one of them.
+        for index in &self.marked {
+            if *index < self.scroll || *index >= self.scroll + self.visible_rows() {
+                continue;
+            }
+            let row_top = self.rows_top() + (*index - self.scroll) as f32 * self.line_height;
+            quads.push(
+                left + 1.0,
+                row_top,
+                width - 2.0,
+                self.line_height,
+                theme.selection.to_linear(),
+            );
+        }
+
         let row = (self.selected - self.scroll) as f32;
         let row_top = self.rows_top() + row * self.line_height;
+        // The cursor keeps its own band only when it is not on a marked row:
+        // a band drawn over a mark would hide the mark, and every row the dialog
+        // is about to open has to keep showing as chosen.
+        if !self.marked.contains(&self.selected) {
+            quads.push(
+                left + 1.0,
+                row_top,
+                width - 2.0,
+                self.line_height,
+                theme.menu_hover.to_linear(),
+            );
+        }
+        // The bar is what says "this is where the keys act", and it is the same
+        // answer on a marked row and an unmarked one.
         quads.push(
             left + 1.0,
             row_top,
-            width - 2.0,
+            2.0,
             self.line_height,
-            theme.menu_hover.to_linear(),
+            theme.caret.to_linear(),
         );
 
         let caret_x = self.filter_left() + self.filter.caret() as f32 * self.char_width;
@@ -643,8 +818,13 @@ impl Browser {
     }
 
     /// The hint line under the rows.
+    ///
+    /// Two lines, because the keys that pick several files are the ones a user
+    /// cannot guess: a one-line hint that named only Enter would leave Ctrl and
+    /// Shift undiscovered.
     pub fn hint(&self) -> &'static str {
-        "Up/Down select   Enter open   Backspace up   Esc cancel"
+        "Up/Down select   Ctrl+click mark   Shift+click range   Ctrl+A all\n\
+         Enter open   Backspace up   Esc cancel"
     }
 
     /// The character width the dialog was built with.
@@ -780,7 +960,7 @@ mod tests {
         browser.open(&dir);
         browser.set_selected(1);
         assert_eq!(browser.selected_entry().map(|e| e.name.as_str()), Some("sub"));
-        assert_eq!(browser.enter(), None);
+        assert!(browser.enter().is_empty());
         assert_eq!(browser.dir(), dir.join("sub"));
         assert_eq!(browser.filter(), "");
     }
@@ -796,7 +976,277 @@ mod tests {
             .position(|e| e.name == "beta.txt")
             .expect("beta.txt listed");
         browser.set_selected(index);
-        assert_eq!(browser.enter(), Some(dir.join("beta.txt")));
+        assert_eq!(browser.enter(), vec![dir.join("beta.txt")]);
+    }
+
+    /// The index of `name` in the listing.
+    fn row_of(browser: &Browser, name: &str) -> usize {
+        browser
+            .entries()
+            .iter()
+            .position(|e| e.name == name)
+            .unwrap_or_else(|| panic!("{name} is not listed"))
+    }
+
+    #[test]
+    fn a_click_then_a_ctrl_click_opens_both_files() {
+        let dir = fixture("mark-gesture");
+        let mut browser = browser();
+        browser.open(&dir);
+        // What a user does: click the first file, Ctrl+click the second.
+        browser.set_selected(row_of(&browser, "Alpha.txt"));
+        browser.toggle_mark(row_of(&browser, "beta.txt"));
+        assert_eq!(
+            browser.enter(),
+            vec![dir.join("Alpha.txt"), dir.join("beta.txt")]
+        );
+    }
+
+    #[test]
+    fn a_ctrl_click_marks_a_row_and_leaves_the_dialog_open() {
+        let dir = fixture("mark-one");
+        let mut browser = browser();
+        browser.open(&dir);
+        let row = row_of(&browser, "beta.txt");
+        browser.toggle_mark(row);
+        assert!(browser.is_marked(row));
+        assert_eq!(browser.selected_index(), row);
+        // Marking is not opening: the listing is still there.
+        assert!(browser.is_open());
+        assert_eq!(browser.marked_count(), 1);
+    }
+
+    #[test]
+    fn a_second_ctrl_click_unmarks_the_row() {
+        let dir = fixture("mark-twice");
+        let mut browser = browser();
+        browser.open(&dir);
+        let row = row_of(&browser, "beta.txt");
+        browser.toggle_mark(row);
+        browser.toggle_mark(row);
+        assert!(!browser.is_marked(row));
+        assert_eq!(browser.marked_count(), 0);
+    }
+
+    #[test]
+    fn entering_with_marks_returns_every_marked_file() {
+        let dir = fixture("mark-many");
+        let mut browser = browser();
+        browser.open(&dir);
+        let alpha = row_of(&browser, "Alpha.txt");
+        let beta = row_of(&browser, "beta.txt");
+        browser.toggle_mark(beta);
+        browser.toggle_mark(alpha);
+        // In the order they were marked, not in row order: `alpha` was marked
+        // last, so it opens last and is the tab the editor leaves in front.
+        assert_eq!(
+            browser.enter(),
+            vec![dir.join("beta.txt"), dir.join("Alpha.txt")]
+        );
+        // The directory has not moved: marks are a chooser, not a walk.
+        assert_eq!(browser.dir(), dir);
+    }
+
+    #[test]
+    fn the_last_row_marked_is_the_last_file_answered() {
+        // The editor opens the list in order and activates the last one, so this
+        // ordering is what puts the focus on the file the user clicked last.
+        let dir = fixture("mark-order");
+
+        // Downwards: the bottom row is last either way.
+        let mut down = browser();
+        down.open(&dir);
+        down.toggle_mark(row_of(&down, "Alpha.txt"));
+        down.toggle_mark(row_of(&down, "beta.txt"));
+        assert_eq!(
+            down.enter(),
+            vec![dir.join("Alpha.txt"), dir.join("beta.txt")]
+        );
+
+        // Upwards: the case a sorted set got wrong, answering with the bottom
+        // row because that is the one that sorts last.
+        let mut up = browser();
+        up.open(&dir);
+        up.toggle_mark(row_of(&up, "beta.txt"));
+        up.toggle_mark(row_of(&up, "Alpha.txt"));
+        assert_eq!(up.enter(), vec![dir.join("beta.txt"), dir.join("Alpha.txt")]);
+    }
+
+    #[test]
+    fn a_marked_directory_rides_along_without_being_opened() {
+        let dir = fixture("mark-mixed");
+        let mut browser = browser();
+        browser.open(&dir);
+        browser.toggle_mark(row_of(&browser, "sub"));
+        browser.toggle_mark(row_of(&browser, "beta.txt"));
+        // There is nothing to open in a directory, so a mark on one is skipped
+        // rather than turned into a second descent the user did not ask for.
+        assert_eq!(browser.enter(), vec![dir.join("beta.txt")]);
+        assert_eq!(browser.dir(), dir);
+    }
+
+    #[test]
+    fn a_shift_click_marks_the_range_from_the_anchor() {
+        let dir = fixture("mark-range");
+        let mut browser = browser();
+        browser.open(&dir);
+        let alpha = row_of(&browser, "Alpha.txt");
+        let beta = row_of(&browser, "beta.txt");
+        browser.toggle_mark(alpha);
+        browser.mark_range(beta, false);
+        assert!(browser.is_marked(alpha));
+        assert!(browser.is_marked(beta));
+        assert_eq!(browser.marked_count(), 2);
+        // The parent row is above the anchor and stays out of it.
+        assert!(!browser.is_marked(0));
+    }
+
+    #[test]
+    fn a_shift_click_back_up_the_list_marks_the_same_rows() {
+        let dir = fixture("mark-range-back");
+        let mut browser = browser();
+        browser.open(&dir);
+        let alpha = row_of(&browser, "Alpha.txt");
+        let beta = row_of(&browser, "beta.txt");
+        browser.toggle_mark(beta);
+        browser.mark_range(alpha, false);
+        assert!(browser.is_marked(alpha));
+        assert!(browser.is_marked(beta));
+    }
+
+    #[test]
+    fn a_plain_shift_click_replaces_the_range() {
+        let dir = fixture("mark-replace");
+        let mut browser = browser();
+        browser.open(&dir);
+        let alpha = row_of(&browser, "Alpha.txt");
+        let beta = row_of(&browser, "beta.txt");
+        browser.mark_range(beta, false);
+        assert!(browser.is_marked(beta));
+        browser.mark_range(alpha, false);
+        assert!(browser.is_marked(alpha));
+        assert!(!browser.is_marked(beta));
+    }
+
+    #[test]
+    fn a_ctrl_shift_click_adds_to_the_range() {
+        let dir = fixture("mark-extend");
+        let mut browser = browser();
+        browser.open(&dir);
+        let alpha = row_of(&browser, "Alpha.txt");
+        let beta = row_of(&browser, "beta.txt");
+        browser.toggle_mark(beta);
+        browser.mark_range(alpha, true);
+        assert!(browser.is_marked(beta));
+        assert!(browser.is_marked(alpha));
+        assert_eq!(browser.marked_count(), 2);
+    }
+
+    #[test]
+    fn marking_everything_skips_the_directories() {
+        let dir = fixture("mark-all");
+        let mut browser = browser();
+        browser.open(&dir);
+        browser.mark_all();
+        assert_eq!(browser.marked_count(), 2);
+        assert_eq!(
+            browser.enter(),
+            vec![dir.join("Alpha.txt"), dir.join("beta.txt")]
+        );
+    }
+
+    #[test]
+    fn an_arrow_key_collapses_the_selection_onto_the_cursor() {
+        let dir = fixture("mark-cursor");
+        let mut browser = browser();
+        browser.open(&dir);
+        browser.set_selected(row_of(&browser, "beta.txt"));
+        browser.mark_all();
+        assert_eq!(browser.marked_count(), 2);
+        browser.move_selection(-1);
+        assert_eq!(browser.marked_count(), 1);
+        assert!(browser.is_marked(browser.selected_index()));
+        assert_eq!(browser.enter(), vec![dir.join("Alpha.txt")]);
+    }
+
+    #[test]
+    fn a_new_listing_selects_the_cursor_and_nothing_else() {
+        // Marks are row numbers, so a listing that changed under them would
+        // open whatever now sits at that number: typing into the filter
+        // replaces the selection with the row it highlights.
+        let dir = fixture("mark-cleared");
+        let mut browser = browser();
+        browser.open(&dir);
+        browser.mark_all();
+        browser.insert_char('a');
+        assert_eq!(browser.marked_count(), 1);
+        assert!(browser.is_marked(browser.selected_index()));
+    }
+
+    #[test]
+    fn going_up_selects_the_directory_just_left() {
+        let dir = fixture("mark-descend");
+        let mut browser = browser();
+        browser.open(&dir);
+        browser.mark_all();
+        browser.up();
+        assert_eq!(browser.marked_count(), 1);
+        assert_eq!(
+            browser
+                .entries()
+                .get(browser.selected_index())
+                .map(|e| e.name.as_str()),
+            dir.file_name().map(|name| name.to_str().unwrap_or_default())
+        );
+    }
+
+    #[test]
+    fn the_parent_row_is_never_part_of_the_selection() {
+        let dir = fixture("mark-parent");
+        let mut browser = browser();
+        browser.open(&dir);
+        assert_eq!(browser.selected_index(), 0);
+        assert_eq!(browser.selected_entry().map(|e| e.name.as_str()), Some(".."));
+        // The row that walks up the tree selects nothing, because a highlighted
+        // row means "this will open".
+        assert_eq!(browser.marked_count(), 0);
+        browser.toggle_mark(0);
+        assert_eq!(browser.marked_count(), 0);
+        // And it is still Enter's way up.
+        assert!(browser.enter().is_empty());
+        assert_eq!(browser.dir(), dir.parent().expect("parent"));
+    }
+
+    #[test]
+    fn a_marked_directory_is_not_opened() {
+        let dir = fixture("mark-dir");
+        let mut browser = browser();
+        browser.open(&dir);
+        browser.toggle_mark(row_of(&browser, "sub"));
+        // Nothing to open in a directory, so Enter falls back to the cursor,
+        // which is the same row, and descends into it.
+        assert!(browser.enter().is_empty());
+        assert_eq!(browser.dir(), dir.join("sub"));
+    }
+
+    #[test]
+    fn a_mark_that_scrolls_out_of_view_is_still_opened() {
+        let dir = std::env::temp_dir().join("npp-browser-mark-scroll");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        for i in 0..40 {
+            std::fs::write(dir.join(format!("f{i:02}.txt")), "x").expect("fixture file");
+        }
+        let mut browser = browser();
+        browser.open(&dir);
+        // Ctrl+A marks rows the list is not showing, and Enter has to reach them
+        // all: a mark is a choice, not a row number the widget can forget when
+        // it scrolls.
+        browser.mark_all();
+        assert_eq!(browser.marked_count(), 40);
+        let paths = browser.enter();
+        assert_eq!(paths.len(), 40);
+        assert_eq!(paths.first(), Some(&dir.join("f00.txt")));
     }
 
     #[test]
@@ -805,7 +1255,7 @@ mod tests {
         let mut browser = browser();
         browser.open(&dir.join("sub"));
         assert_eq!(browser.selected_entry().map(|e| e.name.as_str()), Some(".."));
-        assert_eq!(browser.enter(), None);
+        assert!(browser.enter().is_empty());
         assert_eq!(browser.dir(), dir);
     }
 
@@ -836,7 +1286,7 @@ mod tests {
         for c in target.display().to_string().chars() {
             browser.insert_char(c);
         }
-        assert_eq!(browser.enter(), Some(target));
+        assert_eq!(browser.enter(), vec![target]);
     }
 
     #[test]
@@ -848,7 +1298,7 @@ mod tests {
             browser.insert_char(c);
         }
         // Only `..` survives the filter, and it is a directory.
-        assert_eq!(browser.enter(), None);
+        assert!(browser.enter().is_empty());
         assert_eq!(browser.dir(), dir.parent().expect("parent"));
     }
 
@@ -955,9 +1405,27 @@ mod tests {
     #[test]
     fn the_hint_names_the_keys() {
         let hint = browser().hint();
+        assert!(hint.contains("Ctrl+click"));
+        assert!(hint.contains("Shift+click"));
+        assert!(hint.contains("Ctrl+A"));
         assert!(hint.contains("Enter"));
         assert!(hint.contains("Backspace"));
         assert!(hint.contains("Esc"));
+    }
+
+    #[test]
+    fn the_hint_fits_the_dialog() {
+        // The hint is drawn inside the dialog's own width and is not wrapped, so
+        // a line longer than this is clipped in the middle of a word. It is two
+        // lines for exactly that reason.
+        let browser = browser();
+        let room = ((WIDTH - PADDING * 2.0) / browser.char_width()) as usize;
+        for line in browser.hint().lines() {
+            assert!(
+                line.chars().count() <= room,
+                "{line:?} is longer than {room} characters"
+            );
+        }
     }
 
     #[test]

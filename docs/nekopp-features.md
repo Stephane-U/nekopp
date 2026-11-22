@@ -1670,6 +1670,20 @@ the directory's contents, looks the same everywhere, and costs nothing at
 startup. A machine with no portal gets the built-in browser and a status message
 rather than a dead button.
 
+Both open dialogs take more than one file. The portal is asked for a multiple
+selection, so the desktop's own gestures apply; in the built-in browser a click
+selects a file, Ctrl+click adds or removes one, Shift+click takes a range and
+Ctrl+A takes every file in the listing. Enter opens the whole selection, each
+file in its own tab, with the last one in front. Save As stays single, because
+one buffer is one file.
+
+Which file is "last" is the one the dialog answered last, because the answer is
+opened in order and each file activates the tab it creates. The built-in browser
+answers in the order the rows were marked, so the file clicked last is the one in
+front. The portal answers in an order of its own choosing -- normally the
+listing's, so the last name in the answer wins -- and there is no way to ask a
+portal which file was clicked last.
+
 ## Sessions, Backups and Crash Recovery
 
 Three mechanisms, for three different failures. A session is what you meant to
