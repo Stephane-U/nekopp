@@ -1488,11 +1488,19 @@ impl State {
         a11y: accesskit_winit::Adapter,
         proxy: EventLoopProxy<UserEvent>,
         path: Option<PathBuf>,
+        fonts: Option<std::thread::JoinHandle<LoadedFonts>>,
     ) -> Self {
         let size = window.inner_size();
 
-        let mut renderer = Renderer::new(&gpu.device, &gpu.queue, gpu.format());
-        let mut view = EditorView::new(renderer.font_system(), Theme::DARK);
+        // The scan was started beside the graphics device; joining it here is
+        // normally free, and a thread that panicked falls back to doing the work
+        // on this one rather than taking the window down with it.
+        let (font_system, char_width) = fonts
+            .and_then(|thread| thread.join().ok())
+            .unwrap_or_else(load_fonts);
+        let mut renderer =
+            Renderer::with_font_system(&gpu.device, &gpu.queue, gpu.format(), font_system);
+        let mut view = EditorView::with_char_width(Theme::DARK, char_width);
 
         let mut session = Session::load();
         let langs = load_langs();
@@ -8977,6 +8985,15 @@ impl From<accesskit_winit::Event> for UserEvent {
 struct App {
     state: Option<State>,
     args: nn_app::cli::Args,
+    /// The installed fonts, being scanned and measured on another thread.
+    ///
+    /// Started once the process has decided it is going to open a window, and
+    /// joined when the renderer is built: the scan and the first shaping are
+    /// pure CPU and cost about as much as opening the graphics device, so the
+    /// two waits run together rather than one after the other. Measuring the
+    /// column width there is what keeps the first shaping off the critical
+    /// path.
+    fonts: Option<std::thread::JoinHandle<LoadedFonts>>,
     /// Where accessibility events are delivered.
     ///
     /// Held here rather than in `State` because the adapter has to exist before
@@ -9047,7 +9064,8 @@ impl ApplicationHandler<UserEvent> for App {
         );
         window.set_visible(true);
         let first = self.args.files.first().cloned();
-        let mut state = State::new(window, gpu, a11y, self.proxy.clone(), first);
+        let fonts = self.fonts.take();
+        let mut state = State::new(window, gpu, a11y, self.proxy.clone(), first, fonts);
         state.server = self.server.take();
         state.apply_args(&self.args);
         state.window.request_redraw();
@@ -9296,6 +9314,10 @@ fn main() {
         }
     }
     let server = nn_app::single::Server::acquire();
+    let fonts = std::thread::Builder::new()
+        .name("npp-fonts".to_string())
+        .spawn(load_fonts)
+        .ok();
     let event_loop = EventLoop::<UserEvent>::with_user_event()
         .build()
         .expect("create event loop");
@@ -9305,10 +9327,25 @@ fn main() {
     let mut app = App {
         state: None,
         args,
+        fonts,
         proxy,
         server,
     };
     event_loop.run_app(&mut app).expect("run event loop");
+}
+
+/// The font system, and the width the editor will draw its columns at.
+///
+/// The two are produced together because the width is the price of the font
+/// system's first shaping, and the thread that scans the fonts is otherwise
+/// idle for as long as the graphics device takes to open.
+type LoadedFonts = (cosmic_text::FontSystem, f32);
+
+/// Scans the fonts and measures the editor font.
+fn load_fonts() -> LoadedFonts {
+    let mut font_system = nn_app::fonts::font_system();
+    let width = nn_app::view::measure_editor_char_width(&mut font_system);
+    (font_system, width)
 }
 
 /// The bus request a launch turns into.

@@ -288,11 +288,21 @@ pub struct EditorView {
 impl EditorView {
     /// Measures the font and builds an empty view.
     pub fn new(font_system: &mut FontSystem, theme: Theme) -> Self {
+        Self::with_char_width(theme, measure_editor_char_width(font_system))
+    }
+
+    /// Builds an empty view for a width that was measured earlier.
+    ///
+    /// Separated from `new` because the measurement is the first shaping a
+    /// process does and the first shaping is the slow one: the font database
+    /// resolves the family and the shaper fills its caches. A caller that can
+    /// measure while something else is being set up -- which is what a cold
+    /// start is -- does it there and comes in through this.
+    pub fn with_char_width(theme: Theme, char_width: f32) -> Self {
         let font_size = 15.0;
         let line_height = 20.0;
         let metrics = Metrics::new(font_size, line_height);
         let family = Family::Monospace;
-        let char_width = measure_char_width(font_system, metrics, family);
 
         Self {
             cache: LineCache::new(metrics, family, 4),
@@ -1300,6 +1310,14 @@ impl EditorView {
 
         areas
     }
+}
+
+/// Measures the advance width of the font an editor draws with.
+///
+/// Public so the measurement can be made on whichever thread built the font
+/// system; see [`EditorView::with_char_width`].
+pub fn measure_editor_char_width(font_system: &mut FontSystem) -> f32 {
+    measure_char_width(font_system, Metrics::new(15.0, 20.0), Family::Monospace)
 }
 
 /// Measures the advance width of the monospace font.

@@ -87,6 +87,22 @@ pub struct Renderer {
 impl Renderer {
     /// Builds the pipelines and glyph atlas for a target of `format`.
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+        Self::with_font_system(device, queue, format, crate::fonts::font_system())
+    }
+
+    /// The same, with a font system already built.
+    ///
+    /// Scanning the installed fonts costs more than everything else this
+    /// constructor does, and it needs nothing but the CPU, so the caller can
+    /// start it on a thread while the graphics device is being opened and hand
+    /// the answer over here. That is why this exists: to keep the two waits
+    /// running at the same time instead of one after the other.
+    pub fn with_font_system(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+        font_system: FontSystem,
+    ) -> Self {
         let quads = QuadRenderer::new(device, format);
         let overlay = QuadRenderer::new(device, format);
         // The atlas is built at the size the default font implies; the first
@@ -102,7 +118,7 @@ impl Renderer {
             quads,
             overlay,
             icons,
-            font_system: crate::fonts::font_system(),
+            font_system,
             swash_cache: SwashCache::new(),
             atlas,
             text_renderer,
