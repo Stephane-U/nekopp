@@ -35,7 +35,7 @@ The revision is `2024-11-05`. The server implements:
 | `initialize` | protocol version, `{tools: {}, resources: {}}`, server name and version, and a short set of instructions |
 | `notifications/initialized` | nothing: a notification is never answered |
 | `ping` | `{}` |
-| `tools/list` | the seven tools with their JSON Schemas |
+| `tools/list` | the ten tools with their JSON Schemas |
 | `tools/call` | one or more content blocks, plus `isError` |
 | `resources/list` | `nekopp://features` and one resource per section |
 | `resources/read` | the section's markdown |
@@ -56,11 +56,20 @@ wrong and what to try instead.
 |---|---|---|
 | `search_features` | `query`, optional `limit` (1-50, default 10) | the matching sections, best match first, with headings, URIs, and a line of context |
 | `get_section` | `section`: a heading or a slug | that section as markdown, plus its resource URI |
-| `list_sections` | none | the table of contents: 27 chapters, 76 subsections |
+| `list_sections` | none | the table of contents: 28 chapters, 81 subsections |
 | `list_shortcuts` | none | all 73 default key bindings with their commands and action names |
 | `get_command` | `name`: a menu label or an action name | the shortcut, the action, the menu path, and the section that documents it |
 | `list_plugins` | none | every installed plugin: its name, its file, whether it is switched on, and its commands |
 | `run_plugin_command` | `plugin`, `command`, `text`, optional `caret`, `selection` | what the plugin made of the text, plus its log when it wrote one |
+| `run_command` | `command`, `text` or `path`, optional `write` and the command's options | the text after the command ran, or a note that the file was written; no window involved |
+| `live_call` | the API call itself: `method` and whatever it reads | the editor's answer as JSON, from the window that is already open |
+| `list_commands` | none | the 37 commands that work on text with no window, with the options each reads |
+
+`run_command` is the headless half: text in, text out, no display and no session
+bus, so it works in a container or over ssh. `live_call` is the other half: it
+forwards the call to `npp --call` and prints what the window answered, which is
+how a client reaches the caret, the selection and the open tabs. It looks for the
+editor in `NPP_BIN`, then beside `npp-mcp`, then on PATH.
 
 Search ranks a heading that is the query above a heading that contains it, above
 a heading with one of its words, above a mention in the body. Whole words beat

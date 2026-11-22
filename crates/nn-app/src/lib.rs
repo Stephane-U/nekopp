@@ -5,6 +5,7 @@
 //! `quad` draws every non-glyph rectangle in one instanced call.
 
 pub mod a11y;
+pub mod api;
 pub mod about;
 pub mod browser;
 pub mod changelog;
@@ -59,6 +60,7 @@ pub mod vector;
 pub mod view;
 
 pub use about::AboutBox;
+pub use api::Call as ApiCall;
 pub use browser::Browser;
 pub use changelog::{ChangeHistory, Row as ChangeRow};
 pub use charset::CharPanel;

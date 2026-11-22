@@ -236,6 +236,9 @@ impl Server {
             "get_command" => self.get_command(&arguments),
             "list_plugins" => Ok(self.list_plugins()),
             "run_plugin_command" => self.run_plugin_command(&arguments),
+            "run_command" => self.run_command(&arguments),
+            "live_call" => self.live_call(&arguments),
+            "list_commands" => Ok(tool_text(crate::run::listing())),
             other => Err((INVALID_PARAMS, format!("unknown tool: {other}"))),
         }
     }
@@ -315,6 +318,16 @@ impl Server {
                     "menu:     {}\n",
                     command.path.as_deref().unwrap_or("no menu row")
                 ));
+                if let Some(action) = command.action.as_deref() {
+                    // Whether this one is in the table `run_command` reaches: the
+                    // question a caller asks is "can I run it", and the answer is
+                    // more useful here than in a second listing.
+                    if nn_core::ops::knows(action) {
+                        text.push_str("runs:     without a window, through `run_command`\n");
+                    } else {
+                        text.push_str("runs:     in a window, through `live_call`\n");
+                    }
+                }
                 if let Some(section) = self.command_section(command.path.as_deref()) {
                     text.push_str(&format!("resource: {}\n", section_uri(&section.slug)));
                 }
@@ -382,6 +395,74 @@ impl Server {
     }
 
     /// Runs one command of one plugin over the text the caller sent.
+    /// Runs one of the editor's own text commands over a string or a file.
+    ///
+    /// The default is the case that costs nothing: read, transform, answer. A
+    /// request that asks to `write` is the only one that touches the disk, and it
+    /// says what it wrote rather than returning a copy of it, because a client
+    /// that asked for the file to be written already knows what it asked for.
+    fn run_command(&self, arguments: &Value) -> Result<Value, (i64, String)> {
+        let command = required_string(arguments, "command")?;
+        match crate::run::run(&command, arguments) {
+            Ok(outcome) => match outcome.wrote {
+                Some(path) => Ok(tool_text(format!(
+                    "wrote {} bytes of {} to {}\n",
+                    outcome.text.len(),
+                    command,
+                    path.display()
+                ))),
+                None => Ok(tool_document(outcome.text, Vec::new())),
+            },
+            Err(error) => Ok(tool_error(format!("{error}\n"))),
+        }
+    }
+
+    /// Sends a call to the editor that is already open.
+    ///
+    /// The arguments are the call: `method` plus whatever that method reads.
+    /// They are forwarded as they stand, so this tool answers with whatever the
+    /// editor's own API answers, and nothing here has to keep up with it.
+    fn live_call(&self, arguments: &Value) -> Result<Value, (i64, String)> {
+        let Some(call) = object_params(arguments)? else {
+            return Err((
+                INVALID_PARAMS,
+                "live_call needs the call itself: `method` and its arguments".to_string(),
+            ));
+        };
+        if !matches!(call.get("method"), Some(Value::String(_))) {
+            return Err((
+                INVALID_PARAMS,
+                "live_call needs a string `method`, e.g. \"app.status\" or \"command.run\""
+                    .to_string(),
+            ));
+        }
+
+        match crate::live::call(&Value::Object(call.clone()).to_string()) {
+            Ok(answer) => {
+                // The editor always answers with JSON; a client seeing plain
+                // text is more useful than an error about the editor's output.
+                let parsed: Value = serde_json::from_str(&answer)
+                    .unwrap_or_else(|_| Value::String(answer.clone()));
+                match parsed.get("error") {
+                    Some(error) => {
+                        let message = error["message"]
+                            .as_str()
+                            .map(str::to_string)
+                            .unwrap_or_else(|| error.to_string());
+                        Ok(tool_error(format!("{message}\n")))
+                    }
+                    None => Ok(tool_text(format!(
+                        "{}\n",
+                        serde_json::to_string_pretty(&parsed).unwrap_or(answer)
+                    ))),
+                }
+            }
+            // Nothing to talk to is a failed tool, not a broken request: the
+            // client asked correctly, the editor just is not open.
+            Err(error) => Ok(tool_error(format!("{error}\n"))),
+        }
+    }
+
     fn run_plugin_command(&self, arguments: &Value) -> Result<Value, (i64, String)> {
         let plugin = required_string(arguments, "plugin")?;
         let command = required_string(arguments, "command")?;
@@ -744,6 +825,94 @@ fn tools() -> Vec<Value> {
                 "required": ["plugin", "command", "text"]
             }
         }),
+        json!({
+            "name": "run_command",
+            "description": "Run one of Neko++'s own text commands -- sort, trim, case, comment, tabs and spaces, join and split -- over a string or over a file, and return the result. No window is needed: this is the editor's line-operation code, the same table the menu and the keymap reach. `list_commands` names every command and the options it reads.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "An action name, e.g. \"sort_asc\", \"trim_trailing\", \"upper_case\". `list_commands` lists them all."
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "The document to work on. Send this or `path`, not both."
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "A file to read the text from. Send this or `text`, not both."
+                    },
+                    "write": {
+                        "type": "boolean",
+                        "description": "With `path`, write the result back to the file. Defaults to false, which reads the file and changes nothing."
+                    },
+                    "sort_key": {
+                        "type": "string",
+                        "enum": ["text", "numeric", "text_ignore_case", "locale", "integer", "decimal_comma", "decimal_dot", "length"],
+                        "description": "What `sort_lines` compares. Defaults to text."
+                    },
+                    "sort_order": {
+                        "type": "string",
+                        "enum": ["ascending", "descending"],
+                        "description": "Which way `sort_lines` sorts. Defaults to ascending."
+                    },
+                    "case_sensitive": {
+                        "type": "boolean",
+                        "description": "Whether `sort_lines` tells A from a. Defaults to true."
+                    },
+                    "width": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 64,
+                        "description": "Tab width in columns, for the tab, space and indent commands. Defaults to 4."
+                    },
+                    "delimiter": {
+                        "type": "string",
+                        "description": "What `split_lines` splits on. Defaults to a comma."
+                    },
+                    "prefix": {
+                        "type": "string",
+                        "description": "The marker the line-comment commands add. Defaults to //."
+                    },
+                    "block_open": {
+                        "type": "string",
+                        "description": "What `block_comment` opens with. Defaults to /*."
+                    },
+                    "block_close": {
+                        "type": "string",
+                        "description": "What `block_comment` closes with. Defaults to */."
+                    },
+                    "seed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "The seed for the shuffling commands, so a run can be repeated. Defaults to 0."
+                    }
+                },
+                "required": ["command"]
+            }
+        }),
+        json!({
+            "name": "live_call",
+            "description": "Send a call to the Neko++ window that is already open, through the editor's own API, and return its answer as JSON. Use this when the work has to happen in the window the person is looking at -- the caret, the selection, the open tabs, a save. Every command the menu has is reachable here, including the ones that need a caret, which `run_command` cannot run. Methods: app.help, app.status, document.list, document.get, document.set, document.save, command.run. `run_command` needs no window and is the better choice when the text is all that matters.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "method": {
+                        "type": "string",
+                        "enum": ["app.help", "app.status", "document.list", "document.get", "document.set", "document.save", "command.run"],
+                        "description": "The API method to call."
+                    }
+                },
+                "required": ["method"],
+                "additionalProperties": true
+            }
+        }),
+        json!({
+            "name": "list_commands",
+            "description": "List the commands that work on text with no window open -- the ones `run_command` can run -- with the options each one reads.",
+            "inputSchema": {"type": "object", "properties": {}}
+        }),
     ]
 }
 
@@ -855,7 +1024,10 @@ mod tests {
                 "list_shortcuts",
                 "get_command",
                 "list_plugins",
-                "run_plugin_command"
+                "run_plugin_command",
+                "run_command",
+                "live_call",
+                "list_commands"
             ]
         );
         for tool in tools {
@@ -926,10 +1098,10 @@ mod tests {
             "params": {"name": "list_sections", "arguments": {}}
         }));
         let text = text_of(&response);
-        assert!(text.starts_with("Neko++ Feature Reference -- 27 chapters, 78 subsections"));
+        assert!(text.starts_with("Neko++ Feature Reference -- 28 chapters, 81 subsections"));
         assert!(text.contains("## The Menus -- nekopp://features/the-menus"));
         assert!(text.contains("  ### File -- nekopp://features/file"));
-        assert_eq!(text.lines().count(), 106);
+        assert_eq!(text.lines().count(), 110);
     }
 
     #[test]
@@ -1018,7 +1190,7 @@ mod tests {
     fn resources_list_the_index_and_every_section() {
         let response = call(json!({"jsonrpc": "2.0", "id": 15, "method": "resources/list"}));
         let resources = result_of(&response)["resources"].as_array().unwrap();
-        assert_eq!(resources.len(), 106);
+        assert_eq!(resources.len(), 110);
         assert_eq!(resources[0]["uri"], INDEX_URI);
         assert_eq!(resources[0]["mimeType"], "text/markdown");
         assert!(resources
@@ -1147,6 +1319,129 @@ mod tests {
         let response = call(tool_request(32, "list_plugins", json!({})));
         assert_eq!(result_of(&response)["isError"], false);
         assert!(text_of(&response).contains("No plugins:"));
+    }
+
+    /// A stand-in editor for the live tool: prints what it was told to print.
+    fn fake_editor(body: &str) -> std::path::PathBuf {
+        let directory = std::env::temp_dir().join(format!("nn-mcp-live-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("npp");
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        path
+    }
+
+    // One test for the whole environment variable: `NPP_BIN` is process wide, so
+    // two tests setting it would race each other.
+    #[test]
+    fn live_call_forwards_the_call_and_turns_an_error_answer_into_a_failed_tool() {
+        let answering = fake_editor(r#"printf '{"ok":true,"count":1}'"#);
+        std::env::set_var("NPP_BIN", &answering);
+
+        let response = call(tool_request(70, "live_call", json!({"method": "document.list"})));
+        assert_eq!(result_of(&response)["isError"], false);
+        assert!(block(&response, 0).contains("\"count\": 1"), "{}", block(&response, 0));
+
+        let refusing = fake_editor(
+            r#"printf '{"error":{"code":"unknown_document","message":"no tab has that path"}}'"#,
+        );
+        std::env::set_var("NPP_BIN", &refusing);
+        let response = call(tool_request(71, "live_call", json!({"method": "document.get"})));
+        assert_eq!(result_of(&response)["isError"], true);
+        assert!(block(&response, 0).contains("no tab has that path"));
+
+        std::env::remove_var("NPP_BIN");
+    }
+
+    #[test]
+    fn live_call_needs_a_method() {
+        let response = call(tool_request(72, "live_call", json!({"command": "sort_asc"})));
+        assert_eq!(response["error"]["code"], -32602, "{response}");
+        assert!(response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("method"));
+    }
+
+    #[test]
+    fn run_command_sorts_the_text_it_is_given() {
+        let response = call(tool_request(
+            40,
+            "run_command",
+            json!({"command": "sort_asc", "text": "c\na\nb\n"}),
+        ));
+        assert_eq!(result_of(&response)["isError"], false);
+        assert_eq!(block(&response, 0), "a\nb\nc\n");
+    }
+
+    #[test]
+    fn run_command_reads_the_options_out_of_the_arguments() {
+        let response = call(tool_request(
+            41,
+            "run_command",
+            json!({"command": "sort_lines", "text": "a\nccc\nbb\n",
+                   "sort_key": "length", "sort_order": "descending"}),
+        ));
+        assert_eq!(block(&response, 0), "ccc\nbb\na\n");
+    }
+
+    #[test]
+    fn run_command_writes_a_file_only_when_asked() {
+        let path = std::env::temp_dir().join(format!("nn-mcp-run-{}.txt", std::process::id()));
+        std::fs::write(&path, "b\na\n").unwrap();
+        let read = call(tool_request(
+            42,
+            "run_command",
+            json!({"command": "sort_asc", "path": path.display().to_string()}),
+        ));
+        assert_eq!(block(&read, 0), "a\nb\n");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "b\na\n");
+
+        let wrote = call(tool_request(
+            43,
+            "run_command",
+            json!({"command": "sort_asc", "path": path.display().to_string(), "write": true}),
+        ));
+        let text = block(&wrote, 0);
+        assert!(text.starts_with("wrote 4 bytes of sort_asc to "), "{text}");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "a\nb\n");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_command_that_cannot_run_is_a_tool_error_not_a_protocol_error() {
+        let response = call(tool_request(
+            44,
+            "run_command",
+            json!({"command": "sort_sideways", "text": "a\n"}),
+        ));
+        assert_eq!(result_of(&response)["isError"], true);
+        assert!(block(&response, 0).contains("list_commands"));
+        // And a missing argument is the protocol's error, because the request
+        // itself does not name a command.
+        let missing = call(tool_request(45, "run_command", json!({})));
+        assert_eq!(missing["error"]["code"], INVALID_PARAMS);
+    }
+
+    #[test]
+    fn list_commands_is_the_table_run_command_uses() {
+        let response = call(tool_request(46, "list_commands", json!({})));
+        let text = block(&response, 0);
+        assert!(text.starts_with("37 commands work on text"), "{text}");
+        assert!(text.contains("- sort_asc\n"), "{text}");
+        assert!(text.contains("- trim_trailing\n"), "{text}");
+    }
+
+    #[test]
+    fn get_command_says_whether_it_needs_a_window() {
+        let headless = call(tool_request(47, "get_command", json!({"name": "upper_case"})));
+        assert!(block(&headless, 0).contains("runs:     without a window"));
+        let windowed = call(tool_request(48, "get_command", json!({"name": "exit"})));
+        assert!(block(&windowed, 0).contains("runs:     in a window"));
     }
 
     #[test]

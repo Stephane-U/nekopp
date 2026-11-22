@@ -14,6 +14,10 @@
 //! - [`search`] ranks sections against a query.
 //! - [`plugins`] finds the editor's WebAssembly plugins and runs one of their
 //!   commands over a string.
+//! - [`run`] runs the editor's own text commands -- sort, trim, case, comment --
+//!   over a string or a file, with no window anywhere in the picture.
+//! - [`live`] sends a call to the editor that is already open, through the
+//!   editor's own API, for the work that has to happen in a window.
 //! - [`server`] speaks JSON-RPC 2.0 over stdin and stdout.
 //!
 //! Nothing here depends on `nn-app` or on a window: the server is a separate
@@ -24,11 +28,14 @@
 
 pub mod commands;
 pub mod doc;
+pub mod live;
 pub mod plugins;
+pub mod run;
 pub mod search;
 pub mod server;
 
 pub use commands::{Command, Inventory, MenuRow, Shortcut};
 pub use plugins::Installed;
+pub use run::Outcome;
 pub use doc::{Document, Section, FEATURES_MARKDOWN};
 pub use server::{section_uri, Server, INDEX_URI, PROTOCOL_VERSION, SERVER_NAME, SERVER_VERSION};

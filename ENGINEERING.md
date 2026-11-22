@@ -9178,3 +9178,144 @@ docs/build-pdf.py --check`: up to date, 287,307 bytes, 68 pages A4, 107
 bookmarks.
 
 `cargo fmt` was not run.
+
+## Seventy-fourth pass: the editor's own commands, with and without a window
+
+The user's sentence had two halves and the first one was the important one: "I
+need both options, by default when used via a harness use the headless mode -- the
+more I think about it I also want to have the full api of neko++ made accessible
+as well." The MCP server until now served the documentation and a plugin's
+commands, and neither of those is a way to *do* anything to a file: a harness
+could read what Neko++ does and could run a plugin, but sorting a list or trimming
+a file's trailing spaces meant writing the code itself. That is the gap.
+
+### One table, not a second implementation
+
+The obvious design is a `commands` table inside the MCP crate: a name, a closure
+over a `String`. It is also wrong, because there is already a table with the same
+names in the menu, and a second one drifts. `nn_core::ops` is the table: thirty-
+seven names, each calling the `nn_core::lines` function the menu row already
+calls. `sort_asc`, `trim_trailing`, `tabs_to_spaces` -- the action names the
+keymap uses, so a caller reading the shortcut list and a caller reading the API
+see one vocabulary.
+
+`nn-app` then delegates to it. The giant `run` match lost thirty-six arms and
+gained one that hands the action to `ops::run` with the editor's tab width, sort
+options and a seed taken from the clock, so a menu click, a keypress, an API call
+and an MCP call all arrive at the same function. A test in `menu.rs` walks the
+menu's text commands and the ops table in both directions and fails if either has
+a name the other does not, modulo two documented rows: `sort_lines` and
+`split_lines` are `api_only` because their menu row is a submenu of fourteen sorts
+and a delimiter prompt, and a caller has no pointer to pick with.
+
+What is deliberately *not* there is the commands whose effect depends on the
+caret: `duplicate_line`, `move_line_up`, `delete_line`. A table of "text in, text
+out" cannot express them, and inventing a caret parameter for the sake of a
+uniform list would be a worse interface than an honest boundary. They are
+reachable in a window, through `command.run`, and `get_command` says which is
+which.
+
+### The headless half
+
+`run_command` takes `text` or `path`, never both, plus the nine options the
+commands read (`sort_key`, `sort_order`, `case_sensitive`, `width`, `delimiter`,
+`prefix`, `block_open`, `block_close`, `seed`). `path` without `write` reads and
+changes nothing, which is what a caller checking a result wants; `write` puts it
+back. `list_commands` prints the table with each command's options, and the
+fourteen tests in `run.rs` cover the arg reading -- including the eight spellings
+of a sort key and the width clamp at 64 -- rather than the sorts themselves, which
+`nn-core` already tests.
+
+Nothing in the headless path touches a display, a session bus or `nn-app`: it is
+`nn_core` plus `serde_json`, so it runs in a container and over ssh.
+
+### The other half, and the two round trips it took
+
+`npp --call '<json>'` sends one request to the window that is already running and
+prints its answer. `--call` is handled *before* the hand-off in `main()`, because
+`--call` is the one switch that must not become an `Open` on the running editor.
+
+The interface method cannot return the answer directly. zbus delivers messages on
+a task of its own, and a method that blocked until the window's event loop had run
+the command would stall the loop that has to deliver the reply: a deadlock, not a
+slow call. So there are two: `Call(json) -> u64` queues the request and returns an
+id at once, and `Answer(id) -> String` returns the answer or an empty string while
+it is still pending. `about_to_wait` drains the queue, runs each call between
+frames, stores the answer, and the client asks again every 5 ms until the answer
+is non-empty or five seconds have passed.
+
+The window's side is `State::call` over `nn_app::api::Call`: `app.status`,
+`document.list`, `document.get` (with an optional `range`), `document.set`,
+`document.save`, `command.run`, `help`. A refusal is an answer too -- `{"error":
+{"code": "unknown_document", "message": ...}}` with exit 0 -- and only a call that
+finds no editor exits 1.
+
+### The defect the live run found
+
+`command.run` was written to mean what the menu means, and the first end-to-end
+test returned the text unchanged. It was not broken: `sort_asc` with no selection
+sorts the line the caret is on, which is exactly what a person pressing the menu
+row gets, and a caller pressing nothing gets one line sorted and no clue why. The
+fix is not to make commands select everything -- that would make `delete` and
+`paste` wipe a document on a typo -- but to let the caller name the block:
+`whole_document: true`, or `range: [start, end]` in characters. Both at once is
+refused rather than guessed at. Verified against the live window:
+
+```
+--call '{"method":"command.run","command":"sort_asc"}'                          -> unchanged
+--call '{"method":"command.run","command":"sort_asc","whole_document":true}'    -> sorted
+--call '{"method":"command.run","command":"upper_case","range":[0,6]}'         -> first word up
+--call '{"method":"command.run","command":"sort_asc","whole_document":true,"range":[0,4]}'
+                                        -> bad_request, "send `whole_document` or `range`"
+```
+
+### `live_call`, and why it shells out
+
+The MCP server's live tool sends a call to the window and returns the answer, and
+it does that by running `npp --call`. The alternative -- a D-Bus client inside
+`nn-mcp` -- would put `zbus`, `tokio` and a bus connection into a crate that
+otherwise needs `serde_json` and `nn_core`, for one tool whose protocol is
+already written and already tested. `live.rs` resolves the editor in the order a
+person would look: `NPP_BIN`, then a sibling of `npp-mcp`, then PATH. Six tests
+run a shell stand-in for the editor and check that the call arrives word for
+word after `--call`, that a refusal is reported with the editor's own words, and
+that a binary that cannot be run is named.
+
+The two tools are chosen by what the work touches. `run_command` for text that
+only needs transforming; `live_call` for work that has to happen in the window
+someone is looking at -- the caret, the selection, the open tabs, a save.
+
+### One defect in the usage text
+
+`npp --help` printed "already running andprints": the string had been wrapped in
+the source with `\` continuations and the newlines before the wraps were missing.
+Running the binary is what found it; a test compares the switch list, not the
+prose.
+
+### Verification
+
+`cargo test --offline --all`: 2062 passed, 0 failed -- 1058 in `nn-app`, 906 in
+`nn-core`, 98 in `nn-mcp`. That includes 20 in `ops`, 13 in `api`, 14 in `run`,
+6 in `live`, 3 in `cli` for `--call` and 7 the MCP server grew -- 98 against 90 in
+`nn-mcp` before this pass.
+
+`cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not run.
+
+Live, on `DISPLAY=:1` with a profile of its own: `app.status`, `document.list`,
+`document.get` (whole, by path, and with `range`), `document.set` (whole and
+inside a range), `document.save` (the file on disk changed), and the four
+`command.run` lines above. Then through the server itself, four JSON-RPC lines
+into `target/debug/npp-mcp` with `NPP_BIN` set: `document.list`, `command.run
+trim_trailing whole_document`, and a bad path, which came back as a failed tool
+with the editor's message.
+
+`python3 docs/build-pdf.py --check`: up to date, 301,096 bytes, 70 pages A4, 111
+bookmarks.
+
+`docs/nekopp-features.md` grew a chapter, "Commands over the API", with three
+subsections -- one table, without a window, in the window, over MCP -- and its
+command-line block gained `-C, --call`; `crates/nn-mcp/README.md` went from seven
+tools to ten. The chapter is four sections, so the three count assertions in
+`doc.rs` and `server.rs` moved from 105/106 to 109/110 and from 27 chapters and 78
+subsections to 28 and 81 -- the counts are the document's own shape, which is why
+they are asserted rather than computed.

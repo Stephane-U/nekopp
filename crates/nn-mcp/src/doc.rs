@@ -319,12 +319,12 @@ mod tests {
     fn the_document_has_a_title_and_its_chapters() {
         let doc = doc();
         assert_eq!(doc.title, "Neko++ Feature Reference");
-        // 27 chapters and 78 subsections: the number is the document's own
+        // 28 chapters and 81 subsections: the number is the document's own
         // shape, so a section that goes missing is a test failure rather than a
         // quietly shorter table of contents.
-        assert_eq!(doc.sections.len(), 105);
-        assert_eq!(doc.sections.iter().filter(|s| s.level == 2).count(), 27);
-        assert_eq!(doc.sections.iter().filter(|s| s.level == 3).count(), 78);
+        assert_eq!(doc.sections.len(), 109);
+        assert_eq!(doc.sections.iter().filter(|s| s.level == 2).count(), 28);
+        assert_eq!(doc.sections.iter().filter(|s| s.level == 3).count(), 81);
         assert!(doc.sections.iter().all(|s| !s.body.is_empty()));
     }
 

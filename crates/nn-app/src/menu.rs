@@ -1313,6 +1313,70 @@ impl Action {
         out
     }
 
+    /// The commands whose whole effect is a function of the text they are
+    /// given, and which are therefore run by `nn_core::ops` rather than by the
+    /// dispatcher here.
+    ///
+    /// The list is what keeps the two crates honest about each other: the test
+    /// below requires it to be exactly the names in `ops::COMMANDS`, so a
+    /// command added to the table but forgotten here would be unreachable from
+    /// the menu, and one added here but not to the table would not compile
+    /// without a matching arm.
+    ///
+    /// `DuplicateLine`, `MoveLineUp` and `DeleteLine` are deliberately absent
+    /// even though a block of text could be passed to them: they act on the line
+    /// the caret is on, and a caller with no caret is asking a different
+    /// question.
+    pub const TEXT_COMMANDS: &'static [Action] = &[
+        Action::SortAsc,
+        Action::SortDesc,
+        Action::SortNumeric,
+        Action::DedupeConsecutive,
+        Action::DedupeAll,
+        Action::ReverseLineOrder,
+        Action::RandomizeLineOrder,
+        Action::JoinLines,
+        Action::RemoveEmpty,
+        Action::RemoveEmptyWithBlank,
+        Action::TrimTrailing,
+        Action::TrimLeading,
+        Action::TrimBoth,
+        Action::TrimAll,
+        Action::EolToSpace,
+        Action::UpperCase,
+        Action::LowerCase,
+        Action::TitleCase,
+        Action::ProperCaseForce,
+        Action::ProperCaseBlend,
+        Action::SentenceCaseForce,
+        Action::SentenceCaseBlend,
+        Action::InvertCase,
+        Action::RandomCase,
+        Action::ToggleComment,
+        Action::SingleLineComment,
+        Action::SingleLineUncomment,
+        Action::BlockComment,
+        Action::BlockUncomment,
+        Action::TabsToSpaces,
+        Action::SpacesToTabs,
+        Action::SpacesToTabsAll,
+        Action::SpacesToTabsLeading,
+        Action::Indent,
+        Action::Unindent,
+        Action::SortLines(Sort::LexAsc),
+    ];
+
+    /// Whether this command is run by the core's text-command table.
+    pub fn is_text_command(self) -> bool {
+        // `SortLines` carries a direction and a key, so it never compares equal
+        // to the default it is listed with: the name is the question, and every
+        // `SortLines` is one command as far as the table is concerned.
+        if matches!(self, Action::SortLines(_)) {
+            return true;
+        }
+        Self::TEXT_COMMANDS.contains(&self)
+    }
+
     /// Every command the shortcut editor offers, in menu order.
     ///
     /// `OpenRecent` is absent: it carries an index, and a key that opened "the
@@ -4459,6 +4523,44 @@ mod tests {
                 Action::from_name(action.name()),
                 Some(*action),
                 "{} does not read back",
+                action.name()
+            );
+        }
+    }
+
+    #[test]
+    fn the_text_commands_are_the_core_table() {
+        // One list in the app, one in the core, and they have to be the same
+        // list: this is the test that says so in both directions.
+        // Two of the core's commands have no single menu row to route: `sort_lines`
+        // is a submenu of fourteen rows that each carry a direction and a key,
+        // and `split_lines` asks for its delimiter in a prompt before it runs.
+        // Both are reachable from the API and neither can be reached by name from
+        // the dispatcher, so the agreement is modulo these two.
+        let api_only = ["sort_lines", "split_lines"];
+        let ours: Vec<&str> = Action::TEXT_COMMANDS.iter().map(|one| one.name()).collect();
+        for command in nn_core::ops::commands() {
+            if api_only.contains(&command.name) {
+                continue;
+            }
+            assert!(
+                ours.contains(&command.name),
+                "{} is in the core table but not in TEXT_COMMANDS",
+                command.name
+            );
+        }
+        for name in ours {
+            assert!(
+                nn_core::ops::knows(name),
+                "{name} is a text command but the core has no such command"
+            );
+        }
+        // And a text command is one the keymap can name, so it is bindable and
+        // reachable from the menu rather than only from the API.
+        for action in Action::TEXT_COMMANDS {
+            assert!(
+                Action::from_name(action.name()).is_some() || matches!(action, Action::SortLines(_)),
+                "{} cannot be read back from its name",
                 action.name()
             );
         }

@@ -38,6 +38,14 @@ pub struct Args {
     pub version: bool,
     /// Skip the hardware adapter and use the software rasterizer.
     pub software: bool,
+    /// One API call to send to the running editor and print the answer of.
+    ///
+    /// A call is not a launch: a process that carries one hands it to the window
+    /// that is already running, prints what comes back, and exits without
+    /// touching the GPU. That is why it is here rather than in a second program:
+    /// the caller wants the *running* editor, and finding it is this binary's
+    /// job.
+    pub call: Option<String>,
 }
 
 impl Args {
@@ -78,6 +86,7 @@ const SWITCHES: &[(char, &str, &str)] = &[
     ('l', "line", "put the caret on this line (one-based)"),
     ('c', "column", "put the caret on this column (one-based)"),
     ('s', "software", "draw with the software rasterizer, not the GPU"),
+    ('C', "call", "send a JSON call to the running editor and print the answer"),
     ('h', "help", "print this text"),
     ('V', "version", "print the version"),
 ];
@@ -89,10 +98,11 @@ const SWITCHES: &[(char, &str, &str)] = &[
 /// appears in `--version` and in the window title, which are read by people.
 pub fn usage() -> String {
     let mut text = String::from(
-        "usage: npp [switches] [file ...]\n\
-         \n\
-         A file named - reads the document from standard input.\n\
-         \n\
+        "usage: npp [switches] [file ...]\n\n\
+         A file named - reads the document from standard input.\n\n\
+         --call sends a JSON call to the editor that is already running and\n\
+         prints its answer: `npp --call '{\"method\":\"document.list\"}'`.\n\
+         Nothing opens.\n\n\
          switches:\n",
     );
     for (short, long, help) in SWITCHES {
@@ -138,6 +148,7 @@ where
                 "help" => out.help = true,
                 "version" => out.version = true,
                 "software" => out.software = true,
+                "call" => out.call = Some(text(name, inline, &mut rest)?),
                 "line" => out.line = Some(number(name, inline, &mut rest)?),
                 "column" => out.column = Some(number(name, inline, &mut rest)?),
                 other => return Err(format!("unknown switch --{other}")),
@@ -156,6 +167,15 @@ where
                     'h' => out.help = true,
                     'V' => out.version = true,
                     's' => out.software = true,
+                    'C' => {
+                        let tail: String = chars.by_ref().collect();
+                        out.call = Some(if tail.is_empty() {
+                            rest.next().ok_or_else(|| "-C needs a JSON call".to_string())?
+                        } else {
+                            tail
+                        });
+                        break;
+                    }
                     'l' | 'c' => {
                         let tail: String = chars.by_ref().collect();
                         let value = if tail.is_empty() {
@@ -198,6 +218,18 @@ where
     parse_number(&value).ok_or_else(|| format!("--{name} needs a number, not {value:?}"))
 }
 
+/// The value of a long switch that takes text, from `--name=value` or the next
+/// argument.
+fn text<I>(name: &str, inline: Option<String>, rest: &mut I) -> Result<String, Error>
+where
+    I: Iterator<Item = String>,
+{
+    match inline {
+        Some(value) => Ok(value),
+        None => rest.next().ok_or_else(|| format!("--{name} needs a value")),
+    }
+}
+
 /// A one-based position, rejecting zero and anything that is not a number.
 ///
 /// Zero is rejected rather than clamped: a caller that passes `--line 0` has
@@ -231,6 +263,30 @@ mod tests {
     fn files_keep_the_order_they_were_named_in() {
         let a = args(&["b.txt", "a.txt"]);
         assert_eq!(a.files, vec![PathBuf::from("b.txt"), PathBuf::from("a.txt")]);
+    }
+
+    #[test]
+    fn a_call_is_read_in_any_of_its_three_spellings() {
+        let json = r#"{"method":"app.status"}"#;
+        assert_eq!(args(&["--call", json]).call.as_deref(), Some(json));
+        assert_eq!(args(&[&format!("--call={json}")]).call.as_deref(), Some(json));
+        assert_eq!(args(&["-C", json]).call.as_deref(), Some(json));
+    }
+
+    #[test]
+    fn a_call_may_sit_between_file_names() {
+        let a = args(&["notes.txt", "-C", "{}", "more.txt"]);
+        assert_eq!(a.call.as_deref(), Some("{}"));
+        assert_eq!(
+            a.files,
+            vec![PathBuf::from("notes.txt"), PathBuf::from("more.txt")]
+        );
+    }
+
+    #[test]
+    fn a_call_with_nothing_after_it_says_what_is_missing() {
+        let error = parse(["-C"]).unwrap_err();
+        assert!(error.contains("JSON call"), "{error}");
     }
 
     #[test]

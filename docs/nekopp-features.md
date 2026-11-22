@@ -107,9 +107,14 @@ switches:
   -l, --line         put the caret on this line (one-based)
   -c, --column       put the caret on this column (one-based)
   -s, --software     draw with the software rasterizer, not the GPU
+  -C, --call         send a JSON call to the running editor and print the answer
   -h, --help         print this text
   -V, --version      print the version
 ```
+
+`--call` is the one switch that does not start an editor: it hands a JSON request
+to the window that is already running and prints the answer. "Commands over the
+API" is what it is for.
 
 The parser follows the conventions a shell user expects. `--` ends the switches,
 so a file called `-w` can still be opened. A lone `-` means standard input, and
@@ -2185,6 +2190,99 @@ client has no caret to look at.
 The folder is read again when a call needs something it does not have, so a
 plugin switched on since the server started is usable by the next call rather
 than by the next process.
+
+## Commands over the API
+
+Every door onto a command -- the menu, the keymap, `npp --call`, the MCP server --
+opens onto one table. `nn_core::ops` names the commands whose whole effect is a
+function of the text: sort, dedupe, reverse, join and split, trim, case, comment,
+tabs and spaces, indent. Thirty-seven of them. The menu row for "Sort Lines
+Ascending", the keybinding that does the same thing, `command.run` over the API
+and `run_command` over MCP all reach the same function, so a change lands in one
+place and cannot be true on one surface and false on another. The two rows whose
+menu is a submenu or a prompt -- `sort_lines` with its key and order,
+`split_lines` with its delimiter -- are in the table too, named the way a caller
+would name them.
+
+A command whose effect depends on where the caret is (`duplicate_line`,
+`move_line_up`, `delete_line`) is not in that table: there is no text in, text out
+for those. They are reachable in a window, through `command.run`.
+
+### Without a window
+
+`run_command` over MCP runs one command over a string or over a file and answers
+with the result. It needs no window, no display and no session bus, so it works in
+a container, over ssh, and in a client that has never started the editor.
+
+```
+{"command": "sort_asc", "text": "c\na\nb\n"}           -> "a\nb\nc\n"
+{"command": "tabs_to_spaces", "path": "a.rs", "write": true}
+```
+
+`path` without `write` reads the file and changes nothing, which is what a caller
+checking a result wants; `write` puts the result back. `text` and `path` are
+alternatives, not a pair. The options a command reads are the ones `list_commands`
+names beside it: `sort_key`, `sort_order`, `case_sensitive`, `width`, `delimiter`,
+`prefix`, `block_open`, `block_close`, `seed`.
+
+### In the window
+
+`npp --call '<json>'` hands one call to the editor that is already running and
+prints its answer as one JSON object on stdout. Nothing opens and nothing takes
+the focus: the process is a client, not a launch.
+
+```
+npp --call '{"method":"document.list"}'
+npp --call '{"method":"command.run","command":"sort_asc","whole_document":true}'
+```
+
+`-C` and `--call=...` are the same switch. The methods:
+
+- `app.status` -- the version, how many documents are open, which one is active.
+- `document.list` -- every open document in tab order: its path, its language,
+  whether it has unsaved changes, and which one is active.
+- `document.get` -- one document's text, caret, selection, line ending and size.
+  `path` names one, leaving it out means the active tab, and `range` asks for a
+  span of characters instead of the whole.
+- `document.set` -- replaces a document's text, or a `range` of it, and answers
+  with the path and the new size.
+- `document.save` -- writes it to the file it came from.
+- `command.run` -- runs any command in the menu, by its action name.
+- `help` -- the list above, from the binary itself.
+
+A failed call answers `{"error": {"code": ..., "message": ...}}` and exits 0: the
+call reached the editor and was refused, which is an answer. A call that finds no
+editor exits 1 and says why on stderr.
+
+`command.run` runs the command the way the menu does -- over the selection, or
+over the line the caret is on -- because that is what makes one name mean the same
+thing everywhere. A caller that means a block says so: `whole_document` selects
+everything first, and `range` takes `[start, end]` in characters. They are
+alternatives; sending both is refused rather than guessed at. Without either,
+`sort_asc` on a document with no selection sorts the one line the caret is on,
+which is worth reading twice before wondering why nothing changed.
+
+The answer is thin -- a path, a character count, or the text when `return_text`
+asks for it -- because a caller that knows what it sent rarely needs it echoed.
+
+A call is answered by the window's own event loop, not by the process that
+connected: the client queues the request over D-Bus, the window runs it between
+frames, and the client collects the answer with a second call. A blocking method
+would stall the message loop that has to deliver its own reply. The client asks
+every 5 ms and gives up after 5 s.
+
+### Over MCP
+
+`live_call` takes the call itself -- `method` and whatever that method reads --
+and forwards it to `npp`, so it answers with exactly what a shell would see. It is
+the way to do something that needs the window: work on the selection, save the tab
+someone has open, reach `duplicate_line` and its neighbours. It needs an editor to
+talk to: `NPP_BIN` first, then a sibling of `npp-mcp`, then PATH.
+
+The two tools are chosen by what the work touches. Text that only needs
+transforming goes to `run_command`: no window, no focus, no session. Work that has
+to happen in the window someone is looking at goes to `live_call`. `get_command`
+says which command needs the window and which does not.
 
 ## Localisation
 

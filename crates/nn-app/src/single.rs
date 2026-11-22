@@ -129,6 +129,85 @@ pub fn should_hand_off(new_instance: bool) -> bool {
 /// vector.
 pub struct Editor {
     queue: Arc<Mutex<Vec<Request>>>,
+    calls: Board,
+}
+
+/// The calls waiting for an answer, and the answers written for them.
+///
+/// `Call` cannot answer where it is asked: the window is on another thread, and
+/// the work is opening a document or editing one, which belongs to the event
+/// loop. So the call is given a number, queued, and answered later; the caller
+/// polls [`Editor::answer`] for it.
+///
+/// The board is a `Mutex` rather than a channel for the same reason the request
+/// queue is: the consumer is the event loop, which polls.
+#[derive(Clone, Default)]
+pub struct Board {
+    next: Arc<Mutex<u64>>,
+    pending: Arc<Mutex<Vec<Pending>>>,
+    answers: Arc<Mutex<std::collections::HashMap<u64, String>>>,
+}
+
+/// One call that arrived and has not been answered yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pending {
+    /// The number the caller polls with.
+    pub id: u64,
+    /// The JSON request.
+    pub json: String,
+}
+
+impl Board {
+    /// Queues `json` and returns the number the caller waits on.
+    pub fn push(&self, json: String) -> u64 {
+        let id = {
+            let mut next = match self.next.lock() {
+                Ok(next) => next,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            *next += 1;
+            *next
+        };
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.push(Pending { id, json });
+        }
+        id
+    }
+
+    /// The calls that arrived since the last call to this method.
+    pub fn take(&self) -> Vec<Pending> {
+        match self.pending.lock() {
+            Ok(mut pending) => std::mem::take(&mut *pending),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Records the answer to call `id`.
+    ///
+    /// An answer for a caller that gave up is dropped rather than kept: the map
+    /// would otherwise grow by one entry per abandoned request for the life of
+    /// the window.
+    pub fn answer(&self, id: u64, json: String) {
+        if let Ok(mut answers) = self.answers.lock() {
+            answers.insert(id, json);
+        }
+    }
+
+    /// The answer to `id`, if it has arrived.
+    pub fn take_answer(&self, id: u64) -> Option<String> {
+        match self.answers.lock() {
+            Ok(mut answers) => answers.remove(&id),
+            Err(_) => None,
+        }
+    }
+
+    /// How long a caller waits before giving up.
+    ///
+    /// Five seconds is a long time for an edit and a short time for a person to
+    /// notice: what it bounds is a window that has stopped answering (a modal
+    /// dialog, a stuck save), which would otherwise leave the caller hung with no
+    /// way to say so.
+    pub const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 }
 
 #[zbus::interface(name = "org.npp.Editor")]
@@ -142,6 +221,23 @@ impl Editor {
         if let Ok(mut queue) = self.queue.lock() {
             queue.push(request);
         }
+    }
+
+    /// Queues one API call and returns the number to ask [`Editor::answer`] for.
+    ///
+    /// Separate from the answer rather than one blocking method because the
+    /// window answers on its own thread: a method that waited here would block
+    /// the connection's own message loop, and the answer would never be written.
+    fn call(&self, json: String) -> u64 {
+        self.calls.push(json)
+    }
+
+    /// The answer to call `id`, or an empty string while it is still being made.
+    ///
+    /// Empty means "not yet", and an answer is always a JSON object, so the two
+    /// cannot be confused.
+    fn answer(&self, id: u64) -> String {
+        self.calls.take_answer(id).unwrap_or_default()
     }
 
     /// The version of the running editor, so a caller can tell whether the
@@ -160,6 +256,7 @@ impl Editor {
 pub struct Server {
     connection: zbus::blocking::Connection,
     queue: Arc<Mutex<Vec<Request>>>,
+    calls: Board,
 }
 
 impl Server {
@@ -171,8 +268,10 @@ impl Server {
     /// and if that fails too, run standalone.
     pub fn acquire() -> Option<Self> {
         let queue: Arc<Mutex<Vec<Request>>> = Arc::new(Mutex::new(Vec::new()));
+        let calls = Board::default();
         let editor = Editor {
             queue: Arc::clone(&queue),
+            calls: calls.clone(),
         };
         let connection = zbus::blocking::connection::Builder::session()
             .ok()?
@@ -189,7 +288,11 @@ impl Server {
             .ok()?;
         match reply {
             zbus::fdo::RequestNameReply::PrimaryOwner
-            | zbus::fdo::RequestNameReply::AlreadyOwner => Some(Self { connection, queue }),
+            | zbus::fdo::RequestNameReply::AlreadyOwner => Some(Self {
+                connection,
+                queue,
+                calls,
+            }),
             _ => None,
         }
     }
@@ -200,6 +303,16 @@ impl Server {
             Ok(mut queue) => std::mem::take(&mut *queue),
             Err(_) => Vec::new(),
         }
+    }
+
+    /// The API calls that arrived since the last call.
+    pub fn take_calls(&self) -> Vec<Pending> {
+        self.calls.take()
+    }
+
+    /// Records the answer to call `id`, for the caller that is polling for it.
+    pub fn answer(&self, id: u64, json: String) {
+        self.calls.answer(id, json);
     }
 
     /// Tells any waiting caller that `path` has closed.
@@ -243,6 +356,40 @@ impl Client {
         Ok(())
     }
 
+    /// Sends one API call to the running editor and returns its answer.
+    ///
+    /// Two round trips, because the window answers on its own thread: the call is
+    /// queued, then the answer is polled for. The polling interval is short
+    /// enough that it is invisible next to the frame it waits for, and long
+    /// enough that a five-second wait is a thousand messages rather than a busy
+    /// loop.
+    pub fn call(&self, json: &str) -> Result<String, CallError> {
+        let reply = self
+            .connection
+            .call_method(Some(NAME), PATH, Some("org.npp.Editor"), "Call", &(json,))
+            .map_err(|error| CallError::Bus(error.to_string()))?;
+        let id: u64 = reply
+            .body()
+            .deserialize()
+            .map_err(|error| CallError::Bus(error.to_string()))?;
+        let deadline = std::time::Instant::now() + Board::TIMEOUT;
+        while std::time::Instant::now() < deadline {
+            let reply = self
+                .connection
+                .call_method(Some(NAME), PATH, Some("org.npp.Editor"), "Answer", &(id,))
+                .map_err(|error| CallError::Bus(error.to_string()))?;
+            let answer: String = reply
+                .body()
+                .deserialize()
+                .map_err(|error| CallError::Bus(error.to_string()))?;
+            if !answer.is_empty() {
+                return Ok(answer);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        Err(CallError::Timeout)
+    }
+
     /// Registers interest in [`Editor::closed`] signals.
     ///
     /// Separate from [`Waiter::wait_for`] so the rule can be in place *before*
@@ -280,6 +427,28 @@ impl Client {
             events,
             connection: self.connection.clone(),
         })
+    }
+}
+
+/// Why a call to the running editor did not come back with an answer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CallError {
+    /// The bus refused the message: no editor, no name, no session bus.
+    Bus(String),
+    /// The editor took the call and did not answer in time.
+    Timeout,
+}
+
+impl std::fmt::Display for CallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallError::Bus(error) => write!(f, "{error}"),
+            CallError::Timeout => write!(
+                f,
+                "the editor did not answer within {} seconds",
+                Board::TIMEOUT.as_secs()
+            ),
+        }
     }
 }
 

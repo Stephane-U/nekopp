@@ -35,11 +35,9 @@ use nn_core::fold::BraceFolder;
 use nn_core::run::{RunCommand, RunContext};
 use nn_core::{
     arg_range, call_at, collect_words, collect_words_many, file_stamp, lines, matching_words,
-    now_secs, params_of, path_prefix, prefix_range, scan_functions, scan_symbols, split_query, Case,
+    now_secs, params_of, path_prefix, prefix_range, scan_functions, scan_symbols, split_query,
     CLikeLexer, ConfigLexer, DiskChange, Document, Editor, Encoding, EolMode, FindInFiles,
-    Highlighter, Lexer,
-    Macro, Motion, PlainLexer, Projects, SortKey, SortOptions, SortOrder, Step, Tree, Typed, UdlSet,
-    MAX_CANDIDATES,
+    Highlighter, Lexer, Macro, Motion, PlainLexer, Projects, Step, Tree, Typed, UdlSet, MAX_CANDIDATES,
 };
 use winit::platform::startup_notify::{EventLoopExtStartupNotify, WindowAttributesExtStartupNotify};
 use winit::platform::x11::WindowAttributesExtX11;
@@ -359,6 +357,26 @@ impl Tab {
             marker.push_str(" !");
         }
         format!("{}{}", self.editor.doc.display_name(), marker)
+    }
+
+    /// The name of this tab's language, for the API.
+    ///
+    /// The user-defined set is passed in because a tab stores the index of its
+    /// language rather than the language: the definitions can be reloaded while
+    /// the tab is open, and the name has to be looked up in the current ones.
+    fn language_name(&self, langs: &UdlSet) -> String {
+        match self.language {
+            Language::Plain => "Plain Text".to_string(),
+            Language::BuiltIn => "C-like".to_string(),
+            Language::Spec(index) => nn_core::LANGS
+                .get(index)
+                .map(|spec| spec.name.to_string())
+                .unwrap_or_else(|| "C-like".to_string()),
+            Language::Udl(index) => match langs.get(index) {
+                Some(udl) => udl.name.clone(),
+                None => "User Defined".to_string(),
+            },
+        }
     }
 
     /// The title as the tab strip shows it.
@@ -5769,9 +5787,251 @@ impl State {
         self.window.request_redraw();
     }
 
+    /// Answers one call from the API (`npp --call`, or the MCP server behind it).
+    ///
+    /// The call has been parsed already: what is left is the part that needs the
+    /// window -- which tab a path names, what the caret is in it, running a
+    /// command the menu could have run. Every failure is an answer rather than a
+    /// panic, because the caller is a script that cannot see the screen.
+    fn call(&mut self, call: nn_app::api::Call) -> serde_json::Value {
+        use nn_app::api;
+        match call {
+            api::Call::Help => serde_json::json!({"ok": true, "help": api::help()}),
+            api::Call::Status => api::status(
+                env!("CARGO_PKG_VERSION"),
+                self.tabs.len(),
+                self.active,
+            ),
+            api::Call::DocumentList => {
+                let documents: Vec<api::DocumentInfo> = self
+                    .tabs
+                    .iter()
+                    .enumerate()
+                    .map(|(index, tab)| api::DocumentInfo {
+                        path: tab
+                            .editor
+                            .doc
+                            .path()
+                            .map(|path| path.to_string_lossy().to_string()),
+                        modified: tab.editor.doc.is_dirty(),
+                        language: tab.language_name(&self.langs),
+                        active: index == self.active,
+                    })
+                    .collect();
+                api::documents(&documents)
+            }
+            api::Call::DocumentGet { which, range } => {
+                let Some(index) = self.api_tab(&which) else {
+                    return not_open(&which);
+                };
+                let tab = &self.tabs[index];
+                let text = tab.editor.doc.text();
+                let chars = tab.editor.doc.len_chars();
+                let selection = selection_of(&tab.editor);
+                let text = match range {
+                    Some((start, end)) => {
+                        if start >= chars {
+                            return api::Error {
+                                code: api::BAD_REQUEST,
+                                message: format!(
+                                    "`range` starts at {start} and the document is {chars} characters"
+                                ),
+                            }
+                            .value();
+                        }
+                        text.chars()
+                            .skip(start)
+                            .take(end.min(chars) - start)
+                            .collect()
+                    }
+                    None => text,
+                };
+                api::document(&api::DocumentText {
+                    path: tab
+                        .editor
+                        .doc
+                        .path()
+                        .map(|path| path.to_string_lossy().to_string()),
+                    text,
+                    caret: tab.editor.caret(),
+                    selection,
+                    eol: tab.editor.doc.eol().name(),
+                    modified: tab.editor.doc.is_dirty(),
+                    chars,
+                })
+            }
+            api::Call::DocumentSet {
+                which,
+                text,
+                range,
+            } => {
+                let Some(index) = self.api_tab(&which) else {
+                    return not_open(&which);
+                };
+                self.active = index;
+                match range {
+                    None => self.after_edit(move |ed| ed.doc.set_text(&text)),
+                    Some((start, end)) => {
+                        let whole = self.tab().editor.doc.text();
+                        let chars = whole.chars().count();
+                        if start >= chars || end > chars {
+                            return api::Error {
+                                code: api::BAD_REQUEST,
+                                message: format!(
+                                    "`range` {start}..{end} is outside a document of {chars} characters"
+                                ),
+                            }
+                            .value();
+                        }
+                        let head: String = whole.chars().take(start).collect();
+                        let tail: String = whole.chars().skip(end).collect();
+                        let replaced = format!("{head}{text}{tail}");
+                        self.after_edit(move |ed| ed.doc.set_text(&replaced));
+                    }
+                }
+                api::done(&[
+                    ("path", self.api_path(index)),
+                    ("chars", serde_json::json!(self.tabs[index].editor.doc.len_chars())),
+                ])
+            }
+            api::Call::DocumentSave { which } => {
+                let Some(index) = self.api_tab(&which) else {
+                    return not_open(&which);
+                };
+                if self.tabs[index].editor.doc.path().is_none() {
+                    return api::Error {
+                        code: api::FAILED,
+                        message: "that document has never been saved, so it has no file to write"
+                            .to_string(),
+                    }
+                    .value();
+                }
+                self.active = index;
+                self.save_active();
+                api::done(&[("path", self.api_path(index))])
+            }
+            api::Call::Command {
+                name,
+                text,
+                range,
+                whole,
+            } => {
+                let Some(action) = Action::from_name(&name) else {
+                    return api::Error {
+                        code: api::UNKNOWN_METHOD,
+                        message: format!(
+                            "no command called {name:?}; the MCP tool `list_commands` names the ones that work on text"
+                        ),
+                    }
+                    .value();
+                };
+                // A command works on the selection, so picking the block first is
+                // all it takes to run one over a whole document.
+                if whole {
+                    self.after_edit(|ed| ed.select_all());
+                } else if let Some((start, end)) = range {
+                    let chars = self.tab().editor.doc.len_chars();
+                    if start > end || end > chars {
+                        return api::Error {
+                            code: api::BAD_REQUEST,
+                            message: format!(
+                                "`range` {start}..{end} is outside a document of {chars} characters"
+                            ),
+                        }
+                        .value();
+                    }
+                    self.after_edit(|ed| ed.select_range(start..end));
+                }
+                self.run(action);
+                let mut fields = vec![("command", serde_json::json!(name))];
+                if text {
+                    fields.push((
+                        "text",
+                        serde_json::json!(self.tab().editor.doc.text()),
+                    ));
+                }
+                api::done(&fields)
+            }
+        }
+    }
+
+    /// The tab a call names, or `None` when no tab has that path open.
+    ///
+    /// The comparison is on the resolved path, so a call that says `notes.txt`
+    /// from another working directory still finds the tab that has
+    /// `/home/stef/notes.txt` open.
+    fn api_tab(&self, which: &nn_app::api::Which) -> Option<usize> {
+        match which {
+            nn_app::api::Which::Active => Some(self.active),
+            nn_app::api::Which::Path(path) => {
+                let wanted = nn_app::single::absolute(std::path::Path::new(path));
+                self.tabs.iter().position(|tab| {
+                    tab.editor
+                        .doc
+                        .path()
+                        .map(|open| nn_app::single::absolute(open) == wanted)
+                        .unwrap_or(false)
+                })
+            }
+        }
+    }
+
+    /// A tab's path as JSON, `null` for a document that has never been saved.
+    fn api_path(&self, index: usize) -> serde_json::Value {
+        match self.tabs[index].editor.doc.path() {
+            Some(path) => serde_json::json!(path.to_string_lossy()),
+            None => serde_json::Value::Null,
+        }
+    }
+
     /// Runs a menu command.
     fn run(&mut self, action: Action) {
         match action {
+            // The line commands that are a function of text are run through
+            // `nn_core::ops`, which is the same table an MCP client reaches: a
+            // command cannot mean one thing to the menu and another to the API
+            // if there is one place that turns its name into a call.
+            //
+            // The list is spelled out rather than reached with a guard because a
+            // guard does not count towards exhaustiveness: with these rows named
+            // here, adding a command to the enum and forgetting to route it is a
+            // compile error rather than a menu row that does nothing.
+            Action::SortAsc
+            | Action::SortDesc
+            | Action::SortNumeric
+            | Action::SortLines(_)
+            | Action::DedupeConsecutive
+            | Action::DedupeAll
+            | Action::ReverseLineOrder
+            | Action::RandomizeLineOrder
+            | Action::JoinLines
+            | Action::RemoveEmpty
+            | Action::RemoveEmptyWithBlank
+            | Action::TrimTrailing
+            | Action::TrimLeading
+            | Action::TrimBoth
+            | Action::TrimAll
+            | Action::EolToSpace
+            | Action::UpperCase
+            | Action::LowerCase
+            | Action::TitleCase
+            | Action::ProperCaseForce
+            | Action::ProperCaseBlend
+            | Action::SentenceCaseForce
+            | Action::SentenceCaseBlend
+            | Action::InvertCase
+            | Action::RandomCase
+            | Action::ToggleComment
+            | Action::SingleLineComment
+            | Action::SingleLineUncomment
+            | Action::BlockComment
+            | Action::BlockUncomment
+            | Action::TabsToSpaces
+            | Action::SpacesToTabs
+            | Action::SpacesToTabsAll
+            | Action::SpacesToTabsLeading
+            | Action::Indent
+            | Action::Unindent => self.run_text_command(action),
             // A submenu row is a heading, not a command. It reaches here only if
             // something dispatched it by mistake, and doing nothing is the right
             // answer to that.
@@ -5796,31 +6056,6 @@ impl State {
             }
             Action::ToggleRecording => self.toggle_recording(),
             Action::PlayMacro => self.play_macro(),
-            Action::SortAsc => self.line_op(|text| lines::sort(text, SortOptions::default())),
-            Action::SortDesc => self.line_op(|text| {
-                lines::sort(
-                    text,
-                    SortOptions {
-                        order: SortOrder::Descending,
-                        ..SortOptions::default()
-                    },
-                )
-            }),
-            Action::SortNumeric => self.line_op(|text| {
-                lines::sort(
-                    text,
-                    SortOptions {
-                        key: SortKey::Numeric,
-                        ..SortOptions::default()
-                    },
-                )
-            }),
-            Action::DedupeConsecutive => self.line_op(lines::dedupe_consecutive),
-            Action::DedupeAll => self.line_op(lines::dedupe_all),
-            Action::TrimTrailing => self.line_op(lines::trim_trailing),
-            Action::TrimLeading => self.line_op(lines::trim_leading),
-            Action::RemoveEmpty => self.line_op(lines::remove_empty),
-            Action::JoinLines => self.line_op(lines::join),
             Action::FindInFiles => {
                 self.prompt.open(PromptKind::FindInFiles, "");
                 self.window.request_redraw();
@@ -5829,20 +6064,17 @@ impl State {
                 self.prompt.open(PromptKind::FindInProjects, "");
                 self.window.request_redraw();
             }
+            Action::SplitLines => {
+                // The delimiter is the question this row asks, so it cannot be
+                // routed to the table until the user has answered: the prompt's
+                // answer handler calls the same `split_lines` the API does.
+                self.prompt.open(PromptKind::SplitLines, ",");
+                self.window.request_redraw();
+            }
             Action::FolderAsWorkspace => self.toggle_folder_workspace(),
             Action::ProjectPanel(index) => self.toggle_project_panel(index),
             Action::AddProjectRoot => self.add_project_root(),
             Action::RefreshFolder => self.refresh_workspace(),
-            Action::SplitLines => {
-                self.prompt.open(PromptKind::SplitLines, ",");
-                self.window.request_redraw();
-            }
-            Action::UpperCase => self.line_op(|text| lines::convert_case(text, Case::Upper)),
-            Action::LowerCase => self.line_op(|text| lines::convert_case(text, Case::Lower)),
-            Action::TitleCase => self.line_op(|text| lines::convert_case(text, Case::Title)),
-            Action::ToggleComment => self.line_op(|text| lines::toggle_comment(text, "//")),
-            Action::TabsToSpaces => self.line_op(|text| lines::tabs_to_spaces(text, 4)),
-            Action::SpacesToTabs => self.line_op(|text| lines::spaces_to_tabs(text, 4)),
             Action::DuplicateLine => self.after_edit(|ed| {
                 ed.duplicate_lines();
             }),
@@ -6055,8 +6287,6 @@ impl State {
                 ed.delete_lines();
             }),
             Action::SelectLine => self.after_edit(|ed| ed.select_line()),
-            Action::Indent => self.line_op(lines::indent),
-            Action::Unindent => self.line_op(|text| lines::unindent(text, 4)),
             Action::InsertDateTime => {
                 let stamp = nn_core::local_stamp(nn_core::now_secs());
                 self.after_edit(|ed| ed.insert(&stamp));
@@ -6089,50 +6319,10 @@ impl State {
             Action::CopyDirPath => self.copy_path_part(true),
             Action::CopyAllFilenames => self.copy_all_paths(false),
             Action::CopyAllFilePaths => self.copy_all_paths(true),
-            Action::ProperCaseForce => self.line_op(|text| lines::convert_case(text, Case::Title)),
-            Action::ProperCaseBlend => self.line_op(|text| lines::convert_case(text, Case::TitleBlend)),
-            Action::SentenceCaseForce => {
-                self.line_op(|text| lines::convert_case(text, Case::Sentence))
-            }
-            Action::SentenceCaseBlend => {
-                self.line_op(|text| lines::convert_case(text, Case::SentenceBlend))
-            }
-            Action::InvertCase => self.line_op(|text| lines::convert_case(text, Case::Invert)),
-            Action::RandomCase => {
-                let seed = nn_core::now_secs() as u64;
-                self.line_op(move |text| lines::convert_case_seeded(text, Case::Random, seed));
-            }
-            Action::RemoveEmptyWithBlank => self.line_op(lines::remove_empty_with_blank),
             Action::InsertBlankAbove => self.insert_blank_line(true),
             Action::InsertBlankBelow => self.insert_blank_line(false),
-            Action::ReverseLineOrder => self.line_op(lines::reverse_order),
-            Action::RandomizeLineOrder => {
-                let seed = nn_core::now_secs() as u64;
-                self.line_op(move |text| lines::randomize_order(text, seed));
-            }
-            Action::SortLines(sort) => {
-                let options = sort.options();
-                self.line_op(move |text| lines::sort(text, options));
-            }
-            Action::SingleLineComment => self.line_op(|text| lines::single_line_comment(text, "//")),
-            Action::SingleLineUncomment => {
-                self.line_op(|text| lines::single_line_uncomment(text, "//"))
-            }
-            Action::BlockComment => self.line_op(|text| lines::block_comment(text, "/*", "*/")),
-            Action::BlockUncomment => self.line_op(|text| lines::block_uncomment(text, "/*", "*/")),
             Action::ParamHintPrev => self.param_hint.move_selection(-1),
             Action::ParamHintNext => self.param_hint.move_selection(1),
-            Action::TrimBoth => self.line_op(lines::trim_both),
-            Action::EolToSpace => self.line_op(lines::eol_to_space),
-            Action::TrimAll => self.line_op(lines::trim_all),
-            Action::SpacesToTabsAll => {
-                let width = self.settings.tab_width as usize;
-                self.line_op(move |text| lines::spaces_to_tabs_all(text, width));
-            }
-            Action::SpacesToTabsLeading => {
-                let width = self.settings.tab_width as usize;
-                self.line_op(move |text| lines::spaces_to_tabs(text, width));
-            }
             Action::OpenSelectedFile => self.open_selected(false),
             Action::OpenSelectedFolder => self.open_selected(true),
             Action::RedactSelection => self.redact_selection(),
@@ -7644,6 +7834,40 @@ impl State {
     fn line_op(&mut self, f: impl Fn(&str) -> String) {
         self.after_edit(|ed| {
             ed.transform_lines(f);
+        });
+    }
+
+    /// Runs `action` if it is one of the text commands `nn_core::ops` owns.
+    ///
+    /// The options come from the editor, not the command: the tab width is the
+    /// configured one, the sort's direction and key are the ones the submenu row
+    /// carries, and a shuffling command gets a fresh seed so two presses of the
+    /// same key are two different shuffles.
+    fn run_text_command(&mut self, action: Action) {
+        // The arm that routes here and `Action::TEXT_COMMANDS` are two lists of
+        // the same commands, and `menu`'s tests hold that one to the core's
+        // table. A row routed here that the list does not name is a row that
+        // would be missing from the API.
+        debug_assert!(
+            action.is_text_command(),
+            "{} is routed to the core table but is not a TEXT_COMMAND",
+            action.name()
+        );
+        let name = action.name();
+        let options = nn_core::ops::Options {
+            width: self.settings.tab_width as usize,
+            seed: nn_core::now_secs() as u64,
+            sort: match action {
+                Action::SortLines(sort) => sort.options(),
+                _ => Default::default(),
+            },
+            ..Default::default()
+        };
+        self.line_op(move |text| {
+            // `knows` just said the name is in the table, so only a table that
+            // contradicted itself could fail here; giving the text back unchanged
+            // is a better answer than a panic in a text editor.
+            nn_core::ops::run(name, text, &options).unwrap_or_else(|_| text.to_string())
         });
     }
 
@@ -9662,10 +9886,19 @@ impl ApplicationHandler<UserEvent> for App {
         // A second launch queues its request on the bus; the queue is drained
         // here rather than from a thread because opening a document touches the
         // tab strip, the language list and the window title.
-        if let Some(server) = &state.server {
+        // The server is moved out for the length of the drain because answering a
+        // call needs `&mut state` and `server` is a field of it: taking it out is
+        // cheaper than splitting the borrow into four helpers, and it goes back
+        // before the frame ends.
+        if let Some(server) = state.server.take() {
+            for pending in server.take_calls() {
+                let answer = answer_to(state, &pending.json);
+                server.answer(pending.id, answer);
+            }
             for request in server.take() {
                 state.open_request(&request);
             }
+            state.server = Some(server);
         }
         state.poll_disk();
         // The tooltip's delay is served here rather than from a thread: the
@@ -9812,6 +10045,12 @@ fn main() {
         println!("Neko++ {}", env!("CARGO_PKG_VERSION"));
         return;
     }
+    // A call is not a launch. It needs the window that is already running, it
+    // prints the answer, and it exits: no GPU, no fonts, no event loop, because
+    // the process that carries the question is not the one that answers it.
+    if let Some(json) = args.call.as_deref() {
+        std::process::exit(call_and_print(json));
+    }
     // Hand the files to a running editor and exit. The waiter is registered
     // before the request is sent, so a document that closes immediately cannot
     // slip past a `--wait` caller.
@@ -9875,6 +10114,116 @@ fn load_fonts() -> LoadedFonts {
     let mut font_system = nn_app::fonts::font_system();
     let width = nn_app::view::measure_editor_char_width(&mut font_system);
     (font_system, width)
+}
+
+/// Parses and answers one API call.
+///
+/// A request that is not JSON, or is JSON of the wrong shape, is answered with an
+/// error object rather than no answer at all: a caller polls for an answer and
+/// would otherwise wait out its whole timeout to be told nothing.
+fn answer_to(state: &mut State, json: &str) -> String {
+    match serde_json::from_str::<serde_json::Value>(json) {
+        Ok(request) => match nn_app::api::parse(&request) {
+            Ok(call) => state.call(call).to_string(),
+            Err(error) => error.value().to_string(),
+        },
+        Err(error) => nn_app::api::Error {
+            code: nn_app::api::BAD_REQUEST,
+            message: format!("a call must be JSON: {error}"),
+        }
+        .value()
+        .to_string(),
+    }
+}
+
+/// The answer to a call that names a document no tab has open.
+fn not_open(which: &nn_app::api::Which) -> serde_json::Value {
+    let message = match which {
+        nn_app::api::Which::Active => "there is no active document".to_string(),
+        nn_app::api::Which::Path(path) => {
+            format!("no tab has {path} open; `document.list` shows what is open")
+        }
+    };
+    nn_app::api::Error {
+        code: nn_app::api::UNKNOWN_DOCUMENT,
+        message,
+    }
+    .value()
+}
+
+/// The editor's selection as a pair of character offsets, if it has one.
+fn selection_of(editor: &Editor) -> Option<(usize, usize)> {
+    if editor.selection_len() == 0 {
+        None
+    } else {
+        Some((editor.selection_start(), editor.selection_end()))
+    }
+}
+
+/// Sends one API call to the running editor and prints the answer.
+///
+/// Returns the exit status: 0 when the window answered, 1 when it did not, and 2
+/// when the question itself was malformed. A refused call is a failure of the
+/// script that asked, and a script that ignores an exit status deserves what it
+/// gets.
+fn call_and_print(json: &str) -> i32 {
+    // Parsed here before it travels: a misspelling that reached the window would
+    // come back as an error object a second later, and the caller would have to
+    // read it to find out that nothing had happened at all.
+    let request: serde_json::Value = match serde_json::from_str(json) {
+        Ok(request) => request,
+        Err(error) => {
+            eprintln!("npp: --call is not JSON: {error}");
+            return 2;
+        }
+    };
+    if let Err(error) = nn_app::api::parse(&request) {
+        println!("{}", error.value());
+        eprintln!("npp: {}", error.message);
+        return 2;
+    }
+    let Some(client) = nn_app::single::Client::connect() else {
+        return no_instance();
+    };
+    if !client.is_running() {
+        return no_instance();
+    }
+    match client.call(json) {
+        Ok(answer) => {
+            println!("{answer}");
+            0
+        }
+        Err(error) => {
+            println!(
+                "{}",
+                nn_app::api::Error {
+                    code: nn_app::api::FAILED,
+                    message: error.to_string(),
+                }
+                .value()
+            );
+            eprintln!("npp: {error}");
+            1
+        }
+    }
+}
+
+/// What a call prints when no editor is running.
+///
+/// The code is the MCP server's to reuse: `no_instance` is the one answer a
+/// caller can act on, because the fix is to start the editor rather than to
+/// correct the request.
+fn no_instance() -> i32 {
+    println!(
+        "{}",
+        nn_app::api::Error {
+            code: "no_instance",
+            message: "no Neko++ window is running to answer; start `npp` first".to_string(),
+        }
+        .value()
+    );
+    eprintln!("npp: no Neko++ window is running to answer");
+    1
 }
 
 /// The bus request a launch turns into.
