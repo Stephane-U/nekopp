@@ -1271,6 +1271,12 @@ the four buttons. The bar is docked along the bottom of the pane, above the
 status bar. `Enter` finds the next match, `Shift+Enter` the previous, `Escape`
 closes the bar and returns the keyboard to the text.
 
+`Ctrl+H` opens the same bar with the replace row under the find row, and `Ctrl+F`
+puts it back to one row without losing the pattern. The label column is as wide
+as the widest label as drawn, not as wide as a constant: "Replace:" in a
+proportional face is wider than "Find:", and a translated label can be half again
+as long, so a fixed column ends up under the field's text.
+
 `Ctrl+V` pastes into whichever of the two fields has the caret, so a pattern
 copied from a file or a terminal does not have to be retyped. The line breaks
 and tabs a copied line brings along are dropped: the field is one line and a

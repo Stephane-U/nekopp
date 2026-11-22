@@ -4304,6 +4304,7 @@ impl State {
         event: &winit::event::KeyEvent,
         ctrl: bool,
         shift: bool,
+        alt: bool,
     ) -> bool {
         let redraw = |state: &Self| state.window.request_redraw();
         match &event.logical_key {
@@ -4395,6 +4396,13 @@ impl State {
                 true
             }
             _ => {
+                // `Ctrl+H` and friends arrive with the letter as their text, so
+                // a handler that trusted `event.text` here typed an `h` into
+                // the pattern instead of opening the replace row. Anything
+                // carrying a command modifier is the keymap's to answer.
+                if !nn_app::findbar::types_text(ctrl, alt) {
+                    return false;
+                }
                 if let Some(text) = &event.text {
                     let printable: String = text.chars().filter(|c| !c.is_control()).collect();
                     if printable.is_empty() {
@@ -4663,7 +4671,7 @@ impl State {
             return;
         }
 
-        if self.find.open && self.handle_find_key(event, ctrl, shift) {
+        if self.find.open && self.handle_find_key(event, ctrl, shift, alt) {
             return;
         }
 

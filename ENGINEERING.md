@@ -8841,3 +8841,50 @@ the glyphs, which is what makes it sit behind the text.
 reports 104 sections and 73 shortcuts.
 
 `cargo fmt` was not run.
+
+## Seventieth pass
+
+### The chord that typed itself
+
+`Ctrl+H` did nothing, or worse: with the find bar open it typed an `h` into the
+pattern. The bar's handler trusted `event.text`, and on this platform a control
+chord arrives carrying its letter, so every unhandled `Ctrl+<letter>` was typed
+rather than passed on. `Ctrl+H` never reached the keymap, so `replace` never ran.
+The same fault typed an `a` where `Ctrl+A` was meant, which is what the pass
+before tried to fix one chord at a time.
+
+The handler now asks `findbar::types_text(ctrl, alt)` before inserting anything, and
+decides on the modifiers rather than on the text: neither held is a letter, both
+held is AltGr, and exactly one held is a command for the keymap. `Ctrl+H` opens the
+replace row, `Ctrl+F` closes it again without losing the pattern, and `Ctrl+Z` no
+longer types a `z`.
+
+### The label under the field
+
+The field started at a fixed sixty-two pixels from the padding, which was enough
+for "Find:" and not for "Replace:" in the proportional UI face: the label ran under
+the text. The column is now measured from the shaped labels, so it fits the widest
+one in whatever face and language is in use, with the old sixty-two kept only until
+the first frame shapes them.
+
+### Verification, by pressing the keys
+
+Earlier passes recorded that no synthetic input existed here. It does: `libXtst` is
+installed, and sixty lines of `ctypes` (`/tmp/xinject.py`) drive `XTestFakeKeyEvent`
+and `XSetInputFocus`. Every claim below was made against a running `npp` and read
+back from screenshots.
+
+`Ctrl+H` with the bar open opened the replace row. Typing `alpha` and `beta` into the
+two rows showed the two fields clear of their labels. `Ctrl+R` replaced the current
+match in the document and moved to the next. `Ctrl+A` selected the replacement field,
+drawn as a bar behind the text. `Ctrl+F` returned the bar to one row with the pattern
+intact and no stray `f` in it.
+
+`cargo test --offline --all`: 1933 passed, 0 failed -- 985 in `nn-app`, 878 in
+`nn-core`, 70 in `nn-mcp`. Two are new: the modifier table, and the field starting
+after the widest label.
+
+`cargo clippy --offline --all-targets`: 0 warnings. `python3 docs/build-pdf.py
+--check`: up to date, 276,090 bytes, 66 pages A4, 106 bookmarks.
+
+`cargo fmt` was not run.

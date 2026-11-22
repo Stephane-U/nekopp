@@ -27,6 +27,9 @@ pub enum Field {
     Replacement,
 }
 
+/// Space between a label and the field beside it.
+const LABEL_GAP: f32 = 10.0;
+
 /// One of the three option toggles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Toggle {
@@ -262,6 +265,13 @@ pub struct FindBar {
     char_width: f32,
     label_find: Buffer,
     label_replace: Buffer,
+    /// Width of the widest label plus the gap before the fields, measured from
+    /// the shaped text on the first frame.
+    ///
+    /// A constant wide enough for "Replace:" was not: the label is drawn in the
+    /// proportional UI face, so its width depends on the font and on the
+    /// language, and a translated label can be half again as long.
+    label_w: f32,
     toggle_labels: [Buffer; 3],
     count: Buffer,
     count_text: String,
@@ -296,6 +306,10 @@ impl FindBar {
             char_width,
             label_find: label("Find:"),
             label_replace: label("Replace:"),
+            // Until the labels are shaped: the width the fixed column used to
+            // have, which keeps the first layout sane on a machine whose fonts
+            // are not there yet.
+            label_w: 62.0,
             toggle_labels: [label("Aa"), label("W"), label(".*")],
             count: label(""),
             count_text: String::new(),
@@ -602,6 +616,13 @@ impl FindBar {
             // shaped on the first frame rather than in the constructor.
             self.label_find.shape_until_scroll(font_system, false);
             self.label_replace.shape_until_scroll(font_system, false);
+            // The column is as wide as the widest label, measured rather than
+            // guessed: "Replace:" in the proportional UI face is wider than the
+            // fixed sixty-two pixels it used to be given, and the field text
+            // then started on top of it.
+            self.label_w = widest_line(&self.label_find)
+                .max(widest_line(&self.label_replace))
+                + LABEL_GAP;
             for buffer in &mut self.toggle_labels {
                 buffer.shape_until_scroll(font_system, false);
             }
@@ -651,7 +672,6 @@ impl FindBar {
 
         let toggle_w = 26.0;
         let count_w = 72.0;
-        let label_w = 62.0;
         let right = width - padding;
 
         let toggles = [
@@ -676,7 +696,7 @@ impl FindBar {
             };
         }
 
-        let field_x = padding + label_w;
+        let field_x = padding + self.label_w;
         let field_w = (right - count_w - gap - 3.0 * toggle_w - field_x).max(40.0);
 
         BarLayout {
@@ -876,6 +896,24 @@ pub struct BarLayout {
     pub count_w: f32,
     /// Height of one row.
     pub row: f32,
+}
+
+/// The widest line of a shaped buffer, in pixels.
+fn widest_line(buffer: &Buffer) -> f32 {
+    buffer.layout_runs().map(|run| run.line_w).fold(0.0, f32::max)
+}
+
+/// Whether a keypress with these modifiers is text for the field rather than a
+/// command.
+///
+/// A chord the bar does not handle itself -- `Ctrl+H` for replace, `Ctrl+F` to
+/// reopen the bar -- has to reach the keymap. It arrives carrying text: on
+/// this platform Ctrl and a letter still produce the letter, so a handler that
+/// trusts the text handed to it types into the field instead of running the
+/// command. Ctrl and Alt together are the exception, because that is how AltGr
+/// arrives, and AltGr is how a good part of the world types a `@` or a `€`.
+pub fn types_text(ctrl: bool, alt: bool) -> bool {
+    ctrl == alt
 }
 
 /// The colour a toggle label is drawn in.
@@ -1159,5 +1197,31 @@ mod tests {
         bar.open_find();
         bar.select_all();
         assert_eq!(bar.query.selection(), None);
+    }
+
+    #[test]
+    fn only_an_unmodified_key_types_into_the_field() {
+        // A plain letter, and AltGr, which arrives as Ctrl plus Alt on this
+        // platform and is how a layout puts a euro sign on a key.
+        assert!(types_text(false, false));
+        assert!(types_text(true, true));
+        // A command chord, and an Alt menu letter.
+        assert!(!types_text(true, false));
+        assert!(!types_text(false, true));
+    }
+
+    #[test]
+    fn the_field_starts_after_the_widest_label() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.prepare(&mut FontSystem::new());
+        let layout = bar.layout(900.0, 0.0, 20.0, 8.0);
+        let widest = widest_line(&bar.label_find).max(widest_line(&bar.label_replace));
+        assert!(
+            layout.field_x >= 8.0 + widest,
+            "field at {} but the label ends at {}",
+            layout.field_x,
+            8.0 + widest
+        );
     }
 }
