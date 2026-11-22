@@ -5239,7 +5239,10 @@ impl State {
             self.window.request_redraw();
             return;
         }
-        let text_x = x as f32 - self.view.text_left();
+        // The pane's chrome comes off before the editor sees the point: a window
+        // y counts the menu bar, the toolbar and the tab strip as if they were
+        // text, and the caret would land that far down the document.
+        let (text_x, text_y) = self.view.text_point(x as f32, y as f32);
         let shift = self.modifiers.shift_key();
         let alt = self.modifiers.alt_key();
         // Ctrl+click drops another caret instead of moving the one there is.
@@ -5247,7 +5250,7 @@ impl State {
         // and it is the only way to place carets on lines that are not
         // adjacent.
         if self.modifiers.control_key() {
-            let pos = self.tab_mut().editor.char_at_point(text_x, y as f32);
+            let pos = self.tab_mut().editor.char_at_point(text_x, text_y);
             self.tab_mut().editor.add_caret_at(pos);
             self.block_anchor = None;
             self.refresh_brace();
@@ -5256,7 +5259,7 @@ impl State {
         }
         self.tab_mut()
             .editor
-            .set_caret_from_point(text_x, y as f32, shift);
+            .set_caret_from_point(text_x, text_y, shift);
         // Alt+drag is the one-off rectangle; column mode makes every drag one.
         // Both end up in the same anchor, so the drag code needs no second path.
         self.block_anchor = if alt || self.column_mode {
@@ -8772,11 +8775,18 @@ impl State {
         if !self.dragging {
             return;
         }
-        let shift = self.modifiers.shift_key();
-        let text_x = x as f32 - self.view.text_left();
+        // A drag is a selection, not a run of clicks. Every motion extends from
+        // the anchor the press left behind, so the text between the press and
+        // the pointer stays selected; passing the Shift key here instead
+        // collapsed the selection on every motion event, which is why dragging
+        // never selected anything.
+        //
+        // Same conversion as the press, so the selection follows the pointer
+        // rather than trailing it by the height of the bar.
+        let (text_x, text_y) = self.view.text_point(x as f32, y as f32);
         self.tab_mut()
             .editor
-            .set_caret_from_point(text_x, y as f32, shift);
+            .set_caret_from_point(text_x, text_y, true);
         if let Some(anchor) = self.block_anchor {
             let caret = self.tab().editor.caret_point();
             self.tab_mut().editor.select_block(anchor, caret);

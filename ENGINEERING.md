@@ -8405,3 +8405,90 @@ or `settings.rs` moved.
 because the new prose sits inside sections that already existed.
 
 `cargo fmt` was not run.
+
+## Sixty-fifth pass: the caret goes where the pointer is, and a drag selects
+
+The complaint was one sentence long -- "the mouse when I click does not set the
+cursor where should be (where i clicked)" -- and the cause was one line long.
+`Editor::char_at_point` and `set_caret_from_point` both take a point *inside the
+text area*: the renderer draws a line at `origin_y + content_top + viewport_y`,
+and the editor's arithmetic is the inverse of that. The `click` handler in
+`main.rs` converted the x coordinate (`x - view.text_left()`) and then handed the
+raw window y straight through, so the menu bar, the toolbar and the tab strip --
+80 px, four lines at this font -- were counted as text and the caret landed four
+lines below the pointer. Nothing was wrong with the model; the conversion had one
+half.
+
+The gutter was the clue that gave it away, because clicking a line number had
+always worked. `View::line_at` subtracts `top()` itself before asking the editor,
+so the two handlers disagreed about what a "y" was and only one of them was said
+out loud. Measured in the window before the fix: a click at y=138 reported `Ln 7`,
+y=97 reported `Ln 5`, y=700 reported `Ln 36` -- every one of them
+`floor(y / 20) + 1`, which is what a coordinate that has never been told about
+the chrome looks like.
+
+### The conversion, in one place
+
+`View::text_point(&self, x: f32, y: f32) -> (f32, f32)` returns
+`(x - text_left, y - top())`, with a doc comment saying it inverts the renderer
+and that its result is what the editor's point-taking methods expect. Three call
+sites use it: the Ctrl+click that adds a caret, the plain click, and the motion
+handler. A private helper would have been enough for `main.rs` alone, but the
+function documents the contract between two crates, and the next person to pass a
+window position to the editor now has one function to find.
+
+### The drag that never selected
+
+The same handler had a second bug, found while testing the first one.
+`handle_cursor` handed its third argument, the `extend` flag of
+`set_caret_from_point`, `self.modifiers.shift_key()`. So the flag was whatever
+Shift happened to be doing during the motion -- almost always false, which moves
+the caret *and collapses the selection*, on every motion event. Dragging looked
+dead: the status bar still read `Sel: 0` after a press-and-drag over four lines.
+Passing `true` extends from the anchor the press left behind, which is what a
+drag is. The rectangular path is untouched, because it re-derives the block from
+`block_anchor` after the caret has moved.
+
+### Verification
+
+The window, on `:9` at 1400x1000, `npp --software /tmp/clicktest.txt`:
+
+- Click at y=138: `Ln: 3, Col: 16`, and the caret drawn under the pointer at the
+  character that was clicked. The same click read `Ln 7` before the fix.
+- Click at y=97, the first text line: `Ln: 1`.
+- Click at y=711, the last visible row: `Ln: 32`.
+- Drag from line 2 to line 5: lines 2, 3 and 4 fully highlighted, line 5 up to
+  the caret, status bar `Ln: 5, Col: 27, Sel: 179`.
+
+`cargo test --offline --release`: 940 nn-app, 866 nn-core, 70 nn-mcp, 1876 in
+all, 0 failed. `cd plugins && cargo test --offline --release`: 47 passed.
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+`View` has no unit tests, and this pass did not add any: the type needs a font
+system to exist, so the geometry it computes is checked in a window rather than
+in a test binary. What *is* testable -- the editor side of that contract, that a
+point inside the text area maps to the character under it -- was already covered
+in `nn-core` and did not need to change.
+
+`docs/nekopp-features.md` gained a `### The pointer` subsection under Editing and
+the Caret Model, which says that a window position has the pane's chrome taken
+off it before it becomes a line and a column, that a drag extends from the press
+anchor, and what Ctrl, Shift and Alt do with a press. It also says plainly that
+double-click word selection and triple-click line selection are not implemented,
+and names the keyboard motions that reach the same ranges -- `Ctrl+Shift+Left`
+for the word and `Shift+Down` for the line, checked against the default keymap
+rather than assumed, because `Ctrl+Shift+Up` is `MoveLineUp` and would have been
+the wrong half of a sentence.
+
+That subsection is the first heading this reference has gained in a while, so the
+counts it publishes moved with it: `nn-mcp` now reports 104 sections, 27 chapters
+and 77 subsections, `list_sections` returns 105 lines and `resources/list` 105
+resources. Three assertions in `doc.rs` and `server.rs` were updated for it, and
+the pass is only correct with them: the whole point of hard-coding the shape is
+that a heading cannot be added quietly.
+
+`python3 docs/build-pdf.py`: wrote `docs/nekopp-features.pdf`, 64 pages A4,
+272,255 bytes, 106 bookmarks. One page and one bookmark more than before, both
+from the new subsection.
+
+`cargo fmt` was not run.

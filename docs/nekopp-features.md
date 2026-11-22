@@ -1122,6 +1122,20 @@ column the user was on rather than to the end of the short line.
 row: a key that goes somewhere different depending on the text under the caret is
 a key whose second press has to be remembered.
 
+### The pointer
+
+A press in the text area puts the caret on the character under the pointer, and a
+drag from that press selects from where it landed to wherever the pointer is
+now. Both come from one conversion: a window position has the pane's chrome --
+the menu bar, the toolbar, the tab strip, the scroll offset -- taken off it
+before it becomes a line and a column, so the caret appears under the pointer and
+not a few lines below it. Ctrl with a press adds a caret instead of moving the
+one there is, Shift with a press extends the selection, and Alt with a press or a
+drag starts a rectangle.
+
+Double-click word selection and triple-click line selection are not implemented;
+`Ctrl+Shift+Left` reaches the same word and `Shift+Down` the same line.
+
 ### Typing
 
 Typing a printable character inserts it at every caret and coalesces with the

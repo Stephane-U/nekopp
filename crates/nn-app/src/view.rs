@@ -376,6 +376,18 @@ impl EditorView {
         self.origin_y + self.content_top
     }
 
+    /// The point inside the text area under a point in the window.
+    ///
+    /// The inverse of what the renderer does: every line is drawn at
+    /// [`top`](Self::top) plus the viewport's own y, and every character at
+    /// [`text_left`](Self::text_left) plus its column. A pointer position has to
+    /// come back the same way before the editor can turn it into a line and a
+    /// column, or the caret lands wherever raw window pixels happen to fall --
+    /// with the menu bar, the toolbar and the tab strip all counted as text.
+    pub fn text_point(&self, x: f32, y: f32) -> (f32, f32) {
+        (x - self.text_left(), y - self.top())
+    }
+
     /// Moves this pane's top-left corner in the window.
     pub fn set_origin(&mut self, x: f32, y: f32) {
         self.origin_x = x;
