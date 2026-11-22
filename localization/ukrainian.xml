@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Відкрити теку як робочу область..."/>
                 <Item id="Open Plugins Folder..." name="Відкрити теку плагінів..."/>
                 <Item id="Reload Plugins" name="Перезавантажити плагіни"/>
-                <Item id="Load" name="Завантажити"/>
-                <Item id="Unload" name="Вивантажити"/>
                 <Item id="Manage Plugins..." name="Керування плагінами..."/>
                 <Item id="Plugin Manager" name="Менеджер плагінів"/>
                 <Item id="Enabled" name="Увімкнено"/>

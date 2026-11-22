@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Άνοιγμα φακέλου ως χώρου εργασίας..."/>
                 <Item id="Open Plugins Folder..." name="Άνοιγμα φακέλου πρόσθετων..."/>
                 <Item id="Reload Plugins" name="Επαναφόρτωση πρόσθετων"/>
-                <Item id="Load" name="Φόρτωση"/>
-                <Item id="Unload" name="Εκφόρτωση"/>
                 <Item id="Manage Plugins..." name="Διαχείριση προσθέτων..."/>
                 <Item id="Plugin Manager" name="Διαχείριση προσθέτων"/>
                 <Item id="Enabled" name="Ενεργό"/>

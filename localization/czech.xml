@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Otevřít složku jako pracovní prostor..."/>
                 <Item id="Open Plugins Folder..." name="Otevřít složku modulů..."/>
                 <Item id="Reload Plugins" name="Znovu načíst moduly"/>
-                <Item id="Load" name="Načíst"/>
-                <Item id="Unload" name="Odpojit"/>
                 <Item id="Manage Plugins..." name="Spravovat zásuvné moduly..."/>
                 <Item id="Plugin Manager" name="Správce zásuvných modulů"/>
                 <Item id="Enabled" name="Zapnuto"/>

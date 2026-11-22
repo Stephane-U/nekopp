@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="打开文件夹作为工作区..."/>
                 <Item id="Open Plugins Folder..." name="打开插件文件夹..."/>
                 <Item id="Reload Plugins" name="重新加载插件"/>
-                <Item id="Load" name="加载"/>
-                <Item id="Unload" name="卸载"/>
                 <Item id="Manage Plugins..." name="管理插件..."/>
                 <Item id="Plugin Manager" name="插件管理器"/>
                 <Item id="Enabled" name="已启用"/>

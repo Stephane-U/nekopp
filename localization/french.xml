@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Ouvrir un dossier comme espace de travail..."/>
                 <Item id="Open Plugins Folder..." name="Ouvrir le dossier des plugins..."/>
                 <Item id="Reload Plugins" name="Recharger les plugins"/>
-                <Item id="Load" name="Charger"/>
-                <Item id="Unload" name="Décharger"/>
                 <Item id="Manage Plugins..." name="Gérer les plugins..."/>
                 <Item id="Plugin Manager" name="Gestionnaire de plugins"/>
                 <Item id="Enabled" name="Activé"/>

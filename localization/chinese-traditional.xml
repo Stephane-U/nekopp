@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="開啟資料夾作為工作區..."/>
                 <Item id="Open Plugins Folder..." name="開啟外掛資料夾..."/>
                 <Item id="Reload Plugins" name="重新載入外掛"/>
-                <Item id="Load" name="載入"/>
-                <Item id="Unload" name="卸載"/>
                 <Item id="Manage Plugins..." name="管理外掛..."/>
                 <Item id="Plugin Manager" name="外掛管理員"/>
                 <Item id="Enabled" name="已啟用"/>

@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Avaa kansio työtilana..."/>
                 <Item id="Open Plugins Folder..." name="Avaa liitännäiskansio..."/>
                 <Item id="Reload Plugins" name="Lataa liitännäiset uudelleen"/>
-                <Item id="Load" name="Lataa"/>
-                <Item id="Unload" name="Poista"/>
                 <Item id="Manage Plugins..." name="Hallitse liitännäisiä..."/>
                 <Item id="Plugin Manager" name="Liitännäishallinta"/>
                 <Item id="Enabled" name="Käytössä"/>

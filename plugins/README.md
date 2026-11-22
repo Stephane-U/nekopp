@@ -36,12 +36,13 @@ rebuild is picked up without restarting (the plugins that were on stay on).
 ## Switching one on
 
 Installing is not enabling. A plugin that is present but switched off offers no
-commands: the menu lists it as `Load <Name>` and nothing else happens. Open
-`Plugins > Manage Plugins...`, which shows every plugin in the directory with
-`Enabled` or `Disabled` beside it, move to a row with the arrow keys and press
-Space. The row flips, the status bar says `Loaded <Name>` or `Unloaded <Name>`,
-and the `Plugins` menu grows or loses that plugin's commands immediately --
-there is no restart and no reload in between. `Esc` closes the list.
+commands and no menu row: the `Plugins` menu lists commands, and a switched-off
+plugin has none to list. Open `Plugins > Manage Plugins...`, which shows every
+plugin in the directory with `Enabled` or `Disabled` beside it, move to a row with
+the arrow keys and press Space. The row flips, the status bar says
+`Loaded <Name>` or `Unloaded <Name>`, and the `Plugins` menu grows or loses that
+plugin's commands immediately -- there is no restart and no reload in between.
+`Esc` closes the list.
 
 The choice is remembered in `settings.txt` in the same directory, one line per
 enabled plugin:

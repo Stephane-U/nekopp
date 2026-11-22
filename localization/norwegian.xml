@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Åpne mappe som arbeidsområde..."/>
                 <Item id="Open Plugins Folder..." name="Åpne utvidelsesmappe..."/>
                 <Item id="Reload Plugins" name="Last utvidelser på nytt"/>
-                <Item id="Load" name="Last inn"/>
-                <Item id="Unload" name="Fjern"/>
                 <Item id="Manage Plugins..." name="Administrer plugins..."/>
                 <Item id="Plugin Manager" name="Plugin-behandling"/>
                 <Item id="Enabled" name="Aktivert"/>

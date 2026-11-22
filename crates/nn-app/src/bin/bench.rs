@@ -1049,8 +1049,7 @@ fn main() {
         }
         menu.set_plugins(nn_app::menu::PluginSource {
             commands: plugins.commands(),
-            loaded: plugins.names(),
-            unloaded: plugins.unloaded(),
+            installed: plugins.available(),
         });
         if let Some(spec) = &flags.plugin_run {
             // `plugin:command`, so one flag can reach any command of any

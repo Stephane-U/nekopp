@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Öppna mapp som arbetsyta..."/>
                 <Item id="Open Plugins Folder..." name="Öppna mappen för insticksmoduler..."/>
                 <Item id="Reload Plugins" name="Läs in insticksmoduler igen"/>
-                <Item id="Load" name="Läs in"/>
-                <Item id="Unload" name="Ta bort"/>
                 <Item id="Manage Plugins..." name="Hantera plugins..."/>
                 <Item id="Plugin Manager" name="Pluginhanterare"/>
                 <Item id="Enabled" name="Aktiverad"/>

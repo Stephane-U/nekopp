@@ -13,10 +13,10 @@
 //! skipped silently: a plugin that does not appear in the menu is a bug report
 //! waiting to happen, and the log says which file and why.
 //!
-//! Loading is not a startup step. [`Plugins::unload`] takes a plugin out of the
-//! menu and drops its module, and [`Plugins::load`] reads it back; the directory
-//! is the list of what is installed, and the editor's idea of what is *running*
-//! is a second, narrower list that a user can edit without restarting.
+//! Loading is not a startup step. [`Plugins::enable`] and [`Plugins::disable`]
+//! switch one plugin on or off from the manager, and the directory is the list
+//! of what is installed while the editor's idea of what is *running* is a
+//! second, narrower list that a user can edit without restarting.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -439,21 +439,13 @@ impl Plugins {
 
     /// The name of every running plugin, in folder order.
     ///
-    /// The names rather than the plugins: the menu needs to write "Unload Half
-    /// Width" and has no business holding a module to do it.
+    /// The names rather than the plugins: the settings file records them, and
+    /// the manager's rows are names with a switch, so nothing outside this
+    /// module needs to hold a module to ask which plugins are on.
     pub fn names(&self) -> Vec<String> {
         self.entries
             .iter()
             .filter(|entry| entry.loaded.is_some())
-            .map(|entry| entry.name.clone())
-            .collect()
-    }
-
-    /// The name of every installed plugin that is not running, in folder order.
-    pub fn unloaded(&self) -> Vec<String> {
-        self.entries
-            .iter()
-            .filter(|entry| entry.loaded.is_none())
             .map(|entry| entry.name.clone())
             .collect()
     }
@@ -531,43 +523,12 @@ impl Plugins {
     /// Drops a plugin's module, keeping its place and its file.
     ///
     /// Returns the name that stopped, or `None` for an index that is not there
-    /// -- which a menu row can still be holding if the plugin was switched off
-    /// while the menu was open.
+    /// -- which a click in the manager can still be holding if the file was
+    /// deleted between the scan and the toggle.
     pub fn disable(&mut self, index: usize) -> Option<String> {
         let entry = self.entries.get_mut(index)?;
         entry.loaded.take()?;
         Some(entry.name.clone())
-    }
-
-    /// Switches the `index`th running plugin off, for a menu row.
-    ///
-    /// The menu counts running plugins, not installed ones, so the row index is
-    /// translated here rather than in the menu: the menu has no business
-    /// knowing which entries are switched on.
-    pub fn unload(&mut self, index: usize) -> Option<String> {
-        let entry = self
-            .entries
-            .iter()
-            .enumerate()
-            .filter(|(_, entry)| entry.loaded.is_some())
-            .nth(index)
-            .map(|(index, _)| index)?;
-        self.disable(entry)
-    }
-
-    /// Switches the `index`th installed-but-off plugin on, for a menu row.
-    pub fn load(&mut self, index: usize) -> Result<String, String> {
-        let entry = self
-            .entries
-            .iter()
-            .enumerate()
-            .filter(|(_, entry)| entry.loaded.is_none())
-            .nth(index)
-            .map(|(index, _)| index);
-        match entry {
-            Some(index) => self.enable(index),
-            None => Err(format!("no unloaded plugin {index}")),
-        }
     }
 
     /// Every command of every running plugin, in folder order.
@@ -954,7 +915,6 @@ mod tests {
         assert_eq!(plugins.len(), 0);
         assert!(plugins.names().is_empty());
         assert!(plugins.commands().is_empty());
-        assert_eq!(plugins.unloaded(), vec!["Test".to_string(); 2]);
         let inventory = plugins.inventory();
         assert!(inventory.iter().all(|entry| !entry.enabled));
         assert!(inventory.iter().all(|entry| entry.commands == 2));
@@ -970,7 +930,6 @@ mod tests {
         let mut plugins = Plugins::discover(&dir);
         assert_eq!(plugins.enable(1).as_deref(), Ok("Test"));
         assert_eq!(plugins.len(), 1);
-        assert_eq!(plugins.unloaded(), vec!["Test".to_string()]);
         // The command index is the folder index, so switching the first one on
         // does not shift the second one's rows.
         let commands = plugins.commands();
@@ -995,34 +954,35 @@ mod tests {
     }
 
     #[test]
-    fn unloading_a_plugin_takes_it_out_of_the_menu() {
+    fn disabling_a_plugin_takes_its_commands_away() {
         let mut plugins = plugins();
         assert_eq!(plugins.names(), vec!["Test".to_string()]);
-        assert_eq!(plugins.unload(0).as_deref(), Some("Test"));
+        assert_eq!(plugins.disable(0).as_deref(), Some("Test"));
         // Installed but not running: the row stays, the commands go.
         assert_eq!(plugins.available(), 1);
         assert_eq!(plugins.len(), 0);
         assert!(plugins.commands().is_empty());
-        assert_eq!(plugins.unloaded(), vec!["Test".to_string()]);
-        // The row that asked to unload it is a click behind the menu now, so an
-        // index that is no longer there has to be refused rather than panic.
-        assert_eq!(plugins.unload(0), None);
+        assert!(!plugins.inventory()[0].enabled);
+        // The manager's cursor is a click behind the state, so an index that is
+        // already off has to answer rather than panic.
+        assert_eq!(plugins.disable(0), None);
+        assert_eq!(plugins.disable(7), None);
     }
 
     #[test]
-    fn a_plugin_loads_back_from_its_file() {
-        let dir = folder("npp-plugin-test-unload");
+    fn a_plugin_switched_off_is_read_back_from_its_file() {
+        let dir = folder("npp-plugin-test-reenable");
         let path = dir.join("test.wasm");
         std::fs::write(&path, build()).unwrap();
         let mut plugins = Plugins::discover(&dir);
         assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
         assert_eq!(plugins.len(), 1);
 
-        assert_eq!(plugins.unload(0).as_deref(), Some("Test"));
+        assert_eq!(plugins.disable(0).as_deref(), Some("Test"));
         assert_eq!(plugins.len(), 0);
-        assert_eq!(plugins.load(0), Ok("Test".to_string()));
+        assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
         assert_eq!(plugins.len(), 1);
-        assert!(plugins.unloaded().is_empty());
+        assert!(plugins.inventory()[0].enabled);
         assert_eq!(plugins.labels(), vec!["Test - Uppercase", "Test - Log"]);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1035,12 +995,12 @@ mod tests {
         let mut plugins = Plugins::discover(&dir);
         assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
         std::fs::remove_file(&path).unwrap();
-        assert_eq!(plugins.unload(0).as_deref(), Some("Test"));
+        assert_eq!(plugins.disable(0).as_deref(), Some("Test"));
 
         // Still offered, because the file may be put back.
-        assert!(plugins.load(0).is_err());
+        assert!(plugins.enable(0).is_err());
         assert_eq!(plugins.len(), 0);
-        assert_eq!(plugins.unloaded(), vec!["Test".to_string()]);
+        assert!(!plugins.inventory()[0].enabled);
         assert_eq!(plugins.failures().len(), 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1049,13 +1009,6 @@ mod tests {
     fn switching_on_a_plugin_that_is_already_running_is_not_an_error() {
         let mut plugins = plugins();
         assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
-        assert_eq!(plugins.len(), 1);
-    }
-
-    #[test]
-    fn loading_a_plugin_that_was_never_unloaded_is_refused() {
-        let mut plugins = plugins();
-        assert!(plugins.load(0).is_err());
         assert_eq!(plugins.len(), 1);
     }
 

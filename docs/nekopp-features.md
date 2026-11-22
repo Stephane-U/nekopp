@@ -994,13 +994,16 @@ beside it, and Space toggles the row under the cursor. A newly installed plugin
 starts disabled, so the manager is where a user goes first. "Open Plugins
 Folder..." follows, because it is how a user gets from "no plugins" to having
 one, and "Reload Plugins" sits beside it: it re-reads the folder, so a `.wasm`
-file copied in by hand is discovered without a restart. Below the separators are
-the running plugins: one row per command, labelled `Plugin - Command`; a flat
-list rather than a submenu per plugin, but the plugin's name is in the label
-either way. Each running plugin also gets an `Unload <name>` row, and a plugin
-that is switched off leaves a `Load <name>` row in its place. With nothing in the
-folder the menu still has a row saying so: an empty dropdown reads as a bug
-rather than as an empty list.
+file copied in by hand is discovered without a restart. Below them are the
+running plugins: one row per command, labelled `Plugin - Command`; a flat list
+rather than a submenu per plugin, but the plugin's name is in the label either
+way. Nothing else in this menu switches a plugin: a `Load <name>` row per
+disabled plugin and an `Unload <name>` row per enabled one made the dropdown a
+second copy of the manager, and a copy whose rows move under the cursor every
+time one of them is used. With nothing in the folder the menu still has a row
+saying so: an empty dropdown reads as a bug rather than as an empty list. A
+folder that holds plugins with none switched on gets no such row -- saying "none
+installed" about five installed plugins would be worse than saying nothing.
 
 Plugins are described in "Plugins".
 
@@ -1008,8 +1011,6 @@ Plugins are described in "Plugins".
 - Open Plugins Folder...
 - Reload Plugins
 - One row per command of an enabled plugin, labelled `Plugin - Command`
-- Unload <name> (one row per enabled plugin)
-- Load <name> (one row per disabled plugin)
 - No Plugins Installed (when the folder is empty)
 
 ### Window
@@ -1907,9 +1908,9 @@ the tree is Rust, because that is what the editor and its tests are built with.
 
 ### Load and unload
 
-Disabling a plugin takes it out of the menu and drops its module, keeping only
-its name and the file it came from. Enabling reads that file again and
-instantiates it; re-reading is deliberate, because a plugin rebuilt while the
+Disabling a plugin takes its commands out of the menu and drops its module,
+keeping only its name and the file it came from. Enabling reads that file again
+and instantiates it; re-reading is deliberate, because a plugin rebuilt while the
 editor was open should come back as the new build rather than as the bytes that
 were already in memory.
 
@@ -1925,13 +1926,17 @@ than reported as an error, which is what makes deleting a plugin a matter of
 deleting its file. "Reload Plugins" re-scans the folder and re-enables by name,
 which is also how a `.wasm` copied in by hand is picked up.
 
-A file that has disappeared since it was disabled is reported rather than
-forgotten: the plugin stays in the disabled list and its `Load <name>` row keeps
-explaining itself.
+A file that has disappeared since it was installed is reported rather than
+forgotten: the plugin stays in the list, switched off, and switching it on again
+says why it cannot.
 
-The verbs are translated and the plugin names are not -- `Décharger Half Width`
-in French, with `Half Width` unchanged -- so those rows are rebuilt when the
-language changes rather than relabelled.
+Loading and unloading are not menu rows of their own. They were, one
+`Load <name>` per disabled plugin and one `Unload <name>` per enabled one, and
+the pair made the Plugins dropdown a second, worse copy of the manager: the rows
+shifted every time one of them was used, so the row the user was aiming at was
+not the row under the pointer, and there were two places to look for the same
+state. The manager is the one place now, and the dropdown lists commands and
+nothing else.
 
 ### Managing plugins
 

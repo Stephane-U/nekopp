@@ -5873,8 +5873,6 @@ impl State {
             Action::OpenPluginsFolder => self.open_plugins_folder(),
             Action::ManagePlugins => self.open_plugin_manager(),
             Action::ReloadPlugins => self.reload_plugins(),
-            Action::UnloadPlugin(index) => self.unload_plugin(index),
-            Action::LoadPlugin(index) => self.load_plugin(index),
             Action::ValidateShortcuts => {
                 self.prompt.open(PromptKind::ValidateShortcuts, "");
             }
@@ -6616,45 +6614,6 @@ impl State {
             }
             Key::Named(NamedKey::Escape) => self.plugin_list.close(),
             _ => {}
-        }
-        self.window.request_redraw();
-    }
-
-    /// Takes one plugin out of the menu and drops its module.
-    ///
-    /// The choice is written to the settings file, so a plugin switched off
-    /// here is still off after a restart. Deleting its file is the other way,
-    /// and the only one that uninstalls it.
-    fn unload_plugin(&mut self, index: usize) {
-        let Some(name) = self.plugins.unload(index) else {
-            return;
-        };
-        self.remember_plugins();
-        self.sync_plugin_menu();
-        if self.plugin_list.is_open() {
-            self.plugin_list.set_rows(self.plugin_rows());
-        }
-        self.status.set_message(Some(format!("Unloaded {name}")));
-        self.window.request_redraw();
-    }
-
-    /// Reads an unloaded plugin back in.
-    fn load_plugin(&mut self, index: usize) {
-        match self.plugins.load(index) {
-            Ok(name) => {
-                self.remember_plugins();
-                self.sync_plugin_menu();
-                if self.plugin_list.is_open() {
-                    self.plugin_list.set_rows(self.plugin_rows());
-                }
-                self.status.set_message(Some(format!("Loaded {name}")));
-            }
-            Err(error) => {
-                // The row stays where it was, so a file that was replaced
-                // while the editor was running can simply be tried again.
-                self.status
-                    .set_message(Some(format!("Cannot load the plugin: {error}")));
-            }
         }
         self.window.request_redraw();
     }
@@ -7625,8 +7584,7 @@ impl State {
     fn sync_plugin_menu(&mut self) {
         let source = nn_app::menu::PluginSource {
             commands: self.plugins.commands(),
-            loaded: self.plugins.names(),
-            unloaded: self.plugins.unloaded(),
+            installed: self.plugins.available(),
         };
         self.menu.set_plugins(source);
     }

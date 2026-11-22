@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Otwórz folder jako obszar roboczy..."/>
                 <Item id="Open Plugins Folder..." name="Otwórz folder wtyczek..."/>
                 <Item id="Reload Plugins" name="Wczytaj wtyczki ponownie"/>
-                <Item id="Load" name="Wczytaj"/>
-                <Item id="Unload" name="Wyładuj"/>
                 <Item id="Manage Plugins..." name="Zarządzaj wtyczkami..."/>
                 <Item id="Plugin Manager" name="Menedżer wtyczek"/>
                 <Item id="Enabled" name="Włączona"/>

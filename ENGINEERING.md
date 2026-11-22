@@ -8085,3 +8085,77 @@ document behind it. `plugin_run=2:0` against the same folder prints
 `plugin run: 12 chars`.
 
 `cargo fmt` was not run.
+
+## Sixty-second pass: one switch, in one place
+
+The manager was added and the dropdown kept its `Load <name>` and
+`Unload <name>` rows, which left two ways to change the same flag. The user asked
+for the rows to go, and they were right for three reasons. The rows moved: every
+toggle shifted every later row, so the next click landed on the neighbour of the
+plugin the user was looking at. They read as an invitation to switch plugins on
+from a menu of commands, which is the manager's job and was already the first row
+of the same menu. And they made the state legible in two places, one of which had
+to be rebuilt on every keystroke to keep up.
+
+### What a plugin menu is now
+
+Three rows that never change -- Manage Plugins..., Open Plugins Folder...,
+Reload Plugins -- then a separator and one row per command of every running
+plugin. Nothing else. Switching a plugin on or off happens in the manager, which
+lists every plugin in the folder rather than the running half, and which the
+dropdown's first row opens.
+
+### The one state that had to be decided
+
+`PluginSource` carried `loaded` and `unloaded`, which is exactly what the deleted
+rows needed and nothing else did. It now carries `commands` and `installed: usize`
+-- the number of `.wasm` files found, running or not. That is one field to keep
+the empty-state row honest: an empty folder still says `No Plugins Installed`,
+because an empty dropdown reads as a bug, while a folder holding five switched-off
+plugins draws the three folder rows and no placeholder. Calling that state "none
+installed" would be a lie in the one place a user goes to check what is installed.
+
+### What came out with the rows
+
+`Plugins::load`, `Plugins::unload` and `Plugins::unloaded` only existed to turn a
+running-plugin index into a folder index for those rows; `enable`, `disable` and
+`inventory` take the folder index the manager already has, so the three went, with
+the tests that described them rewritten against `disable`/`enable` instead of
+deleted where they covered real behaviour. `Action::LoadPlugin` and
+`Action::UnloadPlugin` went the same way, with their dispatch arms in `main.rs`.
+The `Load` and `Unload` `<Item>` rows left all twenty-three localisation files:
+a translation for a word the window cannot draw is a row a translator has to keep
+translating for nothing.
+
+Two menu tests went with the rows (`an_unloaded_plugin_gets_a_row_that_loads_it_back`,
+`the_unload_verb_follows_the_language_but_the_name_does_not`) and one arrived
+(`plugins_that_are_all_switched_off_get_no_placeholder`). The Italian test stopped
+checking the unload verb and now checks the manager row, which is the only plugin
+row left whose words come from a catalog. `every_bundled_catalog_translates_the_plugin_rows`
+was deleted because the completeness test already walks the three fixed rows for
+every language.
+
+### Verification
+
+`cargo build --offline --release`: clean.
+
+`cargo test --offline --release`: 987 passed in `nn-app`, 816 in `nn-core`, 51 in
+`nn-mcp`, 1854 in all, no failures. `cd plugins && cargo test --offline --release`:
+47 passed.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+The window, on `:9` at 1100x750, with the five `.wasm` installed:
+
+- JSON switched on: `Manage Plugins...`, `Open Plugins Folder...`, `Reload
+  Plugins`, a separator, then `JSON - Pretty Print`, `JSON - Minify`,
+  `JSON - Validate`. No `Unload JSON`, no `Load ...` rows.
+- Space on the JSON row in the manager: the menu is the three fixed rows and
+  nothing else -- no placeholder, because the folder still holds five files.
+- `settings.txt` lost its `plugin JSON` line as the row flipped off, which is the
+  same write path the manager has always used.
+
+`python3 docs/build-pdf.py`: wrote `docs/nekopp-features.pdf`, 61 pages A4, 265,833
+bytes, 104 bookmarks.
+
+`cargo fmt` was not run.

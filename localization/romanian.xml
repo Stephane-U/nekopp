@@ -295,8 +295,6 @@
                 <Item id="Open Folder as Workspace..." name="Deschide folder ca spațiu de lucru..."/>
                 <Item id="Open Plugins Folder..." name="Deschide folderul modulelor..."/>
                 <Item id="Reload Plugins" name="Reîncarcă modulele"/>
-                <Item id="Load" name="Încarcă"/>
-                <Item id="Unload" name="Descarcă"/>
                 <Item id="Manage Plugins..." name="Gestionează modulele..."/>
                 <Item id="Plugin Manager" name="Manager de module"/>
                 <Item id="Enabled" name="Activat"/>
