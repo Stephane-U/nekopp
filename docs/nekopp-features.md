@@ -1271,6 +1271,11 @@ the four buttons. The bar is docked along the bottom of the pane, above the
 status bar. `Enter` finds the next match, `Shift+Enter` the previous, `Escape`
 closes the bar and returns the keyboard to the text.
 
+`Ctrl+V` pastes into whichever of the two fields has the caret, so a pattern
+copied from a file or a terminal does not have to be retyped. The line breaks
+and tabs a copied line brings along are dropped: the field is one line and a
+pattern carrying a newline would never match.
+
 Case-insensitivity is the default, which is what a user typing a word into a
 file expects. The counter turns red when there is no match, which is the only
 feedback a modal-less bar can give.

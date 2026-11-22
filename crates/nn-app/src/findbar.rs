@@ -375,6 +375,23 @@ impl FindBar {
         }
     }
 
+    /// Inserts a pasted string at the caret, and reports whether anything went
+    /// in.
+    ///
+    /// Control characters are dropped: a pattern copied from a file arrives
+    /// with the newline that ended its line, and the field is one line with no
+    /// way to show one. Flattened text can still match; a pattern carrying a
+    /// newline never would. A paste holding only white space returns false, so
+    /// the caller can leave the matches alone.
+    pub fn insert_text(&mut self, text: &str) -> bool {
+        let mut inserted = false;
+        for c in text.chars().filter(|c| !c.is_control()) {
+            self.insert_char(c);
+            inserted = true;
+        }
+        inserted
+    }
+
     /// Deletes before the caret in the focused field.
     pub fn backspace(&mut self) {
         self.focused().backspace();
@@ -910,5 +927,56 @@ mod tests {
         // document has matches.
         bar.refresh(&doc("fn a\nfn b\n"));
         assert!(bar.matches.is_empty());
+    }
+
+    #[test]
+    fn a_paste_fills_the_query_and_searches_for_it() {
+        let mut bar = bar();
+        bar.open_find();
+        assert!(bar.insert_text("fn main"));
+        assert_eq!(bar.query.text(), "fn main");
+        assert_eq!(bar.query.caret(), 7);
+        bar.refresh(&doc("fn main() {}\nfn main_loop() {}\n"));
+        assert_eq!(bar.matches.len(), 2);
+    }
+
+    #[test]
+    fn a_paste_drops_the_control_characters() {
+        let mut bar = bar();
+        bar.open_find();
+        // What a copied line looks like once the newline and the indent tab
+        // come along for the ride.
+        assert!(bar.insert_text("\talpha\n"));
+        assert_eq!(bar.query.text(), "alpha");
+    }
+
+    #[test]
+    fn a_paste_at_the_caret_keeps_what_is_already_typed() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.query.set_text("main");
+        bar.query.home();
+        bar.insert_text("fn ");
+        assert_eq!(bar.query.text(), "fn main");
+        assert_eq!(bar.query.caret(), 3);
+    }
+
+    #[test]
+    fn a_paste_goes_into_the_replacement_field_when_it_has_the_caret() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.toggle_focus();
+        assert!(bar.insert_text("bravo"));
+        assert_eq!(bar.replacement.text(), "bravo");
+        assert_eq!(bar.query.text(), "");
+    }
+
+    #[test]
+    fn an_empty_paste_reports_nothing_inserted() {
+        let mut bar = bar();
+        bar.open_find();
+        assert!(!bar.insert_text(""));
+        assert!(!bar.insert_text("\n\t"));
+        assert_eq!(bar.query.text(), "");
     }
 }

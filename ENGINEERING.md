@@ -8754,3 +8754,46 @@ reports 104 sections, 27 chapters and 77 subsections. The title line accounts fo
 the three bytes the rebuild lost.
 
 `cargo fmt` was not run.
+
+## Sixty-eighth pass
+
+### The paste the find bar swallowed
+
+`Ctrl+F` opened the bar and `Ctrl+V` then pasted into the document behind it. The
+bar's key handler takes every chord it knows and returns false for the rest, so
+the paste fell through to the keymap and the `paste` action edited the text
+underneath -- the one thing a user pasting a pattern into a search field is not
+asking for.
+
+`Ctrl+V` is now taken by the bar, by the same route the file browser's filter and
+the path prompt have had for a while. The text goes into whichever field holds the
+caret, query or replacement, so the bar did not need a second kind of paste for
+the second field.
+
+Control characters are dropped on the way in. A pattern copied from a file arrives
+with the newline that ended its line; the field is one line with no way to render
+one, and a pattern carrying a newline would match nothing. Flattening is the
+reading that keeps the paste useful, and it is what the browser's filter already
+does with a pasted path.
+
+The key is consumed even when the clipboard is empty or holds only white space.
+Returning false there would put the paste back on the path that started this pass.
+
+### Verification
+
+`cargo test --offline --all`: 1922 passed, 0 failed -- 974 in `nn-app`, 878 in
+`nn-core`, 70 in `nn-mcp`. Five of the new tests are the bar's, on the field rather
+than on the window: the text landing at the caret, the control characters being
+dropped, the replacement field taking the paste when it has the caret, and an empty
+clipboard reporting nothing inserted.
+
+No synthetic input is available on this machine -- `xdotool`, `xclip` and `xsel` are
+all absent -- so the chord itself was not pressed here. The arm is four lines beside
+the browser's, which was pressed and works.
+
+`cargo clippy --offline --all-targets`: 0 warnings. `python3 docs/build-pdf.py
+--check`: up to date, 275,256 bytes, 66 pages A4, 106 bookmarks. `npp-mcp` still
+reports 104 sections and 73 shortcuts: the find bar gained a paragraph, not a
+heading.
+
+`cargo fmt` was not run.

@@ -4359,10 +4359,30 @@ impl State {
                 true
             }
             // Replace this one and move on, rather than all of them. Only this
-            // chord is taken: every other control key falls through to the
-            // keymap, so `Ctrl+F` still reopens the bar it is already in.
+            // chord and the paste below are taken: every other control key
+            // falls through to the keymap, so `Ctrl+F` still reopens the bar it
+            // is already in.
             Key::Character(c) if ctrl && c.to_lowercase() == "r" => {
                 self.replace_current();
+                redraw(self);
+                true
+            }
+            // A pattern is often copied from somewhere else -- a file, a
+            // terminal, another editor -- so the paste belongs in the field
+            // with the caret rather than in the text behind the bar. The key
+            // is consumed even when the clipboard is empty or holds nothing
+            // but white space, which is what stops that paste from landing in
+            // the document.
+            Key::Character(c) if ctrl && c.to_lowercase() == "v" => {
+                let pasted = self
+                    .clipboard
+                    .as_mut()
+                    .and_then(|c| c.get_text().ok())
+                    .unwrap_or_default();
+                if self.find.insert_text(&pasted) {
+                    self.refresh_find();
+                    self.follow_incremental();
+                }
                 redraw(self);
                 true
             }
