@@ -7879,6 +7879,13 @@ Hebrew, Arabic, Hangul, kana and Han -- checked by extracting the text layer of
 the built file and counting characters from each block, not by trusting the font
 list.
 
+`--check` rebuilds into a temporary file and compares the bytes with the PDF on
+disk, exiting 1 when they differ. It is exact rather than a guess because the
+rendering is deterministic: no timestamp goes into the file, so the same markdown
+gives the same bytes. That is what makes it an answer to "did the reference go
+stale?" instead of a comparison of modification times, which a checkout gets
+wrong.
+
 ### The server has no dependency on the window
 
 `crates/nn-mcp` is a separate crate with no dependency on `nn-app`: it builds and

@@ -12,6 +12,12 @@ Usage:
     python3 docs/build-pdf.py                 # PDF next to the markdown
     python3 docs/build-pdf.py --html          # keep the intermediate HTML too
     python3 docs/build-pdf.py --out /tmp/x.pdf
+    python3 docs/build-pdf.py --check         # is the PDF on disk current?
+
+`--check` renders the document and compares the result with the PDF on disk
+instead of writing it, exiting 1 when they differ. The rendering is
+deterministic -- no timestamp goes into the file -- so the comparison is exact,
+which is what makes it a usable answer to "did the reference go stale?".
 
 The renderer is WeasyPrint. It is looked up on PATH first and at its usual
 per-user location second, because that is where a `pip install --user` puts it
@@ -383,6 +389,11 @@ def main(argv=None):
         "--html", action="store_true", help="keep the intermediate HTML beside the PDF"
     )
     parser.add_argument("--weasyprint", default=None, help="path to the renderer")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="rebuild and compare with the PDF on disk instead of writing it",
+    )
     args = parser.parse_args(argv)
 
     with open(args.source, encoding="utf-8") as handle:
@@ -428,12 +439,43 @@ def main(argv=None):
         with open(html_path, "w", encoding="utf-8") as again:
             again.write(document)
 
-    result = subprocess.run([renderer, html_path, args.out])
+    # A check builds where nobody is looking: the point is to compare the bytes,
+    # and writing the file first would leave a fresh PDF behind whether or not it
+    # turned out to be current.
+    built = args.out
+    if args.check:
+        spare = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        spare.close()
+        built = spare.name
+
+    result = subprocess.run([renderer, html_path, built])
     if not args.html:
         os.unlink(html_path)
     if result.returncode != 0:
         sys.stderr.write("build-pdf: weasyprint failed\n")
         return result.returncode
+
+    if args.check:
+        try:
+            with open(built, "rb") as handle:
+                rebuilt = handle.read()
+            with open(args.out, "rb") as handle:
+                committed = handle.read()
+        except FileNotFoundError:
+            os.unlink(built)
+            sys.stderr.write("build-pdf: %s does not exist\n" % args.out)
+            return 1
+        os.unlink(built)
+        if rebuilt == committed:
+            print("up to date: %s, %d bytes" % (args.out, len(committed)))
+            return 0
+        sys.stderr.write(
+            "build-pdf: %s is stale; it is %d bytes and the markdown builds to %d\n"
+            % (args.out, len(committed), len(rebuilt))
+        )
+        sys.stderr.write("build-pdf: run python3 docs/build-pdf.py to replace it\n")
+        return 1
+
     print("wrote %s" % args.out)
     return 0
 
