@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "label": "alpha",
+    "pinned": true
+  },
+  {
+    "id": 2,
+    "label": "beta",
+    "pinned": false
+  },
+  {
+    "id": 3,
+    "label": "gamma",
+    "pinned": false
+  }
+]

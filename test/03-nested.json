@@ -1,0 +1,27 @@
+{
+  "window": {
+    "splits": [
+      {
+        "side": "main",
+        "tabs": [
+          {
+            "file": "a.txt",
+            "caret": 12,
+            "dirty": false
+          }
+        ]
+      },
+      {
+        "side": "other",
+        "tabs": []
+      }
+    ]
+  },
+  "settings": {
+    "wrap": false,
+    "indent": {
+      "kind": "spaces",
+      "width": 4
+    }
+  }
+}

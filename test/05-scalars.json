@@ -1,0 +1,12 @@
+{
+  "int": 42,
+  "float": 3.14,
+  "negative": -7,
+  "exponent": 6.02e23,
+  "huge": 9007199254740993,
+  "bool": true,
+  "nothing": null,
+  "string": "tab\there, newline\nbelow, quote \" and backslash \\",
+  "empty": {},
+  "pair": []
+}
