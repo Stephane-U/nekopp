@@ -248,19 +248,25 @@ impl Playground {
             pointer_age: input.pointer_age,
             input_age: input.input_age,
             page,
+            props: &self.page.props,
+            tokens: &self.page.tokens,
+            motes: &self.page.motes,
             rng: &mut self.rng,
         };
         let strike = self.kitten.think(dt, &mut senses);
         if strike {
             let paw = self.kitten.paw();
-            self.page.bat(paw, 1.7, 6.0);
+            self.page.strike(paw, &mut self.rng);
         }
 
-        // Fixed steps, so the same sequence of frames always gives the same tokens.
+        // Fixed steps, so the same sequence of frames always gives the same
+        // tokens, the same dust, and the same furniture shaking itself still.
         let mut left = dt;
         while left > 1e-5 {
             let step = left.min(1.0 / 120.0);
             self.page.step_tokens(step);
+            self.page.step_motes(step);
+            self.page.step_props(step);
             left -= step;
         }
 
@@ -300,6 +306,9 @@ impl Playground {
             for card in &previous.text {
                 cards.push(lift(card, self.blend * 1.5, card.alpha * fade));
             }
+            for prop in &previous.props {
+                prop.cards(self.blend * 1.5, fade, &mut cards);
+            }
         }
         let arrive = if self.previous.is_some() {
             self.blend
@@ -308,6 +317,9 @@ impl Playground {
         };
         for card in &self.page.text {
             cards.push(lift(card, (1.0 - arrive) * -1.5, card.alpha * arrive));
+        }
+        for prop in &self.page.props {
+            prop.cards((1.0 - arrive) * -1.5, arrive, &mut cards);
         }
         for token in &self.page.tokens {
             token.cards(arrive, &mut cards);
@@ -326,20 +338,20 @@ impl Playground {
             });
         }
         for mote in &self.page.motes {
-            let wobble = (self.time * 0.6 + mote.phase).sin();
+            // The simulation owns where a mote is, the page does not wobble it:
+            // the kitten chases what is drawn, and a speck in a different place
+            // from the one on screen is a cat pouncing at nothing.
             cards.push(Card {
                 ch: ' ',
                 style: 0,
-                pos: [
-                    mote.pos[0] + wobble * mote.drift * 0.3,
-                    mote.pos[1] + (self.time * 0.4 + mote.phase).cos() * mote.drift * 0.2,
-                    mote.pos[2],
-                ],
+                pos: mote.pos,
                 yaw: 0.0,
                 pitch: 0.0,
                 roll: 0.0,
                 size: [mote.size, mote.size],
-                alpha: 0.28 * arrive,
+                // Dust that a paw threw fades as its second runs out; the page's
+                // own dust does not.
+                alpha: 0.28 * arrive * (mote.life / 1.3).min(1.0),
                 kind: CardKind::Dot,
             });
         }

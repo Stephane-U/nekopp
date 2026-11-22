@@ -1773,8 +1773,10 @@ exists falls back to the built-in pair rather than failing to start.
 "View > Playground" (`Ctrl+Alt+K`) hands the window to a page: a line-number
 gutter, rows of code at the editor's own line height, furniture drawn in
 characters, a rug of punctuation along the bottom, and a kitten two lines tall who
-walks across the text, follows the pointer, bats loose words around
-and eventually falls asleep. `Escape` gives the window back. The document is never
+walks across the text, follows the pointer, bats loose words around and -- left
+alone -- finds things on the page to do: swats the furniture, climbs onto a table
+and sits there, chases dust, runs a lap, and eventually falls asleep. `Escape`
+gives the window back. The document is never
 read and never written, so a screenshot of the mode cannot show anyone's work and
 five minutes in the page cost no undo step.
 
@@ -1790,9 +1792,10 @@ smaller window with fewer of both, and looks the same on any display.
 | Piece | Behaviour |
 |---|---|
 | The page | A gutter of line numbers, rows of code, the bottom five rows a rug of scattered punctuation, and a corner label on a line kept clear for it |
-| The furniture | Two to four pieces drawn in characters -- a table, a plant, a lamp, a shelf, a framed picture -- each standing in its own cleared box in the lower half of the page |
-| The kitten | Walks, sits, crouches, pounces and bats a token, blinks, flicks its tail; turns to follow the pointer |
-| The tokens | Whole words lifted off the material, with the syntax colour they had on the line they came from; they drift across the page, slow down and settle, with no gravity pulling them anywhere and a shadow under each |
+| The furniture | Two to four pieces drawn in characters -- a table, a plant, a lamp, a shelf, a framed picture -- each standing in its own cleared box in the lower half of the page, and swaying when a paw hits it |
+| The kitten | Walks, sits, crouches, pounces, bats a token, swats the furniture, climbs a table or a shelf and perches on its top edge, chases dust, runs laps, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
+| The tokens | Whole words lifted off the material, with the syntax colour they had on the line they came from; they drift across the page, slow down and settle, with no gravity pulling them anywhere and a shadow under each, and a word within reach of a paw is knocked away |
+| The dust | Specks that wander on their own; one within reach of a paw is thrown in a short arc and fades where it lands |
 | Sleep | Three minutes with no input and it curls up where it stands |
 | Dimming | Four minutes and the page starts to dim, the way a screensaver does |
 | Rebuild | Five minutes and the page is rebuilt from the next seed, the old one fading out over two and a half seconds |
@@ -1819,6 +1822,26 @@ front of it and the tail curled up by the nose. Boxes that stack overlap, and no
 box is wider than the one in front of it, because the renderer lights every face:
 a top face left showing inside a silhouette is a bright band across the animal,
 and a band across a face is a muzzle nobody drew.
+
+What she does is picked from what the page holds. A mood lasts a few seconds and
+is drawn by weight from a table that knows the page: swat a piece of furniture,
+chase the nearest speck of dust, climb a table or a shelf and perch on its edge,
+bat a loose word, run a lap of the rug, pounce, sit, groom, sleep. The weights
+follow one drive, rest, which fills while she sits and empties while she plays, so
+a cat that has been idle reaches for a table and a cat that has been chasing dust
+sits down. A page with nothing to perch on offers no perch, and a cat already
+sitting on a table does not pick another one.
+
+A mood that is going somewhere keeps going until it gets there: the timer waits
+while she travels and only starts when she arrives, because a cat that gives up
+halfway across the page has not done the thing it set out to do. Arriving is not
+stopping either -- a walk or a lap that reaches its mark picks the next mark -- so
+a patrolling cat keeps moving instead of standing in the middle of the text. When
+the mood does start, the paw lands on the thing she walked to, and the page
+answers. One method is the whole vocabulary of a paw: words within reach are
+knocked away carrying the colour of the line they came from, furniture within a
+line of its box sways and settles back exactly where the layout put it, and dust
+is thrown in a short arc and dies where it lands. One mood lands one paw.
 
 The material is a corpus compiled into the binary, in eight flavours: Rust, C,
 Java, Python, JSON, XML, UN/EDIFACT and CSV. The first six are coloured by the

@@ -9721,3 +9721,106 @@ two spaces and the three bodies, and no longer calls her two and a quarter lines
 tall. `python3 docs/build-pdf.py` then `--check`: up to date, 310,388 bytes, 72
 pages A4, 112 bookmarks -- the same page count, 815 bytes heavier than the pass
 before.
+
+## Seventy-ninth pass: a cat with something to do
+
+"the kitten needs to evolve by itself in the page and interact with things play etc
+..". The seventy-eighth pass made an animal that looks like a kitten; this one is
+about what she does. Until it, every mood was a point on the page: walk here, sit
+here, slide this word a little. Nothing on the page answered her, and a page that
+cannot answer is a kitten walking past a photograph of a room. A screensaver with a
+cat in it, not a kitten in a page.
+
+### The furniture left the text
+
+Props were rows of characters written into `Page::text`: scenery, drawn once, good
+for nothing but being walked past. `Prop` is public now -- `kind`, `pos` (the
+centre of its box), `size`, its `cards`, a `wobble` and a `phase` -- and
+`Prop::cards(lift, alpha, out)` lays the piece out again every frame at the offset
+the wobble asks for. `furniture()` no longer writes into `text` at all: it builds
+the cards and marks the box in `taken`, so the code is laid out around the piece
+instead of the piece being made of the code. The box stays empty, and the page
+keeps its own drawing separate from its own content.
+
+That separation is what makes the two page kinds possible. `PropKind::is_perch()` is
+table and shelf, and a plant, a lamp or a picture is something to hit; `Prop::top()`
+and `Prop::distance_to` are the only geometry the kitten needs to know about a piece
+of furniture, and the furniture never learns about the kitten.
+
+### Dust with a velocity
+
+`Mote` gained `vel` and `life`. Ambient dust wanders the way it always did; a puff
+lives half a second to a second and a third. The simulation owns the position and
+the app draws at it rather than wobbling the drawn position on its own -- the app
+wobbling what it draws means a chase aims at a place the speck is not.
+
+### A paw has one vocabulary
+
+`Page::strike` is the whole of it, and it is one method because from the page's
+side, being hit is being hit. Words within reach are knocked away carrying the
+syntax colour of the line they came from. Furniture within 1.2 of its box takes
+`bump`, which sets `wobble` and leaves the card layout alone. And four short-lived
+motes are thrown from the paw, capped at 240 so a cat left alone all afternoon
+cannot fill the buffer. `step_props` decays the wobble at 1.7 a second and resets
+`phase` to zero when the piece is still again, so a struck table returns exactly to
+the layout: a piece that settled a cell off would move the whole room a little with
+every swat.
+
+### One drive, not two
+
+Restless and tired are not two things a cat is at once, so there is one number.
+`rest` fills at 0.05 a second while she sits, grooms or sleeps, empties at 0.09
+while she swats, chases, runs or pounces, and starts at 0.35. `idle = rest > 0.6`
+shifts the weight table in `next_mood`: a rested cat reaches for the table, a cat
+that has been chasing dust sits down. The same table drops what the page cannot
+give -- no furniture means no perch, no dust means no chase, already perched means
+no second perch -- and weights the mood she is in out of the next draw, except the
+three neutral ones, because a cat that swats a table and then swats the same table
+again is not playing.
+
+### A cat gets where it decided to go
+
+The first version of the swat arrived late and swung at nothing, because the mood
+clock had been running since the decision. Four fields fix it. `arrived` is false
+until she is within a cell of the thing, `patience` (10 seconds) is how long she is
+willing to walk at something she cannot reach, and while she travels the mood timer
+is held at 0.6 or more. On arrival the mood gets its whole `dwell` back, or `arm()`,
+which sets 0.41 seconds and crouches, so the paw lands on the thing she walked to.
+`struck` makes that land once per window rather than on every fixed step.
+
+Bat, swat and perch run when the thing is more than five cells away. It is the
+difference between a kitten that drifts toward a table and a kitten that decides to
+be on the table and is.
+
+### Arriving is not stopping
+
+Two frames a second apart -- 62 and 63 seconds -- had the same cat in the same
+place, which is the sort of bug a still frame hides and a run exposes. Wander
+picked a point, arrived at it, and stood there for what was left of the mood, up to
+four seconds. A patrolling cat does not park. `elsewhere()` now picks the next mark
+when a walk or a lap reaches the one it had, and the same run moves 469, 490 and
+510 pixels across three samples half a second apart.
+
+### Verification
+
+`cargo test --offline --all`: 2153 tests (1087 in `nn-app`, 966 in `nn-core`, 100 in
+`nn-mcp`), 0 failed. Ten of them are new. `left_alone_it_finds_something_to_do_on_the_page`
+runs a page and a kitten for three minutes with no input and asserts the whole
+vocabulary happened: she swatted, perched and chased, the furniture shook, the words
+moved and the dust was thrown. `a_swat_is_aimed_at_the_furniture_and_lands_on_it`
+and `it_sits_on_the_table_it_climbed` pin the aim; `a_chase_follows_dust_that_keeps_moving`
+pins that a chase follows rather than arrives; `the_sitting_clock_fills_while_she_rests_and_empties_while_she_plays`
+pins the single drive. In `scene.rs`: furniture never lands on the rug, a prop's box
+is left empty by the code, a bump shakes and settles, a strike throws dust that
+dies, and dust is thrown further than words. `cargo clippy --offline --all-targets`:
+0 warnings. `cargo fmt` was not run.
+
+Frames at 0, 6, 20, 62, 62.5, 63, 66, 90 and 100 seconds were rendered and looked
+at: a kitten standing among punctuation, walking, on a tabletop mid-patrol, sitting
+on a shelf's edge with her paws over it, dust specks in the air, and a knocked-over
+word lying turned on the rug.
+
+`docs/nekopp-features.md` gained a row for the dust, a furniture row that sways and
+a kitten row that climbs, and two paragraphs on what she picks and what a paw does.
+`python3 docs/build-pdf.py` then `--check`: up to date, 312,308 bytes, 73 pages A4,
+112 bookmarks -- one page more than the pass before, the same 112 bookmarks.

@@ -9,6 +9,15 @@
 //! text. There is nothing to install and nothing to render as a surface, which is
 //! what keeps the mode a page rather than a place.
 //!
+//! Two kinds of thing on the page can be *done to*, and both are addressed by
+//! position rather than by name. Furniture has a box the kitten can stand on or
+//! swat, and it answers: a bump sets it shaking, and a shaking prop is drawn
+//! swaying by its own phase until the wobble decays. Dust has a velocity and a
+//! life: the ambient motes wander for ever, a swat throws short-lived ones, and a
+//! paw that lands among them throws them away. Interaction is the page's own
+//! bookkeeping, so it can be tested without a window: [`Page::strike`] is the whole
+//! vocabulary of a paw landing.
+//!
 //! Coordinates: one unit is one line of text. `x` runs right from the left edge,
 //! `y` runs up the page from the bottom edge, and `z` comes out of the page towards
 //! the reader, which is where the kitten's boxes and a lifted token live. Row 0 is
@@ -111,12 +120,18 @@ impl Token {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mote {
     pub pos: [f32; 3],
+    /// What a swat gave it, in cells per second. The wander below is the page's
+    /// own air and is not a velocity: it is added on top of this one.
+    pub vel: [f32; 2],
     /// How far it wanders from where it started.
     pub drift: f32,
     /// Where it is in its wander, so no two move together.
     pub phase: f32,
     /// Its size, in cells.
     pub size: f32,
+    /// Seconds left. A mote that belongs to the page has `f32::MAX`, so the
+    /// countdown never reaches it; one thrown by a paw lasts about a second.
+    pub life: f32,
 }
 
 /// What one page is made of.
@@ -129,8 +144,11 @@ pub struct Page {
     /// Cells across and down.
     pub columns: u32,
     pub rows: u32,
-    /// The document: one card per character.
+    /// The document: one card per character, with the furniture's boxes left
+    /// empty. The furniture is not in here, because it moves.
     pub text: Vec<Card>,
+    /// The furniture, each with the box it stands in.
+    pub props: Vec<Prop>,
     /// Loose tokens.
     pub tokens: Vec<Token>,
     /// Dust.
@@ -149,21 +167,12 @@ impl Page {
         let body = rows.saturating_sub(LABEL_ROWS).max(8);
 
         let mut text = Vec::with_capacity((columns * rows) as usize);
-        let props = furniture(&mut rng, columns, body);
-        let mut taken = vec![false; (columns * rows) as usize];
         // A prop owns its whole box, not just the cells it draws ink in: a table
         // with code showing through it is a table drawn on a page, not furniture
-        // standing on one.
-        for prop in &props {
-            for down in 0..prop.down {
-                for across in 0..prop.across {
-                    let (row, column) = (prop.row + down, prop.column + across);
-                    if row < rows && column < columns {
-                        taken[(row * columns + column) as usize] = true;
-                    }
-                }
-            }
-        }
+        // standing on one. The furniture marks the cells it took as it places
+        // itself, so the two never disagree about where its box is.
+        let mut taken = vec![false; (columns * rows) as usize];
+        let props = furniture(&mut rng, columns, rows, &mut taken);
 
         // The gutter: a line number per row, dim, right-aligned, the way the
         // editor draws it.
@@ -222,18 +231,6 @@ impl Page {
             }
         }
 
-        // The furniture, drawn in its own cleared box: a document with a table and
-        // a plant standing on it.
-        for prop in &props {
-            for (down, across, ch) in &prop.cells {
-                let (row, column) = (prop.row + down, prop.column + across);
-                if row >= rows || column >= columns {
-                    continue;
-                }
-                text.push(cell(row, column, rows, *ch, 2, 0.95));
-            }
-        }
-
         let tokens = loose_tokens(&mut rng, flavour, columns, rows);
         let motes = (0..40)
             .map(|index| Mote {
@@ -242,9 +239,11 @@ impl Page {
                     rng.range(1.0, rows as f32),
                     rng.range(0.1, 1.6),
                 ],
+                vel: [0.0, 0.0],
                 drift: rng.range(0.3, 1.4),
                 phase: index as f32 * 0.37 + rng.range(0.0, std::f32::consts::TAU),
                 size: rng.range(0.03, 0.08),
+                life: f32::MAX,
             })
             .collect();
 
@@ -255,6 +254,7 @@ impl Page {
             columns,
             rows,
             text,
+            props,
             tokens,
             motes,
         }
@@ -322,7 +322,7 @@ impl Page {
         }
     }
 
-    /// Pushes a token near `at` away from the kitten.
+    /// Pushes a token near `at` away from the kitten, and the dust with it.
     ///
     /// The paw is not an engine: a token the kitten keeps its paw on for a dozen
     /// frames takes one shove, not a dozen, which is why the push is damped by
@@ -340,6 +340,185 @@ impl Page {
             token.vel[1] = (token.vel[1] + dy * scale).clamp(-MAX_SPEED, MAX_SPEED);
             token.spin = (token.spin + power * 2.2).clamp(-MAX_SPIN, MAX_SPIN);
             token.rest = false;
+        }
+        // Dust is lighter than a word: the same paw sends it much further.
+        for mote in &mut self.motes {
+            let dx = mote.pos[0] - at[0];
+            let dy = mote.pos[1] - at[1];
+            let distance = dx.hypot(dy);
+            if distance > reach {
+                continue;
+            }
+            let scale = power * 1.6 / distance.max(0.3);
+            mote.vel[0] = (mote.vel[0] + dx * scale).clamp(-MAX_SPEED, MAX_SPEED);
+            mote.vel[1] = (mote.vel[1] + dy * scale).clamp(-MAX_SPEED, MAX_SPEED);
+        }
+    }
+
+    /// Sets the furniture near `at` shaking, and says whether anything was hit.
+    ///
+    /// The reach is measured from the edge of a prop's box rather than from its
+    /// middle, so a paw at a table's leg is as close to it as a paw at the same
+    /// table's top edge.
+    pub fn bump(&mut self, at: [f32; 3], reach: f32, power: f32) -> bool {
+        let mut hit = false;
+        for prop in &mut self.props {
+            if prop.distance_to(at) <= reach {
+                prop.wobble = prop.wobble.max(power);
+                hit = true;
+            }
+        }
+        hit
+    }
+
+    /// Throws `count` specks of dust out of `at`, which is what a paw landing on
+    /// the page does.
+    pub fn puff(&mut self, at: [f32; 3], count: usize, rng: &mut Rng) {
+        // A page is not a snowstorm: the burst is capped, so a cat batting at one
+        // spot for a minute cannot fill the screen with its own dust.
+        let room = 240usize.saturating_sub(self.motes.len());
+        for _ in 0..count.min(room) {
+            let angle = rng.range(0.0, std::f32::consts::TAU);
+            let speed = rng.range(0.9, 3.4);
+            self.motes.push(Mote {
+                pos: [
+                    at[0] + rng.range(-0.3, 0.3),
+                    at[1] + rng.range(-0.3, 0.3),
+                    rng.range(0.3, 1.5),
+                ],
+                vel: [angle.cos() * speed, angle.sin() * speed],
+                drift: rng.range(0.2, 0.7),
+                phase: rng.range(0.0, std::f32::consts::TAU),
+                size: rng.range(0.04, 0.09),
+                life: rng.range(0.5, 1.3),
+            });
+        }
+    }
+
+    /// Everything a paw landing at `at` does to the page: a word goes flying, the
+    /// furniture shakes, the dust is thrown and new dust is raised.
+    ///
+    /// One method rather than four calls from the caller, so the consequences of a
+    /// strike are in one place and a test can assert them together.
+    pub fn strike(&mut self, at: [f32; 3], rng: &mut Rng) {
+        self.bat(at, 1.7, 6.0);
+        self.bump(at, 1.2, 1.0);
+        self.puff(at, 4, rng);
+    }
+
+    /// Lets the furniture's shaking decay, and moves it on.
+    ///
+    /// A prop answers a bump by swaying on its own phase, amplitude falling with
+    /// the wobble, so two props hit together do not sway together.
+    pub fn step_props(&mut self, dt: f32) {
+        for prop in &mut self.props {
+            if prop.wobble <= 0.0 {
+                prop.phase = 0.0;
+                continue;
+            }
+            prop.phase += dt * 26.0;
+            prop.wobble = (prop.wobble - dt * 1.7).max(0.0);
+        }
+    }
+
+    /// Moves the dust: its own wander, whatever a paw gave it, and its clock.
+    pub fn step_motes(&mut self, dt: f32) {
+        let width = self.width();
+        let top = self.rows as f32;
+        for mote in &mut self.motes {
+            mote.phase += dt * 0.9;
+            let wander = [
+                mote.drift * mote.phase.sin() * 0.6,
+                mote.drift * (mote.phase * 1.7).cos() * 0.4,
+            ];
+            mote.pos[0] = (mote.pos[0] + (wander[0] + mote.vel[0]) * dt).clamp(0.2, width - 0.2);
+            mote.pos[1] = (mote.pos[1] + (wander[1] + mote.vel[1]) * dt).clamp(0.2, top - 0.2);
+            let keep = (1.0 - 2.2 * dt).max(0.0);
+            mote.vel[0] *= keep;
+            mote.vel[1] *= keep;
+            mote.life -= dt;
+        }
+        self.motes.retain(|mote| mote.life > 0.0);
+    }
+}
+
+/// What a piece of furniture is, which is what decides what a kitten does with it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropKind {
+    Table,
+    Plant,
+    Lamp,
+    Shelf,
+    Frame,
+}
+
+impl PropKind {
+    /// The name a test or a log line uses.
+    pub fn name(self) -> &'static str {
+        match self {
+            PropKind::Table => "table",
+            PropKind::Plant => "plant",
+            PropKind::Lamp => "lamp",
+            PropKind::Shelf => "shelf",
+            PropKind::Frame => "frame",
+        }
+    }
+
+    /// Whether its top is flat and wide enough to sit on.
+    ///
+    /// A cat sits on tables and shelves; a plant, a lamp and a picture are things
+    /// to look at and knock about, and a cat standing on top of a lamp would be a
+    /// cat floating over a lamp.
+    pub fn is_perch(self) -> bool {
+        matches!(self, PropKind::Table | PropKind::Shelf)
+    }
+}
+
+/// One piece of furniture: its box, the characters in it, and how hard it is
+/// still shaking.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Prop {
+    pub kind: PropKind,
+    /// The centre of its box, in cells.
+    pub pos: [f32; 3],
+    /// Across and down, in cells.
+    pub size: [f32; 2],
+    /// Its characters, printed where they stand.
+    pub cards: Vec<Card>,
+    /// 0 still, 1 the hardest a paw can shake it.
+    pub wobble: f32,
+    /// Where it is in its sway. Only advances while it is shaking.
+    pub phase: f32,
+}
+
+impl Prop {
+    /// How far a point is from the box, in cells: zero inside it.
+    pub fn distance_to(&self, at: [f32; 3]) -> f32 {
+        let half = [self.size[0] * GLYPH_WIDTH * 0.5, self.size[1] * 0.5];
+        let dx = ((at[0] - self.pos[0]).abs() - half[0]).max(0.0);
+        let dy = ((at[1] - self.pos[1]).abs() - half[1]).max(0.0);
+        dx.hypot(dy)
+    }
+
+    /// The height of its top edge, in cells, which is where a cat sits.
+    pub fn top(&self) -> f32 {
+        self.pos[1] + self.size[1] * 0.5
+    }
+
+    /// Its characters, swaying by however much it is still shaking.
+    pub fn cards(&self, lift: f32, alpha: f32, out: &mut Vec<Card>) {
+        let sway = self.phase.sin() * self.wobble * 0.45;
+        for card in &self.cards {
+            out.push(Card {
+                pos: [
+                    card.pos[0] + sway,
+                    card.pos[1] + lift - sway.abs() * 0.2,
+                    card.pos[2] + self.wobble * 0.3,
+                ],
+                roll: card.roll + sway * 0.12,
+                alpha: (card.alpha * alpha).clamp(0.0, 1.0),
+                ..*card
+            });
         }
     }
 }
@@ -363,19 +542,18 @@ fn cell(row: u32, column: u32, rows: u32, ch: char, style: u8, alpha: f32) -> Ca
     }
 }
 
-/// One piece of furniture: where its box starts, how big it is, and the
-/// characters in it.
-struct Prop {
-    row: u32,
-    column: u32,
-    down: u32,
-    across: u32,
-    cells: Vec<(u32, u32, char)>,
-}
-
 /// Two to four pieces of furniture, standing in the lower half of the page.
-fn furniture(rng: &mut Rng, columns: u32, rows: u32) -> Vec<Prop> {
-    let designs: [&[&str]; 5] = [&TABLE, &PLANT, &LAMP, &SHELF, &FRAME];
+///
+/// It marks the cells it took in `taken` as it goes, so the code and the rug are
+/// generated around the boxes rather than over them.
+fn furniture(rng: &mut Rng, columns: u32, rows: u32, taken: &mut [bool]) -> Vec<Prop> {
+    let designs: [(&[&str], PropKind); 5] = [
+        (&TABLE, PropKind::Table),
+        (&PLANT, PropKind::Plant),
+        (&LAMP, PropKind::Lamp),
+        (&SHELF, PropKind::Shelf),
+        (&FRAME, PropKind::Frame),
+    ];
     let mut order: Vec<usize> = (0..designs.len()).collect();
     // Shuffle, then take the first few: no page has two tables.
     for index in (1..order.len()).rev() {
@@ -385,9 +563,11 @@ fn furniture(rng: &mut Rng, columns: u32, rows: u32) -> Vec<Prop> {
     let count = 2 + rng.below(3);
     let mut out = Vec::new();
     let mut occupied = vec![false; (columns * rows) as usize];
-    let usable = rows.saturating_sub(FLOOR_MARGIN);
+    // The last line is the app's label, so nothing stands on it.
+    let body = rows.saturating_sub(LABEL_ROWS).max(8);
+    let usable = body.saturating_sub(FLOOR_MARGIN);
     for (place, pick) in order.into_iter().take(count).enumerate() {
-        let design = designs[pick];
+        let (design, kind) = designs[pick];
         let height = design.len() as u32;
         let width = design.iter().map(|line| line.chars().count()).max().unwrap_or(0) as u32;
         if width == 0 || height == 0 || usable < height + 2 || columns < width + 6 {
@@ -399,7 +579,7 @@ fn furniture(rng: &mut Rng, columns: u32, rows: u32) -> Vec<Prop> {
         // In the lower part of the page, where furniture stands in a document
         // rather than across the first lines of it.
         let lowest = usable.saturating_sub(height);
-        let highest = (rows / 3).min(lowest);
+        let highest = (body / 3).min(lowest);
         let row = highest + rng.below((lowest - highest) as usize + 1) as u32;
         let column = (centre as u32).min(columns - width - 1).max(GUTTER + 1);
         // Two pieces of furniture in the same cells would be one piece of
@@ -413,29 +593,39 @@ fn furniture(rng: &mut Rng, columns: u32, rows: u32) -> Vec<Prop> {
         if !free {
             continue;
         }
+        let mut cards = Vec::with_capacity((width * height) as usize);
         for down in 0..height {
             for across in 0..width {
                 let (row, column) = (row + down, column + across);
                 if row < rows && column < columns {
                     occupied[(row * columns + column) as usize] = true;
+                    taken[(row * columns + column) as usize] = true;
                 }
             }
         }
-        let mut cells = Vec::new();
         for (down, line) in design.iter().enumerate() {
             for (across, ch) in line.chars().enumerate() {
                 if ch == ' ' {
                     continue;
                 }
-                cells.push((down as u32, across as u32, ch));
+                let (row, column) = (row + down as u32, column + across as u32);
+                if row >= rows || column >= columns {
+                    continue;
+                }
+                cards.push(cell(row, column, rows, ch, 2, 0.95));
             }
         }
         out.push(Prop {
-            row,
-            column,
-            down: height,
-            across: width,
-            cells,
+            kind,
+            pos: [
+                (column as f32 + width as f32 * 0.5) * GLYPH_WIDTH,
+                rows as f32 - row as f32 - height as f32 * 0.5,
+                0.0,
+            ],
+            size: [width as f32, height as f32],
+            cards,
+            wobble: 0.0,
+            phase: place as f32 * 0.7,
         });
     }
     out
@@ -590,19 +780,86 @@ mod tests {
     #[test]
     fn the_furniture_stands_on_the_page_and_not_on_the_rug() {
         let page = page();
-        // Furniture is drawn in the type style, which code never uses for an
-        // outline, so a '|' or a '+' in it is a prop.
-        let props: Vec<&Card> = page
-            .text
-            .iter()
-            .filter(|card| matches!(card.ch, '|' | '+') && card.style == 2)
-            .collect();
-        assert!(!props.is_empty(), "a page with furniture");
+        assert!(!page.props.is_empty(), "a page with furniture");
         let rug = page.rows - RUG_ROWS;
-        for card in props {
-            let row = (page.rows as f32 - card.pos[1] - 0.5) as u32;
-            assert!(row < rug, "furniture on the rug: row {row}");
+        for prop in &page.props {
+            // The whole box, not just its ink: the bottom edge of the box is what
+            // has to stay above the rug.
+            let low = prop.pos[1] - prop.size[1] * 0.5;
+            let row = page.rows as f32 - low;
+            assert!(row <= rug as f32, "{} on the rug: row {row}", prop.kind.name());
+            assert!(!prop.cards.is_empty(), "{}", prop.kind.name());
         }
+    }
+
+    #[test]
+    fn the_furniture_leaves_its_box_empty_on_the_page() {
+        // A table with code showing through it is a table drawn on a page.
+        let page = page();
+        for prop in &page.props {
+            let left = prop.pos[0] - prop.size[0] * GLYPH_WIDTH * 0.5;
+            let right = prop.pos[0] + prop.size[0] * GLYPH_WIDTH * 0.5;
+            let low = prop.pos[1] - prop.size[1] * 0.5;
+            let high = prop.pos[1] + prop.size[1] * 0.5;
+            for card in &page.text {
+                let inside = card.pos[0] > left
+                    && card.pos[0] < right
+                    && card.pos[1] > low
+                    && card.pos[1] < high;
+                assert!(!inside, "{} has {:?} in its box", prop.kind.name(), card);
+            }
+        }
+    }
+
+    #[test]
+    fn a_paw_on_the_furniture_shakes_it_and_the_shaking_stops() {
+        let mut page = page();
+        let at = page.props[0].pos;
+        assert!(page.bump(at, 0.6, 1.0), "a paw on the table hit nothing");
+        let shaking = page.props[0].wobble;
+        assert!(shaking > 0.0, "{shaking}");
+        // It sways while it shakes, and it settles exactly where it stood.
+        let mut still = Vec::new();
+        page.props[0].cards(0.0, 1.0, &mut still);
+        page.step_props(0.05);
+        let mut moved = Vec::new();
+        page.props[0].cards(0.0, 1.0, &mut moved);
+        assert_ne!(still[0].pos, moved[0].pos, "the table did not move");
+        for _ in 0..600 {
+            page.step_props(1.0 / 120.0);
+        }
+        assert_eq!(page.props[0].wobble, 0.0);
+        let mut settled = Vec::new();
+        page.props[0].cards(0.0, 1.0, &mut settled);
+        assert_eq!(settled[0].pos, page.props[0].cards[0].pos);
+    }
+
+    #[test]
+    fn a_strike_throws_dust_that_dies_and_leaves_the_page_as_it_was() {
+        let mut page = page();
+        let mut rng = Rng::new(0xC0FFEE);
+        let before = page.motes.len();
+        page.strike([page.width() * 0.5, 20.0, 0.0], &mut rng);
+        assert!(page.motes.len() > before, "no dust was raised");
+        // The thrown dust is short-lived; the page's own dust is not.
+        for _ in 0..(120 * 3) {
+            page.step_motes(1.0 / 120.0);
+        }
+        assert_eq!(page.motes.len(), before);
+    }
+
+    #[test]
+    fn dust_is_thrown_further_than_words_are() {
+        let mut page = page();
+        let mut rng = Rng::new(7);
+        let at = [page.width() * 0.5, 20.0, 0.0];
+        page.strike(at, &mut rng);
+        let fastest = page
+            .motes
+            .iter()
+            .map(|mote| mote.vel[0].hypot(mote.vel[1]))
+            .fold(0.0f32, f32::max);
+        assert!(fastest > 0.9, "{fastest}");
     }
 
     #[test]
