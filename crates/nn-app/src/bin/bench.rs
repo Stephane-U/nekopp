@@ -280,8 +280,8 @@ fn main() {
     println!("document: {} lines", doc.len_lines());
 
     let mut renderer = Renderer::new(&device, &queue, FORMAT);
-    // The room runs on its own clock, so a dump at `playground_time=180` is the
-    // same room at the same moment every run: the seed is a flag and the steps
+    // The page runs on its own clock, so a dump at `playground_time=180` is the
+    // same page at the same moment every run: the seed is a flag and the steps
     // are counted, never timed.
     let mut playground = {
         let now = Instant::now();
@@ -295,9 +295,10 @@ fn main() {
         );
         if flags.playground {
             playground.enter(flags.playground_seed, now);
+            playground.resize(width, height);
             let steps = (flags.playground_time / 0.05).round() as usize;
             for _ in 0..steps {
-                playground.step(0.05, width as f32 / height as f32);
+                playground.step(0.05);
             }
         }
         playground

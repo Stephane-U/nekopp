@@ -9510,3 +9510,111 @@ reported as number 2 in EDIFACT.
 
 `python3 docs/build-pdf.py --check`: up to date, 308,373 bytes, 72 pages A4, 112
 bookmarks -- one chapter and two pages more than the last pass.
+
+## Seventy-seventh pass: the page the kitten is printed on
+
+The seventy-sixth pass put the kitten in a room: four walls papered in code, a
+floor of punctuation, and one unit per line of text so that a two-and-a-quarter
+unit cat was two-and-a-quarter lines tall. The arithmetic was right and the
+picture was not. A still frame showed a box of space with a cat standing in it,
+the walls shrinking towards a horizon, and the letters on those walls huge because
+they were being looked at from across the room. The complaint named both halves of
+that: the kitten is huge, and it is not a kitten; and the environment should be a
+text document, in two dimensions, not a place a document is glued to.
+
+The misread was the word "room". What was wanted was a page -- the thing this
+program draws all day, at the size it draws it -- with a kitten on it. Everything
+follows from taking that literally.
+
+### One cell, one cell
+
+The page is drawn with an orthographic camera: no perspective, no vanishing point,
+one cell of text mapping to one rectangle of screen whatever row it is on. A glyph
+lands on whole pixels; the second line is the same size as the thirtieth; the
+gutter is a column of numbers and not a wall going away from the reader. The
+window is measured in lines, not in pixels -- `rows = round(height / 20)`,
+`columns = floor(width / (20 * 0.55))` -- so a 1280 by 800 window is a page 116
+columns wide and 40 rows tall at any font size, and a resized window is a resized
+page rather than a differently-proportioned room.
+
+The kitten is the one thing that is not flat. Her boxes go through the same
+orthographic camera pre-multiplied by a shear (`xform::oblique`), which gives a
+cube a visible side and top while the letters under it stay square. That is the
+whole of the third dimension in the mode, and it is enough: a cat drawn from boxes
+with a lit face reads as solid, and a letter drawn head-on reads as a letter.
+
+### The bug the first render found
+
+The first page came out half off-screen with the kitten in the corner. `look_at`
+already centres the page on the origin and the orthographic window was being built
+over `0..width_units`, so the projection shifted everything half a viewport left
+and half a viewport down; what survived on screen was the top-right corner of the
+page, drawn at a tenth of its intended size. The fix is the window symmetric about
+zero -- `ortho(-half_w, half_w, -half_h, half_h, NEAR, FAR)` -- which is the same
+rule the perspective camera had been following all along by centring its own
+bounds. Worth writing down because it will be made again: two matrices that both
+place the origin must agree about where the origin is.
+
+Text is now unlit, and dims through one uniform field (`globals.dim.x`, renamed
+from `fog`, which had described the room), so the screensaver dims the page and
+the kitten together instead of the walls getting darker with distance.
+
+### The furniture is characters
+
+Furniture is not meshes any more; it is ASCII, printed on the page. A table, a
+plant, a lamp, a shelf, a framed picture -- each a small array of lines -- and each
+standing in its own *cleared box*: the prop owns the cells it occupies and the
+generator wipes the code out of them first, so a plant does not grow through a
+line of Java. Two to four props per page, placed in the lower half, never
+overlapping each other, checked against an `occupied` grid rather than by
+comparing rectangles.
+
+Tokens became whole words. They used to be sliced out of a line by column, which
+produced fragments -- `"li`, `urn` -- that read as corruption rather than as
+vocabulary; now a line is run-parsed into words and a word is taken entire,
+`UNDER_PAW = 8` cells wide at most, carrying the style byte it had on its line.
+
+`LABEL_ROWS = 1` reserves the bottom row of the page for the app's own hint line,
+which is why the page lays out `body = rows - 1` rows while `Page.rows` stays at
+the grid height: the hint line is the page's last line, not a line drawn over it.
+
+### The kitten, again
+
+She was rebuilt for profile and for scale. The body is short (`[1.02, 0.82,
+1.24]`), the head big (`[0.9, 1.0, 1.06]`) and set low and forward, the ears tall
+in a row along the body, the eyes on the sides of the head, the nose pink and the
+paws white: at two and a quarter lines, kittens are read from their proportions
+and not from their detail, and a long body with a small head is a cat. Her walk
+bounds are the page's now (`room_to_walk`), `x` in `[3.2, width - 1.6]` and `y` in
+`[1.6, rows - 2.4]`, so she walks on the text and not through the gutter or off
+the bottom.
+
+### What did not change
+
+The rules. The corpus, the eight flavours, the seeds passed in rather than read
+from the clock, the moods, the three minutes to sleep, the four to dim, the five
+to rebuild, the two and a half second blend, the screensaver wiring and the
+preference rows are the seventy-sixth pass's, and all of them survived the change
+of projection untouched. That is the argument for keeping simulations free of
+GPUs: the thing that was wrong was a camera and a vocabulary, and the tests that
+describe the cat's behaviour never had to be rewritten.
+
+### Verification
+
+`cargo test --offline --all`: 2142 tests (1087 in `nn-app`, 955 in `nn-core`, 100
+in `nn-mcp`), 0 failed. `cargo clippy --offline --all-targets`: 0 warnings. `cargo
+fmt` was not run.
+
+Frames rendered at 0, 45 and 400 seconds of simulation time and inspected: a full
+page of code with a gutter, props in cleared boxes, a rug of punctuation
+across the bottom five rows, a clear bottom row for the hint, whole words loose on
+the page, and a 49 by 46 pixel kitten -- two ears, one eye, a pink nose, white
+paws, a tail -- walking in profile at two and a quarter lines.
+
+`docs/nekopp-features.md` had its Playground chapter rewritten for the page rather
+than the room, with the table of what the page does and when, the furniture in
+cleared boxes, the whole-word tokens, and the two clocks; the View menu paragraph
+and both preference rows now say "page" where they said "room".
+
+`python3 docs/build-pdf.py` then `--check`: up to date, 309,573 bytes, 72 pages
+A4, 112 bookmarks -- the same page count, 1,200 bytes heavier than the room's.

@@ -413,3 +413,4 @@ mod tests {
         assert!(atlas.coverage('W') > atlas.coverage('i'), "proportional ink");
     }
 }
+

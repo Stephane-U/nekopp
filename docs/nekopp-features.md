@@ -640,8 +640,8 @@ chrome -- because a note kept beside your work has to stay visible and has to be
 small.
 
 "Playground" is the fourth, and the only one that hands the whole window to
-something else. It is a room with a kitten in it; the document is untouched and
-`Escape` comes back. It has a chapter of its own, below.
+something else. It is a page of code with a kitten on it; the document is
+untouched and `Escape` comes back. It has a chapter of its own, below.
 
 "View Current File in" offers Firefox, Chrome, Edge and IE. On Linux the four
 labels are deliberate: none of them can be honoured as a *specific* browser, so
@@ -1770,63 +1770,79 @@ exists falls back to the built-in pair rather than failing to start.
 
 ## Playground
 
-"View > Playground" (`Ctrl+Alt+K`) hands the window to a room: code on the walls,
-a rug of punctuation on the floor, a table, a plant, and a kitten two and a
-quarter lines tall who walks about, follows the pointer, bats loose tokens around
+"View > Playground" (`Ctrl+Alt+K`) hands the window to a page: a line-number
+gutter, rows of code at the editor's own line height, furniture drawn in
+characters, a rug of punctuation along the bottom, and a kitten two and a quarter
+lines tall who walks across the text, follows the pointer, bats loose words around
 and eventually falls asleep. `Escape` gives the window back. The document is never
 read and never written, so a screenshot of the mode cannot show anyone's work and
-five minutes in the room cost no undo step.
+five minutes in the page cost no undo step.
 
-Everything is measured in lines of text rather than in pixels: a glyph is one line
-tall, the room is sixteen lines across, the cat is two and a quarter. The mode
-therefore looks the same at any font size on any display, and the whole
-simulation can be tested without a GPU -- which is what `nn-core` does, driving
-minutes of cat behaviour in milliseconds.
+The page is flat, and that is the whole idea. It is drawn with an orthographic
+camera, one cell to one cell, so a glyph lands on whole pixels and the second line
+of code is the same size as the twentieth: what the reader sees is a document,
+not a diorama of one. The kitten is the exception -- its boxes go through the same
+camera pre-multiplied by a shear, so a cube has a visible side and top while the
+letters it stands on stay square. Everything is measured in lines rather than in
+pixels, so the mode fills a 1280 by 800 window with about 40 rows of 116 columns, a
+smaller window with fewer of both, and looks the same on any display.
 
 | Piece | Behaviour |
 |---|---|
-| The room | Four walls papered in code, a floor of punctuation, a rug, a table, a plant, and loose tokens lying about |
-| The kitten | Walks, sits, crouches, pounces on a token and bats it, blinks, flicks its tail; turns to follow the pointer |
+| The page | A gutter of line numbers, rows of code, the bottom five rows a rug of scattered punctuation, and a corner label on a line kept clear for it |
+| The furniture | Two to four pieces drawn in characters -- a table, a plant, a lamp, a shelf, a framed picture -- each standing in its own cleared box in the lower half of the page |
+| The kitten | Walks, sits, crouches, pounces and bats a token, blinks, flicks its tail; turns to follow the pointer |
+| The tokens | Whole words lifted off the material, with the syntax colour they had on the line they came from; physics, gravity and a shadow on the page |
 | Sleep | Three minutes with no input and it curls up where it stands |
-| Dimming | Four minutes and the room starts to dim, the way a screensaver does |
-| Rebuild | Five minutes and the room is rebuilt from the next seed, the old one fading out over two and a half seconds |
+| Dimming | Four minutes and the page starts to dim, the way a screensaver does |
+| Rebuild | Five minutes and the page is rebuilt from the next seed, the old one fading out over two and a half seconds |
+
+The kitten is a dozen boxes and no skeleton: a body, a head, two ears, four legs,
+four paws, a muzzle, a nose, two eyes and a tail on a travelling wave. At two and
+a quarter lines that is enough to read as a cat, and it means the renderer has one
+mesh and one draw call whatever the pose is. Her eyes are on the sides of her head
+and her ears in a row along the body, because she is always seen in profile; put
+them where they belong on a real cat and the reader gets one ear and no eye.
 
 The material is a corpus compiled into the binary, in eight flavours: Rust, C,
 Java, Python, JSON, XML, UN/EDIFACT and CSV. The first six are coloured by the
-editor's own lexers, because a room should be papered in the highlighting the rest
+editor's own lexers, because a page should be printed in the highlighting the rest
 of the program uses; EDI and CSV have no lexer here and are split on their
 delimiters instead. The open document is never the material. Starting the mode on
 the file the user was reading would make it look like a view of that document
-rather than a place beside it, and the room's vocabulary is meant to be a
-different six languages every five minutes.
+rather than a page beside it, and the page's vocabulary is meant to be a different
+language every five minutes.
 
-Two clocks matter and they are different. The room's clock is part of the rules:
-it decides when the room is rebuilt and when the kitten sleeps, and it advances
-only while the mode is open, so a minute in the room is a minute of the room. The
+Two clocks matter and they are different. The page's clock is part of the rules:
+it decides when the page is rebuilt and when the kitten sleeps, and it advances
+only while the mode is open, so a minute in the page is a minute of the page. The
 window's idle clock counts input of any kind -- a key, a click, a wheel -- and it
 decides whether the mode may open on its own.
 
 That is the second way in. With "Playground After" set to a number of minutes, a
-window that has seen no input for that long opens the room by itself and the mode
+window that has seen no input for that long opens the page by itself and the mode
 behaves as a screensaver; the default is never, because a screen that turns into a
-room while somebody is reading it is a screen that has taken their document away.
-"Playground" is the switch that owns both ways in. Off, `Ctrl+Alt+K` is inert and
-the mode never opens by itself, which is also the answer for a machine that is
-shared or recorded.
+page of code while somebody is reading it is a screen that has taken their
+document away. "Playground" is the switch that owns both ways in. Off,
+`Ctrl+Alt+K` is inert and the mode never opens by itself, which is also the answer
+for a machine that is shared or recorded.
 
-Inside the room only `Escape` is a command. Every other key is a sign that
-somebody is still at the desk: it wakes the kitten, keeps the room bright and
+Inside the page only `Escape` is a command. Every other key is a sign that
+somebody is still at the desk: it wakes the kitten, keeps the page bright and
 cancels the screensaver, and it goes no further, so typing cannot reach a document
-that is not being drawn. The line in the corner names the flavour and the room
+that is not being drawn. The line in the corner names the flavour and the page
 number, says when the kitten is asleep, and always ends with "Esc leaves"; a
 screen reader is given the same sentence as one label, which is the whole
 accessibility story of a mode with no widgets in it.
 
-The drawing is three passes into one depth buffer -- the room's cards, the
-kitten's boxes, the dust -- at two and a half to three and a half milliseconds a
-frame on a 1280 by 800 window. The glyphs come from an atlas rasterised once at
-startup, one stamp per character of the corpus, and are tinted per instance from
-the syntax style the lexer gave them.
+The drawing is three instanced pipelines into one depth buffer -- glyph cards for
+the page, boxes for the kitten, camera-facing dots for dust and shadows -- with
+the cards sorted back to front. Text is not lit: a document whose syntax colours
+depended on where a kitten's lamp happened to be would be a document that changes
+colour as a cat walks past it. Only the boxes are lit, and the whole picture dims
+together when the screensaver dims it. The glyphs come from an atlas rasterised
+once at startup at twice the height they are drawn at, and are tinted per instance
+from the syntax style the lexer gave them.
 
 The mode is not in Notepad++, and it is the one place where this editor adds a
 whole subsystem rather than matching one: Notepad++ is a program somebody uses all
@@ -1851,8 +1867,8 @@ one the shortcut editor uses, and it is what makes Escape mean "forget it".
 | Function List | On or off | Off |
 | Volatile Find | On or off | On |
 | Floating Search | On or off | Off |
-| Playground | On or off: whether the room can be opened at all | On |
-| Playground After | Minutes of no input before the room opens by itself, up to 60; zero shows "Never" | Never |
+| Playground | On or off: whether the page can be opened at all | On |
+| Playground After | Minutes of no input before the page opens by itself, up to 60; zero shows "Never" | Never |
 | Backup on Save | None, Simple, Verbose | None |
 | Autosave | Seconds between snapshots; zero is off | 7 |
 | File Dialog | System dialog (XDG portal) or built-in browser | System dialog |

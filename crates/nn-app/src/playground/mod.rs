@@ -1,23 +1,25 @@
-//! Playground mode: the window becomes a room.
+//! Playground mode: the window becomes a page.
 //!
-//! `Ctrl+Alt+K` hides the editor, the menu and every bar, and puts a room on the
-//! screen: code on the walls, a rug of punctuation, a few pieces of furniture, and
-//! a kitten two and a half characters tall who walks about, follows the pointer,
-//! bats loose tokens around and eventually falls asleep. `Escape` gives the
-//! window back. The document is never read and never touched -- the material is a
-//! corpus compiled into the binary -- so a screenshot of the mode cannot show
-//! anyone's work.
+//! `Ctrl+Alt+K` hides the editor, the menu and every bar, and puts a page of code
+//! on the screen at the editor's own line height: a line-number gutter, furniture
+//! drawn in characters, loose punctuation lying about, and a kitten two and a
+//! quarter lines tall who walks across the page in profile, follows the pointer,
+//! bats tokens around and eventually falls asleep. `Escape` gives the window back.
+//! The document is never read and never touched -- the material is a corpus
+//! compiled into the binary -- so a screenshot of the mode cannot show anyone's
+//! work.
 //!
-//! The simulation is in [`nn_core::playground`]: rooms, tokens, the kitten's
-//! moods and the camera, all in character units and all testable without a GPU.
+//! The simulation is in [`nn_core::playground`]: the page, its tokens, the
+//! kitten's moods and the camera, all in cells and all testable without a GPU.
 //! This module is the app side of it: when the mode is open, how long the pointer
-//! has been still, the glyph atlas, and the frame the renderer draws.
+//! has been still, how many cells the window holds, the glyph atlas, and the frame
+//! the renderer draws.
 //!
 //! Two clocks matter and they are different. The mode's own clock decides when
-//! the room is rebuilt -- five minutes -- and when the kitten falls asleep, and it
+//! the page is rebuilt -- five minutes -- and when the kitten falls asleep, and it
 //! lives with the simulation because it is part of the rules. The idle clock here
 //! is about the person: it decides when the mode may open by itself, which is a
-//! property of the window rather than of the room.
+//! property of the window rather than of the page.
 
 mod glyphs;
 mod mesh;
@@ -29,14 +31,20 @@ use std::time::{Duration, Instant};
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 use nn_core::playground::{Frame, Input, Shade};
-use nn_core::playground::Playground as Room;
+use nn_core::playground::Playground as Simulation;
 
 use crate::theme::{mix, Rgb, Theme};
 
 pub use nn_core::playground::scene::GLYPH_WIDTH;
 
 /// The height of the glyph atlas cells, in pixels.
-const ATLAS_PX: u32 = 96;
+///
+/// Twice the height a cell is drawn at, which is what keeps a glyph crisp when the
+/// window's scale is not a round number and leaves room for a display with more
+/// pixels than we were asked for.
+const ATLAS_PX: u32 = 40;
+/// The height of one line of the page, in pixels: the editor's own line height.
+const LINE_PX: f32 = 20.0;
 /// How tall the hint line is drawn.
 const HINT_SIZE: f32 = 13.0;
 /// How long a frame lasts while the mode is open.
@@ -57,11 +65,6 @@ const FUR_DARK: Rgb = Rgb(174, 120, 66);
 const FUR_LIGHT: Rgb = Rgb(246, 236, 214);
 const NOSE: Rgb = Rgb(226, 136, 148);
 const EYE: Rgb = Rgb(40, 36, 46);
-const WOOD: Rgb = Rgb(152, 112, 76);
-const METAL: Rgb = Rgb(124, 132, 144);
-const LEAF: Rgb = Rgb(110, 168, 98);
-const POT: Rgb = Rgb(178, 116, 90);
-const GLOW: Rgb = Rgb(255, 228, 156);
 
 /// A colour moved away from the window's background until it reads.
 ///
@@ -90,21 +93,16 @@ pub fn shade_colour(shade: Shade, theme: &Theme) -> Rgb {
             Shade::FurLight => FUR_LIGHT,
             Shade::Nose => NOSE,
             Shade::Eye => EYE,
-            Shade::Wood => WOOD,
-            Shade::Metal => METAL,
-            Shade::Leaf => LEAF,
-            Shade::Pot => POT,
-            Shade::Glow => GLOW,
         },
         theme,
     )
 }
 
-/// The mode: a room, the GPU side of it, and how long the pointer has been still.
+/// The mode: a page, the GPU side of it, and how long the pointer has been still.
 pub struct Playground {
-    room: Room,
+    sim: Simulation,
     scene: render::Scene,
-    /// The corner label, shaped once per room.
+    /// The corner label, shaped once per page.
     hint: Buffer,
     hint_text: String,
     active: bool,
@@ -116,9 +114,9 @@ pub struct Playground {
     input_age: f32,
     /// When the last input arrived, for the idle clock.
     last_input: Instant,
-    /// The window's aspect ratio, from the last frame.
-    aspect: f32,
-    /// When the next frame of the room is due.
+    /// The window as a grid of cells, from the last frame or step.
+    grid: [u32; 2],
+    /// When the next frame of the page is due.
     next: Instant,
     /// When the last one was drawn, so the step is the time that passed.
     last_frame: Instant,
@@ -141,7 +139,7 @@ impl Playground {
     ) -> Self {
         let atlas = glyphs::GlyphAtlas::build(font_system, ATLAS_PX);
         Self {
-            room: Room::new(seed),
+            sim: Simulation::new(seed),
             scene: render::Scene::new(device, queue, format, &atlas),
             hint: Buffer::new_empty(Metrics::new(HINT_SIZE, HINT_SIZE * 1.35)),
             hint_text: String::new(),
@@ -150,23 +148,23 @@ impl Playground {
             pointer_age: f32::MAX,
             input_age: 0.0,
             last_input: now,
-            aspect: 1.6,
+            grid: [120, 40],
             next: now,
             last_frame: now,
         }
     }
 
-    /// Whether the room is on screen instead of the editor.
+    /// Whether the page is on screen instead of the editor.
     pub fn is_active(&self) -> bool {
         self.active
     }
 
-    /// Opens the room.
+    /// Opens the page.
     ///
-    /// A fresh seed each time, so two visits are two different rooms and the
+    /// A fresh seed each time, so two visits are two different pages and the
     /// kitten is awake.
     pub fn enter(&mut self, seed: u64, now: Instant) {
-        self.room = Room::new(seed);
+        self.sim = Simulation::new(seed);
         self.active = true;
         self.input_age = 0.0;
         self.pointer_age = f32::MAX;
@@ -176,7 +174,7 @@ impl Playground {
         self.last_frame = now;
     }
 
-    /// Closes the room.
+    /// Closes the page.
     pub fn leave(&mut self) {
         self.active = false;
     }
@@ -201,7 +199,7 @@ impl Playground {
         now.saturating_duration_since(self.last_input)
     }
 
-    /// How long until the next frame of the room is due.
+    /// How long until the next frame of the page is due.
     ///
     /// `None` while the mode is closed, which is what lets the event loop sleep
     /// through an idle window: a closed playground is not a timer.
@@ -226,28 +224,39 @@ impl Playground {
         let dt = now.saturating_duration_since(self.last_frame).as_secs_f32();
         self.last_frame = now;
         self.next = now + FRAME;
-        self.step(dt.min(0.25), self.aspect);
+        self.step(dt.min(0.25));
         true
     }
 
-    /// Advances the clocks, and the room if it is open.
+    /// Tells the mode how many pixels the window has, and so how many cells.
     ///
-    /// Returns true when the room moved, which is every step while the mode is
+    /// The page is laid out to the editor's line height rather than to a fixed
+    /// grid, so a big window holds more lines of code than a small one, exactly as
+    /// the editor does.
+    pub fn resize(&mut self, width: u32, height: u32) {
+        let height = height.max(1) as f32;
+        let rows = (height / LINE_PX).round().max(8.0) as u32;
+        let columns = (width as f32 / (LINE_PX * GLYPH_WIDTH)).floor().max(24.0) as u32;
+        self.grid = [columns, rows];
+    }
+
+    /// Advances the clocks, and the page if it is open.
+    ///
+    /// Returns true when the page moved, which is every step while the mode is
     /// open and no step while it is closed.
-    pub fn step(&mut self, dt: f32, aspect: f32) -> bool {
+    pub fn step(&mut self, dt: f32) -> bool {
         if !self.active {
             return false;
         }
-        self.aspect = aspect.max(0.2);
         self.input_age += dt;
         self.pointer_age = (self.pointer_age + dt).min(f32::MAX);
         let input = Input {
             pointer: self.pointer,
             pointer_age: self.pointer_age,
             input_age: self.input_age,
-            aspect: self.aspect,
+            grid: self.grid,
         };
-        self.room.step(dt, &input);
+        self.sim.step(dt, &input);
         true
     }
 
@@ -261,17 +270,17 @@ impl Playground {
         width: u32,
         height: u32,
     ) {
-        // The frame is built with the aspect the window has now, not the one it
-        // had when the last step ran: a window resized while the room is open
-        // must not be stretched for a frame.
-        self.aspect = width as f32 / height.max(1) as f32;
+        // The frame is built for the grid the window has now, not the one it had
+        // when the last step ran: a window resized while the page is open must not
+        // be stretched for a frame.
+        self.resize(width, height);
         let input = Input {
             pointer: self.pointer,
             pointer_age: self.pointer_age,
             input_age: self.input_age,
-            aspect: self.aspect,
+            grid: self.grid,
         };
-        let frame = self.room.frame(&input);
+        let frame = self.sim.frame(&input);
         self.scene
             .prepare(device, queue, &frame, theme, width, height);
         self.set_hint(font_system, theme, &frame);
@@ -301,7 +310,7 @@ impl Playground {
         self.scene.depth_view()
     }
 
-    /// Draws the room.
+    /// Draws the page.
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>) {
         self.scene.draw(pass);
     }
@@ -328,9 +337,9 @@ impl Playground {
         }]
     }
 
-    /// The room's own clock, for the window's next wake.
+    /// The page's own clock, for the window's next wake.
     pub fn time(&self) -> f32 {
-        self.room.time()
+        self.sim.time()
     }
 }
 
@@ -364,11 +373,6 @@ mod tests {
             Shade::FurLight,
             Shade::Nose,
             Shade::Eye,
-            Shade::Wood,
-            Shade::Metal,
-            Shade::Leaf,
-            Shade::Pot,
-            Shade::Glow,
         ];
         let colours: Vec<Rgb> = shades
             .iter()

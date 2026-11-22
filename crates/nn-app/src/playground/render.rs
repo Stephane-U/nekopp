@@ -1,32 +1,28 @@
-//! Drawing the room.
+//! Drawing the page.
 //!
-//! The editor draws in two dimensions with one another; this is the only part of
-//! the program with a depth buffer. Three pipelines share one shader and one
-//! instance layout: boxes for the furniture and the kitten, glyph cards for the
-//! walls and the loose tokens, and camera-facing dots for dust and shadows. All
-//! three are instanced, so a room of five hundred cards is three draw calls.
+//! What the reader sees is a page of text: one cell is one cell wherever it sits
+//! on screen, and a glyph lands on whole pixels. So the camera is orthographic and
+//! the cards are drawn flat, straight through the projection, with no shear and no
+//! depth sorting to get wrong — punctuation at the back of the page is the same
+//! size as punctuation at the front, which is the whole point of a document.
 //!
-//! Two decisions are worth the words. The first is that the cards are lit by the
-//! absolute value of the dot product rather than by the plain one: a card is a
-//! sheet of paper with a character printed on it, it looks the same from behind,
-//! and the alternative — culling back faces and mirroring the walls that need it —
-//! is more arithmetic for a worse answer. The second is that the fog colour is the
-//! theme's own background: the far wall fades into the window rather than into a
-//! grey chosen here, which is what makes the room look like it is in this editor
-//! and not pasted onto it.
+//! The kitten is the exception, and she is the reason the program still has a
+//! depth buffer. Her boxes go through the same projection pre-multiplied by one
+//! oblique shear, so a cube's side and top are visible while the page it stands on
+//! stays square. Without the shear she would be a silhouette of rectangles on a
+//! page; with it she has a far side and a near side, and the letters do not tilt.
 //!
-//! Instances are sorted back to front before they are uploaded. Alpha blending
-//! with a depth buffer sorts nothing, so the only thing keeping a token from being
-//! painted over the kitten it is in front of is the order the CPU hands them over.
+//! One more: text is not lit. A document whose syntax colours depended on where a
+//! kitten's lamp happened to be would be a document that changes colour as a cat
+//! walks past it. Only the boxes are lit, and the whole picture dims together when
+//! the screensaver dims it.
 
 use wgpu::util::DeviceExt;
 
-use nn_core::playground::camera::FOV;
-use nn_core::playground::scene::{BACK, HALF_DEPTH, HALF_WIDTH, WALL_HEIGHT};
 use nn_core::playground::{CardKind, Frame};
 
 use crate::palette::Palette;
-use crate::theme::{mix, Theme};
+use crate::theme::Theme;
 
 use super::glyphs::{GlyphAtlas, FIRST, LAST};
 use super::mesh::{Mesh, Vertex};
@@ -34,16 +30,26 @@ use super::xform;
 
 /// The depth format: the one every backend has, with no stencil to go wrong.
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-/// The near plane. Close enough that the camera can sit inside the room's front
-/// edge and still see the floor under it.
-const NEAR: f32 = 0.4;
-/// The far plane: past the back wall by more than a room, so nothing pops.
-const FAR: f32 = 64.0;
+/// How far in front of the page the camera stands, in cells.
+///
+/// Far enough that the depth range holds the kitten's boxes and a lifted token,
+/// and near enough that the numbers stay small. An orthographic camera's distance
+/// changes nothing about the picture, only the depth values.
+const CAMERA_Z: f32 = 6.0;
+/// How far in front of the page the depth range starts.
+const NEAR: f32 = 1.0;
+/// How far the depth range reaches past the eye.
+const FAR: f32 = 16.0;
+/// How much a box is sheared to the right by its own depth.
+const SHEAR_X: f32 = 0.36;
+/// How much a box is sheared down by its own depth: the camera is a little above
+/// the page, so what is nearer to the reader sits lower on it.
+const SHEAR_Y: f32 = -0.22;
 /// The corner radius of the boxes, in cell units.
 const BOX_RADIUS: f32 = 0.2;
 /// How many steps each face of a box is divided into.
 const BOX_SEGMENTS: u32 = 3;
-/// The direction the lamp's light travels: down, and out towards the room.
+/// The direction the lamp's light travels: down, and towards the reader.
 const LIGHT: [f32; 3] = [0.38, -0.86, 0.34];
 /// The most glyph cards, boxes and dots the buffers start big enough for.
 const MAX_GLYPHS: usize = 4096;
@@ -55,7 +61,8 @@ struct Globals {
     view_proj: mat4x4<f32>,
     eye: vec4<f32>,
     light: vec4<f32>,
-    fog: vec4<f32>,
+    /// The screensaver's dimming in `x`; the rest is padding.
+    dim: vec4<f32>,
     tint: vec4<f32>,
 };
 
@@ -110,13 +117,13 @@ fn lit(base: vec3<f32>, world: vec3<f32>, normal: vec3<f32>, rim_amount: f32) ->
     return base * (0.52 + 0.48 * lambert + rim);
 }
 
-fn in_fog(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
-    let far = globals.fog.y;
-    let near = globals.fog.x;
-    let distance = length(world - globals.eye.xyz);
-    let t = clamp((distance - near) / max(far - near, 0.01), 0.0, 1.0);
-    let flying = mix(colour, globals.tint.rgb, t * 0.55);
-    return flying * (1.0 - globals.fog.z);
+/// The screensaver's dimming, and nothing else.
+///
+/// A page of code is not a lit surface: a document whose syntax colours depended
+/// on where the kitten's lamp happened to be would be a document that changes
+/// colour as a cat walks past it.
+fn dimmed(colour: vec3<f32>) -> vec3<f32> {
+    return colour * (1.0 - globals.dim.x);
 }
 
 @fragment
@@ -125,14 +132,12 @@ fn fs_glyph(in: VsOut) -> @location(0) vec4<f32> {
     if (coverage < 0.02) {
         discard;
     }
-    let colour = in_fog(lit(in.color.rgb, in.world, in.normal, 0.0), in.world);
-    return vec4<f32>(colour, in.color.a * coverage);
+    return vec4<f32>(dimmed(in.color.rgb), in.color.a * coverage);
 }
 
 @fragment
 fn fs_box(in: VsOut) -> @location(0) vec4<f32> {
-    let colour = in_fog(lit(in.color.rgb, in.world, in.normal, 0.22), in.world);
-    return vec4<f32>(colour, in.color.a);
+    return vec4<f32>(dimmed(lit(in.color.rgb, in.world, in.normal, 0.22)), in.color.a);
 }
 
 @fragment
@@ -143,8 +148,7 @@ fn fs_dot(in: VsOut) -> @location(0) vec4<f32> {
     if (alpha < 0.004) {
         discard;
     }
-    let colour = in_fog(in.color.rgb, in.world);
-    return vec4<f32>(colour, alpha);
+    return vec4<f32>(dimmed(in.color.rgb), alpha);
 }
 "#;
 
@@ -175,7 +179,7 @@ struct Globals {
     view_proj: xform::Mat4,
     eye: [f32; 4],
     light: [f32; 4],
-    fog: [f32; 4],
+    dim: [f32; 4],
     tint: [f32; 4],
 }
 
@@ -583,38 +587,23 @@ impl Scene {
         self.dots.begin();
 
         let camera = frame.camera;
-        let aspect = width as f32 / height.max(1) as f32;
-        let view = xform::look_at(camera.eye, camera.target, [0.0, 1.0, 0.0]);
-        let projection = xform::perspective(FOV, aspect, NEAR, FAR);
-        let view_proj = xform::mul(projection, view);
-
-        // The room itself: a floor and three walls, so the cards stand on
-        // something and the light has a surface to fall on.
-        let floor = mix(theme.background, theme.foreground, 0.09).to_linear();
-        let wall = mix(theme.background, theme.foreground, 0.05).to_linear();
-        let reach = HALF_WIDTH + 0.2;
-        self.boxes.instances.push(Instance::new(
-            xform::block([0.0, -0.06, 0.0], [2.0 * reach, 0.12, 2.0 * HALF_DEPTH], 0.0),
-            floor,
-        ));
-        self.boxes.instances.push(Instance::new(
-            xform::block(
-                [0.0, WALL_HEIGHT * 0.5, BACK - 0.08],
-                [2.0 * reach, WALL_HEIGHT, 0.16],
-                0.0,
-            ),
-            wall,
-        ));
-        for side in [-1.0f32, 1.0] {
-            self.boxes.instances.push(Instance::new(
-                xform::block(
-                    [side * (HALF_WIDTH + 0.08), WALL_HEIGHT * 0.5, 0.0],
-                    [0.16, WALL_HEIGHT, 2.0 * HALF_DEPTH],
-                    0.0,
-                ),
-                wall,
-            ));
-        }
+        // The page is flat and the camera looks straight at it, so the picture is
+        // an orthographic window onto the grid: one cell is one cell wherever it
+        // is on screen, and a glyph lands on whole pixels.
+        let width_units = camera.width();
+        let height_units = camera.height();
+        let eye = [width_units * 0.5, height_units * 0.5, CAMERA_Z];
+        let look = xform::look_at(eye, [eye[0], eye[1], 0.0], [0.0, 1.0, 0.0]);
+        // `look_at` puts the middle of the page at the origin, so the window is
+        // centred on it: passing `0..width` here would shift the whole page half a
+        // viewport down and to the left.
+        let (half_width, half_height) = (width_units * 0.5, height_units * 0.5);
+        let projection = xform::ortho(-half_width, half_width, -half_height, half_height, NEAR, FAR);
+        let view_proj = xform::mul(projection, look);
+        // Everything on the page is drawn through `view_proj`; the kitten is
+        // drawn through the same one, sheared, because a box has a side and a top
+        // and a page of text does not.
+        let sheared = xform::oblique(SHEAR_X, SHEAR_Y);
 
         let palette = Palette::new(*theme);
         for card in &frame.cards {
@@ -623,9 +612,7 @@ impl Scene {
             }
             match card.kind {
                 CardKind::Glyph => {
-                    let colour = palette
-                        .color(card.style)
-                        .to_linear_alpha(card.alpha);
+                    let colour = palette.color(card.style).to_linear_alpha(card.alpha);
                     let uv = self
                         .uvs
                         .get(GlyphAtlas::index(card.ch) as usize)
@@ -636,8 +623,9 @@ impl Scene {
                             card.pos,
                             card.yaw,
                             card.pitch,
-                            super::GLYPH_WIDTH * card.scale,
-                            card.scale,
+                            card.roll,
+                            card.size[0],
+                            card.size[1],
                         ),
                         color: colour,
                         uv,
@@ -650,8 +638,9 @@ impl Scene {
                             card.pos,
                             card.yaw,
                             card.pitch,
-                            card.scale,
-                            card.scale,
+                            card.roll,
+                            card.size[0],
+                            card.size[1],
                         ),
                         colour,
                     ));
@@ -662,17 +651,18 @@ impl Scene {
         for block in &frame.blocks {
             let colour = super::shade_colour(block.shade, theme).to_linear();
             self.boxes.instances.push(Instance::new(
-                xform::block(block.pos, block.size, block.yaw),
+                xform::mul(sheared, xform::block(block.pos, block.size, block.yaw)),
                 colour,
             ));
         }
 
         // Back to front, so the blended edges of two cards that overlap in
-        // screen space come out in the order the room has them.
+        // screen space come out in the order the page has them. Depth on a page is
+        // `z` and nothing else: the text is all at zero and everything that stands
+        // on it is in front.
         let depth = |instance: &Instance| {
             let m = instance.model;
-            let pos = [m[3][0], m[3][1], m[3][2]];
-            camera.depth(pos)
+            m[3][2]
         };
         self.glyphs
             .instances
@@ -690,12 +680,11 @@ impl Scene {
             .upload(device, queue, "playground box instances");
         self.dots.upload(device, queue, "playground dot instances");
 
-        let eye = camera.eye;
         let globals = Globals {
             view_proj,
             eye: [eye[0], eye[1], eye[2], 1.0],
             light: [LIGHT[0], LIGHT[1], LIGHT[2], 0.0],
-            fog: [6.0, 26.0, frame.dim, 0.0],
+            dim: [frame.dim, 0.0, 0.0, 0.0],
             tint: [
                 theme.background.to_linear()[0],
                 theme.background.to_linear()[1],
