@@ -91,6 +91,12 @@ struct Flags {
     floating_tab: Option<String>,
     /// The transparency the floating Search window is drawn at, 0 to 0.9.
     floating_transparency: f32,
+    /// Draw the playground instead of the editor.
+    playground: bool,
+    /// How many seconds of the room's own clock to run before drawing it.
+    playground_time: f32,
+    /// The seed the room is built from.
+    playground_seed: u64,
 }
 use std::time::Instant;
 
@@ -200,6 +206,16 @@ fn main() {
             "floating_transparency" => {
                 flags.floating_transparency = value.and_then(|v| v.parse().ok()).unwrap_or(0.0)
             }
+            "playground" => flags.playground = true,
+            "playground_time" => {
+                flags.playground_time = value
+                    .and_then(|v| v.parse::<f32>().ok())
+                    .unwrap_or(0.0)
+                    .clamp(0.0, 3600.0)
+            }
+            "playground_seed" => {
+                flags.playground_seed = value.and_then(|v| v.parse().ok()).unwrap_or(0x5EED)
+            }
             "vtabs" => flags.tab_layout = nn_app::TabLayout::Vertical,
             "mtabs" => flags.tab_layout = nn_app::TabLayout::MultiLine,
             other => eprintln!("bench: unknown flag {other}"),
@@ -264,6 +280,28 @@ fn main() {
     println!("document: {} lines", doc.len_lines());
 
     let mut renderer = Renderer::new(&device, &queue, FORMAT);
+    // The room runs on its own clock, so a dump at `playground_time=180` is the
+    // same room at the same moment every run: the seed is a flag and the steps
+    // are counted, never timed.
+    let mut playground = {
+        let now = Instant::now();
+        let mut playground = nn_app::Playground::new(
+            &device,
+            &queue,
+            FORMAT,
+            renderer.font_system(),
+            flags.playground_seed,
+            now,
+        );
+        if flags.playground {
+            playground.enter(flags.playground_seed, now);
+            let steps = (flags.playground_time / 0.05).round() as usize;
+            for _ in 0..steps {
+                playground.step(0.05, width as f32 / height as f32);
+            }
+        }
+        playground
+    };
     let mut view = EditorView::new(renderer.font_system(), Theme::DARK);
     let mut tab_bar = TabBar::new(
         cosmic_text::Metrics::new(15.0, 20.0),
@@ -940,6 +978,7 @@ fn main() {
             &mut styles,
             &mut shortcuts,
             &mut browser,
+            &mut playground,
             &chrome,
             cursor_y,
             width as f32,
@@ -1209,6 +1248,7 @@ fn main() {
             &mut styles,
             &mut shortcuts,
             &mut browser,
+            &mut playground,
             &chrome,
             cursor_y,
             width as f32,
@@ -1220,17 +1260,17 @@ fn main() {
 
     report(
         "idle",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |_, _| {}),
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, cursor_y, width, height, frames, |_, _| {}),
     );
     report(
         "scroll",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, _| {
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, cursor_y, width, height, frames, |ed, _| {
             ed.scroll_lines(1);
         }),
     );
     report(
         "type",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, hl| {
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, cursor_y, width, height, frames, |ed, hl| {
             let line = ed.doc.char_to_line(ed.caret());
             ed.insert("x");
             hl.highlight_from(&mut ed.doc, line);
@@ -1344,6 +1384,7 @@ fn measure(
     styles: &mut StyleConfigurator,
     shortcuts: &mut Shortcuts,
     browser: &mut Browser,
+    playground: &mut nn_app::Playground,
     chrome: &Chrome,
     cursor_y: f32,
     width: u32,
@@ -1390,6 +1431,7 @@ fn measure(
             styles,
             shortcuts,
             browser,
+            playground,
             chrome,
             cursor_y,
             width as f32,

@@ -493,6 +493,9 @@
             <Item id="Normal" name="보통"/>
             <Item id="Extended" name="확장"/>
             <Item id="Regular expression" name="정규식"/>
+            <Item id="Playground" name="놀이터"/>
+            <Item id="Playground After" name="놀이터 지연"/>
+            <Item id="Never" name="안 함"/>
             </Main>
         </Menu>
     </Native-Langue>

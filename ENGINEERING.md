@@ -9378,3 +9378,135 @@ names returned 0 errors -- 5 resolved through the keymap, 32 through the table.
 `cargo test --offline --all`: 2064 passed, 0 failed. `cargo clippy --offline
 --all-targets`: 0 warnings. `cargo fmt` was not run. PDF: up to date, 301,578
 bytes, 70 pages A4, 111 bookmarks.
+
+## Seventy-sixth pass: a room with a kitten in it
+
+Playground mode is the first part of this program that Notepad++ does not have at
+all. `Ctrl+Alt+K` -- K for kitten, the chord free and next to the other view
+switches -- hides the editor and puts a room on the screen: code on the walls, a
+floor of punctuation, a table, a plant, and a kitten who walks about, follows the
+pointer, bats loose tokens around and falls asleep. `Escape` gives the window
+back. The document is never read and never written, so a screenshot of the mode
+cannot show anyone's work and five minutes in the room cost no undo step.
+
+The split is the one the rest of the project uses: the simulation is `nn-core`
+with no GPU and no clock, and the drawing is `nn-app`. `nn-core::playground`
+generates rooms, drops tokens, runs the kitten's moods and projects the camera;
+`nn-app::playground` owns the atlas, the three passes and the idle clock that
+decides whether the mode may open by itself. The simulation being pure is what
+made the mode cheap to get right: `cargo test` drives minutes of cat behaviour in
+milliseconds and asserts on moods and positions rather than on pixels, and the
+`bench` binary can draw a frame five minutes in without waiting five minutes.
+
+One unit is one line of editor text. A glyph card is one unit tall, the room is
+sixteen across, the kitten is two and a quarter -- which is what makes the mode
+the same at any font size on any display, and what makes the depth buffer's near
+and far planes a constant rather than a guess per window.
+
+### The room
+
+Four cards, one per wall, facing inwards, each papered with lines of code from the
+corpus. The corpus is compiled into `nn-core` in eight flavours -- Rust, C, Java,
+Python, JSON, XML, UN/EDIFACT and CSV -- and the six that have a lexer here are
+coloured by that lexer, so the walls are papered in the same highlighting the
+editor uses. EDI and CSV have no lexer and are split on their delimiters instead.
+`Style` travels with every character as one byte, which is why colouring eight
+languages costs one code path.
+
+The open document is never the material. A room built from the user's file would
+look like a view of that file rather than a place beside it, would put their work
+where they cannot edit it, and would make every screenshot of the mode a leak.
+
+The room is rebuilt every five minutes from the next seed, over a two and a half
+second blend in which the old room fades and its furniture lifts away. Seeds are
+passed in, never read from the clock inside the simulation: the window makes one
+from the clock, a constant and a visit counter, and `bench` can be handed one.
+
+### The kitten
+
+A body, a chest, a rump, a head carrying two ears, a muzzle, a nose, two eyes,
+four legs and two paws -- all boxes, all placed from poses -- and a tail of six
+segments that alternate colour so the tip reads as a tip. Moods are `walk`, `sit`,
+`crouch`, `pounce`, `bat`, `sleep`, each with a pose the boxes are placed from, so
+a mood is a shape and not a sprite. It turns towards the pointer when the pointer
+moves, ignores it when it does not, and pounces on a loose token when one is close
+enough; three minutes with no input and it curls up where it stands, which the
+corner line reports.
+
+### What the frames showed
+
+Five bugs came out of looking at rendered frames rather than at code, and each was
+invisible in the tests.
+
+The glyph atlas was clipping every single glyph. The rasteriser set the pen at the
+centre of the cell, and measured the ink box *after* clipping to the cell, so the
+box always fitted the cell and the fit-to-cell loop never fired: letters were
+drawn from their centres and cut on the right and the bottom. The rewrite places
+the pen at the cell's left edge and the baseline at its bottom, measures each
+glyph's ink from the placement rectangle before any clipping, returns a stamp
+with its own size and offset, and copies that stamp at the offset. Rendered proofs
+of all 95 characters of the atlas came back upright and complete.
+
+The side walls were mirrored: the cards were built facing out of the room, so
+their text read backwards. The yaw is now `-sign * FRAC_PI_2`, and both walls
+read.
+
+The sleeping kitten was a slab: the body did not lower, the chest stayed filled
+with a bar across the middle, and the ears floated above a head that had shrunk
+under them. The asleep body is now lower and longer, the chest is skipped, the
+head tucks down and forward, and the ears ride the top of whichever head they
+belong to.
+
+The awake head sat a quarter unit too far forward, which left the neck open at the
+front -- the cat looked beheaded from a three-quarter view. `HEAD` moved from
+`z = 1.28` to `1.04`.
+
+The back wall's rows were cut by the top edge of the window. Rows now start at
+`1.18` and step a full unit, so four rows fit above the horizon at any window
+shape the mode accepts.
+
+### Cost
+
+Two and a half to three and a half milliseconds a frame at 1280 by 800, measured
+with `bench`, of which the simulation is microseconds and the rest is three draw
+passes into one depth buffer: cards, boxes, dust. The mode redraws at sixty a
+second only while it is open, and it asks for no frames at all when it is not,
+because a screensaver that spins a GPU is not a screensaver.
+
+### The rest of the wiring
+
+`Ctrl+Alt+K` in the keymap, a "Playground" row under "Distraction Free Mode" in
+the View menu, two preferences rows -- on or off, and the idle minutes that open
+it by itself, zero by default -- three strings across the 23 localisation files,
+one accessibility label announcing the flavour, the room number and "Esc leaves",
+and three `bench` flags (`playground`, `playground_time=`, `playground_seed=`) so
+a frame can be reproduced from a command line. The preferences dialog grew from
+14 rows to 16, and the test that anchors a dropdown to the row above it now
+derives the anchor from `Row::ALL` instead of a hard-coded pixel offset.
+
+The menu-shape test compares the View menu against Notepad++'s row for row, so it
+now filters "Playground" out explicitly, with a comment saying why; a second test
+asserts the row sits immediately after Distraction Free Mode, where the deviation
+is deliberate rather than incidental.
+
+### The documents
+
+`docs/nekopp-features.md` gained the chapter "Playground" -- a table of what the
+room does and when, the eight flavours, the two clocks, the screensaver, and why
+the material is a corpus -- plus the View menu row, two preference rows, and the
+shortcut table row. The keymap is 74 chords now, so the two counts in the
+document changed with it.
+
+`nn-mcp` reads that document at build time, including the shortcut table, which is
+why its own counts moved without a line of logic changing: 73 chords to 74, and
+109 sections to 110 -- one chapter, 29 in total, 81 subsections. Its two
+table-of-contents assertions count lines, so they moved from 110 to 111.
+
+Verification: 2145 tests across the workspace (1087 in `nn-app`, 958 in
+`nn-core`, 100 in `nn-mcp`), 0 failed. `cargo clippy --offline --all-targets`: 0
+warnings. `cargo fmt` was not run. Frames rendered and inspected at 0, 45 and 400
+seconds of simulation time, the last one after a rebuild, asleep, with the room
+reported as number 2 in EDIFACT.
+
+`python3 docs/build-pdf.py --check`: up to date, 308,373 bytes, 72 pages A4, 112
+bookmarks -- one chapter and two pages more than the last pass.

@@ -493,6 +493,9 @@
             <Item id="Normal" name="Normal"/>
             <Item id="Extended" name="Étendu"/>
             <Item id="Regular expression" name="Expression régulière"/>
+            <Item id="Playground" name="Terrain de jeu"/>
+            <Item id="Playground After" name="Terrain de jeu après"/>
+            <Item id="Never" name="Jamais"/>
             </Main>
         </Menu>
     </Native-Langue>

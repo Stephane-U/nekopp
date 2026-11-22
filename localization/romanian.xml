@@ -493,6 +493,9 @@
             <Item id="Normal" name="Normal"/>
             <Item id="Extended" name="Extins"/>
             <Item id="Regular expression" name="Expresie regulată"/>
+            <Item id="Playground" name="Loc de joacă"/>
+            <Item id="Playground After" name="Loc de joacă după"/>
+            <Item id="Never" name="Niciodată"/>
             </Main>
         </Menu>
     </Native-Langue>

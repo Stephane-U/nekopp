@@ -398,6 +398,9 @@ const DEFAULTS: &[(Action, &str)] = &[
     // Notepad++ leaves the character panel unbound too. C is for character and
     // is free: Ctrl+Alt+C is not used by anything else here.
     (Action::CharPanel, "Ctrl+Alt+C"),
+    // K for kitten. Ctrl+Alt+K is free, and the mode is meant to be reached
+    // without thinking about it.
+    (Action::Playground, "Ctrl+Alt+K"),
     // Notepad++'s own chord for incremental search.
     (Action::IncrementalSearch, "Ctrl+Alt+I"),
     (Action::MarkAll, "Ctrl+Shift+M"),

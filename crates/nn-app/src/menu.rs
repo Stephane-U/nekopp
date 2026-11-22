@@ -350,6 +350,8 @@ pub enum Action {
     EncodingConvert(Encoding),
     FullScreen,
     DistractionFree,
+    /// Hide the window behind a room with a kitten in it.
+    Playground,
     ChangeHistory,
     ReadOnly,
     ShowWhitespace,
@@ -732,6 +734,7 @@ impl Action {
             Action::EncodingConvert(_) => "encoding_convert",
             Action::FullScreen => "full_screen",
             Action::DistractionFree => "distraction_free",
+            Action::Playground => "playground",
             Action::ChangeHistory => "change_history",
             Action::ReadOnly => "read_only",
             Action::ShowWhitespace => "show_whitespace",
@@ -1060,6 +1063,7 @@ impl Action {
             }
             "full_screen" => Action::FullScreen,
             "distraction_free" => Action::DistractionFree,
+            "playground" => Action::Playground,
             "change_history" => Action::ChangeHistory,
             "read_only" => Action::ReadOnly,
             "show_whitespace" => Action::ShowWhitespace,
@@ -1483,6 +1487,7 @@ impl Action {
         Action::EolMac,
         Action::FullScreen,
         Action::DistractionFree,
+        Action::Playground,
         Action::ChangeHistory,
         Action::ReadOnly,
         Action::ShowWhitespace,
@@ -1992,6 +1997,7 @@ fn view_items() -> Vec<Item> {
         Item::new("Toggle Full Screen Mode", Action::FullScreen),
         Item::new("Post-It", Action::PostIt),
         Item::new("Distraction Free Mode", Action::DistractionFree),
+        Item::new("Playground", Action::Playground),
         Item::separator(),
         Item::submenu(
             "View Current File in",
@@ -4666,10 +4672,13 @@ mod tests {
     #[test]
     fn the_view_menu_is_notepads_shape() {
         let items = view_items();
+        // Playground is ours: Notepad++ has no row there. Everything else keeps
+        // Notepad++'s order, which is what the rest of this list is about.
         let labels: Vec<&str> = items
             .iter()
             .filter(|item| !item.separator)
             .map(|item| item.label.as_str())
+            .filter(|label| *label != "Playground")
             .collect();
         assert_eq!(
             labels,
@@ -4703,6 +4712,16 @@ mod tests {
                 "Monitoring (tail -f)",
             ]
         );
+    }
+
+    #[test]
+    fn the_playground_row_sits_under_distraction_free_mode() {
+        let items = view_items();
+        let at = items
+            .iter()
+            .position(|item| item.action == Action::Playground)
+            .expect("a Playground row");
+        assert_eq!(items[at - 1].action, Action::DistractionFree);
     }
 
     #[test]

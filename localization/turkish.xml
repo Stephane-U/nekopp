@@ -493,6 +493,9 @@
             <Item id="Normal" name="Normal"/>
             <Item id="Extended" name="Genişletilmiş"/>
             <Item id="Regular expression" name="Düzenli ifade"/>
+            <Item id="Playground" name="Oyun alanı"/>
+            <Item id="Playground After" name="Oyun alanı sonrası"/>
+            <Item id="Never" name="Hiçbir zaman"/>
             </Main>
         </Menu>
     </Native-Langue>

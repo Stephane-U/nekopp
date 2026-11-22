@@ -15,8 +15,8 @@ use glyphon::{TextArea, TextBounds};
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
 use crate::settings::{
-    FileDialog, Settings, ThemeChoice, MAX_AUTOSAVE, MAX_FONT_SIZE, MAX_TAB_WIDTH, MIN_AUTOSAVE,
-    MIN_FONT_SIZE, MIN_TAB_WIDTH,
+    FileDialog, Settings, ThemeChoice, MAX_AUTOSAVE, MAX_FONT_SIZE, MAX_PLAYGROUND_MINUTES,
+    MAX_TAB_WIDTH, MIN_AUTOSAVE, MIN_FONT_SIZE, MIN_PLAYGROUND_MINUTES, MIN_TAB_WIDTH,
 };
 use crate::text::shaping_for;
 use crate::theme::Theme;
@@ -52,7 +52,7 @@ const TITLE: &str = "Preferences";
 /// The hint line under the rows.
 const HINT: &str = "Up/Down  Left/Right  Enter open  Esc close";
 /// How many rows the dialog has.
-pub const ROWS: usize = 14;
+pub const ROWS: usize = 16;
 
 /// The settings the dialog edits, in row order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,6 +66,8 @@ pub enum Row {
     FunctionList,
     VolatileFind,
     FloatingSearch,
+    Playground,
+    PlaygroundAfter,
     Backup,
     Autosave,
     FileDialog,
@@ -85,6 +87,8 @@ impl Row {
         Row::FunctionList,
         Row::VolatileFind,
         Row::FloatingSearch,
+        Row::Playground,
+        Row::PlaygroundAfter,
         Row::Backup,
         Row::Autosave,
         Row::FileDialog,
@@ -104,6 +108,8 @@ impl Row {
             Row::FunctionList => "Function List",
             Row::VolatileFind => "Volatile Find",
             Row::FloatingSearch => "Floating Search",
+            Row::Playground => "Playground",
+            Row::PlaygroundAfter => "Playground After",
             Row::Backup => "Backup on Save",
             Row::Autosave => "Autosave",
             Row::FileDialog => "File Dialog",
@@ -125,6 +131,7 @@ impl Row {
                 | Row::FunctionList
                 | Row::VolatileFind
                 | Row::FloatingSearch
+                | Row::Playground
                 | Row::Backup
                 | Row::FileDialog
         )
@@ -859,6 +866,15 @@ impl Preferences {
             Row::FunctionList => self.settings.function_list = !self.settings.function_list,
             Row::VolatileFind => self.settings.volatile_find = !self.settings.volatile_find,
             Row::FloatingSearch => self.settings.find_floating = !self.settings.find_floating,
+            Row::Playground => self.settings.playground = !self.settings.playground,
+            Row::PlaygroundAfter => {
+                // One minute a press: an idle time is not something anyone
+                // tunes in five-second steps.
+                let minutes = self.settings.playground_after as i32 + delta;
+                self.settings.playground_after = minutes
+                    .clamp(MIN_PLAYGROUND_MINUTES as i32, MAX_PLAYGROUND_MINUTES as i32)
+                    as u32;
+            }
             // Three values rather than two, so it steps rather than toggles.
             Row::Backup => {
                 self.settings.backup_mode = if delta >= 0 {
@@ -923,6 +939,14 @@ impl Preferences {
             Row::FunctionList => on_off(self.settings.function_list),
             Row::VolatileFind => on_off(self.settings.volatile_find),
             Row::FloatingSearch => on_off(self.settings.find_floating),
+            Row::Playground => on_off(self.settings.playground),
+            Row::PlaygroundAfter => {
+                if self.settings.playground_after == 0 {
+                    self.tr("Never").to_string()
+                } else {
+                    format!("{} min", self.settings.playground_after)
+                }
+            }
             Row::Backup => self.tr(self.settings.backup_mode.label()).to_string(),
             Row::Autosave => {
                 if self.settings.autosave_seconds == 0 {
@@ -1279,7 +1303,15 @@ impl Preferences {
     /// for, without anyone remembering to add it here.
     pub fn labels() -> Vec<&'static str> {
         let mut labels: Vec<&'static str> = Row::ALL.iter().map(|row| row.label()).collect();
-        labels.extend(["Preferences", "On", "Off", "Edit...", PICKER_FOOTER, HINT]);
+        labels.extend([
+            "Preferences",
+            "On",
+            "Off",
+            "Never",
+            "Edit...",
+            PICKER_FOOTER,
+            HINT,
+        ]);
         labels.extend(FileDialog::ALL.iter().map(|mode| mode.label()));
         labels.extend(
             nn_core::backup::BackupMode::ALL
@@ -2036,19 +2068,24 @@ mod tests {
         let mut prefs = dialog();
         prefs.set_viewport(1000.0, 300.0);
         prefs.open(&Settings::default());
-        // The language row is the second to last, so nothing fits under it in a
+        // The row's own bottom edge: two lines of title, the rows above it, and
+        // the row itself.
+        let bottom_of = |prefs: &Preferences, row: Row| {
+            let above = Row::ALL.iter().position(|each| *each == row).expect("a row");
+            prefs.origin().1 + PADDING + prefs.line_height * (2.0 + above as f32 + 1.0)
+        };
+        // The language row is near the bottom, so nothing fits under it in a
         // window this short and the panel goes above.
         open_row(&mut prefs, Row::Language);
         let (_, top, _, height) = prefs.picker_panel().expect("a panel");
-        // The row's own bottom edge: two lines of title, eleven rows, one line.
-        let anchor = prefs.origin().1 + PADDING + prefs.line_height * 14.0;
+        let anchor = bottom_of(&prefs, Row::Language);
         assert!(top + height <= anchor);
         assert!(top + height <= 300.0);
         // And the theme row, with room below, stays under its row instead.
         prefs.close_picker();
         open_row(&mut prefs, Row::Theme);
         let (_, top, _, height) = prefs.picker_panel().expect("a panel");
-        let anchor = prefs.origin().1 + PADDING + prefs.line_height * 3.0;
+        let anchor = bottom_of(&prefs, Row::Theme);
         assert!(top >= anchor);
         assert!(top + height <= 300.0);
     }

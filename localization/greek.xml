@@ -493,6 +493,9 @@
             <Item id="Normal" name="Κανονική"/>
             <Item id="Extended" name="Εκτεταμένη"/>
             <Item id="Regular expression" name="Κανονική έκφραση"/>
+            <Item id="Playground" name="Χώρος παιχνιδιού"/>
+            <Item id="Playground After" name="Χώρος παιχνιδιού μετά"/>
+            <Item id="Never" name="Ποτέ"/>
             </Main>
         </Menu>
     </Native-Langue>

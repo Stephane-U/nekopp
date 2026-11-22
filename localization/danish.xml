@@ -493,6 +493,9 @@
             <Item id="Normal" name="Normal"/>
             <Item id="Extended" name="Udvidet"/>
             <Item id="Regular expression" name="Regulært udtryk"/>
+            <Item id="Playground" name="Legeplads"/>
+            <Item id="Playground After" name="Legeplads efter"/>
+            <Item id="Never" name="Aldrig"/>
             </Main>
         </Menu>
     </Native-Langue>

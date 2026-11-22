@@ -20,6 +20,7 @@ pub mod lexer;
 pub mod ops;
 pub mod lines;
 pub mod paths;
+pub mod playground;
 pub mod pdf;
 pub mod plugin;
 pub mod print;

@@ -493,6 +493,9 @@
             <Item id="Normal" name="Normaali"/>
             <Item id="Extended" name="Laajennettu"/>
             <Item id="Regular expression" name="Säännöllinen lauseke"/>
+            <Item id="Playground" name="Leikkikenttä"/>
+            <Item id="Playground After" name="Leikkikenttä jälkeen"/>
+            <Item id="Never" name="Ei koskaan"/>
             </Main>
         </Menu>
     </Native-Langue>

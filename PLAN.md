@@ -40,6 +40,20 @@ have to reconfigure anything.
 
 ---
 
+## And it should be fun
+
+An editor is a place people spend the day in, and a tool used that much has to be worth looking at
+when nothing is being typed. `Ctrl+Alt+K` turns the window into a room: code on the walls, a
+floor of punctuation, and a kitten two and a quarter lines tall who follows the pointer, bats
+loose tokens around and falls asleep after three minutes of quiet. `Escape` gives the window back,
+and the document was never read.
+
+Set "Playground After" and the room comes up on its own after that many idle minutes, which is
+what a screensaver is. Nothing here is required of anyone: it is not in Notepad++, it does not
+make the editor faster, and it is the part of the program we would miss most.
+
+---
+
 ## What "done" looks like
 
 | | Target |

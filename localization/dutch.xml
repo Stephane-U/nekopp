@@ -493,6 +493,9 @@
             <Item id="Normal" name="Normaal"/>
             <Item id="Extended" name="Uitgebreid"/>
             <Item id="Regular expression" name="Reguliere expressie"/>
+            <Item id="Playground" name="Speeltuin"/>
+            <Item id="Playground After" name="Speeltuin na"/>
+            <Item id="Never" name="Nooit"/>
             </Main>
         </Menu>
     </Native-Langue>

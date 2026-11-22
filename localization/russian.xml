@@ -493,6 +493,9 @@
             <Item id="Normal" name="Обычный"/>
             <Item id="Extended" name="Расширенный"/>
             <Item id="Regular expression" name="Регулярное выражение"/>
+            <Item id="Playground" name="Игровая площадка"/>
+            <Item id="Playground After" name="Игровая площадка через"/>
+            <Item id="Never" name="Никогда"/>
             </Main>
         </Menu>
     </Native-Langue>

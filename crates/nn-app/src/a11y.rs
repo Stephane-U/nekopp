@@ -58,6 +58,8 @@ pub const TEXT: NodeId = NodeId(3);
 pub const TEXT_RUN: NodeId = NodeId(4);
 /// The status bar.
 pub const STATUS: NodeId = NodeId(5);
+/// The playground's one line, when the room is on screen.
+pub const PLAYGROUND: NodeId = NodeId(6);
 
 /// The first top-level menu's id; menu `i` is `MENU_BASE + i`.
 pub const MENU_BASE: u64 = 10;
@@ -99,6 +101,13 @@ pub struct Snapshot {
     pub caret_line: usize,
     /// The status bar's text.
     pub status: String,
+    /// The playground's description, when the room is on screen.
+    ///
+    /// The mode hides the document, so a screen reader has to be told that the
+    /// window is no longer an editor and how to get it back. There is one line to
+    /// read and one key to press, which is why this is a string rather than a
+    /// tree of its own.
+    pub playground: Option<String>,
 }
 
 /// What activating a node does.
@@ -199,8 +208,20 @@ pub fn tree(snapshot: &Snapshot) -> TreeUpdate {
     if !snapshot.status.is_empty() {
         root_children.push(STATUS);
     }
+    if snapshot.playground.is_some() {
+        root_children.push(PLAYGROUND);
+    }
     root.set_children(root_children);
     nodes.push((ROOT, root));
+
+    // The playground, when it is what the window is showing: one label, read
+    // after the bars it replaced, saying what took the editor's place and what
+    // gets it back.
+    if let Some(description) = &snapshot.playground {
+        let mut node = Node::new(Role::Label);
+        node.set_label(description.clone());
+        nodes.push((PLAYGROUND, node));
+    }
 
     // The menu bar. Each top-level title is a `Menu` whose children are its
     // rows; a separator is skipped because it is not a thing to read out.
@@ -341,6 +362,7 @@ mod tests {
 
     fn snapshot() -> Snapshot {
         Snapshot {
+            playground: None,
             title: "notes.txt - Neko++".to_string(),
             menus: vec![
                 Row {

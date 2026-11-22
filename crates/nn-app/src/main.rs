@@ -15,7 +15,7 @@ use nn_app::{
     DocumentPeeker, EditorView, Entry, FileDialog,
     FindBar, FindDialog, FolderPanel, FunctionList, Gpu, Import,
     Item, KeyName, Keymap, MatchMode, MenuBar, Mode, Palette, PaneRef, ParamHint, PluginList,
-    PluginMenu, PluginRow, Plugins, Preferences,
+    PluginMenu, PluginRow, Plugins, Playground, Preferences,
     PrintPreview,
     PromptBar,
     PromptKind,
@@ -71,6 +71,13 @@ const CLICK_SLOP: f64 = 4.0;
 /// One second is the interval every editor that polls uses, and it is well under
 /// the time it takes a human to notice a stale buffer.
 const DISK_POLL: std::time::Duration = std::time::Duration::from_millis(1000);
+
+/// The seed the playground's first room is built from.
+///
+/// Fixed, so the first press of the shortcut always opens the same room on the
+/// same seed -- a mode that cannot be reproduced cannot be checked. Every later
+/// visit mixes in the visit count and the clock.
+const PLAYGROUND_SEED: u64 = 0x5EED_1CA7_2D0B_90F1;
 
 /// How many clipboard entries the history keeps.
 ///
@@ -730,6 +737,14 @@ struct State {
     /// thread, and the theme has to be applied from the event loop.
     system_light: Option<bool>,
     renderer: Renderer,
+    /// The room behind `Ctrl+Alt+K`, and the idle clock that opens it.
+    playground: Playground,
+    /// How many times the mode has been opened, which seeds its rooms.
+    ///
+    /// A counter rather than the clock alone: two visits in the same second
+    /// would otherwise be the same room, and pressing the shortcut twice is
+    /// exactly how a user finds that out.
+    playground_visits: u64,
     modifiers: ModifiersState,
     dragging: bool,
     /// How many presses the press in progress is: one, two for a word, three
@@ -1536,9 +1551,21 @@ impl State {
         // The scan was started beside the graphics device; joining it here is
         // normally free, and a thread that panicked falls back to doing the work
         // on this one rather than taking the window down with it.
-        let (font_system, char_width) = fonts
+        let (mut font_system, char_width) = fonts
             .and_then(|thread| thread.join().ok())
             .unwrap_or_else(load_fonts);
+        // The playground's glyph atlas is rasterised here, before the font
+        // system is handed to the renderer. It costs one shaping pass over the
+        // printable ASCII range, and doing it now is what keeps the mode from
+        // stalling the window the first time the shortcut is pressed.
+        let playground = Playground::new(
+            &gpu.device,
+            &gpu.queue,
+            gpu.format(),
+            &mut font_system,
+            PLAYGROUND_SEED,
+            std::time::Instant::now(),
+        );
         let mut renderer =
             Renderer::with_font_system(&gpu.device, &gpu.queue, gpu.format(), font_system);
         let mut view = EditorView::with_char_width(Theme::DARK, char_width);
@@ -1763,6 +1790,8 @@ impl State {
             settings: Settings::default(),
             system_light: None,
             renderer,
+            playground,
+            playground_visits: 0,
             modifiers: ModifiersState::empty(),
             dragging: false,
             minimap_drag: false,
@@ -2228,12 +2257,23 @@ impl State {
     /// window at zero CPU: with nothing to watch and nothing unsaved there is no
     /// reason to wake at all.
     fn next_wake(&self) -> Option<std::time::Duration> {
+        // A room being drawn is a frame timer, and there is nothing else to
+        // wait for: the window is the room.
+        let now = std::time::Instant::now();
+        if let Some(frame) = self.playground.deadline(now) {
+            return Some(frame);
+        }
         let disk = self.watches_disk().then_some(DISK_POLL);
         // A tooltip waiting out its half second is a third timer. Without it the
         // label would appear on the next unrelated event, which on an idle
         // window is never -- the loop would sleep through the deadline.
-        let tip = self.tooltip.deadline(std::time::Instant::now());
-        nn_app::soonest(nn_app::soonest(disk, self.autosave_in()), tip)
+        let tip = self.tooltip.deadline(now);
+        // The idle timeout is the fourth: a screensaver that the loop sleeps
+        // through is a screensaver that never starts.
+        nn_app::soonest(
+            nn_app::soonest(disk, self.autosave_in()),
+            nn_app::soonest(tip, self.screensaver_in(now)),
+        )
     }
 
     /// Writes every modified buffer into the snapshot directory.
@@ -3248,6 +3288,80 @@ impl State {
         self.window.request_redraw();
     }
 
+    /// Opens or closes the playground.
+    fn toggle_playground(&mut self) {
+        if self.playground.is_active() {
+            self.playground.leave();
+        } else if self.settings.playground {
+            self.open_playground();
+        }
+        self.window.request_redraw();
+    }
+
+    /// Opens the room, on a seed nothing else has used.
+    fn open_playground(&mut self) {
+        self.playground_visits = self.playground_visits.wrapping_add(1);
+        let clock = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_secs())
+            .unwrap_or(0);
+        let seed = PLAYGROUND_SEED
+            ^ clock.rotate_left(17)
+            ^ self
+                .playground_visits
+                .wrapping_mul(0x2545_F491_4F6C_DD1D);
+        self.playground
+            .enter(seed, std::time::Instant::now());
+        self.window.request_redraw();
+    }
+
+    /// Escape leaves; every other key only says that someone is still here.
+    fn handle_playground_key(&mut self, event: &winit::event::KeyEvent) {
+        let now = std::time::Instant::now();
+        self.playground.activity(now);
+        let escape = matches!(
+            event.logical_key,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
+        );
+        if escape {
+            self.playground.leave();
+            self.window.request_redraw();
+        }
+    }
+
+    /// Runs one frame of the room if one is due, and opens the room when the
+    /// window has been idle long enough.
+    ///
+    /// Called from `about_to_wait`, which is the one place that runs between
+    /// batches of events and before the loop sleeps.
+    fn tick_playground(&mut self) {
+        let now = std::time::Instant::now();
+        if self.playground.is_active() {
+            if self.playground.tick(now) {
+                self.window.request_redraw();
+            }
+            return;
+        }
+        if self.screensaver_in(now) == Some(std::time::Duration::ZERO) {
+            self.open_playground();
+        }
+    }
+
+    /// How long until the idle window is long enough to open the playground.
+    ///
+    /// `None` when the mode is switched off, when the timeout is zero, or while
+    /// the room is already open.
+    fn screensaver_in(&self, now: std::time::Instant) -> Option<std::time::Duration> {
+        if !self.settings.playground
+            || self.settings.playground_after == 0
+            || self.playground.is_active()
+        {
+            return None;
+        }
+        let after = std::time::Duration::from_secs(self.settings.playground_after as u64 * 60);
+        Some(after.saturating_sub(self.playground.idle(now)))
+    }
+
     fn toggle_distraction_free(&mut self) {
         self.chrome.toggle();
         self.status.set_message(Some(
@@ -3383,6 +3497,9 @@ impl State {
             text: editor.doc.text(),
             caret_line: editor.caret_line(),
             status: self.status.text(),
+            playground: self.playground.is_active().then(|| {
+                "Playground. Press Escape to return to the document.".to_string()
+            }),
         }
     }
 
@@ -3403,6 +3520,7 @@ impl State {
         editor.doc.revision().hash(&mut hasher);
         editor.caret_line().hash(&mut hasher);
         self.status.text().hash(&mut hasher);
+        self.playground.is_active().hash(&mut hasher);
         // The menu is hashed by its labels rather than by a counter: a language
         // change and a new recent file both alter the tree without touching the
         // document.
@@ -3618,6 +3736,7 @@ impl State {
             &mut self.styles,
             &mut self.shortcuts,
             &mut self.browser,
+            &mut self.playground,
             &self.chrome,
             self.cursor.1 as f32,
             width,
@@ -4723,6 +4842,15 @@ impl State {
     }
 
     fn handle_key(&mut self, event: &winit::event::KeyEvent) {
+        // The playground takes the keyboard before anything else. It is a whole
+        // window rather than a layer over one, so a keystroke aimed at the room
+        // must not reach the document behind it -- and Escape, which is the only
+        // key that does anything, has to be caught here rather than by whatever
+        // modal happens to be open underneath.
+        if self.playground.is_active() {
+            self.handle_playground_key(event);
+            return;
+        }
         // A message from the last command has been read by now.
         self.status.set_message(None);
         let ctrl = self.modifiers.control_key();
@@ -6305,6 +6433,7 @@ impl State {
             Action::EncodingConvert(encoding) => self.convert_encoding(encoding),
             Action::FullScreen => self.toggle_full_screen(),
             Action::DistractionFree => self.toggle_distraction_free(),
+            Action::Playground => self.toggle_playground(),
             Action::ChangeHistory => self.toggle_change_history(),
             Action::TabLayout => self.cycle_tab_layout(),
             Action::BeginEndSelect => self.begin_end_select(),
@@ -9909,6 +10038,8 @@ impl ApplicationHandler<UserEvent> for App {
         if state.autosave_in() == Some(std::time::Duration::ZERO) {
             state.snapshot_now();
         }
+        // The room's own frame timer, and the idle one that opens it.
+        state.tick_playground();
         match state.next_wake() {
             Some(wait) => event_loop.set_control_flow(ControlFlow::WaitUntil(
                 std::time::Instant::now() + wait,
@@ -9949,6 +10080,7 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed {
+                    state.playground.activity(std::time::Instant::now());
                     state.hide_tooltip();
                     state.handle_key(&event);
                 }
@@ -9961,7 +10093,12 @@ impl ApplicationHandler<UserEvent> for App {
                 if pressed == ElementState::Pressed {
                     state.hide_tooltip();
                 }
-                if button == MouseButton::Right {
+                if state.playground.is_active() {
+                    // Nothing in the room is clickable: a press is a sign of
+                    // life and nothing else, and a right click must not open the
+                    // editor's context menu over a kitten.
+                    state.playground.activity(std::time::Instant::now());
+                } else if button == MouseButton::Right {
                     if pressed == ElementState::Pressed {
                         state.right_click(state.cursor.0, state.cursor.1);
                     }
@@ -9981,6 +10118,23 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::CursorMoved { position, .. } => {
                 let was = state.cursor;
                 state.cursor = (position.x, position.y);
+                if state.playground.is_active() {
+                    // The room takes the pointer in normalised device
+                    // coordinates, because that is what a ray through the
+                    // camera is made of; turning pixels into that is the window's
+                    // job, and this is the window.
+                    let width = state.gpu.config.width.max(1) as f64;
+                    let height = state.gpu.config.height.max(1) as f64;
+                    let ndc = [
+                        (position.x / width * 2.0 - 1.0) as f32,
+                        (1.0 - position.y / height * 2.0) as f32,
+                    ];
+                    state
+                        .playground
+                        .pointer(Some(ndc), std::time::Instant::now());
+                    return;
+                }
+                state.playground.activity(std::time::Instant::now());
                 // In distraction-free mode the menu bar appears when the pointer
                 // reaches the top edge, which changes the layout. Crossing that
                 // boundary has to repaint even though nothing else about the
@@ -9998,13 +10152,20 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 state.hide_tooltip();
-                state.handle_wheel(delta);
+                if state.playground.is_active() {
+                    state.playground.activity(std::time::Instant::now());
+                } else {
+                    state.handle_wheel(delta);
+                }
             }
             // The pointer leaving the window is the one case the hit test cannot
             // see: no further move arrives, so the label would stay up over a
             // window the user is no longer pointing at. The link's cursor has
             // the same problem, and the same fix.
             WindowEvent::CursorLeft { .. } => {
+                state
+                    .playground
+                    .pointer(None, std::time::Instant::now());
                 state.hide_tooltip();
                 if state.link_hover {
                     state.link_hover = false;

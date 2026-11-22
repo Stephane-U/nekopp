@@ -31,6 +31,12 @@ pub const MAX_AUTOSAVE: u32 = 300;
 /// How many verbose backups to keep per file.
 pub const MIN_BACKUP_KEEP: usize = 1;
 pub const MAX_BACKUP_KEEP: usize = 100;
+/// The longest idle time that opens the playground by itself, in minutes.
+///
+/// An hour. Past that the machine has almost certainly been left alone and a
+/// screensaver that starts an hour late is a screensaver that never starts.
+pub const MIN_PLAYGROUND_MINUTES: u32 = 0;
+pub const MAX_PLAYGROUND_MINUTES: u32 = 60;
 
 /// Which file dialog Open and Save As use.
 ///
@@ -380,6 +386,16 @@ pub struct Settings {
     /// the text could have used. On, the same search is drawn as a sheet with
     /// tabs -- the presentation Notepad++ ships.
     pub find_floating: bool,
+    /// Whether the playground can be opened, from the keyboard and by idling.
+    ///
+    /// On by default. It is a shortcut and a screensaver, not a mode the window
+    /// enters on its own, so there is nothing to be surprised by.
+    pub playground: bool,
+    /// How many minutes of no input open the playground by itself.
+    ///
+    /// Zero -- never -- by default: a screen that turns into a room while
+    /// someone is reading it is a screen that has taken the document away.
+    pub playground_after: u32,
     /// Which chord runs which command.
     pub keymap: Keymap,
     /// Colours the user changed in the Style Configurator.
@@ -470,6 +486,8 @@ impl Default for Settings {
             function_list: false,
             volatile_find: true,
             find_floating: false,
+            playground: true,
+            playground_after: 0,
             keymap: Keymap::default(),
             styles: Vec::new(),
             runs: RunList::default(),
@@ -548,6 +566,12 @@ impl Settings {
                 "function_list" => settings.function_list = value == "on",
                 "volatile_find" => settings.volatile_find = value == "on",
                 "find_floating" => settings.find_floating = value == "on",
+                "playground" => settings.playground = value == "on",
+                "playground_after" => {
+                    if let Ok(minutes) = value.parse::<u32>() {
+                        settings.playground_after = minutes.min(MAX_PLAYGROUND_MINUTES);
+                    }
+                }
                 "style" => {
                     // `style <slot> #RRGGBB`.
                     if let Some((slot, color)) = value.split_once(' ') {
@@ -639,6 +663,8 @@ impl Settings {
         out.push_str(&format!("function_list {}\n", on_off(self.function_list)));
         out.push_str(&format!("volatile_find {}\n", on_off(self.volatile_find)));
         out.push_str(&format!("find_floating {}\n", on_off(self.find_floating)));
+        out.push_str(&format!("playground {}\n", on_off(self.playground)));
+        out.push_str(&format!("playground_after {}\n", self.playground_after));
         out.push_str(&format!("toolbar {}\n", on_off(self.toolbar)));
         // Sorted here rather than trusted from the caller: the file is a
         // canonical record, and a stable order makes it diffable.
@@ -758,6 +784,8 @@ mod tests {
             function_list: true,
             volatile_find: false,
             find_floating: false,
+            playground: false,
+            playground_after: 7,
             backup_mode: BackupMode::Verbose,
             backup_keep: 4,
             autosave_seconds: 30,

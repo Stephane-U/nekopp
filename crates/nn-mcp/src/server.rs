@@ -1141,10 +1141,10 @@ mod tests {
             "params": {"name": "list_sections", "arguments": {}}
         }));
         let text = text_of(&response);
-        assert!(text.starts_with("Neko++ Feature Reference -- 28 chapters, 81 subsections"));
+        assert!(text.starts_with("Neko++ Feature Reference -- 29 chapters, 81 subsections"));
         assert!(text.contains("## The Menus -- nekopp://features/the-menus"));
         assert!(text.contains("  ### File -- nekopp://features/file"));
-        assert_eq!(text.lines().count(), 110);
+        assert_eq!(text.lines().count(), 111);
     }
 
     #[test]
@@ -1154,9 +1154,9 @@ mod tests {
             "params": {"name": "list_shortcuts", "arguments": {}}
         }));
         let text = text_of(&response);
-        assert!(text.starts_with("73 default key bindings:"));
+        assert!(text.starts_with("74 default key bindings:"));
         assert!(text.contains("| `Ctrl+Shift+Q` | Exit | `exit` |"));
-        assert_eq!(text.lines().filter(|line| line.starts_with("| `")).count(), 73);
+        assert_eq!(text.lines().filter(|line| line.starts_with("| `")).count(), 74);
     }
 
     #[test]
@@ -1234,7 +1234,7 @@ mod tests {
     fn resources_list_the_index_and_every_section() {
         let response = call(json!({"jsonrpc": "2.0", "id": 15, "method": "resources/list"}));
         let resources = result_of(&response)["resources"].as_array().unwrap();
-        assert_eq!(resources.len(), 110);
+        assert_eq!(resources.len(), 111);
         assert_eq!(resources[0]["uri"], INDEX_URI);
         assert_eq!(resources[0]["mimeType"], "text/markdown");
         assert!(resources

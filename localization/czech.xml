@@ -493,6 +493,9 @@
             <Item id="Normal" name="Normální"/>
             <Item id="Extended" name="Rozšířený"/>
             <Item id="Regular expression" name="Regulární výraz"/>
+            <Item id="Playground" name="Hřiště"/>
+            <Item id="Playground After" name="Hřiště po"/>
+            <Item id="Never" name="Nikdy"/>
             </Main>
         </Menu>
     </Native-Langue>

@@ -493,6 +493,9 @@
             <Item id="Normal" name="標準"/>
             <Item id="Extended" name="拡張"/>
             <Item id="Regular expression" name="正規表現"/>
+            <Item id="Playground" name="遊び場"/>
+            <Item id="Playground After" name="遊び場の遅延"/>
+            <Item id="Never" name="なし"/>
             </Main>
         </Menu>
     </Native-Langue>

@@ -32,7 +32,7 @@ Three rules were followed while writing it.
 
 Counts quoted in this document are counts of things in the source, not
 estimates: 147 built-in languages, 41 single-byte code pages in 13 character-set
-groups, 50 theme choices, 73 default key bindings, 23 bundled localisations, 16
+groups, 50 theme choices, 74 default key bindings, 23 bundled localisations, 16
 style slots, and 13 top-level menus.
 
 ## Overview
@@ -639,6 +639,10 @@ furniture is drawn. "Post-It" sets two of them at once -- always on top and no
 chrome -- because a note kept beside your work has to stay visible and has to be
 small.
 
+"Playground" is the fourth, and the only one that hands the whole window to
+something else. It is a room with a kitten in it; the document is untouched and
+`Escape` comes back. It has a chapter of its own, below.
+
 "View Current File in" offers Firefox, Chrome, Edge and IE. On Linux the four
 labels are deliberate: none of them can be honoured as a *specific* browser, so
 all four open the desktop's default handler, and the labels stay because a user
@@ -682,6 +686,7 @@ disk without asking, for a log file that is still being written.
 - Toggle Full Screen Mode (`F11`)
 - Post-It
 - Distraction Free Mode (`F12`)
+- Playground (`Ctrl+Alt+K`)
 - View Current File in
   - Firefox
   - Chrome
@@ -1763,6 +1768,71 @@ a Notepad++ `stylers.xml` is stored as a path rather than as copied colours, so
 an edit to the file takes effect without a second import; a path that no longer
 exists falls back to the built-in pair rather than failing to start.
 
+## Playground
+
+"View > Playground" (`Ctrl+Alt+K`) hands the window to a room: code on the walls,
+a rug of punctuation on the floor, a table, a plant, and a kitten two and a
+quarter lines tall who walks about, follows the pointer, bats loose tokens around
+and eventually falls asleep. `Escape` gives the window back. The document is never
+read and never written, so a screenshot of the mode cannot show anyone's work and
+five minutes in the room cost no undo step.
+
+Everything is measured in lines of text rather than in pixels: a glyph is one line
+tall, the room is sixteen lines across, the cat is two and a quarter. The mode
+therefore looks the same at any font size on any display, and the whole
+simulation can be tested without a GPU -- which is what `nn-core` does, driving
+minutes of cat behaviour in milliseconds.
+
+| Piece | Behaviour |
+|---|---|
+| The room | Four walls papered in code, a floor of punctuation, a rug, a table, a plant, and loose tokens lying about |
+| The kitten | Walks, sits, crouches, pounces on a token and bats it, blinks, flicks its tail; turns to follow the pointer |
+| Sleep | Three minutes with no input and it curls up where it stands |
+| Dimming | Four minutes and the room starts to dim, the way a screensaver does |
+| Rebuild | Five minutes and the room is rebuilt from the next seed, the old one fading out over two and a half seconds |
+
+The material is a corpus compiled into the binary, in eight flavours: Rust, C,
+Java, Python, JSON, XML, UN/EDIFACT and CSV. The first six are coloured by the
+editor's own lexers, because a room should be papered in the highlighting the rest
+of the program uses; EDI and CSV have no lexer here and are split on their
+delimiters instead. The open document is never the material. Starting the mode on
+the file the user was reading would make it look like a view of that document
+rather than a place beside it, and the room's vocabulary is meant to be a
+different six languages every five minutes.
+
+Two clocks matter and they are different. The room's clock is part of the rules:
+it decides when the room is rebuilt and when the kitten sleeps, and it advances
+only while the mode is open, so a minute in the room is a minute of the room. The
+window's idle clock counts input of any kind -- a key, a click, a wheel -- and it
+decides whether the mode may open on its own.
+
+That is the second way in. With "Playground After" set to a number of minutes, a
+window that has seen no input for that long opens the room by itself and the mode
+behaves as a screensaver; the default is never, because a screen that turns into a
+room while somebody is reading it is a screen that has taken their document away.
+"Playground" is the switch that owns both ways in. Off, `Ctrl+Alt+K` is inert and
+the mode never opens by itself, which is also the answer for a machine that is
+shared or recorded.
+
+Inside the room only `Escape` is a command. Every other key is a sign that
+somebody is still at the desk: it wakes the kitten, keeps the room bright and
+cancels the screensaver, and it goes no further, so typing cannot reach a document
+that is not being drawn. The line in the corner names the flavour and the room
+number, says when the kitten is asleep, and always ends with "Esc leaves"; a
+screen reader is given the same sentence as one label, which is the whole
+accessibility story of a mode with no widgets in it.
+
+The drawing is three passes into one depth buffer -- the room's cards, the
+kitten's boxes, the dust -- at two and a half to three and a half milliseconds a
+frame on a 1280 by 800 window. The glyphs come from an atlas rasterised once at
+startup, one stamp per character of the corpus, and are tinted per instance from
+the syntax style the lexer gave them.
+
+The mode is not in Notepad++, and it is the one place where this editor adds a
+whole subsystem rather than matching one: Notepad++ is a program somebody uses all
+day, and the alternative to five minutes of kitten is five minutes of something
+else.
+
 ## Preferences
 
 A centred list of rows, each edited in place: left and right on a row step a
@@ -1781,6 +1851,8 @@ one the shortcut editor uses, and it is what makes Escape mean "forget it".
 | Function List | On or off | Off |
 | Volatile Find | On or off | On |
 | Floating Search | On or off | Off |
+| Playground | On or off: whether the room can be opened at all | On |
+| Playground After | Minutes of no input before the room opens by itself, up to 60; zero shows "Never" | Never |
 | Backup on Save | None, Simple, Verbose | None |
 | Autosave | Seconds between snapshots; zero is off | 7 |
 | File Dialog | System dialog (XDG portal) or built-in browser | System dialog |
@@ -2374,7 +2446,7 @@ for each lives in one table rather than in a `match` arm. The menu reads its
 shortcut column from the same table, so a rebinding cannot leave the menu lying
 about what a key does.
 
-Seventy-three chords are bound by default. The table below is the whole default
+Seventy-four chords are bound by default. The table below is the whole default
 keymap, in the order the table lists it -- which is menu order, not alphabetical,
 because a list that groups the file commands and then the edit commands is easier
 to scan than one that starts with `Ctrl+A`.
@@ -2446,6 +2518,7 @@ to scan than one that starts with `Ctrl+A`.
 | `Ctrl+Alt+B` | Cycle Tab Layout | `tab_layout` |
 | `Ctrl+Alt+H` | Change History Panel | `change_history` |
 | `Ctrl+Alt+C` | Character Panel | `char_panel` |
+| `Ctrl+Alt+K` | Playground | `playground` |
 | `Ctrl+Alt+I` | Incremental Search | `incremental_search` |
 | `Ctrl+Shift+M` | Mark All | `mark_all` |
 | `Ctrl+B` | Go to Matching Brace | `goto_brace` |

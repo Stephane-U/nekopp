@@ -496,6 +496,9 @@
             <Item id="Normal" name="רגיל"/>
             <Item id="Extended" name="מורחב"/>
             <Item id="Regular expression" name="ביטוי רגולרי"/>
+            <Item id="Playground" name="מגרש משחקים"/>
+            <Item id="Playground After" name="מגרש משחקים לאחר"/>
+            <Item id="Never" name="לעולם לא"/>
             </Main>
         </Menu>
     </Native-Langue>

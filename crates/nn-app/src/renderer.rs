@@ -24,6 +24,7 @@ use crate::layout::{self, Split};
 use crate::menu::MenuBar;
 use crate::pluginlist::PluginList;
 use crate::prefs::Preferences;
+use crate::playground::Playground;
 use crate::print::PrintPreview;
 use crate::styles::StyleConfigurator;
 use crate::shortcuts::Shortcuts;
@@ -185,11 +186,21 @@ impl Renderer {
         styles: &mut StyleConfigurator,
         shortcuts: &mut Shortcuts,
         browser: &mut Browser,
+        playground: &mut Playground,
         chrome: &Chrome,
         cursor_y: f32,
         width: f32,
         height: f32,
     ) {
+        // The playground is not a layer over the window: it replaces it. Taking
+        // the whole frame rather than drawing over the editor is what lets the
+        // mode hide the tabs, the menu and the document behind it without any of
+        // them being laid out, prepared or painted.
+        if playground.is_active() {
+            let theme = panes[0].view.theme();
+            self.render_playground(device, queue, target, playground, &theme, width, height);
+            return;
+        }
         // The chrome's measurements are the same for every pane, so they are read
         // once from the first one. `Theme` is `Copy`, which is what lets the rest
         // of this function talk about colours without holding a borrow on a view
@@ -746,6 +757,103 @@ impl Renderer {
         // Called once, after both passes, rather than between them: the second
         // pass draws dropdowns and modals, and a trim in the middle would let the
         // second `prepare` evict a glyph the first pass had just queued.
+        self.atlas.trim();
+    }
+
+    /// Draws the playground, which is the whole window.
+    ///
+    /// Two passes rather than one, because glyphon's pipeline has no depth state
+    /// and wgpu requires a pipeline's depth attachment to match the pass it is
+    /// used in. So the room is drawn with a depth buffer, then the label is
+    /// drawn on top of it with the depth attachment dropped and the colour
+    /// loaded rather than cleared. One submit, so the two are one frame.
+    #[allow(clippy::too_many_arguments)]
+    fn render_playground(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target: &wgpu::TextureView,
+        playground: &mut Playground,
+        theme: &crate::theme::Theme,
+        width: f32,
+        height: f32,
+    ) {
+        playground.prepare(
+            device,
+            queue,
+            &mut self.font_system,
+            theme,
+            width.max(1.0) as u32,
+            height.max(1.0) as u32,
+        );
+
+        let areas = playground.text_areas(theme, height);
+        if let Err(err) = self.text_renderer.prepare(
+            device,
+            queue,
+            &mut self.font_system,
+            &mut self.atlas,
+            &self.viewport,
+            areas,
+            &mut self.swash_cache,
+        ) {
+            eprintln!("npp: playground text failed: {err:?}");
+        }
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("playground"),
+        });
+        {
+            let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("playground pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(theme.background.to_wgpu()),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: playground.depth_view(),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            // The borrow of the pass is taken by a `let mut` so the borrow of
+            // `playground` for its depth view ends with the descriptor.
+            let mut pass = pass;
+            playground.draw(&mut pass);
+        }
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("playground label"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            if let Err(err) = self.text_renderer.render(&self.atlas, &self.viewport, &mut pass) {
+                eprintln!("npp: playground label failed: {err:?}");
+            }
+        }
+        queue.submit(Some(encoder.finish()));
         self.atlas.trim();
     }
 }

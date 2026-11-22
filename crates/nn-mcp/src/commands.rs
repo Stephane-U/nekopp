@@ -286,9 +286,9 @@ mod tests {
     }
 
     #[test]
-    fn the_default_keymap_has_seventy_three_chords() {
+    fn the_default_keymap_has_seventy_four_chords() {
         let inventory = inventory();
-        assert_eq!(inventory.shortcuts().len(), 73);
+        assert_eq!(inventory.shortcuts().len(), 74);
         let mut seen = std::collections::HashSet::new();
         for shortcut in inventory.shortcuts() {
             assert!(seen.insert(shortcut.keys.clone()), "{}", shortcut.keys);

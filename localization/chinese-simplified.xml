@@ -493,6 +493,9 @@
             <Item id="Normal" name="普通"/>
             <Item id="Extended" name="扩展"/>
             <Item id="Regular expression" name="正则表达式"/>
+            <Item id="Playground" name="游乐场"/>
+            <Item id="Playground After" name="游乐场延迟"/>
+            <Item id="Never" name="永不"/>
             </Main>
         </Menu>
     </Native-Langue>
