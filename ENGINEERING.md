@@ -8602,3 +8602,135 @@ subsections, and no count in `doc.rs` or `server.rs` moved.
 new prose replaced a two-line paragraph inside a section that already existed.
 
 `cargo fmt` was not run.
+
+## Sixty-seventh pass: several files at once, and a pointer that stops turning
+
+Three things came back from using the program rather than from reading it. The open
+dialog took one file even when it was asked for several. A right click in the file
+manager opened a window without the focus, and turned the pointer into a spinner
+for seconds after the file was already on screen. And a cold start spent a third of
+a second before anything appeared.
+
+The first two are the same kind of gap: the window half was doing what the toolkit
+does by default, and the default is not what the desktop expects.
+
+### The dialog and the listing take more than one file
+
+The portal's `Open` options now carry `multiple: true`. The answer was already a
+list of URIs; without the flag every portal returns exactly one, however many the
+user picked. `Save` does not ask, because its answer is one buffer written to one
+path.
+
+In the built-in browser, Ctrl+click toggles a row, Shift+click takes a range from
+the last plain click, and Ctrl+A marks every row *in the listing*, which is the
+only way to reach the rows below the fold. Marking is kept in the order the rows
+were marked rather than as a sorted set, because Enter opens the selection in that
+order and the file chosen last is the one left in front; a set would have made
+"last" arbitrary.
+
+`State::open_files` is the one place that loops, and `open_path` still decides what
+"already open" means. The two callers answer in different orders: the browser
+answers in marking order, and a portal answers in an order of its own, so there it
+is the last name in the answer that wins and not the file clicked last. The
+reference says so rather than claiming an order the program cannot know.
+
+### Every way in makes the path absolute
+
+`nn_core::paths::absolute` resolves against the working directory without touching
+the disk. `canonicalize` is the wrong tool twice over: it fails on a path that does
+not exist yet, and it resolves a symlink to a name the user did not type.
+
+It is called on the way in, in `open_path` and in `Session::push_recent`, so the
+tab, the session line and the recent entry all name the same file. An entry stored
+relative was read back at the next start from whatever directory the editor
+happened to be launched in, which is a click that does nothing for a reason the
+user cannot see. The same rule collapses one file reached two ways into one recent
+entry, and an entry whose file has since gone now says so in the status bar.
+
+`restore_snapshot` takes a `named` flag. Recovering buffers used to activate the
+last one, which undid the activation the file named on the command line had just
+had; a file the user named is the one they asked to see, so the recovered buffers
+queue behind it.
+
+### The minimap is as tall as the document
+
+The column was `text_height()` tall, so a five-line file was spread over the whole
+edge and read as a five-hundred-line one. `Minimap::column_height(total, available)`
+grows at two pixels a row, has a floor of three rows so a one-line file is still a
+target worth clicking, and stops at the pane. The height depends on the document
+rather than the pane, so `EditorView::minimap_rect` had to learn the line count;
+its one caller already computed it.
+
+### The launcher's token, and the sequence it waits for
+
+A launch from the file manager arrives with `DESKTOP_STARTUP_ID` set. The token is
+the desktop's record that the launch was the user's doing: the window that carries
+it is the one that is given the focus. The window was carrying none, which is why a
+window from a right click had to be clicked before it had the caret.
+`read_token_from_env` and `with_activation_token` attach it, and
+`reset_activation_token_env` clears it before anything here can spawn a child that
+would inherit it and ask for the same focus.
+
+The same variable names a *startup sequence*, which is what the pointer's busy state
+belongs to. The sequence ends when the program says the launch is over, and winit
+says so as it creates the window -- `remove_activation_token`, called from
+`platform_impl/linux/x11/window.rs`. A launch that hands its files to a running
+editor creates no window, so nothing ever said so, and the shell kept the pointer
+turning until its own timeout: seconds of spinner over a file that had been open
+for twenty milliseconds.
+
+`crates/nn-app/src/startup.rs` sends what the window would have sent: `remove:
+ID="<token>"` as client messages of type `_NET_STARTUP_INFO_BEGIN` and then
+`_NET_STARTUP_INFO`, twenty bytes of text each, addressed to the root window with
+the property mask, over a throwaway 1x1 carrier window the way winit does it. The
+connection is `x11rb`, already in the graph as a winit dependency, opened for the
+one message. Nothing is sent without a token or without `DISPLAY`, and both calls
+are `.check()`ed, because a run that reports success without sending anything is
+exactly how the first attempt at this looked.
+
+The message is verifiable where the pointer is not: `xev -root -event property`
+sees the pair from a cold launch and saw none at all from a hand-off before the
+change; afterwards it sees three pieces carrying the token gio hands over. The
+pointer itself is drawn by the shell, so whether it stops is the user's report, and
+it stops.
+
+The window class is pinned to `npp` in the same spirit. Left to the toolkit it is
+the name the binary was invoked by, so the launcher symlink `nn` would have been a
+second, icon-less application with its own taskbar group; the desktop entry's
+`StartupWMClass` matches on the pinned name.
+
+### The fonts are scanned beside the graphics device
+
+`State::new` did its slow work in a line: 72 ms building the `Renderer`, which scans
+the installed fonts, then 28 ms measuring the column width, which is the first text
+shaping a process does and therefore the expensive one. Both are pure CPU, neither
+needs the device, and the device is opened just before and takes about as long.
+
+The scan now runs on a worker thread started before the event loop, at the point the
+process has decided it is going to open a window, and the same thread measures the
+column, so `EditorView::with_char_width` takes the answer instead of computing it.
+`State::new` joins the thread and falls back to doing the work inline if it
+panicked: a thread that fails should cost a slow start, not a window.
+
+Measured through the desktop entry, the way a right click does it: 282 ms from
+launch to a focused window before, 235 ms after. About 160 ms of the remainder is
+the Vulkan instance and the device, which is the driver's own cost on this machine.
+
+Putting the `wgpu` instance on a thread of its own was tried and reverted. Over six
+interleaved runs against a plain build, window creation went from 18 ms to 65 ms
+because two driver initialisations in one process contend for the same locks, and
+the totals came out no better and much noisier. A resident process would make every
+open cost what the hand-off already costs, 29 ms, but that is a different program
+and it is not in this pass.
+
+### Verification
+
+`cargo test --offline --all`: 1917 passed, 0 failed -- 969 in `nn-app`, 878 in
+`nn-core`, 70 in `nn-mcp`. `cargo clippy --offline --all-targets`: 0 warnings.
+
+`python3 docs/build-pdf.py --check`: up to date, 274,950 bytes. The PDF is 66 pages
+A4 with 106 bookmarks, from 65 pages and 106 bookmarks: the three new paragraphs
+needed the extra page, and no heading was added or removed, so `nn-mcp` still
+reports 104 sections, 27 chapters and 77 subsections.
+
+`cargo fmt` was not run.
