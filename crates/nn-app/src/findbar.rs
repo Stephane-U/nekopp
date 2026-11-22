@@ -63,6 +63,13 @@ pub struct TextField {
     text: String,
     /// Caret position in characters.
     caret: usize,
+    /// The selected range, in characters, when one is in force.
+    ///
+    /// The field has no mouse and no Shift+arrow, so the only way to make one is
+    /// `Ctrl+A`: select the whole thing and type over it. It is kept as a range
+    /// rather than as a highlight flag because it is the range that decides what
+    /// the next keystroke deletes.
+    selection: Option<Range<usize>>,
     buffer: Buffer,
     stale: bool,
 }
@@ -75,6 +82,7 @@ impl TextField {
         Self {
             text: String::new(),
             caret: 0,
+            selection: None,
             buffer,
             stale: true,
         }
@@ -90,26 +98,66 @@ impl TextField {
         self.caret
     }
 
+    /// The selected range, in characters.
+    pub fn selection(&self) -> Option<Range<usize>> {
+        self.selection.clone()
+    }
+
+    /// Selects the whole field, leaving the caret at the end.
+    pub fn select_all(&mut self) {
+        let len = self.text.chars().count();
+        self.caret = len;
+        self.selection = if len == 0 { None } else { Some(0..len) };
+    }
+
+    /// Drops the selection, leaving the text and the caret alone.
+    fn deselect(&mut self) {
+        self.selection = None;
+    }
+
+    /// Removes the selected characters, if any, and puts the caret where they
+    /// were.
+    fn take_selection(&mut self) -> bool {
+        let Some(range) = self.selection.take() else {
+            return false;
+        };
+        let start = self.byte_at(range.start);
+        let end = self.byte_at(range.end);
+        self.text.replace_range(start..end, "");
+        self.caret = range.start;
+        self.stale = true;
+        true
+    }
+
     /// Replaces the contents and puts the caret at the end.
     pub fn set_text(&mut self, text: &str) {
         if self.text != text {
             self.text.clear();
             self.text.push_str(text);
             self.caret = self.text.chars().count();
+            self.selection = None;
             self.stale = true;
+        } else {
+            // Same text, but a selection left over would still be armed: a
+            // keystroke that is meant to append would wipe the field.
+            self.deselect();
         }
     }
 
-    /// Inserts `c` at the caret.
+    /// Inserts `c` at the caret, replacing the selection if there is one.
     pub fn insert(&mut self, c: char) {
+        self.take_selection();
         let byte = self.byte_at(self.caret);
         self.text.insert(byte, c);
         self.caret += 1;
         self.stale = true;
     }
 
-    /// Removes the character before the caret.
+    /// Removes the selection, or the character before the caret.
     pub fn backspace(&mut self) {
+        if self.take_selection() {
+            return;
+        }
         if self.caret == 0 {
             return;
         }
@@ -119,8 +167,11 @@ impl TextField {
         self.stale = true;
     }
 
-    /// Removes the character after the caret.
+    /// Removes the selection, or the character after the caret.
     pub fn delete(&mut self) {
+        if self.take_selection() {
+            return;
+        }
         if self.caret >= self.text.chars().count() {
             return;
         }
@@ -131,21 +182,25 @@ impl TextField {
 
     /// Moves the caret one character left.
     pub fn left(&mut self) {
+        self.deselect();
         self.caret = self.caret.saturating_sub(1);
     }
 
     /// Moves the caret one character right.
     pub fn right(&mut self) {
+        self.deselect();
         self.caret = (self.caret + 1).min(self.text.chars().count());
     }
 
     /// Moves the caret to the start.
     pub fn home(&mut self) {
+        self.deselect();
         self.caret = 0;
     }
 
     /// Moves the caret to the end.
     pub fn end(&mut self) {
+        self.deselect();
         self.caret = self.text.chars().count();
     }
 
@@ -433,10 +488,20 @@ impl FindBar {
         if !self.replace {
             return;
         }
+        // The selection belongs to the field it was made in: leaving it armed in
+        // the background would let the next keystroke wipe text the user cannot
+        // see.
+        self.query.deselect();
+        self.replacement.deselect();
         self.focus = match self.focus {
             Field::Query => Field::Replacement,
             Field::Replacement => Field::Query,
         };
+    }
+
+    /// Selects the whole of the focused field, so the next keystroke replaces it.
+    pub fn select_all(&mut self) {
+        self.focused().select_all();
     }
 
     /// Recompiles the pattern and recomputes matches if anything changed.
@@ -674,7 +739,9 @@ impl FindBar {
             }
         }
 
-        // The caret in the focused field.
+        // The caret in the focused field, over the selection it is about to
+        // replace: a select-all that drew nothing would look like the field had
+        // simply been ignored.
         let (field, x) = match self.focus {
             Field::Query => (&self.query, layout.field_x),
             Field::Replacement => (&self.replacement, layout.field_x),
@@ -683,6 +750,15 @@ impl FindBar {
             Field::Query => layout.find_y,
             Field::Replacement => layout.replace_y,
         };
+        if let Some(range) = field.selection() {
+            quads.push(
+                x + range.start as f32 * self.char_width,
+                y + 2.0,
+                (range.end - range.start) as f32 * self.char_width,
+                layout.row - 4.0,
+                theme.selection.to_linear(),
+            );
+        }
         let caret_x = x + field.caret() as f32 * self.char_width;
         quads.push(caret_x, y + 2.0, 1.5, layout.row - 4.0, theme.caret.to_linear());
     }
@@ -978,5 +1054,110 @@ mod tests {
         assert!(!bar.insert_text(""));
         assert!(!bar.insert_text("\n\t"));
         assert_eq!(bar.query.text(), "");
+    }
+
+    #[test]
+    fn select_all_then_typing_replaces_the_pattern() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.query.set_text("alpha");
+        bar.select_all();
+        assert_eq!(bar.query.selection(), Some(0..5));
+        bar.insert_char('b');
+        assert_eq!(bar.query.text(), "b");
+        assert_eq!(bar.query.caret(), 1);
+        assert_eq!(bar.query.selection(), None);
+    }
+
+    #[test]
+    fn select_all_then_typing_searches_the_new_pattern() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.query.set_text("alpha");
+        bar.refresh(&doc("alpha alpha\nbravo\n"));
+        assert_eq!(bar.matches.len(), 2);
+        bar.select_all();
+        bar.insert_char('b');
+        bar.refresh(&doc("alpha alpha\nbravo\n"));
+        assert_eq!(bar.matches.len(), 1);
+    }
+
+    #[test]
+    fn select_all_then_pasting_replaces_the_pattern() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.query.set_text("alpha");
+        bar.select_all();
+        bar.insert_text("bravo");
+        assert_eq!(bar.query.text(), "bravo");
+    }
+
+    #[test]
+    fn select_all_then_backspace_empties_the_field() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.query.set_text("alpha");
+        bar.select_all();
+        bar.backspace();
+        assert_eq!(bar.query.text(), "");
+        // Only the selection went: the next backspace has nothing left to eat.
+        bar.backspace();
+        assert_eq!(bar.query.text(), "");
+    }
+
+    #[test]
+    fn select_all_then_delete_empties_the_field() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.query.set_text("alpha");
+        bar.select_all();
+        bar.delete();
+        assert_eq!(bar.query.text(), "");
+    }
+
+    #[test]
+    fn select_all_takes_the_field_that_has_the_caret() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.query.set_text("alpha");
+        bar.replacement.set_text("bravo");
+        bar.toggle_focus();
+        bar.select_all();
+        assert_eq!(bar.replacement.selection(), Some(0..5));
+        assert_eq!(bar.query.selection(), None);
+        bar.insert_char('c');
+        assert_eq!(bar.replacement.text(), "c");
+        assert_eq!(bar.query.text(), "alpha");
+    }
+
+    #[test]
+    fn an_arrow_key_drops_the_selection() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.query.set_text("alpha");
+        bar.select_all();
+        bar.left();
+        assert_eq!(bar.query.selection(), None);
+        bar.insert_char('b');
+        // Appended where the caret is, rather than replacing the field.
+        assert_eq!(bar.query.text(), "alphba");
+    }
+
+    #[test]
+    fn switching_fields_drops_the_selection() {
+        let mut bar = bar();
+        bar.open_replace();
+        bar.query.set_text("alpha");
+        bar.select_all();
+        bar.toggle_focus();
+        assert_eq!(bar.query.selection(), None);
+    }
+
+    #[test]
+    fn selecting_all_an_empty_field_selects_nothing() {
+        let mut bar = bar();
+        bar.open_find();
+        bar.select_all();
+        assert_eq!(bar.query.selection(), None);
     }
 }

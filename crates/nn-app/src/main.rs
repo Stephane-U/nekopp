@@ -4358,12 +4358,20 @@ impl State {
                 redraw(self);
                 true
             }
-            // Replace this one and move on, rather than all of them. Only this
-            // chord and the paste below are taken: every other control key
-            // falls through to the keymap, so `Ctrl+F` still reopens the bar it
-            // is already in.
+            // Replace this one and move on, rather than all of them. Only the
+            // three chords below are taken: every other control key falls
+            // through to the keymap, so `Ctrl+F` still reopens the bar it is
+            // already in.
             Key::Character(c) if ctrl && c.to_lowercase() == "r" => {
                 self.replace_current();
+                redraw(self);
+                true
+            }
+            // Select the field, so the pattern can be typed over instead of
+            // deleted character by character. Left to the keymap, this chord
+            // selected the document behind the bar.
+            Key::Character(c) if ctrl && c.to_lowercase() == "a" => {
+                self.find.select_all();
                 redraw(self);
                 true
             }

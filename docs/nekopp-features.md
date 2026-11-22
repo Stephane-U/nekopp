@@ -1276,6 +1276,11 @@ copied from a file or a terminal does not have to be retyped. The line breaks
 and tabs a copied line brings along are dropped: the field is one line and a
 pattern carrying a newline would never match.
 
+`Ctrl+A` selects the field and draws the selection, so the next keystroke
+replaces the whole pattern instead of landing in the middle of it, and an arrow
+key drops the selection again. Re-pointing a search at a new word is then one
+chord and one word, not a row of Backspaces.
+
 Case-insensitivity is the default, which is what a user typing a word into a
 file expects. The counter turns red when there is no match, which is the only
 feedback a modal-less bar can give.

@@ -8797,3 +8797,47 @@ reports 104 sections and 73 shortcuts: the find bar gained a paragraph, not a
 heading.
 
 `cargo fmt` was not run.
+
+## Sixty-ninth pass
+
+### Selecting the pattern
+
+`Ctrl+A` with the find bar open selected the document behind it, the same way the
+paste did in the pass before. The bar's handler now takes the chord too.
+
+Taking it exposed the real gap: the bar's field had nowhere to put a selection. It
+was a string with a caret -- no range, no highlight, nothing for the next
+keystroke to delete. So the field grew one, along with the rules every
+single-line field obeys: select-all selects everything and leaves the caret at the
+end, typing or pasting replaces the selection, `Backspace` and `Delete` remove it,
+and any caret move drops it. Switching fields drops both, since a selection left
+armed in the field the user is not looking at would let the next keystroke wipe
+text they cannot see.
+
+The selection is one range rather than a cursor plus an anchor. This field has no
+mouse selection and no Shift+arrow, so there is no second end to drag, and
+`Option<Range<usize>>` is the whole story. Should Shift+arrow ever arrive, the
+anchor belongs here with it.
+
+It is drawn as a bar of `theme.selection` behind the text, under the caret, because
+a selection the user cannot see is a field that looks broken the moment they type
+over it.
+
+### Verification
+
+`cargo test --offline --all`: 1931 passed, 0 failed -- 983 in `nn-app`, 878 in
+`nn-core`, 70 in `nn-mcp`. Nine of the new ones are the bar's: typing over the
+selection, pasting over it, `Backspace` and `Delete` clearing it, the replacement
+field taking it when it has the caret, an arrow key and a field switch dropping it,
+an empty field selecting nothing, and the search following the new pattern.
+
+As in the pass before, no synthetic input on this machine -- `xdotool`, `xclip` and
+`xsel` are absent -- so neither the chord nor the drawn highlight was seen here.
+The highlight is a quad in the same list the bar's caret already uses, drawn before
+the glyphs, which is what makes it sit behind the text.
+
+`cargo clippy --offline --all-targets`: 0 warnings. `python3 docs/build-pdf.py
+--check`: up to date, 275,611 bytes, 66 pages A4, 106 bookmarks. `npp-mcp` still
+reports 104 sections and 73 shortcuts.
+
+`cargo fmt` was not run.
