@@ -559,6 +559,15 @@ pub enum Action {
     OpenPluginsFolder,
     /// Re-read the plugins directory, picking up files added since startup.
     ReloadPlugins,
+    /// Run one command of one running plugin: its index in the inventory, then
+    /// the index of the command in the list the plugin gave.
+    ///
+    /// Two indices rather than two names because the rows are built from the
+    /// inventory and dropped when it changes: a row and the pair it carries are
+    /// never older than each other. Nothing saves one of these, so an index
+    /// cannot be replayed against a folder that has moved on -- the row is not
+    /// bindable, for the same reason a language row is not.
+    Plugin(usize, usize),
     /// Check the keymap against a `shortcuts.xml`.
     ValidateShortcuts,
     /// Stop the macro recorder and keep what it has.
@@ -913,6 +922,7 @@ impl Action {
             Action::ManagePlugins => "manage_plugins",
             Action::OpenPluginsFolder => "open_plugins_folder",
             Action::ReloadPlugins => "reload_plugins",
+            Action::Plugin(_, _) => "plugin",
             Action::ValidateShortcuts => "validate_shortcuts",
             Action::StopRecording => "stop_recording",
             Action::SaveMacro => "save_macro",
@@ -1428,6 +1438,23 @@ impl Action {
     ];
 }
 
+/// One plugin, as the Plugins menu shows it.
+///
+/// The caller builds this from the inventory, in inventory order, so a plugin's
+/// position in the slice is the index [`Action::Plugin`] carries and the index
+/// the plugin host runs a command by. Nothing here decides whether a plugin is
+/// running: `enabled` is the answer, and a plugin that is off is a row in the
+/// manager rather than a row in the dropdown.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PluginMenu {
+    /// The name the plugin gives itself, in its own words.
+    pub name: String,
+    /// Whether it is running.
+    pub enabled: bool,
+    /// Its commands, in the order it lists them, in its own words.
+    pub commands: Vec<String>,
+}
+
 /// One row of a dropdown.
 ///
 /// Labels are owned strings because the File menu carries the recent file list,
@@ -1446,6 +1473,12 @@ struct Item {
     action: Action,
     /// Draws a separator line above this row instead of a label.
     separator: bool,
+    /// Whether the label is a word of its own that no catalog translates.
+    ///
+    /// A plugin's name and the names of its commands are the plugin's text. A
+    /// catalog that happens to hold the same string -- "Cancel", say -- would
+    /// otherwise rewrite a row into a command the plugin does not have.
+    literal: bool,
     /// The rows this row opens, empty for a command.
     ///
     /// A submenu is an `Item` with children rather than a second type, because
@@ -1463,6 +1496,7 @@ impl Item {
             shortcut: String::new(),
             action,
             separator: false,
+            literal: false,
             children: Vec::new(),
         }
     }
@@ -1474,16 +1508,17 @@ impl Item {
             shortcut: String::new(),
             action: Action::About,
             separator: true,
+            literal: false,
             children: Vec::new(),
         }
     }
 
-    /// A row whose label is not a translation of its English text.
+    /// A row whose label was built translated rather than left for `relabel`.
     ///
-    /// The load and unload rows are the only ones: "Unload Half Width" has to
-    /// name one plugin in every language, so only the verb is translated and
-    /// the name is appended as the plugin spells it. The English text stays
-    /// beside the label so the row can be recognised across a language change.
+    /// The Plugins menu is built from the catalog and the folder rather than
+    /// relabelled in place, because its rows arrive and leave with the disk. The
+    /// English text is stored beside the label anyway: `same_rows` compares it,
+    /// and a rebuild that changed nothing is skipped.
     fn composed(english: String, label: String, action: Action) -> Self {
         Self {
             label,
@@ -1491,6 +1526,7 @@ impl Item {
             shortcut: String::new(),
             action,
             separator: false,
+            literal: false,
             children: Vec::new(),
         }
     }
@@ -1504,6 +1540,39 @@ impl Item {
             shortcut: String::new(),
             action: Action::Submenu,
             separator: false,
+            literal: false,
+            children,
+        }
+    }
+
+    /// A row whose label is the plugin's own text, in every language.
+    ///
+    /// The English text is the label: there is no other spelling of it to keep,
+    /// and comparing the two is how `same_rows` notices that a rebuilt plugin
+    /// renamed a command.
+    fn literal(label: impl Into<String>, action: Action) -> Self {
+        let label = label.into();
+        Self {
+            label: label.clone(),
+            english: label,
+            shortcut: String::new(),
+            action,
+            separator: false,
+            literal: true,
+            children: Vec::new(),
+        }
+    }
+
+    /// A submenu whose title is the plugin's own text.
+    fn literal_submenu(label: impl Into<String>, children: Vec<Item>) -> Self {
+        let label = label.into();
+        Self {
+            label: label.clone(),
+            english: label,
+            shortcut: String::new(),
+            action: Action::Submenu,
+            separator: false,
+            literal: true,
             children,
         }
     }
@@ -1607,12 +1676,12 @@ pub struct MenuBar {
     path: Vec<usize>,
     /// The active localization, if one was loaded.
     catalog: Option<Catalog>,
-    /// How many plugins the folder held when the Plugins menu was last built.
+    /// The plugins the Plugins menu was last built from.
     ///
-    /// One number, because one row depends on it: the empty-folder note. Which
-    /// plugins are switched on is the manager's business and appears nowhere in
-    /// this menu.
-    installed_plugins: usize,
+    /// Kept rather than counted, because a language change rebuilds the menu and
+    /// can only do that from what it was built from. The slice is in inventory
+    /// order: its positions are the plugin indices the rows carry.
+    plugins: Vec<PluginMenu>,
     shaped: bool,
 }
 
@@ -2146,18 +2215,25 @@ fn run_items(saved: &[String]) -> Vec<Item> {
 
 /// The rows of the Plugins menu.
 ///
-/// Three rows that never change: the manager, the folder, and the reload. They
-/// are the whole menu. A plugin's commands are not rows here, and neither is
-/// its state: the dropdown is where a user goes to switch a plugin on, and a
-/// list that grows a row per command is a list whose rows arrive and leave
-/// while the pointer is over it. What a running plugin adds is reachable
-/// instead through `npp-mcp`, which asks the same plugin host the same way --
-/// see "Plugins" in the reference.
+/// Three rows that never change: the manager, the folder, and the reload. Below
+/// them, one submenu per *running* plugin, named after the plugin and holding
+/// its commands -- the arrangement Notepad++ uses, where "JSON" opens onto
+/// "Pretty Print", "Minify" and "Validate".
+///
+/// A plugin that is switched off gets no submenu, not a greyed one: the switch
+/// is what makes its commands exist, and the manager one row up is where it is
+/// flipped. That also keeps the dropdown still while the pointer is over it --
+/// its length follows the switches, and the switches are never touched from
+/// inside the dropdown.
+///
+/// Nothing below the management rows is translatable. A plugin's name and its
+/// command names are the plugin's own words; the rows are literal, so no
+/// catalog can rename a command into one the plugin does not have.
 ///
 /// With nothing installed the menu still says so, because an empty dropdown
 /// reads as a bug rather than as an empty list. A folder that holds plugins,
 /// switched on or not, gets no note: the manager is one row up.
-fn plugin_items(installed: usize, catalog: Option<&Catalog>) -> Vec<Item> {
+fn plugin_items(plugins: &[PluginMenu], catalog: Option<&Catalog>) -> Vec<Item> {
     let verb = |english: &'static str| match catalog {
         Some(catalog) => catalog.tr(english).to_string(),
         None => english.to_string(),
@@ -2176,9 +2252,33 @@ fn plugin_items(installed: usize, catalog: Option<&Catalog>) -> Vec<Item> {
         row("Open Plugins Folder...", Action::OpenPluginsFolder),
         row("Reload Plugins", Action::ReloadPlugins),
     ];
-    if installed == 0 {
+    if plugins.is_empty() {
         items.push(Item::separator());
         items.push(row("No Plugins Installed", Action::NoOp));
+        return items;
+    }
+    // The index of a plugin in this list is the index the inventory gave it,
+    // because `set_plugins` is handed the inventory in its own order. Nothing
+    // else in this module needs to know that; the rows carry the pair.
+    let commands = |index: usize, plugin: &PluginMenu| -> Vec<Item> {
+        plugin
+            .commands
+            .iter()
+            .enumerate()
+            .map(|(command, label)| Item::literal(label.clone(), Action::Plugin(index, command)))
+            .collect()
+    };
+    let running: Vec<Item> = plugins
+        .iter()
+        .enumerate()
+        .filter(|(_, plugin)| plugin.enabled && !plugin.commands.is_empty())
+        .map(|(index, plugin)| {
+            Item::literal_submenu(plugin.name.clone(), commands(index, plugin))
+        })
+        .collect();
+    if !running.is_empty() {
+        items.push(Item::separator());
+        items.extend(running);
     }
     items
 }
@@ -2742,7 +2842,7 @@ fn relabel(catalog: Option<&Catalog>, menus: &mut [Menu]) {
 /// Relabels `items` and everything under them.
 fn relabel_items(catalog: Option<&Catalog>, items: &mut [Item]) {
     for item in items {
-        if item.separator {
+        if item.separator || item.literal {
             continue;
         }
         item.label = match catalog {
@@ -2815,7 +2915,7 @@ impl MenuBar {
             Menu {
                 title: "Plugins".to_string(),
                 english: "Plugins",
-                items: plugin_items(0, None),
+                items: plugin_items(&[], None),
             },
             Menu {
                 title: "Window".to_string(),
@@ -2849,7 +2949,7 @@ impl MenuBar {
             arrow: Buffer::new_empty(metrics),
             path: Vec::new(),
             catalog: None,
-            installed_plugins: 0,
+            plugins: Vec::new(),
             shaped: false,
         };
         bar.refresh_shortcuts();
@@ -2874,8 +2974,9 @@ impl MenuBar {
         relabel(self.catalog.as_ref(), &mut self.menus);
         // The plugin rows are built from the catalog and the folder rather than
         // relabelled above, so they are built again here: a row that appears
-        // only when the folder is empty has to arrive in the new language too.
-        self.menus[PLUGIN_MENU].items = plugin_items(self.installed_plugins, self.catalog.as_ref());
+        // only when the folder is empty has to arrive in the new language too,
+        // and a plugin's own words have to keep the spelling the plugin chose.
+        self.menus[PLUGIN_MENU].items = plugin_items(&self.plugins, self.catalog.as_ref());
         self.refresh_shortcuts();
         self.close();
     }
@@ -2895,7 +2996,7 @@ impl MenuBar {
     pub fn english_labels(&self) -> Vec<&str> {
         fn walk<'a>(items: &'a [Item], out: &mut Vec<&'a str>) {
             for item in items {
-                if !item.separator {
+                if !item.separator && !item.literal {
                     out.push(&item.english);
                 }
                 walk(&item.children, out);
@@ -2970,17 +3071,17 @@ impl MenuBar {
         self.close();
     }
 
-    /// Rebuilds the Plugins menu for a folder holding `installed` plugins.
+    /// Rebuilds the Plugins menu from the plugins the editor has.
     ///
-    /// The count is kept even when the rows come out identical, because the
-    /// next language change rebuilds them from it.
+    /// The list is in inventory order and is kept even when the rows come out
+    /// identical, because the next language change rebuilds them from it.
     ///
     /// Nothing is relabelled here. `plugin_items` builds every row already
     /// translated, and the rows of this menu are the only ones whose words come
     /// from a catalog and whose position comes from the disk.
-    pub fn set_plugins(&mut self, installed: usize) {
-        self.installed_plugins = installed;
-        let items = plugin_items(self.installed_plugins, self.catalog.as_ref());
+    pub fn set_plugins(&mut self, plugins: &[PluginMenu]) {
+        self.plugins = plugins.to_vec();
+        let items = plugin_items(&self.plugins, self.catalog.as_ref());
         if same_rows(&self.menus[PLUGIN_MENU].items, &items) {
             return;
         }
@@ -4805,35 +4906,99 @@ mod tests {
         assert_eq!(items.len(), 5);
     }
 
+    /// A plugin list as `set_plugins` takes one, in inventory order.
+    fn plugins(rows: &[(&str, bool, &[&str])]) -> Vec<PluginMenu> {
+        rows.iter()
+            .map(|(name, enabled, commands)| PluginMenu {
+                name: (*name).to_string(),
+                enabled: *enabled,
+                commands: commands.iter().map(|c| (*c).to_string()).collect(),
+            })
+            .collect()
+    }
+
     #[test]
     fn a_folder_with_plugins_in_it_gets_no_note() {
         let mut b = bar();
-        b.set_plugins(5);
+        b.set_plugins(&plugins(&[("JSON", false, &["Minify"])]));
         let items = &b.menus[PLUGIN_MENU].items;
-        // Three rows and nothing else: the folder is not empty, so "No Plugins
-        // Installed" would be a lie, and the manager above lists all five.
+        // The folder is not empty, so "No Plugins Installed" would be a lie, and
+        // the manager above lists every plugin whether it runs or not. The one
+        // plugin is switched off, so it gets no submenu either: three rows.
         assert_eq!(items.len(), 3);
         assert_eq!(items[0].label, "Manage Plugins...");
         assert!(items.iter().all(|item| item.label != "No Plugins Installed"));
     }
 
     #[test]
-    fn what_a_running_plugin_adds_is_not_a_row_here() {
+    fn each_running_plugin_opens_onto_its_commands() {
         let mut b = bar();
-        b.set_plugins(2);
+        b.set_plugins(&plugins(&[
+            ("JSON", true, &["Pretty Print", "Minify", "Validate"]),
+            ("XML", false, &["Pretty Print", "Check Well-Formedness"]),
+        ]));
         let items = &b.menus[PLUGIN_MENU].items;
-        // No row of this menu belongs to a plugin. A dropdown that lists what a
-        // plugin can do, and changes length whenever one is switched on, is a
-        // dropdown whose rows move under the pointer.
-        for item in items {
-            assert_eq!(item.children.len(), 0);
-            assert_ne!(item.action, Action::NoOp);
-        }
-        // The three rows are the management ones, in the order a user needs
-        // them: list, folder, rescan.
-        assert_eq!(items[0].action, Action::ManagePlugins);
-        assert_eq!(items[1].action, Action::OpenPluginsFolder);
-        assert_eq!(items[2].action, Action::ReloadPlugins);
+        // The three management rows, a separator, then one submenu per running
+        // plugin -- and none for the one that is switched off, whose commands
+        // do not exist until it is.
+        assert_eq!(items.len(), 5);
+        assert!(items[3].separator);
+        assert!(items[4].is_submenu());
+        assert_eq!(items[4].label, "JSON");
+        assert_eq!(items[4].action, Action::Submenu);
+        let commands: Vec<(&str, Action)> = items[4]
+            .children
+            .iter()
+            .map(|item| (item.label.as_str(), item.action))
+            .collect();
+        assert_eq!(
+            commands,
+            vec![
+                ("Pretty Print", Action::Plugin(0, 0)),
+                ("Minify", Action::Plugin(0, 1)),
+                ("Validate", Action::Plugin(0, 2)),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_plugin_that_is_switched_off_gets_no_submenu() {
+        let mut b = bar();
+        b.set_plugins(&plugins(&[
+            ("JSON", false, &["Minify"]),
+            ("XML", true, &["Linearize"]),
+        ]));
+        let items = &b.menus[PLUGIN_MENU].items;
+        // The submenu that is there belongs to the second plugin, and its rows
+        // carry the index the inventory gave that plugin, not the row above it.
+        assert_eq!(items.len(), 5);
+        assert_eq!(items[4].label, "XML");
+        assert_eq!(items[4].children[0].action, Action::Plugin(1, 0));
+    }
+
+    #[test]
+    fn a_plugin_submenu_keeps_the_plugins_words_in_every_language() {
+        // The trap this exists for: a command named after a menu word. "Undo"
+        // is a catalog entry, and a translated plugin row would name a command
+        // the plugin does not have.
+        let italian = crate::i18n::Catalog::load(None, "italian.xml").expect("italian.xml");
+        let mut b = bar();
+        b.set_catalog(Some(italian));
+        b.set_plugins(&plugins(&[("JSON", true, &["Undo", "Minify"])]));
+        let items = &b.menus[PLUGIN_MENU].items;
+        assert_eq!(items[0].label, "Gestisci i plugin...");
+        assert_eq!(items[4].label, "JSON");
+        assert_eq!(items[4].children[0].label, "Undo");
+        // The same word in the Edit menu, which the catalog does own.
+        assert_eq!(find(&b.menus[1].items, Action::Undo).unwrap().label, "Annulla");
+        // A plugin's name and its commands are not phrases of the program's, so
+        // they are not labels a catalog owes a translation for either. A name no
+        // menu uses, because a plugin called "JSON" would find one in the
+        // Language menu and prove nothing.
+        b.set_plugins(&plugins(&[("Zebra", true, &["Zebra Command"])]));
+        assert!(!b.english_labels().contains(&"Zebra"));
+        assert!(!b.english_labels().contains(&"Zebra Command"));
+        assert!(b.english_labels().contains(&"Manage Plugins..."));
     }
 
     #[test]
@@ -4846,9 +5011,9 @@ mod tests {
         let mut b = bar();
         b.set_catalog(Some(italian));
         assert_eq!(b.menus[PLUGIN_MENU].items[0].label, "Gestisci i plugin...");
-        // A language change rebuilds the rows from the count, so the note comes
+        // A language change rebuilds the rows from the list, so the note comes
         // back translated rather than from a stale English label.
-        b.set_plugins(0);
+        b.set_plugins(&[]);
         assert_eq!(
             b.menus[PLUGIN_MENU].items[4].label,
             "Nessun plugin installato"
@@ -4860,12 +5025,13 @@ mod tests {
         // Reloading takes no index, so it can be bound like anything else.
         assert!(Action::BINDABLE.contains(&Action::ReloadPlugins));
         assert_eq!(Action::from_name("reload_plugins"), Some(Action::ReloadPlugins));
-        // Run-command-n-of-plugin-p went with the rows: a saved chord would
-        // point at whatever plugin happened to be that index after an install.
+        // Run-this-command-of-this-plugin takes two indices, and a saved chord
+        // would point at whatever plugin happened to be there after an install.
+        // It is a row in a submenu and nothing else.
+        assert!(!Action::BINDABLE.contains(&Action::Plugin(0, 0)));
         assert_eq!(Action::from_name("plugin"), None);
         // Switching one plugin on or off is the manager's row: there is no id
         // for it, so no chord can name it.
-        assert_eq!(Action::from_name("unload_plugin"), None);
         assert_eq!(Action::from_name("load_plugin"), None);
     }
 

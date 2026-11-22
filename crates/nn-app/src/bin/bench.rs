@@ -96,7 +96,7 @@ use nn_app::{
     AboutBox, DocumentPeeker,
     EditorView, FindBar, FolderPanel,
     FunctionList, Item, Keymap, MenuBar, Mode, PaneRef, ParamHint,
-    PluginList, PluginRow, Preferences, PrintPreview, PromptBar, Renderer, ResultsPanel, Settings, Shortcuts, Split,
+    PluginList, PluginMenu, PluginRow, Preferences, PrintPreview, PromptBar, Renderer, ResultsPanel, Settings, Shortcuts, Split,
     StatusBar,
     StyleConfigurator, TabBar, Theme, Toolbar, Tooltip,
 };
@@ -1039,8 +1039,9 @@ fn main() {
 
     if let Some(dir) = &flags.plugins {
         // The same path the editor takes at startup: load every `.wasm` in the
-        // directory, then tell the menu how many there are. The commands are
-        // not menu rows; `plugin_run` reaches one directly.
+        // directory, then give the menu the inventory it produces. If no
+        // `plugin_run` flag follows, a submenu per plugin is all this run does
+        // with them, which is what `menu=` measures.
         let mut plugins = nn_app::Plugins::discover(std::path::Path::new(dir));
         for index in 0..plugins.available() {
             let _ = plugins.enable(index);
@@ -1048,7 +1049,16 @@ fn main() {
         for line in plugins.describe() {
             println!("plugin: {line}");
         }
-        menu.set_plugins(plugins.available());
+        let rows: Vec<PluginMenu> = plugins
+            .inventory()
+            .into_iter()
+            .map(|plugin| PluginMenu {
+                name: plugin.name,
+                enabled: plugin.enabled,
+                commands: plugin.commands,
+            })
+            .collect();
+        menu.set_plugins(&rows);
         if let Some(spec) = &flags.plugin_run {
             // `plugin:command`, so one flag can reach any command of any
             // plugin without a second flag to say which plugin.

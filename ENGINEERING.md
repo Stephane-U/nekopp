@@ -8282,3 +8282,126 @@ npp-mcp 0.1.0: 103 sections, 73 shortcuts, 1 of 2 plugins enabled, ...
 the new subsection is in the PDF rather than only in the markdown.
 
 `cargo fmt` was not run.
+
+## Sixty-fourth pass: a plugin's commands live under its name
+
+The previous pass took every plugin row out of the dropdown and put the commands
+behind `npp-mcp`. The user came back with the other half of the sentence: a
+protocol client is not the editor, and "reachable over the protocol" is not
+reachable for someone sitting in front of the window. What they asked for is what
+Notepad++ does -- `Plugins > JSON > Pretty Print` -- one submenu per plugin,
+holding that plugin's commands.
+
+The earlier objection still holds, and the shape answers it. A row per command,
+flat in the dropdown, is a row that appears and disappears under the pointer. A
+*submenu* per plugin is one row per running plugin, and a submenu is only opened
+deliberately, so nothing moves under a pointer that is not already inside it.
+That is why the previous pass was not wasted: it established that the three
+management rows are the fixed part, and this pass puts the variable part where it
+cannot be reached by accident.
+
+### What the dropdown is now
+
+```
+Manage Plugins...
+Open Plugins Folder...
+Reload Plugins
+----------------------------
+JSON
+    Pretty Print
+    Minify
+    Validate
+No Plugins Installed        (only when the folder holds nothing)
+```
+
+The three switches, a separator, then one submenu per *running* plugin, named
+exactly as the plugin names itself. Switched-off plugins get no row: the folder
+is what is installed and the manager says which of those are running, and a
+submenu that opens onto nothing would be a third place to look for the same
+answer. The `No Plugins Installed` note is still there for an empty folder -- the
+note returns early now, so a folder with two plugins in it and none switched on
+says nothing rather than claiming the folder is empty.
+
+`MenuBar` keeps `plugins: Vec<PluginMenu>` instead of an `installed_plugins`
+count, `PluginMenu { name, enabled, commands }`, and `set_plugins` replaces the
+old `set_plugins(len)`. `set_catalog` rebuilds from the stored rows, so a language
+change rebuilds the three management labels without losing the submenus.
+`sync_plugin_menu` in `main.rs` maps `Plugins::inventory()` into those rows and
+is called wherever the manager used to rebuild the menu.
+
+### Indices, not names
+
+`Action::Plugin(usize, usize)` is the inventory index and the command index, not
+two strings. The dispatch arm looks the plugin up in the inventory that the row
+was built from, so a plugin renamed on disk between the build and the click still
+runs the command that was clicked, and two plugins with a command of the same
+name cannot be confused -- `JSON > Pretty Print` and `XML > Pretty Print` both
+exist, and both do different things. `run_plugin` came back from `6624b08^`
+unchanged: it copies the document into the guest, applies a whole-document
+replace as one undo step, puts the caret and selection back where the plugin left
+them, and prints the plugin's log lines as `[plugin] ...`.
+
+The variant is deliberately absent from `BINDABLE` and from `Action::from_name`.
+A plugin command is not a rebindable editor verb: its meaning belongs to a file
+that can be replaced, and a `shortcuts.xml` naming one would break the first time
+the plugin was rebuilt with a different command list. The three management rows
+are still ordinary `Item::composed` rows with `Action::Bindable(Kind::PluginManager)`
+and friends, so they are in the table and in every catalog.
+
+### Why the rows are literal
+
+`Item` gained a `literal: bool` with `literal()` and `literal_submenu()`
+constructors. `relabel_items` walks past a literal row, and so does
+`english_labels`, which is what the catalog completeness test compares against.
+Without that flag the Italian catalog would print `Annulla` for a plugin's
+`Undo` -- the editor's word for the editor's command, printed on a command it has
+never seen -- and the same for `Minify` in any language that happens to have a
+word for it. A plugin's vocabulary is the plugin's; the editor translates words it
+wrote.
+
+### Verification
+
+`cargo build --offline --release`: clean. `cargo test --offline --release`: 940
+passed in `nn-app`, 866 in `nn-core`, 70 in `nn-mcp`, 1876 in all, no failures --
+six more than the previous pass, all in the menu tests:
+`each_running_plugin_opens_onto_its_commands`,
+`a_plugin_that_is_switched_off_gets_no_submenu`,
+`a_folder_with_plugins_in_it_gets_no_note` (rewritten),
+`a_plugin_submenu_keeps_the_plugins_words_in_every_language` (a plugin's `Undo`
+stays `Undo` while Edit's `Undo` becomes `Annulla`),
+`the_plugin_rows_that_take_no_index_are_bindable` and the reworked
+`the_italian_catalog_translates_the_manager_row`.
+`cd plugins && cargo test --offline --release`: 47 passed.
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+The window, on `:9` at 1400x1000, with `npp_json.wasm` and `npp_xml.wasm`
+installed and `plugin JSON` in `settings.txt`:
+
+- `Plugins` opened on the three switches, a separator and one row, the `JSON`
+  submenu. No `XML` row, because XML was switched off.
+- Hovering `JSON` opened the nested panel: `Pretty Print`, `Minify`, `Validate`.
+- Clicking `Minify` turned a three-line `/tmp/j.json` into `{"a":1}` in the
+  editor, one undo step, caret where the plugin left it.
+- The keyboard path ran it too: `Alt+P`, `Down` three times onto `JSON`, `Right`,
+  `Down` twice onto `Minify`, `Enter`.
+- Switching XML on in the manager made a second submenu, `XML`, appear in the
+  same session, with no reload and no restart, and switching it off took it away.
+- `XML > Check Well-Formedness` on JSON text logged `[plugin] not well-formed at
+  line 1, column 1: text outside the root element`, which is the dispatch
+  reaching the other plugin although both offer `Pretty Print`.
+
+`docs/nekopp-features.md` was rewritten where it had gone stale: the `### Plugins`
+entry in the menu reference now describes the submenus, `### Load and unload` says
+the dropdown keeps the three switches and gives the space under them to the
+plugins, `### Managing plugins` says switching a plugin on gives it a submenu
+*and* puts its commands within reach of `npp-mcp`, `### Plugins over MCP` opens
+by saying the submenu is one door and the protocol the other, and `### What is
+translated` records that plugin rows are literal and why. No heading was added,
+so `nn-mcp` still reports 103 sections and 27 chapters and no count in `doc.rs`
+or `settings.rs` moved.
+
+`python3 docs/build-pdf.py`: wrote `docs/nekopp-features.pdf`, 63 pages A4,
+270,987 bytes, 105 bookmarks. One page longer than before, same bookmark count,
+because the new prose sits inside sections that already existed.
+
+`cargo fmt` was not run.

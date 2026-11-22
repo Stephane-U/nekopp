@@ -996,22 +996,41 @@ Folder..." follows, because it is how a user gets from "no plugins" to having
 one, and "Reload Plugins" sits beside it: it re-reads the folder, so a `.wasm`
 file copied in by hand is discovered without a restart.
 
-Those three rows are the whole menu. A plugin's commands are not rows here, and
-neither is its state: what a running plugin adds is reached through the `npp-mcp`
-server, which answers `list_plugins` with the plugins this machine has and
-`run_plugin_command` with what one of their commands made of a document. A
-dropdown that grows a row per command is a dropdown whose rows arrive and leave
-while the pointer is over it, and the manager one row up already says what is
-installed. With nothing in the folder the menu still has a row saying so: an
-empty dropdown reads as a bug rather than as an empty list. A folder that holds
-plugins gets no such row -- saying "none installed" about five installed plugins
-would be worse than saying nothing.
+Those three rows are always there. Under them, past a separator, sits one
+submenu per *running* plugin, named exactly as the plugin names itself and
+holding the commands it offers: `JSON` opens onto `Pretty Print`, `Minify` and
+`Validate`. That is the shape a Notepad++ user already knows, and it is the one
+that scales -- a plugin may have one command or a dozen, and a dozen more rows
+in this dropdown would bury the three that manage it. Moving onto a submenu
+opens it and the arrows then walk the commands inside, so reaching one is a step
+to the right and a few down rather than a dialog, and Enter runs the row under
+the pointer.
+
+A plugin that is switched off gets no submenu. The folder holds what is
+installed, the manager says which of those are running, and a submenu that opens
+onto nothing would be a third place to look for the same state. Switching a
+plugin on adds its submenu at once, inside the same session and without a
+reload; switching it off takes the submenu away. The same commands are reachable
+over the protocol as well, as described in "Plugins over MCP".
+
+The rows inside a submenu are literal. A plugin's name and its commands are
+written by the plugin, in its own words, so no catalog renames them and nothing
+is looked up in the translation tables. A command called "Undo" is that plugin's
+Undo and not the editor's, and translating a stranger's vocabulary would be a
+guess at what it does. The three management rows above the separator belong to
+the editor and are translated like any other.
+
+With nothing in the folder the menu still has a row saying so: an empty dropdown
+reads as a bug rather than as an empty list. A folder that holds plugins gets no
+such row -- saying "none installed" about five installed plugins would be worse
+than saying nothing.
 
 Plugins are described in "Plugins".
 
 - Manage Plugins...
 - Open Plugins Folder...
 - Reload Plugins
+- A submenu per running plugin, holding its commands (once one is switched on)
 - No Plugins Installed (when the folder is empty)
 
 ### Window
@@ -1808,6 +1827,11 @@ Windows problem: it needs a compiler per platform, it gives the plugin the run o
 the address space, and a bad plugin takes the editor down with it. Neko++ takes
 the other road.
 
+What that road looks like from the menu bar is one submenu per running plugin,
+named by the plugin and holding its commands. The rest of this chapter is what
+sits behind that submenu: the file a plugin is, the interface it is written
+against, the five that ship, and the switch that decides whether any of it runs.
+
 ### What a plugin is
 
 A plugin is a `.wasm` file in the `plugins` directory under the configuration
@@ -1936,8 +1960,9 @@ Loading and unloading are not menu rows of their own. They were, one
 the pair made the Plugins dropdown a second, worse copy of the manager: the rows
 shifted every time one of them was used, so the row the user was aiming at was
 not the row under the pointer, and there were two places to look for the same
-state. The manager is the one place now, and the dropdown is the three rows that
-open it.
+state. The manager is the one place now. The dropdown keeps the three rows that
+open it and gives the space under them to one submenu per running plugin, which
+is where a user who wants a command looks.
 
 ### Managing plugins
 
@@ -1951,19 +1976,20 @@ that hides the disabled half is a manager for people who have already enabled
 them.
 
 "Open Plugins Folder..." opens the directory, and "Import plugin(s)..." in the
-Settings menu copies a `.wasm` file into it. Switching a plugin on puts its
-commands within reach of `npp-mcp` and changes nothing in the editor's menus,
-because no row of any menu belongs to a plugin. A file that fails to load is
+Settings menu copies a `.wasm` file into it. Switching a plugin on gives it a
+submenu of its own in the Plugins dropdown and puts its commands within reach of
+`npp-mcp`; switching it off takes both away again. A file that fails to load is
 recorded rather than skipped silently: a plugin whose commands never run is a
 bug report waiting to happen, and the log says which file and why.
 
 ### Plugins over MCP
 
-`npp-mcp` serves the plugins this machine has, so the commands a plugin adds are
-reachable from anything that speaks the Model Context Protocol. It reads the same
-directory the editor reads and honours the same `plugin <name>` lines in
-`settings.txt`: a plugin switched off in the manager is switched off over the
-protocol, because a way round a switch is not a feature.
+A submenu is one door onto a plugin's commands, and it is the one that needs a
+window. `npp-mcp` is the other: it serves the plugins this machine has, so those
+same commands are reachable from anything that speaks the Model Context
+Protocol. It reads the same directory the editor reads and honours the same
+`plugin <name>` lines in `settings.txt`: a plugin switched off in the manager is
+switched off over the protocol, because a way round a switch is not a feature.
 
 `list_plugins` answers with one row per installed plugin -- its name, its file,
 whether it is on, and the commands it offers -- and with the arguments to use
@@ -2029,6 +2055,12 @@ single-character submenu letters are proper nouns, and the case-conversion rows
 are samples of the effect rather than words. A completeness test walks the menu
 and the toolbar and fails when a translatable label has no entry, so a new
 feature cannot quietly ship in English only.
+
+Plugin names and the commands under them are the plugin's own words and are
+never translated: the editor has no catalog for a vocabulary it did not write,
+and a plugin called "JSON" would be surprised to find itself renamed. Those rows
+are marked literal when the menu is built, so the completeness test walks past
+them rather than asking the catalogs for an entry that cannot exist.
 
 ### Choosing a language
 

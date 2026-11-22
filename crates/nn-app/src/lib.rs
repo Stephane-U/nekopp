@@ -71,7 +71,7 @@ pub use i18n::{Catalog, Language};
 pub use icon::window_icon;
 pub use keymap::{Chord, KeyName, Keymap};
 pub use layout::{Split, DIVIDER, MIN_PANE};
-pub use menu::{Action, BrowserKind, MatchMode, MenuBar, Sort, WindowSort};
+pub use menu::{Action, BrowserKind, MatchMode, MenuBar, PluginMenu, Sort, WindowSort};
 pub use minimap::Minimap;
 pub use nppimport::{Export, Import};
 pub use palette::Palette;
