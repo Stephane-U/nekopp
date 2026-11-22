@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Перезавантажити плагіни"/>
                 <Item id="Load" name="Завантажити"/>
                 <Item id="Unload" name="Вивантажити"/>
+                <Item id="Manage Plugins..." name="Керування плагінами..."/>
+                <Item id="Plugin Manager" name="Менеджер плагінів"/>
+                <Item id="Enabled" name="Увімкнено"/>
+                <Item id="Disabled" name="Вимкнено"/>
+                <Item id="Space enables or disables, Esc closes" name="Пробіл вмикає або вимикає, Esc закриває"/>
                 <Item id="Open Shortcut Mapper..." name="Відкрити мапу сполучень клавіш..."/>
                 <Item id="Open User Defined Language folder..." name="Відкрити теку користувацьких мов..."/>
                 <Item id="Open in New Instance" name="Відкрити в новому екземплярі"/>

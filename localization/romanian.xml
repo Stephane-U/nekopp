@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Reîncarcă modulele"/>
                 <Item id="Load" name="Încarcă"/>
                 <Item id="Unload" name="Descarcă"/>
+                <Item id="Manage Plugins..." name="Gestionează modulele..."/>
+                <Item id="Plugin Manager" name="Manager de module"/>
+                <Item id="Enabled" name="Activat"/>
+                <Item id="Disabled" name="Dezactivat"/>
+                <Item id="Space enables or disables, Esc closes" name="Spațiu activează sau dezactivează, Esc închide"/>
                 <Item id="Open Shortcut Mapper..." name="Deschide maparea scurtăturilor..."/>
                 <Item id="Open User Defined Language folder..." name="Deschide folderul limbilor definite de utilizator..."/>
                 <Item id="Open in New Instance" name="Deschide într-o instanță nouă"/>

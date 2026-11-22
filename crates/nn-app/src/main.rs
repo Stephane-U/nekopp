@@ -14,8 +14,8 @@ use nn_app::{
     CompletionPopup, ContextMenu,
     DocumentPeeker, EditorView, Entry, FileDialog,
     FindBar, FolderPanel, FunctionList, Gpu, Import,
-    Item, KeyName, Keymap, MatchMode, MenuBar, Mode, Palette, PaneRef, ParamHint, Plugins,
-    Preferences,
+    Item, KeyName, Keymap, MatchMode, MenuBar, Mode, Palette, PaneRef, ParamHint, PluginList,
+    PluginRow, Plugins, Preferences,
     PrintPreview,
     PromptBar,
     PromptKind,
@@ -150,13 +150,19 @@ fn write_tab(tab: &mut Tab, settings: &Settings) -> std::io::Result<()> {
 ///
 /// A missing file is not an error: most installations have none, and the
 /// Language menu then shows only its two built-in rows.
-/// Loads the plugins installed under the configuration directory.
+/// Scans the plugins directory, without running anything it finds.
 ///
 /// A missing directory is the normal case, not an error: most installations
 /// have no plugins and an editor that said so on every start would be noise.
+///
+/// Nothing is switched on here. Installation is a file in this folder; running
+/// is a name in the settings file, and that list is applied by `load_settings`
+/// -- which happens later, because the settings are read after the window
+/// exists. A scan that loaded everything would make the manager's switches
+/// meaningless on the next start.
 fn load_plugins() -> Plugins {
     match nn_app::paths::config_file("plugins") {
-        Some(dir) => Plugins::load_dir(&dir),
+        Some(dir) => Plugins::discover(&dir),
         None => Plugins::default(),
     }
 }
@@ -639,6 +645,8 @@ struct State {
     /// moving across a dialog would otherwise make one per motion event.
     link_hover: bool,
     prefs: Preferences,
+    /// The plugin manager, closed until something opens it.
+    plugin_list: PluginList,
     print: PrintPreview,
     styles: StyleConfigurator,
     shortcuts: Shortcuts,
@@ -1576,6 +1584,11 @@ impl State {
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
+        let plugin_list = PluginList::new(
+            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            cosmic_text::Family::Monospace,
+            view.char_width(),
+        );
         let print = PrintPreview::new(
             cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
             cosmic_text::Family::Monospace,
@@ -1653,6 +1666,7 @@ impl State {
             about,
             link_hover: false,
             prefs,
+            plugin_list,
             print,
             styles,
             shortcuts,
@@ -1774,6 +1788,11 @@ impl State {
         // the settings would open the window with half of it empty on every
         // launch, which is a worse surprise than starting unsplit.
         self.set_tab_layout(settings.tab_layout);
+        // Plugins switch on last, because the list of what to run is in the
+        // file that was just applied. Nothing has run before this point, which
+        // is what "disabled until enabled" means at startup.
+        self.plugins.enable_saved(&self.settings.enabled_plugins);
+        self.sync_plugin_menu();
         self.resize_view();
     }
 
@@ -1948,6 +1967,7 @@ impl State {
             None => None,
         };
         self.menu.set_catalog(catalog.clone());
+        self.plugin_list.set_catalog(catalog.clone());
         self.prefs.set_catalog(catalog.clone());
         self.status.set_catalog(catalog.clone());
         self.prompt.set_catalog(catalog.clone());
@@ -3464,6 +3484,7 @@ impl State {
             &mut self.peeker,
             &mut self.about,
             &mut self.prefs,
+            &mut self.plugin_list,
             &mut self.print,
             &mut self.styles,
             &mut self.shortcuts,
@@ -4506,6 +4527,11 @@ impl State {
             return;
         }
 
+        if self.plugin_list.is_open() {
+            self.handle_plugin_list_key(event);
+            return;
+        }
+
         if self.prefs.is_open() {
             self.handle_prefs_key(event);
             return;
@@ -4962,6 +4988,28 @@ impl State {
             }
             self.dragging = false;
             self.window.request_redraw();
+            return;
+        }
+
+        // The plugin manager is modal too, and older than the pointer: a click
+        // on a row flips it, a click anywhere else closes the list. Closing is
+        // safer than ignoring, because a modal with no exit but a key is a trap
+        // for anyone who reached for the mouse.
+        if self.plugin_list.is_open() {
+            let (px, py) = (x as f32, y as f32);
+            match self.plugin_list.row_at(px, py) {
+                Some(index) => {
+                    self.plugin_list.set_selected(index);
+                    if let Some((index, enabled)) = self.plugin_list.toggle() {
+                        self.set_plugin_enabled(index, enabled);
+                    }
+                }
+                None => {
+                    self.plugin_list.close();
+                    self.window.request_redraw();
+                }
+            }
+            self.dragging = false;
             return;
         }
 
@@ -5823,6 +5871,7 @@ impl State {
                 self.prompt.open(PromptKind::HashFile, "");
             }
             Action::OpenPluginsFolder => self.open_plugins_folder(),
+            Action::ManagePlugins => self.open_plugin_manager(),
             Action::ReloadPlugins => self.reload_plugins(),
             Action::UnloadPlugin(index) => self.unload_plugin(index),
             Action::LoadPlugin(index) => self.load_plugin(index),
@@ -6477,34 +6526,115 @@ impl State {
     /// Reads the plugins directory again, without a restart.
     ///
     /// The directory is the list of what is installed, so this is also the way
-    /// to pick up a `.wasm` that was copied in by hand -- and the way back for
-    /// a plugin that was unloaded earlier in the session.
+    /// to pick up a `.wasm` that was copied in by hand. What it does *not* do is
+    /// switch anything new on: the plugins that were running stay running and a
+    /// file that has just arrived arrives switched off, which is the rule a
+    /// first start follows too.
     fn reload_plugins(&mut self) {
+        let running = self.plugins.names();
         self.plugins = load_plugins();
+        let started = self.plugins.enable_saved(&running);
+        self.remember_plugins();
         self.sync_plugin_menu();
-        let loaded = self.plugins.len();
+        if self.plugin_list.is_open() {
+            self.plugin_list.set_rows(self.plugin_rows());
+        }
         let failures = self.plugins.failures().len();
+        let available = self.plugins.available();
         self.status.set_message(Some(if failures == 0 {
-            format!("{loaded} plugin(s) loaded")
+            format!("{started} of {available} plugin(s) enabled")
         } else {
-            format!("{loaded} plugin(s) loaded, {failures} failed")
+            format!("{started} of {available} plugin(s) enabled, {failures} failed")
         }));
+        self.window.request_redraw();
+    }
+
+    /// Opens the plugin manager on what is installed right now.
+    fn open_plugin_manager(&mut self) {
+        self.plugin_list.open(self.plugin_rows());
+        self.window.request_redraw();
+    }
+
+    /// The manager's rows, one per installed plugin, in folder order.
+    fn plugin_rows(&self) -> Vec<PluginRow> {
+        self.plugins
+            .inventory()
+            .into_iter()
+            .map(|entry| PluginRow {
+                name: entry.name,
+                file: entry.file,
+                enabled: entry.enabled,
+            })
+            .collect()
+    }
+
+    /// Switches one plugin on or off and writes the decision down.
+    ///
+    /// The settings are rewritten from the list of what is actually running,
+    /// not edited in place: a plugin whose file was deleted while the editor
+    /// was open leaves a name in the file that matches nothing, and this is the
+    /// one moment where the truth is in memory.
+    fn set_plugin_enabled(&mut self, index: usize, enabled: bool) {
+        if enabled {
+            match self.plugins.enable(index) {
+                Ok(name) => self.status.set_message(Some(format!("Loaded {name}"))),
+                Err(error) => self
+                    .status
+                    .set_message(Some(format!("Cannot load the plugin: {error}"))),
+            }
+        } else if let Some(name) = self.plugins.disable(index) {
+            self.status.set_message(Some(format!("Unloaded {name}")));
+        }
+        self.remember_plugins();
+        self.sync_plugin_menu();
+        self.plugin_list.set_rows(self.plugin_rows());
+        self.window.request_redraw();
+    }
+
+    /// Writes the names of the running plugins into the settings and to disk.
+    fn remember_plugins(&mut self) {
+        self.settings.enabled_plugins = self.plugins.names();
+        self.settings.save();
+    }
+
+    /// Handles a key while the plugin manager is open.
+    ///
+    /// Every key is consumed: a modal that let typing through to the document
+    /// would be a modal you cannot trust.
+    fn handle_plugin_list_key(&mut self, event: &winit::event::KeyEvent) {
+        match &event.logical_key {
+            Key::Named(NamedKey::ArrowDown) => self.plugin_list.move_selection(1),
+            Key::Named(NamedKey::ArrowUp) => self.plugin_list.move_selection(-1),
+            Key::Named(NamedKey::PageDown) => self.plugin_list.page(1),
+            Key::Named(NamedKey::PageUp) => self.plugin_list.page(-1),
+            Key::Named(NamedKey::Home) => self.plugin_list.home(),
+            Key::Named(NamedKey::End) => self.plugin_list.end(),
+            Key::Named(NamedKey::Enter) | Key::Named(NamedKey::Space) => {
+                if let Some((index, enabled)) = self.plugin_list.toggle() {
+                    self.set_plugin_enabled(index, enabled);
+                }
+            }
+            Key::Named(NamedKey::Escape) => self.plugin_list.close(),
+            _ => {}
+        }
         self.window.request_redraw();
     }
 
     /// Takes one plugin out of the menu and drops its module.
     ///
-    /// The choice lasts for the session; the file is untouched, so the plugin
-    /// is back after a restart unless it leaves the folder. Deleting it is the
-    /// other way, and the one that persists -- which is why the row says
-    /// "Unload" and not "Remove".
+    /// The choice is written to the settings file, so a plugin switched off
+    /// here is still off after a restart. Deleting its file is the other way,
+    /// and the only one that uninstalls it.
     fn unload_plugin(&mut self, index: usize) {
         let Some(name) = self.plugins.unload(index) else {
             return;
         };
+        self.remember_plugins();
         self.sync_plugin_menu();
-        self.status
-            .set_message(Some(format!("Unloaded {name}")));
+        if self.plugin_list.is_open() {
+            self.plugin_list.set_rows(self.plugin_rows());
+        }
+        self.status.set_message(Some(format!("Unloaded {name}")));
         self.window.request_redraw();
     }
 
@@ -6512,7 +6642,11 @@ impl State {
     fn load_plugin(&mut self, index: usize) {
         match self.plugins.load(index) {
             Ok(name) => {
+                self.remember_plugins();
                 self.sync_plugin_menu();
+                if self.plugin_list.is_open() {
+                    self.plugin_list.set_rows(self.plugin_rows());
+                }
                 self.status.set_message(Some(format!("Loaded {name}")));
             }
             Err(error) => {

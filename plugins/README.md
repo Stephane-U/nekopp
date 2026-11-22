@@ -1,7 +1,10 @@
 # Neko++ plugins
 
-A plugin is a WebAssembly module the editor loads at startup and offers in the
-`Plugins` menu, one row per command. The module cannot open a file, spawn a
+A plugin is a WebAssembly module the editor offers in the `Plugins` menu, one
+row per command. Having the file in the plugins directory is what installs it;
+switching it on is a separate step, and a newly installed plugin starts
+disabled. `Plugins > Manage Plugins...` lists every plugin the editor found,
+says whether it is on, and toggles it. The module cannot open a file, spawn a
 process or reach the network: the host functions below are its entire surface,
 so a plugin is only as dangerous as an editing command can be.
 
@@ -27,7 +30,31 @@ ${XDG_CONFIG_HOME:-$HOME/.config}/npp/plugins
 
 `Plugins > Open Plugins Folder` in the editor opens that same directory, which
 is one way to check the install without guessing at paths. The directory is
-scanned when the editor starts, so a rebuild is picked up by restarting it.
+scanned when the editor starts and again on `Plugins > Reload Plugins`, so a
+rebuild is picked up without restarting (the plugins that were on stay on).
+
+## Switching one on
+
+Installing is not enabling. A plugin that is present but switched off offers no
+commands: the menu lists it as `Load <Name>` and nothing else happens. Open
+`Plugins > Manage Plugins...`, which shows every plugin in the directory with
+`Enabled` or `Disabled` beside it, move to a row with the arrow keys and press
+Space. The row flips, the status bar says `Loaded <Name>` or `Unloaded <Name>`,
+and the `Plugins` menu grows or loses that plugin's commands immediately --
+there is no restart and no reload in between. `Esc` closes the list.
+
+The choice is remembered in `settings.txt` in the same directory, one line per
+enabled plugin:
+
+```
+plugin JSON
+plugin Surround
+```
+
+The file records names, not paths, so the list survives a plugin being rebuilt
+and reinstalled. A name in the file that no longer matches a `.wasm` on disk is
+ignored rather than reported as an error, which is what makes deleting a plugin
+a matter of deleting its file.
 
 ## Writing one
 
@@ -113,26 +140,46 @@ apart.
 | [`surround`](surround/src/lib.rs) | Surround with Quotes, Surround with Brackets, Surround with Parentheses, Select Quoted Text |
 | [`align`](align/src/lib.rs) | Align on Equals, Align on Colon, Align on Comma |
 | [`halfwidth`](halfwidth/src/lib.rs) | To Half Width, To Full Width |
+| [`json`](json/src/lib.rs) | Pretty Print, Minify, Validate |
+| [`xml`](xml/src/lib.rs) | Pretty Print, Linearize, Check Well-Formedness, Escape Entities, Unescape Entities |
 
 `align` and `halfwidth` work on the selection when there is one and on the
 whole document otherwise, which is what makes them usable from a menu that has
 no way to ask which was meant. `surround` wraps the selection; with nothing
-selected it inserts the pair and leaves the caret between them.
+selected it inserts the pair and leaves the caret between them. `json` follows
+the same rule as `align` and `halfwidth`, because JSON is a document on its own
+and a selection is often just the part of it being worked on. `xml` prints and
+checks the whole document -- an element's indentation depends on the nesting
+around it -- and touches only the selection for the two entity commands, since
+that is the text being pasted into a document.
 
 ## Provenance
 
-These three plugins are reimplementations of editing operations that
-Notepad++ plugins have offered for years: column alignment, surrounding a
-selection with a pair of characters, and full-width/half-width conversion. They
-are written from the behaviour, not from anyone's source. They read the
-document through a fifteen-function, byte-offset ABI rather than through
-Scintilla's messaging API, so the code, the tables and the call order are
-different by construction; no line of anyone else's source was copied.
+These plugins are reimplementations of editing operations that Notepad++
+plugins have offered for years: column alignment, surrounding a selection with
+a pair of characters, full-width/half-width conversion, and formatting and
+checking JSON and XML. They are written from the behaviour, not from anyone's
+source. They read the document through a fifteen-function, byte-offset ABI
+rather than through Scintilla's messaging API, so the code, the tables and the
+call order are different by construction; no line of anyone else's source was
+copied.
+
+The JSON and XML plugins are clean-room implementations written from the
+formats themselves -- RFC 8259 for JSON, the XML 1.0 recommendation for XML.
+They are not ports of XML Tools or JSON Viewer, the GPL plugins that offer
+commands with these names. Those two were used only as a description of which
+commands a user expects to find in the menu: the parsers, the error messages
+and the edits in `plugins/json` and `plugins/xml` are this repository's own
+work, and neither crate contains a line of their source. Both keep the bytes
+they were given -- object key order, the spelling of `1e10`, an entity
+reference, a self-closing tag -- because the result is written back over the
+user's document, and a formatter that re-encodes what it did not have to has
+edited the file.
 
 This matters because of licences. Most Notepad++ plugins are GPL-licensed, and
 this repository has no `LICENSE` file, so it has no declared licence under which
 it could distribute GPL-derived code. Nothing GPL-derived was copied here: the
-plugin ABI in `crates/nn-core/src/wasm/` and the three plugins in this directory
+plugin ABI in `crates/nn-core/src/wasm/` and the five plugins in this directory
 are original work inside this repository.
 
 If you port a real plugin from source rather than reimplementing it, read its

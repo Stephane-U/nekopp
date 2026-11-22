@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Läs in insticksmoduler igen"/>
                 <Item id="Load" name="Läs in"/>
                 <Item id="Unload" name="Ta bort"/>
+                <Item id="Manage Plugins..." name="Hantera plugins..."/>
+                <Item id="Plugin Manager" name="Pluginhanterare"/>
+                <Item id="Enabled" name="Aktiverad"/>
+                <Item id="Disabled" name="Inaktiverad"/>
+                <Item id="Space enables or disables, Esc closes" name="Blanksteg aktiverar eller inaktiverar, Esc stänger"/>
                 <Item id="Open Shortcut Mapper..." name="Öppna genvägstilldelning..."/>
                 <Item id="Open User Defined Language folder..." name="Öppna mappen för användardefinierade språk..."/>
                 <Item id="Open in New Instance" name="Öppna i ny instans"/>

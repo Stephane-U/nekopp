@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Wczytaj wtyczki ponownie"/>
                 <Item id="Load" name="Wczytaj"/>
                 <Item id="Unload" name="Wyładuj"/>
+                <Item id="Manage Plugins..." name="Zarządzaj wtyczkami..."/>
+                <Item id="Plugin Manager" name="Menedżer wtyczek"/>
+                <Item id="Enabled" name="Włączona"/>
+                <Item id="Disabled" name="Wyłączona"/>
+                <Item id="Space enables or disables, Esc closes" name="Spacja włącza lub wyłącza, Esc zamyka"/>
                 <Item id="Open Shortcut Mapper..." name="Otwórz mapowanie skrótów..."/>
                 <Item id="Open User Defined Language folder..." name="Otwórz folder języków użytkownika..."/>
                 <Item id="Open in New Instance" name="Otwórz w nowej instancji"/>

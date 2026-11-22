@@ -82,6 +82,7 @@ struct Flags {
     language_group: bool,
     plugins: Option<String>,
     plugin_menu: bool,
+    plugin_manager: Option<String>,
     encoding_menu: bool,
     character_sets: bool,
     plugin_run: Option<String>,
@@ -95,7 +96,7 @@ use nn_app::{
     AboutBox, DocumentPeeker,
     EditorView, FindBar, FolderPanel,
     FunctionList, Item, Keymap, MenuBar, Mode, PaneRef, ParamHint,
-    Preferences, PrintPreview, PromptBar, Renderer, ResultsPanel, Settings, Shortcuts, Split,
+    PluginList, PluginRow, Preferences, PrintPreview, PromptBar, Renderer, ResultsPanel, Settings, Shortcuts, Split,
     StatusBar,
     StyleConfigurator, TabBar, Theme, Toolbar, Tooltip,
 };
@@ -187,6 +188,7 @@ fn main() {
             "language_group" => flags.language_group = true,
             "plugins" => flags.plugins = value,
             "plugin_menu" => flags.plugin_menu = true,
+            "plugin_manager" => flags.plugin_manager = value,
             "encoding_menu" => flags.encoding_menu = true,
             "character_sets" => flags.character_sets = true,
             "plugin_run" => flags.plugin_run = value,
@@ -303,6 +305,11 @@ fn main() {
         view.char_width(),
     );
     let mut prefs = Preferences::new(
+        cosmic_text::Metrics::new(15.0, 20.0),
+        cosmic_text::Family::Monospace,
+        view.char_width(),
+    );
+    let mut plugin_list = PluginList::new(
         cosmic_text::Metrics::new(15.0, 20.0),
         cosmic_text::Family::Monospace,
         view.char_width(),
@@ -914,6 +921,7 @@ fn main() {
             &mut peeker,
             &mut about,
             &mut prefs,
+            &mut plugin_list,
             &mut print,
             &mut styles,
             &mut shortcuts,
@@ -1032,7 +1040,10 @@ fn main() {
     if let Some(dir) = &flags.plugins {
         // The same path the editor takes at startup: load every `.wasm` in the
         // directory, then point the menu at the commands.
-        let mut plugins = nn_app::Plugins::load_dir(std::path::Path::new(dir));
+        let mut plugins = nn_app::Plugins::discover(std::path::Path::new(dir));
+        for index in 0..plugins.available() {
+            let _ = plugins.enable(index);
+        }
         for line in plugins.describe() {
             println!("plugin: {line}");
         }
@@ -1074,6 +1085,22 @@ fn main() {
     }
     if flags.plugin_menu {
         menu.open_menu(10);
+    }
+
+    if let Some(dir) = &flags.plugin_manager {
+        // The manager as the window would show it: every `.wasm` in the
+        // directory, each one off until it is switched on.
+        let plugins = nn_app::Plugins::discover(std::path::Path::new(dir));
+        let rows: Vec<PluginRow> = plugins
+            .inventory()
+            .into_iter()
+            .map(|entry| PluginRow {
+                name: entry.name,
+                file: entry.file,
+                enabled: entry.enabled,
+            })
+            .collect();
+        plugin_list.open(rows);
     }
 
     if flags.export_shortcuts {
@@ -1141,6 +1168,7 @@ fn main() {
             &mut peeker,
             &mut about,
             &mut prefs,
+            &mut plugin_list,
             &mut print,
             &mut styles,
             &mut shortcuts,
@@ -1156,17 +1184,17 @@ fn main() {
 
     report(
         "idle",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |_, _| {}),
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |_, _| {}),
     );
     report(
         "scroll",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, _| {
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, _| {
             ed.scroll_lines(1);
         }),
     );
     report(
         "type",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, hl| {
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &chrome, cursor_y, width, height, frames, |ed, hl| {
             let line = ed.doc.char_to_line(ed.caret());
             ed.insert("x");
             hl.highlight_from(&mut ed.doc, line);
@@ -1274,6 +1302,7 @@ fn measure(
     peeker: &mut DocumentPeeker,
     about: &mut AboutBox,
     prefs: &mut Preferences,
+    plugin_list: &mut PluginList,
     print: &mut PrintPreview,
     styles: &mut StyleConfigurator,
     shortcuts: &mut Shortcuts,
@@ -1318,6 +1347,7 @@ fn measure(
             peeker,
             about,
             prefs,
+            plugin_list,
             print,
             styles,
             shortcuts,

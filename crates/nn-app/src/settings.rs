@@ -405,6 +405,14 @@ pub struct Settings {
     /// A file name rather than a path: the directory is ours, and a stored
     /// absolute path would break the moment the config moves.
     pub language: Option<String>,
+    /// The plugins the user switched on, by the name each module gives itself.
+    ///
+    /// Empty by default, and that is the point: a file in the plugins folder is
+    /// *installed*, not *running*. Dropping a `.wasm` in adds a row to the
+    /// manager and nothing else, and the editor does not execute code the user
+    /// has not asked for. A name here that matches no file is ignored, and is
+    /// dropped the next time the manager writes the list back.
+    pub enabled_plugins: Vec<String>,
     /// Which file dialog Open and Save As use.
     pub file_dialog: FileDialog,
     /// How often to snapshot unsaved buffers, in seconds. Zero is off.
@@ -474,6 +482,7 @@ impl Default for Settings {
             print_header: String::new(),
             print_footer: "$(PAGE)".to_string(),
             language: None,
+            enabled_plugins: Vec::new(),
         }
     }
 }
@@ -565,6 +574,15 @@ impl Settings {
                         Some(value.to_string())
                     };
                 }
+                "plugin" => {
+                    // One line per plugin, because a name is a phrase with
+                    // spaces in it and a single line of them would need a
+                    // separator no plugin name is allowed to contain.
+                    let name = value.trim();
+                    if !name.is_empty() && !settings.enabled_plugins.iter().any(|n| n == name) {
+                        settings.enabled_plugins.push(name.to_string());
+                    }
+                }
                 "file_dialog" => {
                     settings.file_dialog = FileDialog::from_key(value).unwrap_or_default()
                 }
@@ -648,6 +666,9 @@ impl Settings {
             "language {}\n",
             self.language.as_deref().unwrap_or("none")
         ));
+        for name in &self.enabled_plugins {
+            out.push_str(&format!("plugin {name}\n"));
+        }
         out.push_str(&format!("datetime_format {}\n", self.datetime_format));
         out.push_str(&format!("search_engine {}\n", self.search_engine));
         out.push_str(&format!(
@@ -729,6 +750,36 @@ mod tests {
             ..Settings::default()
         };
         assert_eq!(Settings::parse(&settings.render()), settings);
+    }
+
+    #[test]
+    fn the_switched_on_plugins_round_trip() {
+        let settings = Settings {
+            enabled_plugins: vec!["JSON".to_string(), "Half Width".to_string()],
+            ..Settings::default()
+        };
+        let text = settings.render();
+        assert!(text.contains("plugin JSON\n"));
+        assert!(text.contains("plugin Half Width\n"));
+        assert_eq!(Settings::parse(&text).enabled_plugins, settings.enabled_plugins);
+    }
+
+    #[test]
+    fn no_plugin_is_switched_on_by_default() {
+        // Installing a plugin is dropping a file in; running it is a decision
+        // the user makes in the manager.
+        assert!(Settings::default().enabled_plugins.is_empty());
+    }
+
+    #[test]
+    fn a_repeated_plugin_line_is_kept_once() {
+        let settings = Settings::parse("plugin JSON\nplugin JSON\nplugin  XML  \n");
+        assert_eq!(
+            settings.enabled_plugins,
+            vec!["JSON".to_string(), "XML".to_string()]
+        );
+        let blank = Settings::parse("plugin\nplugin   \n");
+        assert!(blank.enabled_plugins.is_empty());
     }
 
     #[test]

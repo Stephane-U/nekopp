@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Znovu načíst moduly"/>
                 <Item id="Load" name="Načíst"/>
                 <Item id="Unload" name="Odpojit"/>
+                <Item id="Manage Plugins..." name="Spravovat zásuvné moduly..."/>
+                <Item id="Plugin Manager" name="Správce zásuvných modulů"/>
+                <Item id="Enabled" name="Zapnuto"/>
+                <Item id="Disabled" name="Vypnuto"/>
+                <Item id="Space enables or disables, Esc closes" name="Mezerník zapne nebo vypne, Esc zavře"/>
                 <Item id="Open Shortcut Mapper..." name="Otevřít mapování zkratek..."/>
                 <Item id="Open User Defined Language folder..." name="Otevřít složku uživatelsky definovaných jazyků..."/>
                 <Item id="Open in New Instance" name="Otevřít v nové instanci"/>

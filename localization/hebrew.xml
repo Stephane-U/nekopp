@@ -300,6 +300,11 @@
                 <Item id="Reload Plugins" name="טעינה מחדש של תוספים"/>
                 <Item id="Load" name="טעינה"/>
                 <Item id="Unload" name="פריקה"/>
+                <Item id="Manage Plugins..." name="ניהול תוספים..."/>
+                <Item id="Plugin Manager" name="מנהל תוספים"/>
+                <Item id="Enabled" name="מופעל"/>
+                <Item id="Disabled" name="מושבת"/>
+                <Item id="Space enables or disables, Esc closes" name="רווח מפעיל או משבית, Esc סוגר"/>
                 <Item id="Open Shortcut Mapper..." name="פתיחת מיפוי קיצורי הדרך..."/>
                 <Item id="Open User Defined Language folder..." name="פתיחת תיקיית השפות המוגדרות על ידי המשתמש..."/>
                 <Item id="Open in New Instance" name="פתיחה במופע חדש"/>

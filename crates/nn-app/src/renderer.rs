@@ -21,6 +21,7 @@ use crate::folder::FolderPanel;
 use crate::functionlist::FunctionList;
 use crate::layout::{self, Split};
 use crate::menu::MenuBar;
+use crate::pluginlist::PluginList;
 use crate::prefs::Preferences;
 use crate::print::PrintPreview;
 use crate::styles::StyleConfigurator;
@@ -161,6 +162,7 @@ impl Renderer {
         peeker: &mut DocumentPeeker,
         about: &mut AboutBox,
         prefs: &mut Preferences,
+        plugin_list: &mut PluginList,
         print: &mut PrintPreview,
         styles: &mut StyleConfigurator,
         shortcuts: &mut Shortcuts,
@@ -320,6 +322,8 @@ impl Renderer {
         about.prepare(&mut self.font_system, &theme);
         prefs.set_viewport(width, height);
         prefs.prepare(&mut self.font_system);
+        plugin_list.set_viewport(width, height);
+        plugin_list.prepare(&mut self.font_system);
         print.set_viewport(width, height);
         print.prepare(&mut self.font_system);
         styles.set_viewport(width, height);
@@ -507,6 +511,7 @@ impl Renderer {
         // it, so only one of the two is ever painted.
         if !shortcuts.is_open() {
             prefs.push_quads(&mut self.overlay, &theme);
+            plugin_list.push_quads(&mut self.overlay, &theme);
         }
         shortcuts.push_quads(&mut self.overlay, &theme);
         styles.push_quads(&mut self.overlay, &theme);
@@ -647,6 +652,7 @@ impl Renderer {
         menu_areas.extend(about.text_areas(ui, &theme));
         if !shortcuts.is_open() {
             menu_areas.extend(prefs.text_areas(&theme));
+            menu_areas.extend(plugin_list.text_areas(&theme));
         }
         menu_areas.extend(print.text_areas(&theme));
         menu_areas.extend(shortcuts.text_areas(&theme));

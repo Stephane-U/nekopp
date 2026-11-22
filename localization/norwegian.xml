@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Last utvidelser på nytt"/>
                 <Item id="Load" name="Last inn"/>
                 <Item id="Unload" name="Fjern"/>
+                <Item id="Manage Plugins..." name="Administrer plugins..."/>
+                <Item id="Plugin Manager" name="Plugin-behandling"/>
+                <Item id="Enabled" name="Aktivert"/>
+                <Item id="Disabled" name="Deaktivert"/>
+                <Item id="Space enables or disables, Esc closes" name="Mellomrom slår på eller av, Esc lukker"/>
                 <Item id="Open Shortcut Mapper..." name="Åpne hurtigtasttilordning..."/>
                 <Item id="Open User Defined Language folder..." name="Åpne mappen for brukerdefinerte språk..."/>
                 <Item id="Open in New Instance" name="Åpne i ny instans"/>

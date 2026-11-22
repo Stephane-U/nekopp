@@ -7946,3 +7946,142 @@ A piped session against `target/release/npp-mcp`, four lines in:
   line on stdio`, and stdout carries nothing but the four responses.
 
 `cargo fmt` was not run.
+
+## Sixty-first pass: installed was never the same word as running
+
+The plugin folder used to be the whole story. A `.wasm` file was in it, so the
+editor ran it, and the only way to stop that was to delete the file. For the one
+file type in this program that can rewrite the document without being asked, that
+is the wrong default twice over: it runs code nobody approved, and it leaves the
+user who wants to look at a plugin before trusting it with no way to say so. This
+pass separates the two states. A file in the folder is *installed*. A plugin with
+rows in the menu is *running*. `Plugins > Manage Plugins...` is the only way from
+the first to the second, and everything starts off.
+
+### Discovery reads the name and stops there
+
+The scan has to know each plugin's name to have a row to draw, and a name is a
+pointer into the plugin's own linear memory -- `npp_name` returns an offset, not a
+string -- so there is no way to learn it from the file without instantiating the
+module. `probe` does precisely that much: load, call `npp_name`, then
+`npp_command_count` and `npp_command_name` for each index, keep the three strings,
+drop the instance. `npp_run` is never called by a scan, so a plugin that is
+switched off has never had a command run; what it can execute at load time is
+bounded by the same step budget and the same fifteen host functions, none of which
+has a document behind it until a command is given a bridge.
+
+The command count is kept beside the name. It is one call, and it is what lets the
+manager say something true about a plugin it is not running.
+
+### The settings file holds names
+
+`settings.txt` gains one `plugin <name>` line per running plugin, in folder order.
+Names rather than paths: a list of paths breaks the first time a plugin is
+rebuilt and reinstalled, and `build.sh` copies the same file over the same file,
+so the name is the stable part. A name that matches nothing on disk is ignored
+rather than reported -- deleting a `.wasm` is the whole of uninstalling it, and an
+editor that then complained at every start would be arguing with a decision the
+user already made.
+
+Startup is `Plugins::discover` and then `enable_saved(&settings.enabled_plugins)`,
+in that order, so a file that is on disk and not in the settings is listed and
+stays off -- which is the case this whole pass is about. `Reload Plugins` is the
+same pair with the running names read from the loaded set first, so a rebuild
+picked up by a reload comes back with the same plugins on.
+
+`enable` re-reads the file rather than keeping the module it instantiated during
+the scan. Holding one instance per plugin so that enabling is free would mean
+every plugin in the folder is instantiated and resident from startup, which is the
+thing the folder is no longer allowed to decide.
+
+### The manager reports, the window performs
+
+`PluginList` owns rows, a cursor and a viewport, and nothing else. Space on a row
+returns `(index, enabled)` to the window, which does the three things a modal
+should not: it switches the module, writes the settings file, and rebuilds the
+menu. That is the split the preferences dialog already uses for its settings, and
+for the same reason -- a modal that owns a file handle is one you have to trust
+with the file, while a modal that returns an index can be tested without a window.
+The toggle path is `set_plugin_enabled`, which calls `remember_plugins` (rewrite
+the settings from the list of what is actually running, not by editing a line in
+place), then `sync_plugin_menu`, then hands the rows back, so the list and the
+menu are never a keystroke out of step with the state.
+
+Each row is `(name, file, enabled)`. The file name is drawn in the hint line under
+the cursor rather than in the row: for every plugin in this tree it is the same
+string as the name, and it earns its line the moment somebody has two builds of
+the same plugin side by side.
+
+### Every plugin starts off, and the menu says why it is empty
+
+A copy of a `.wasm` into a folder is not consent to run it, and default-off also
+keeps the Plugins menu honest in size: five plugins with seventeen commands
+between them make a dropdown longer than most in the bar, which is fine when a
+user asked for it and noise when they did not.
+
+Nothing vanishes when they are all off. The menu keeps three rows -- Manage
+Plugins..., Open Plugins Folder..., Reload Plugins -- then one `Load <name>` row
+per plugin, which is both the state and the instruction for leaving it, and with
+an empty folder a final `No Plugins Installed`, because an empty dropdown reads as
+a bug rather than as an empty list.
+
+### Five keys, twenty-three files, one source of words
+
+The manager is chrome, so its words come from the catalog: `Manage Plugins...`,
+`Plugin Manager`, `Enabled`, `Disabled` and `Space enables or disables, Esc closes`
+are five `<Item>` rows added to all twenty-three localisation files directly after
+`Unload`. `PluginList::labels` feeds them into `chrome_labels()`, which is what
+makes a language that is missing one fall back row by row instead of drawing a
+dialog in two languages at once.
+
+The plugin names stay untranslated and the verbs beside them do not, so
+`Unload Half Width` is rebuilt from a translated verb and an untranslated name on
+every language change -- the same rule those rows had before this pass, and the
+reason they are `Item::composed` rather than relabelled.
+
+### Verification
+
+`cargo build --offline --release`: clean, 2m12s.
+
+`cargo test --offline --release`: 990 passed in `nn-app`, 816 in `nn-core`, 51 in
+`nn-mcp`, 1857 in all, no failures. `cd plugins && cargo test --offline
+--release`: 47 passed (6, 7, 8, 12, 12 and 2 across the six test binaries).
+
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+The window, on `:9` at 1100x750, with a fresh profile and the five `.wasm`
+installed:
+
+- `Plugins` shows `Manage Plugins...`, `Open Plugins Folder...`, `Reload Plugins`,
+  then `Load Align Columns`, `Load Half Width`, `Load JSON`, `Load Surround`,
+  `Load XML` -- all five off, none of them offering a command.
+- The manager opens titled `Plugin Manager` with five rows reading `Disabled`, and
+  the hint under the cursor reads `npp_align.wasm  Space enables or disables, Esc
+  closes`.
+- Two arrows and Space: the JSON row reads `Enabled`, the status bar says
+  `Loaded JSON`, and `settings.txt` holds exactly one `plugin JSON` line.
+- The menu, reopened, now carries `JSON - Pretty Print`, `JSON - Minify`,
+  `JSON - Validate` and `Unload JSON`, with the other four still at `Load ...`.
+- `JSON - Pretty Print` on a document holding `{"a":1}` leaves three lines, `{`,
+  `"a": 1` and `}` -- length 12, three lines in the status bar -- which is the same
+  edit the same command makes through `bench`, which prints `plugin run: 12
+  chars` for `plugin_run=2:0` against the same five files.
+
+An earlier alarm in the same check -- `invalid JSON at line 1, column 7` -- was my
+own harness: `bracketright` without `shift` types `]` where `]` was meant to be
+`"`. The plugin was right and the typist was wrong.
+
+`python3 docs/build-pdf.py`: wrote `docs/nekopp-features.pdf`, 61 pages A4, 265,740
+bytes, 104 bookmarks. `pdftotext` finds "Manage Plugins" three times, "Space
+toggles the row" twice, `plugin <name>` twice, "No Plugins Installed" once and the
+French example `Décharger Half Width` once, so the new prose is in the text layer
+rather than in an image.
+
+`bench` grew `plugin_manager=<dir>`, which fills the manager with the rows that
+directory holds and renders it, so the frame cost of the modal is measured rather
+than assumed: 1400x900 with the five plugins listed and the dialog open costs
+0.23 ms p99 idle and 0.21 ms p99 scrolling, which is under the cost of the
+document behind it. `plugin_run=2:0` against the same folder prints
+`plugin run: 12 chars`.
+
+`cargo fmt` was not run.

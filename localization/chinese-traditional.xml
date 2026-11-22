@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="重新載入外掛"/>
                 <Item id="Load" name="載入"/>
                 <Item id="Unload" name="卸載"/>
+                <Item id="Manage Plugins..." name="管理外掛..."/>
+                <Item id="Plugin Manager" name="外掛管理員"/>
+                <Item id="Enabled" name="已啟用"/>
+                <Item id="Disabled" name="已停用"/>
+                <Item id="Space enables or disables, Esc closes" name="空格切換啟停，Esc 關閉"/>
                 <Item id="Open Shortcut Mapper..." name="開啟快速鍵對應表..."/>
                 <Item id="Open User Defined Language folder..." name="開啟使用者自訂語言資料夾..."/>
                 <Item id="Open in New Instance" name="在新執行個體中開啟"/>

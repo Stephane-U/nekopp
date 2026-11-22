@@ -303,40 +303,66 @@ pub struct Command {
     pub label: String,
 }
 
+/// A running plugin: the module, and the cell its host writes into.
 struct Loaded {
     plugin: Plugin,
     bridge: Rc<RefCell<Bridge>>,
-    path: PathBuf,
 }
 
-/// A plugin the user took out of the menu.
+/// One plugin found in the folder, and whether it is running.
 ///
-/// What is kept is the name and the file, and nothing else: the module, its
-/// memory and its host bridge are dropped by [`Plugins::unload`], which is what
-/// makes the word mean something. Reading the file back is the whole cost of
-/// loading it again, and it has the useful side effect that a plugin rebuilt
-/// since it was unloaded comes back as the new build.
-struct Unloaded {
+/// A file in the directory is *installed*; the module is *running* only when the
+/// user enabled it, which is why the name has to be remembered separately from
+/// the module. Reading the name is the one thing that costs an instantiation at
+/// scan time, and the module is dropped immediately afterwards: an installation
+/// of twenty plugins holds twenty names and nothing else until one is enabled.
+struct Entry {
+    /// What the module calls itself, read once when the folder was scanned.
     name: String,
     path: PathBuf,
+    /// How many commands the module offered at scan time, so the manager can
+    /// say something useful about a plugin that is switched off.
+    commands: usize,
+    /// The module and its bridge, when the plugin is enabled.
+    loaded: Option<Loaded>,
 }
 
-/// Every plugin that loaded, every one the user unloaded, and every file that
-/// did not load at all.
+/// One row of the manager: what the file is called and whether it is running.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Inventory {
+    /// The name the module gives itself.
+    pub name: String,
+    /// The file it came from, without its directory.
+    pub file: String,
+    /// Whether the module is instantiated and its commands are in the menu.
+    pub enabled: bool,
+    /// How many commands it offers. Read at scan time, so the manager can say
+    /// something useful about a plugin that is switched off.
+    pub commands: usize,
+}
+
+/// Every plugin in the folder, the ones that are running, and every file that
+/// could not be read as a module at all.
+///
+/// The folder is the list of what is installed and this struct is the list of
+/// what is running: a plugin that is installed but switched off keeps its name,
+/// its path and its command count, and nothing of the module. That is the state
+/// the user asked for when they switched it off, and it is also why a rebuilt
+/// file comes back as the new build when it is switched on again.
 #[derive(Default)]
 pub struct Plugins {
-    loaded: Vec<Loaded>,
-    unloaded: Vec<Unloaded>,
+    entries: Vec<Entry>,
     failures: Vec<(PathBuf, String)>,
 }
 
 impl Plugins {
-    /// Loads every `.wasm` file in `dir`, in file-name order.
+    /// Reads every `.wasm` file in `dir`, in file-name order.
     ///
-    /// A missing directory is not an error: most installations have no
-    /// plugins, and an editor that complained about that on every start would
-    /// be wrong.
-    pub fn load_dir(dir: &Path) -> Plugins {
+    /// Nothing is left running: this is a scan, and the caller decides which
+    /// plugins to switch on from the inventory it gets back. A missing
+    /// directory is not an error -- most installations have no plugins, and an
+    /// editor that complained about that on every start would be wrong.
+    pub fn discover(dir: &Path) -> Plugins {
         let mut plugins = Plugins::default();
         let Ok(entries) = std::fs::read_dir(dir) else {
             return plugins;
@@ -357,81 +383,124 @@ impl Plugins {
                 .and_then(|stem| stem.to_str())
                 .unwrap_or("plugin")
                 .to_owned();
-            match std::fs::read(&path) {
-                Ok(bytes) => {
-                    let bridge = Rc::new(RefCell::new(Bridge::default()));
-                    let host = DocumentHost::new(Rc::clone(&bridge));
-                    match Plugin::load(&bytes, &stem, Box::new(host)) {
-                        Ok(plugin) => plugins.loaded.push(Loaded { plugin, bridge, path }),
-                        Err(error) => plugins.failures.push((path, error.to_string())),
-                    }
-                }
-                Err(error) => plugins.failures.push((path, error.to_string())),
+            match probe(&path, &stem) {
+                Ok((name, commands)) => plugins.entries.push(Entry {
+                    name,
+                    path,
+                    commands,
+                    loaded: None,
+                }),
+                Err(error) => plugins.failures.push((path, error)),
             }
         }
         plugins
     }
 
+    /// Whether any plugin is installed, running or not.
     pub fn is_empty(&self) -> bool {
-        self.loaded.is_empty()
+        self.entries.is_empty()
     }
 
+    /// How many plugins are running.
     pub fn len(&self) -> usize {
-        self.loaded.len()
+        self.entries
+            .iter()
+            .filter(|entry| entry.loaded.is_some())
+            .count()
     }
 
-    /// The files that did not load, with the reason.
+    /// How many plugins are installed, running or not.
+    pub fn available(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// The files that could not be read, with the reason.
     pub fn failures(&self) -> &[(PathBuf, String)] {
         &self.failures
     }
 
-    /// The name of every loaded plugin, in menu order.
-    ///
-    /// The names rather than the plugins: the menu needs to write "Unload
-    /// Half Width" and has no business holding a module to do it.
-    pub fn names(&self) -> Vec<String> {
-        self.loaded
+    /// One row per installed plugin, in folder order.
+    pub fn inventory(&self) -> Vec<Inventory> {
+        self.entries
             .iter()
-            .map(|loaded| loaded.plugin.name().to_owned())
+            .map(|entry| Inventory {
+                name: entry.name.clone(),
+                file: entry
+                    .path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("?")
+                    .to_owned(),
+                enabled: entry.loaded.is_some(),
+                commands: entry.commands,
+            })
             .collect()
     }
 
-    /// The name of every plugin the user unloaded, in the order they went.
+    /// The name of every running plugin, in folder order.
+    ///
+    /// The names rather than the plugins: the menu needs to write "Unload Half
+    /// Width" and has no business holding a module to do it.
+    pub fn names(&self) -> Vec<String> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.loaded.is_some())
+            .map(|entry| entry.name.clone())
+            .collect()
+    }
+
+    /// The name of every installed plugin that is not running, in folder order.
     pub fn unloaded(&self) -> Vec<String> {
-        self.unloaded.iter().map(|entry| entry.name.clone()).collect()
+        self.entries
+            .iter()
+            .filter(|entry| entry.loaded.is_none())
+            .map(|entry| entry.name.clone())
+            .collect()
     }
 
-    /// Takes a plugin out of the menu and drops its module.
+    /// Whether a plugin with this name is installed.
+    pub fn knows(&self, name: &str) -> bool {
+        self.entries.iter().any(|entry| entry.name == name)
+    }
+
+    /// Switches on every installed plugin named in `names`.
     ///
-    /// Returns the name that went, or `None` for an index that is not there --
-    /// which a menu row can still be holding if a plugin was unloaded while it
-    /// was open. The module is dropped rather than parked, so an unloaded
-    /// plugin holds no memory and cannot be run by accident; [`load`] puts it
-    /// back from its file.
+    /// The names come from the settings file, so a renamed plugin or a deleted
+    /// file leaves a name that matches nothing; that is ignored rather than
+    /// treated as an error, and the next time the user toggles anything the
+    /// list is written back from what is actually installed.
     ///
-    /// [`load`]: Self::load
-    pub fn unload(&mut self, index: usize) -> Option<String> {
-        if index >= self.loaded.len() {
-            return None;
+    /// Returns how many were switched on.
+    pub fn enable_saved(&mut self, names: &[String]) -> usize {
+        let mut started = 0;
+        for index in 0..self.entries.len() {
+            if !names.contains(&self.entries[index].name) {
+                continue;
+            }
+            if self.enable(index).is_ok() {
+                started += 1;
+            }
         }
-        let gone = self.loaded.remove(index);
-        let name = gone.plugin.name().to_owned();
-        self.unloaded.push(Unloaded {
-            name: name.clone(),
-            path: gone.path,
-        });
-        Some(name)
+        started
     }
 
-    /// Reads an unloaded plugin back in, at the end of the menu order.
+    /// Reads an installed plugin's file and runs it, at its place in the folder
+    /// order.
     ///
-    /// A failure leaves it in the unloaded list, so the row that asked for it
-    /// is still there to try again after the file is fixed.
-    pub fn load(&mut self, index: usize) -> Result<String, String> {
-        let Some(path) = self.unloaded.get(index).map(|entry| entry.path.clone()) else {
-            return Err(format!("no unloaded plugin {index}"));
+    /// The file is read again rather than kept from the scan, because a plugin
+    /// that was rebuilt while the editor was open should come back as the new
+    /// build. A failure leaves the entry switched off, so the row that asked
+    /// for it is still there to try again after the file is fixed.
+    pub fn enable(&mut self, index: usize) -> Result<String, String> {
+        let Some(entry) = self.entries.get_mut(index) else {
+            return Err(format!("no plugin {index}"));
         };
-        let fallback = path
+        if entry.loaded.is_some() {
+            return Ok(entry.name.clone());
+        }
+        let path = entry.path.clone();
+        let name = entry.name.clone();
+        let stem = path
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or("plugin")
@@ -446,11 +515,9 @@ impl Plugins {
         };
         let bridge = Rc::new(RefCell::new(Bridge::default()));
         let host = DocumentHost::new(Rc::clone(&bridge));
-        match Plugin::load(&bytes, &fallback, Box::new(host)) {
+        match Plugin::load(&bytes, &stem, Box::new(host)) {
             Ok(plugin) => {
-                let name = plugin.name().to_owned();
-                self.loaded.push(Loaded { plugin, bridge, path });
-                self.unloaded.remove(index);
+                entry.loaded = Some(Loaded { plugin, bridge });
                 Ok(name)
             }
             Err(error) => {
@@ -461,15 +528,65 @@ impl Plugins {
         }
     }
 
-    /// Every command of every plugin, in load order.
+    /// Drops a plugin's module, keeping its place and its file.
+    ///
+    /// Returns the name that stopped, or `None` for an index that is not there
+    /// -- which a menu row can still be holding if the plugin was switched off
+    /// while the menu was open.
+    pub fn disable(&mut self, index: usize) -> Option<String> {
+        let entry = self.entries.get_mut(index)?;
+        entry.loaded.take()?;
+        Some(entry.name.clone())
+    }
+
+    /// Switches the `index`th running plugin off, for a menu row.
+    ///
+    /// The menu counts running plugins, not installed ones, so the row index is
+    /// translated here rather than in the menu: the menu has no business
+    /// knowing which entries are switched on.
+    pub fn unload(&mut self, index: usize) -> Option<String> {
+        let entry = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| entry.loaded.is_some())
+            .nth(index)
+            .map(|(index, _)| index)?;
+        self.disable(entry)
+    }
+
+    /// Switches the `index`th installed-but-off plugin on, for a menu row.
+    pub fn load(&mut self, index: usize) -> Result<String, String> {
+        let entry = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| entry.loaded.is_none())
+            .nth(index)
+            .map(|(index, _)| index);
+        match entry {
+            Some(index) => self.enable(index),
+            None => Err(format!("no unloaded plugin {index}")),
+        }
+    }
+
+    /// Every command of every running plugin, in folder order.
+    ///
+    /// `plugin` is the entry's index in the folder, not a count of the running
+    /// ones: the menu hands it straight back to [`run`](Self::run), and an index
+    /// that survives switching a neighbour off is one less way for the two
+    /// lists to disagree.
     pub fn commands(&self) -> Vec<Command> {
         let mut out = Vec::new();
-        for (plugin, loaded) in self.loaded.iter().enumerate() {
+        for (plugin, entry) in self.entries.iter().enumerate() {
+            let Some(loaded) = &entry.loaded else {
+                continue;
+            };
             for (index, name) in loaded.plugin.commands().iter().enumerate() {
                 out.push(Command {
                     plugin,
                     index,
-                    label: format!("{} - {name}", loaded.plugin.name()),
+                    label: format!("{} - {name}", entry.name),
                 });
             }
         }
@@ -481,17 +598,18 @@ impl Plugins {
         self.commands().into_iter().map(|command| command.label).collect()
     }
 
-    /// One line per plugin, for the log.
+    /// One line per running plugin and per file that did not load, for the log.
     pub fn describe(&self) -> Vec<String> {
         let mut out: Vec<String> = self
-            .loaded
+            .entries
             .iter()
-            .map(|loaded| {
-                format!(
+            .filter_map(|entry| {
+                let loaded = entry.loaded.as_ref()?;
+                Some(format!(
                     "{}: {}",
-                    loaded.path.file_name().and_then(|n| n.to_str()).unwrap_or("?"),
+                    entry.path.file_name().and_then(|n| n.to_str()).unwrap_or("?"),
                     loaded.plugin.describe()
-                )
+                ))
             })
             .collect();
         for (path, error) in &self.failures {
@@ -514,10 +632,14 @@ impl Plugins {
         command: usize,
         context: &Context,
     ) -> Result<Outcome, Error> {
-        let loaded = self
-            .loaded
+        let entry = self
+            .entries
             .get_mut(plugin)
             .ok_or_else(|| Error::Host(format!("no plugin {plugin}")))?;
+        let loaded = entry
+            .loaded
+            .as_mut()
+            .ok_or_else(|| Error::Host(format!("plugin {plugin} is switched off")))?;
         *loaded.bridge.borrow_mut() = Bridge::new(context);
         loaded.plugin.run(command)?;
         let bridge = loaded.bridge.borrow();
@@ -528,6 +650,19 @@ impl Plugins {
             log: bridge.log.clone(),
         })
     }
+}
+
+/// Reads a plugin's name and command count without keeping it running.
+///
+/// The name lives in the module's own data, so the only way to ask is to
+/// instantiate it. The instance is dropped on the way out: installation is a
+/// file, and this is a scan.
+fn probe(path: &Path, stem: &str) -> Result<(String, usize), String> {
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    let bridge = Rc::new(RefCell::new(Bridge::default()));
+    let host = DocumentHost::new(Rc::clone(&bridge));
+    let plugin = Plugin::load(&bytes, stem, Box::new(host)).map_err(|error| error.to_string())?;
+    Ok((plugin.name().to_owned(), plugin.commands().len()))
 }
 
 #[cfg(test)]
@@ -702,12 +837,12 @@ mod tests {
         let host = DocumentHost::new(Rc::clone(&bridge));
         let plugin = Plugin::load(&build(), "test", Box::new(host)).unwrap();
         Plugins {
-            loaded: vec![Loaded {
-                plugin,
-                bridge,
+            entries: vec![Entry {
+                name: "Test".to_string(),
                 path: PathBuf::from("test.wasm"),
+                commands: 2,
+                loaded: Some(Loaded { plugin, bridge }),
             }],
-            unloaded: Vec::new(),
             failures: Vec::new(),
         }
     }
@@ -716,6 +851,7 @@ mod tests {
     fn a_plugin_lists_its_commands() {
         let plugins = plugins();
         assert_eq!(plugins.len(), 1);
+        assert_eq!(plugins.available(), 1);
         assert_eq!(plugins.labels(), vec!["Test - Uppercase", "Test - Log"]);
     }
 
@@ -760,20 +896,27 @@ mod tests {
         ));
     }
 
+    /// A fresh folder, so each test's plugins are its own.
+    fn folder(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
     #[test]
     fn a_missing_directory_loads_nothing() {
-        let plugins = Plugins::load_dir(Path::new("/nonexistent/plugins"));
+        let plugins = Plugins::discover(Path::new("/nonexistent/plugins"));
         assert!(plugins.is_empty());
+        assert_eq!(plugins.available(), 0);
         assert!(plugins.failures().is_empty());
     }
 
     #[test]
     fn a_broken_file_is_recorded_rather_than_skipped() {
-        let dir = std::env::temp_dir().join("npp-plugin-test-broken");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = folder("npp-plugin-test-broken");
         std::fs::write(dir.join("broken.wasm"), b"not a module").unwrap();
-        let plugins = Plugins::load_dir(&dir);
+        let plugins = Plugins::discover(&dir);
         assert!(plugins.is_empty());
         assert_eq!(plugins.failures().len(), 1);
         assert!(plugins.failures()[0].1.contains("WebAssembly"));
@@ -781,16 +924,73 @@ mod tests {
     }
 
     #[test]
-    fn a_directory_of_plugins_loads_in_name_order() {
-        let dir = std::env::temp_dir().join("npp-plugin-test-order");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+    fn a_directory_of_plugins_lists_in_name_order() {
+        let dir = folder("npp-plugin-test-order");
         std::fs::write(dir.join("b.wasm"), build()).unwrap();
         std::fs::write(dir.join("a.wasm"), build()).unwrap();
         std::fs::write(dir.join("notes.txt"), b"ignored").unwrap();
-        let plugins = Plugins::load_dir(&dir);
-        assert_eq!(plugins.len(), 2);
-        assert_eq!(plugins.failures().len(), 0);
+        let plugins = Plugins::discover(&dir);
+        assert_eq!(plugins.available(), 2);
+        assert!(plugins.failures().is_empty());
+        // The scan keeps the folder order and nothing of the modules.
+        let files: Vec<String> = plugins
+            .inventory()
+            .into_iter()
+            .map(|entry| entry.file)
+            .collect();
+        assert_eq!(files, vec!["a.wasm", "b.wasm"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn discovery_leaves_every_plugin_switched_off() {
+        let dir = folder("npp-plugin-test-off");
+        std::fs::write(dir.join("one.wasm"), build()).unwrap();
+        std::fs::write(dir.join("two.wasm"), build()).unwrap();
+        let plugins = Plugins::discover(&dir);
+        assert_eq!(plugins.available(), 2);
+        // Installed, named, with its command count, and not running: the scan
+        // reads the module only far enough to fill in the row.
+        assert_eq!(plugins.len(), 0);
+        assert!(plugins.names().is_empty());
+        assert!(plugins.commands().is_empty());
+        assert_eq!(plugins.unloaded(), vec!["Test".to_string(); 2]);
+        let inventory = plugins.inventory();
+        assert!(inventory.iter().all(|entry| !entry.enabled));
+        assert!(inventory.iter().all(|entry| entry.commands == 2));
+        assert!(inventory.iter().all(|entry| entry.name == "Test"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn switching_a_plugin_on_puts_its_commands_in_the_menu() {
+        let dir = folder("npp-plugin-test-enable");
+        std::fs::write(dir.join("a.wasm"), build()).unwrap();
+        std::fs::write(dir.join("b.wasm"), build()).unwrap();
+        let mut plugins = Plugins::discover(&dir);
+        assert_eq!(plugins.enable(1).as_deref(), Ok("Test"));
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(plugins.unloaded(), vec!["Test".to_string()]);
+        // The command index is the folder index, so switching the first one on
+        // does not shift the second one's rows.
+        let commands = plugins.commands();
+        assert_eq!(commands.len(), 2);
+        assert!(commands.iter().all(|command| command.plugin == 1));
+        assert!(plugins.inventory()[1].enabled);
+        assert!(!plugins.inventory()[0].enabled);
+        assert_eq!(plugins.enable(1).as_deref(), Ok("Test"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_command_of_a_switched_off_plugin_is_refused() {
+        let dir = folder("npp-plugin-test-refused");
+        std::fs::write(dir.join("a.wasm"), build()).unwrap();
+        let mut plugins = Plugins::discover(&dir);
+        assert!(matches!(
+            plugins.run(0, 0, &doc("", 0, (0, 0))),
+            Err(Error::Host(message)) if message.contains("switched off")
+        ));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -799,7 +999,9 @@ mod tests {
         let mut plugins = plugins();
         assert_eq!(plugins.names(), vec!["Test".to_string()]);
         assert_eq!(plugins.unload(0).as_deref(), Some("Test"));
-        assert!(plugins.is_empty());
+        // Installed but not running: the row stays, the commands go.
+        assert_eq!(plugins.available(), 1);
+        assert_eq!(plugins.len(), 0);
         assert!(plugins.commands().is_empty());
         assert_eq!(plugins.unloaded(), vec!["Test".to_string()]);
         // The row that asked to unload it is a click behind the menu now, so an
@@ -809,16 +1011,15 @@ mod tests {
 
     #[test]
     fn a_plugin_loads_back_from_its_file() {
-        let dir = std::env::temp_dir().join("npp-plugin-test-unload");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = folder("npp-plugin-test-unload");
         let path = dir.join("test.wasm");
         std::fs::write(&path, build()).unwrap();
-        let mut plugins = Plugins::load_dir(&dir);
+        let mut plugins = Plugins::discover(&dir);
+        assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
         assert_eq!(plugins.len(), 1);
 
         assert_eq!(plugins.unload(0).as_deref(), Some("Test"));
-        assert!(plugins.is_empty());
+        assert_eq!(plugins.len(), 0);
         assert_eq!(plugins.load(0), Ok("Test".to_string()));
         assert_eq!(plugins.len(), 1);
         assert!(plugins.unloaded().is_empty());
@@ -827,27 +1028,68 @@ mod tests {
     }
 
     #[test]
-    fn a_plugin_whose_file_is_gone_stays_unloaded() {
-        let dir = std::env::temp_dir().join("npp-plugin-test-gone");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+    fn a_plugin_whose_file_is_gone_stays_switched_off() {
+        let dir = folder("npp-plugin-test-gone");
         let path = dir.join("test.wasm");
         std::fs::write(&path, build()).unwrap();
-        let mut plugins = Plugins::load_dir(&dir);
-        assert_eq!(plugins.unload(0).as_deref(), Some("Test"));
+        let mut plugins = Plugins::discover(&dir);
+        assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
         std::fs::remove_file(&path).unwrap();
+        assert_eq!(plugins.unload(0).as_deref(), Some("Test"));
 
-        assert!(plugins.load(0).is_err());
         // Still offered, because the file may be put back.
+        assert!(plugins.load(0).is_err());
+        assert_eq!(plugins.len(), 0);
         assert_eq!(plugins.unloaded(), vec!["Test".to_string()]);
         assert_eq!(plugins.failures().len(), 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
+    fn switching_on_a_plugin_that_is_already_running_is_not_an_error() {
+        let mut plugins = plugins();
+        assert_eq!(plugins.enable(0).as_deref(), Ok("Test"));
+        assert_eq!(plugins.len(), 1);
+    }
+
+    #[test]
     fn loading_a_plugin_that_was_never_unloaded_is_refused() {
         let mut plugins = plugins();
         assert!(plugins.load(0).is_err());
+        assert_eq!(plugins.len(), 1);
+    }
+
+    #[test]
+    fn the_saved_names_switch_on_only_what_is_installed() {
+        let dir = folder("npp-plugin-test-saved");
+        std::fs::write(dir.join("a.wasm"), build()).unwrap();
+        std::fs::write(dir.join("b.wasm"), build()).unwrap();
+        let mut plugins = Plugins::discover(&dir);
+        // A name that names nothing -- a deleted or renamed plugin -- is not an
+        // error: the settings file is allowed to be out of date.
+        let saved = vec!["Test".to_string(), "Gone".to_string()];
+        assert_eq!(plugins.enable_saved(&saved), 2);
+        assert_eq!(plugins.len(), 2);
+        assert!(plugins.knows("Test"));
+        assert!(!plugins.knows("Gone"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_inventory_names_the_file_behind_each_plugin() {
+        let dir = folder("npp-plugin-test-inventory");
+        std::fs::write(dir.join("npp_test.wasm"), build()).unwrap();
+        let plugins = Plugins::discover(&dir);
+        assert_eq!(
+            plugins.inventory(),
+            vec![Inventory {
+                name: "Test".to_string(),
+                file: "npp_test.wasm".to_string(),
+                enabled: false,
+                commands: 2,
+            }]
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A context over `text`, with the caret and selection in bytes.

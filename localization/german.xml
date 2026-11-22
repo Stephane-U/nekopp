@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Plugins neu laden"/>
                 <Item id="Load" name="Laden"/>
                 <Item id="Unload" name="Entladen"/>
+                <Item id="Manage Plugins..." name="Plugins verwalten..."/>
+                <Item id="Plugin Manager" name="Plugin-Verwaltung"/>
+                <Item id="Enabled" name="Aktiviert"/>
+                <Item id="Disabled" name="Deaktiviert"/>
+                <Item id="Space enables or disables, Esc closes" name="Leertaste schaltet um, Esc schließt"/>
                 <Item id="Open Shortcut Mapper..." name="Tastenkürzelzuordnung öffnen..."/>
                 <Item id="Open User Defined Language folder..." name="Ordner für benutzerdefinierte Sprachen öffnen..."/>
                 <Item id="Open in New Instance" name="In neuer Instanz öffnen"/>

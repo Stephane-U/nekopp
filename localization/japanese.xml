@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="プラグインを再読み込み"/>
                 <Item id="Load" name="読み込み"/>
                 <Item id="Unload" name="アンロード"/>
+                <Item id="Manage Plugins..." name="プラグインの管理..."/>
+                <Item id="Plugin Manager" name="プラグイン マネージャー"/>
+                <Item id="Enabled" name="有効"/>
+                <Item id="Disabled" name="無効"/>
+                <Item id="Space enables or disables, Esc closes" name="Space で切り替え、Esc で閉じる"/>
                 <Item id="Open Shortcut Mapper..." name="ショートカットマッパーを開く..."/>
                 <Item id="Open User Defined Language folder..." name="ユーザー定義言語フォルダを開く..."/>
                 <Item id="Open in New Instance" name="新しいインスタンスで開く"/>

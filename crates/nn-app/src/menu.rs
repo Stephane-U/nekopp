@@ -556,6 +556,8 @@ pub enum Action {
     HashFromFile(nn_core::hash::Hash),
     /// Hash the selection and put the digest on the clipboard.
     HashToClipboard(nn_core::hash::Hash),
+    /// Open the plugin manager: every installed plugin, with a switch.
+    ManagePlugins,
     /// Open the plugins directory in the file manager.
     OpenPluginsFolder,
     /// Re-read the plugins directory, picking up files added since startup.
@@ -920,6 +922,7 @@ impl Action {
             Action::RemoveNonBookmarkedLines => "remove_non_bookmarked_lines",
             Action::InverseBookmarks => "inverse_bookmarks",
             Action::FindCharInRange => "find_char_in_range",
+            Action::ManagePlugins => "manage_plugins",
             Action::OpenPluginsFolder => "open_plugins_folder",
             Action::ReloadPlugins => "reload_plugins",
             Action::UnloadPlugin(_) => "unload_plugin",
@@ -1257,6 +1260,7 @@ impl Action {
             "remove_non_bookmarked_lines" => Action::RemoveNonBookmarkedLines,
             "inverse_bookmarks" => Action::InverseBookmarks,
             "find_char_in_range" => Action::FindCharInRange,
+            "manage_plugins" => Action::ManagePlugins,
             "open_plugins_folder" => Action::OpenPluginsFolder,
             "reload_plugins" => Action::ReloadPlugins,
             "validate_shortcuts" => Action::ValidateShortcuts,
@@ -1432,6 +1436,7 @@ impl Action {
         Action::RotateSplit,
         Action::MoveToOtherView,
         Action::CloneToOtherView,
+        Action::ManagePlugins,
         Action::ReloadPlugins,
         Action::About,
     ];
@@ -2201,6 +2206,7 @@ fn plugin_items(source: &PluginSource, catalog: Option<&Catalog>) -> Vec<Item> {
     // user gets from "no plugins" to having one. Reload sits beside it so a
     // plugin dropped into the folder by hand does not need a restart.
     let mut items = vec![
+        row("Manage Plugins...", Action::ManagePlugins),
         row("Open Plugins Folder...", Action::OpenPluginsFolder),
         row("Reload Plugins", Action::ReloadPlugins),
     ];
@@ -4870,16 +4876,18 @@ mod tests {
     fn an_empty_plugins_menu_says_so() {
         let b = bar();
         let items = &b.menus[PLUGIN_MENU].items;
-        // The folder row is always first, so "no plugins" is still reachable
-        // from a menu that has nothing in it.
-        assert_eq!(items[0].label, "Open Plugins Folder...");
-        assert_eq!(items[0].action, Action::OpenPluginsFolder);
-        assert_eq!(items[1].label, "Reload Plugins");
-        assert_eq!(items[1].action, Action::ReloadPlugins);
-        assert!(items[2].separator);
-        assert_eq!(items[3].label, "No Plugins Installed");
-        assert_eq!(items[3].action, Action::NoOp);
-        assert_eq!(items.len(), 4);
+        // The manager and folder rows are always first, so "no plugins" is
+        // still reachable from a menu that has nothing in it.
+        assert_eq!(items[0].label, "Manage Plugins...");
+        assert_eq!(items[0].action, Action::ManagePlugins);
+        assert_eq!(items[1].label, "Open Plugins Folder...");
+        assert_eq!(items[1].action, Action::OpenPluginsFolder);
+        assert_eq!(items[2].label, "Reload Plugins");
+        assert_eq!(items[2].action, Action::ReloadPlugins);
+        assert!(items[3].separator);
+        assert_eq!(items[4].label, "No Plugins Installed");
+        assert_eq!(items[4].action, Action::NoOp);
+        assert_eq!(items.len(), 5);
     }
 
     #[test]
@@ -4894,15 +4902,15 @@ mod tests {
             unloaded: Vec::new(),
         });
         let items = &b.menus[PLUGIN_MENU].items;
-        // Folder and reload rows, separator, one row per command, separator,
-        // one unload row per loaded plugin.
-        assert_eq!(items.len(), 8);
-        assert_eq!(items[3].label, "Logfile - Sort");
-        assert_eq!(items[3].action, Action::Plugin(0, 0));
-        assert_eq!(items[4].action, Action::Plugin(1, 2));
-        assert_eq!(items[6].label, "Unload Logfile");
-        assert_eq!(items[6].action, Action::UnloadPlugin(0));
-        assert_eq!(items[7].action, Action::UnloadPlugin(1));
+        // Manager, folder and reload rows, separator, one row per command,
+        // separator, one unload row per loaded plugin.
+        assert_eq!(items.len(), 9);
+        assert_eq!(items[4].label, "Logfile - Sort");
+        assert_eq!(items[4].action, Action::Plugin(0, 0));
+        assert_eq!(items[5].action, Action::Plugin(1, 2));
+        assert_eq!(items[7].label, "Unload Logfile");
+        assert_eq!(items[7].action, Action::UnloadPlugin(0));
+        assert_eq!(items[8].action, Action::UnloadPlugin(1));
     }
 
     #[test]
@@ -4917,9 +4925,9 @@ mod tests {
         // Nothing is loaded, so there are no command rows and no "none
         // installed" row either: a plugin that can be loaded back is a plugin
         // the menu has something to offer for.
-        assert_eq!(items.len(), 4);
-        assert_eq!(items[3].label, "Load Half Width");
-        assert_eq!(items[3].action, Action::LoadPlugin(0));
+        assert_eq!(items.len(), 5);
+        assert_eq!(items[4].label, "Load Half Width");
+        assert_eq!(items[4].action, Action::LoadPlugin(0));
         assert!(items.iter().all(|item| item.label != "No Plugins Installed"));
     }
 
@@ -4931,9 +4939,9 @@ mod tests {
             loaded: vec!["Half Width".into()],
             unloaded: Vec::new(),
         });
-        assert_eq!(b.menus[PLUGIN_MENU].items[3].label, "Unload Half Width");
+        assert_eq!(b.menus[PLUGIN_MENU].items[4].label, "Unload Half Width");
         b.set_catalog(Some(catalog()));
-        let row = &b.menus[PLUGIN_MENU].items[3];
+        let row = &b.menus[PLUGIN_MENU].items[4];
         assert_eq!(
             row.label,
             format!("{} Half Width", catalog().tr("Unload")),
@@ -4955,7 +4963,7 @@ mod tests {
         for language in &languages {
             let catalog = crate::i18n::Catalog::load(None, &language.file)
                 .unwrap_or_else(|error| panic!("{}: {error}", language.file));
-            for english in ["Reload Plugins", "Load", "Unload"] {
+            for english in ["Manage Plugins...", "Reload Plugins", "Load", "Unload"] {
                 assert!(
                     catalog.translates(english),
                     "{} has no row for {english}",
@@ -4977,7 +4985,7 @@ mod tests {
             loaded: vec!["Half Width".into()],
             unloaded: Vec::new(),
         });
-        assert_eq!(b.menus[PLUGIN_MENU].items[3].label, "Scarica Half Width");
+        assert_eq!(b.menus[PLUGIN_MENU].items[4].label, "Scarica Half Width");
     }
 
     #[test]

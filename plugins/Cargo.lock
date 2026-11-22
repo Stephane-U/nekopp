@@ -21,7 +21,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "npp-json"
+version = "0.1.0"
+dependencies = [
+ "nn-plugin",
+]
+
+[[package]]
 name = "npp-surround"
+version = "0.1.0"
+dependencies = [
+ "nn-plugin",
+]
+
+[[package]]
+name = "npp-xml"
 version = "0.1.0"
 dependencies = [
  "nn-plugin",

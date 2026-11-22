@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Recharger les plugins"/>
                 <Item id="Load" name="Charger"/>
                 <Item id="Unload" name="Décharger"/>
+                <Item id="Manage Plugins..." name="Gérer les plugins..."/>
+                <Item id="Plugin Manager" name="Gestionnaire de plugins"/>
+                <Item id="Enabled" name="Activé"/>
+                <Item id="Disabled" name="Désactivé"/>
+                <Item id="Space enables or disables, Esc closes" name="Espace active ou désactive, Échap ferme"/>
                 <Item id="Open Shortcut Mapper..." name="Ouvrir le mappeur de raccourcis..."/>
                 <Item id="Open User Defined Language folder..." name="Ouvrir le dossier des langages définis par l'utilisateur..."/>
                 <Item id="Open in New Instance" name="Ouvrir dans une nouvelle instance"/>

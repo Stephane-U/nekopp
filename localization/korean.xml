@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="플러그인 다시 불러오기"/>
                 <Item id="Load" name="불러오기"/>
                 <Item id="Unload" name="해제"/>
+                <Item id="Manage Plugins..." name="플러그인 관리..."/>
+                <Item id="Plugin Manager" name="플러그인 관리자"/>
+                <Item id="Enabled" name="사용"/>
+                <Item id="Disabled" name="사용 안 함"/>
+                <Item id="Space enables or disables, Esc closes" name="Space로 켜고 끄기, Esc 닫기"/>
                 <Item id="Open Shortcut Mapper..." name="단축키 매퍼 열기..."/>
                 <Item id="Open User Defined Language folder..." name="사용자 정의 언어 폴더 열기..."/>
                 <Item id="Open in New Instance" name="새 인스턴스에서 열기"/>

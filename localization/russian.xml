@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Перезагрузить плагины"/>
                 <Item id="Load" name="Загрузить"/>
                 <Item id="Unload" name="Выгрузить"/>
+                <Item id="Manage Plugins..." name="Управление плагинами..."/>
+                <Item id="Plugin Manager" name="Менеджер плагинов"/>
+                <Item id="Enabled" name="Включён"/>
+                <Item id="Disabled" name="Отключён"/>
+                <Item id="Space enables or disables, Esc closes" name="Пробел включает или отключает, Esc закрывает"/>
                 <Item id="Open Shortcut Mapper..." name="Открыть сопоставление сочетаний клавиш..."/>
                 <Item id="Open User Defined Language folder..." name="Открыть папку пользовательских языков..."/>
                 <Item id="Open in New Instance" name="Открыть в новом экземпляре"/>

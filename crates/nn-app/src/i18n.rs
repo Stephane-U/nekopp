@@ -830,6 +830,7 @@ mod coverage_tests {
         labels.extend(crate::prompt::PromptBar::labels());
         labels.extend(crate::findbar::FindBar::labels());
         labels.extend(crate::about::AboutBox::labels());
+        labels.extend(crate::pluginlist::PluginList::labels());
         labels.extend(crate::toolbar::labels());
         labels.sort_unstable();
         labels.dedup();

@@ -988,23 +988,28 @@ build does not know, which is what makes an import trustworthy.
 
 ### Plugins
 
-"Open Plugins Folder..." is always present, because it is how a user gets from
-"no plugins" to having one. "Reload Plugins" sits beside it: it re-reads the
-folder, so a `.wasm` file copied in by hand becomes a menu row without a restart.
-Below the separators are the running plugins: one row per command, labelled
-`Plugin - Command`; a flat list rather than a submenu per plugin, but the
-plugin's name is in the label either way. Each plugin also gets an
-`Unload <name>` row, and a plugin that was unloaded leaves a `Load <name>` row in
-its place. With nothing installed the menu still has a row saying so: an empty
-dropdown reads as a bug rather than as an empty list.
+"Manage Plugins..." comes first, because it is the only row here that switches a
+plugin on: it lists every plugin in the folder with `Enabled` or `Disabled`
+beside it, and Space toggles the row under the cursor. A newly installed plugin
+starts disabled, so the manager is where a user goes first. "Open Plugins
+Folder..." follows, because it is how a user gets from "no plugins" to having
+one, and "Reload Plugins" sits beside it: it re-reads the folder, so a `.wasm`
+file copied in by hand is discovered without a restart. Below the separators are
+the running plugins: one row per command, labelled `Plugin - Command`; a flat
+list rather than a submenu per plugin, but the plugin's name is in the label
+either way. Each running plugin also gets an `Unload <name>` row, and a plugin
+that is switched off leaves a `Load <name>` row in its place. With nothing in the
+folder the menu still has a row saying so: an empty dropdown reads as a bug
+rather than as an empty list.
 
 Plugins are described in "Plugins".
 
+- Manage Plugins...
 - Open Plugins Folder...
 - Reload Plugins
-- One row per installed plugin command, labelled `Plugin - Command`
-- Unload <name> (one row per running plugin)
-- Load <name> (one row per unloaded plugin)
+- One row per command of an enabled plugin, labelled `Plugin - Command`
+- Unload <name> (one row per enabled plugin)
+- Load <name> (one row per disabled plugin)
 - No Plugins Installed (when the folder is empty)
 
 ### Window
@@ -1889,10 +1894,12 @@ functions, so a command is a function from `&str` to `String` plus a decision
 about the range it applies to. `plugins/build.sh` builds the workspace for
 `wasm32-unknown-unknown` and copies the results into the plugins directory.
 
-Three ship as worked examples: `align` (Align on Equals, on Colon, on Comma),
-`halfwidth` (To Half Width, To Full Width) and `surround` (quotes, brackets,
-parentheses, Select Quoted Text). They are implementations of the commands
-described in this reference, not copies of anyone's source.
+Five ship as worked examples: `align` (Align on Equals, on Colon, on Comma),
+`halfwidth` (To Half Width, To Full Width), `surround` (quotes, brackets,
+parentheses, Select Quoted Text), `json` (Pretty Print, Minify, Validate) and
+`xml` (Pretty Print, Linearize, Check Well-Formedness, Escape Entities, Unescape
+Entities). They are implementations of the commands described in this reference,
+not copies of anyone's source.
 
 The ABI itself is plain WebAssembly with integer imports, so another language
 could target it from the tables above. No SDK ships for one, and every plugin in
@@ -1900,19 +1907,26 @@ the tree is Rust, because that is what the editor and its tests are built with.
 
 ### Load and unload
 
-Unloading takes a plugin out of the menu and drops its module, keeping only its
-name and the file it came from. Loading reads that file again and instantiates
-it; re-reading is deliberate, because a plugin rebuilt while the editor was open
-should come back as the new build rather than as the bytes that were already in
-memory.
+Disabling a plugin takes it out of the menu and drops its module, keeping only
+its name and the file it came from. Enabling reads that file again and
+instantiates it; re-reading is deliberate, because a plugin rebuilt while the
+editor was open should come back as the new build rather than as the bytes that
+were already in memory.
 
-Nothing is persisted. The folder is what is installed and the session is what is
-running, so unloading is a decision about this window and the next start loads
-everything again. "Reload Plugins" re-scans the folder, which is also how a
-`.wasm` copied in by hand is picked up and how an unloaded plugin returns.
+What is persisted is the name. `settings.txt` holds one `plugin <name>` line per
+enabled plugin and the names are applied at startup, so the set that is on
+survives a restart. The folder is what is installed, the settings file is which
+of those are running, and everything else starts off: a `.wasm` that arrived a
+minute ago should not be handed the document on trust.
 
-A file that has disappeared since it was unloaded is reported rather than
-forgotten: the plugin stays in the unloaded list and its `Load <name>` row keeps
+Names rather than paths, because a list of paths breaks when a plugin is rebuilt
+and reinstalled. A name that no longer matches a file on disk is ignored rather
+than reported as an error, which is what makes deleting a plugin a matter of
+deleting its file. "Reload Plugins" re-scans the folder and re-enables by name,
+which is also how a `.wasm` copied in by hand is picked up.
+
+A file that has disappeared since it was disabled is reported rather than
+forgotten: the plugin stays in the disabled list and its `Load <name>` row keeps
 explaining itself.
 
 The verbs are translated and the plugin names are not -- `Décharger Half Width`
@@ -1921,12 +1935,21 @@ language changes rather than relabelled.
 
 ### Managing plugins
 
-"Open Plugins Folder..." opens the directory. "Import plugin(s)..." copies a
-`.wasm` file into it. Each installed command gets a row in the Plugins menu,
-labelled `Plugin - Command`, and each plugin an `Unload <name>` row. A file that
-fails to load is recorded rather than skipped silently: a plugin that does not
-appear in the menu is a bug report waiting to happen, and the log says which file
-and why.
+"Manage Plugins..." opens a list of every plugin in the folder with its state
+beside it, `Enabled` or `Disabled`, and a line under the cursor naming the file
+the row came from, so two plugins with similar names can be told apart. The
+arrows move, Space toggles the row and applies it at once -- the menu behind the
+list is rebuilt then, so there is no restart and no reload in between -- and Esc
+closes. Everything found is listed, not only what is running, because a manager
+that hides the disabled half is a manager for people who have already enabled
+them.
+
+"Open Plugins Folder..." opens the directory, and "Import plugin(s)..." in the
+Settings menu copies a `.wasm` file into it. Each command of an enabled plugin
+gets a row in the Plugins menu, labelled `Plugin - Command`, and each enabled
+plugin an `Unload <name>` row. A file that fails to load is recorded rather than
+skipped silently: a plugin that does not appear in the menu is a bug report
+waiting to happen, and the log says which file and why.
 
 ## Localisation
 
@@ -2177,6 +2200,7 @@ able to fix in an editor when it goes wrong.
 | `print_header` | three tab-separated zones | empty |
 | `print_footer` | three tab-separated zones | `$(PAGE)` |
 | `language` | a file name in `localization/` | English |
+| `plugin <name>` | one line per enabled plugin | none |
 | `key <command> <chord>` | one line per binding | the default keymap |
 
 Unknown keywords are ignored rather than rejected, so a file written by a newer
@@ -2287,7 +2311,7 @@ These are Notepad++ features this build does not have, and the reason.
 | Text Direction RTL / LTR | The caret is placed as `column * char_width`, which is wrong for a right-to-left run. The text renders; the caret does not. |
 | Updater rows in Help | There is no updater. A row that opened a browser at a download page would be a promise the program cannot keep. |
 | A Shortcut Mapper *dialog* with Import and Export buttons | There is no such dialog. The two operations are rows under Settings > Shortcut Mapper, one level down, and they are the same two operations in the same place. |
-| Plugin Admin | There is no plugin repository. Plugins are files a user copies in, and the menu says where. |
+| Plugin Admin | There is no plugin repository. Plugins are files a user copies in, and "Manage Plugins..." lists what was found and switches each one on or off. |
 | A macro editor | A macro is recorded, replayed and saved as a command. Editing one by hand is editing a settings file. |
 | Spell checking | It needs a dictionary per language and a hunspell-compatible reader, and neither is vendored. |
 | A terminal inside the editor | The editor opens a terminal in the document's directory instead, which is what the row is for. |

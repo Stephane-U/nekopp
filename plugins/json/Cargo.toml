@@ -1,0 +1,14 @@
+[package]
+name = "npp-json"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+
+[dependencies]
+nn-plugin = { path = "../sdk" }
+
+[lib]
+# The cdylib is the plugin; the rlib is what lets this crate's tests -- the
+# algorithms, which are the part worth testing -- run on the host.
+crate-type = ["cdylib", "rlib"]

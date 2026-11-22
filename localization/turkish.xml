@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Eklentileri yeniden yükle"/>
                 <Item id="Load" name="Yükle"/>
                 <Item id="Unload" name="Kaldır"/>
+                <Item id="Manage Plugins..." name="Eklentileri yönet..."/>
+                <Item id="Plugin Manager" name="Eklenti yöneticisi"/>
+                <Item id="Enabled" name="Etkin"/>
+                <Item id="Disabled" name="Devre dışı"/>
+                <Item id="Space enables or disables, Esc closes" name="Boşluk açıp kapatır, Esc kapatır"/>
                 <Item id="Open Shortcut Mapper..." name="Kısayol eşleyiciyi aç..."/>
                 <Item id="Open User Defined Language folder..." name="Kullanıcı tanımlı diller klasörünü aç..."/>
                 <Item id="Open in New Instance" name="Yeni örnekte aç"/>

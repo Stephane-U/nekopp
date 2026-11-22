@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Επαναφόρτωση πρόσθετων"/>
                 <Item id="Load" name="Φόρτωση"/>
                 <Item id="Unload" name="Εκφόρτωση"/>
+                <Item id="Manage Plugins..." name="Διαχείριση προσθέτων..."/>
+                <Item id="Plugin Manager" name="Διαχείριση προσθέτων"/>
+                <Item id="Enabled" name="Ενεργό"/>
+                <Item id="Disabled" name="Ανενεργό"/>
+                <Item id="Space enables or disables, Esc closes" name="Το Space ενεργοποιεί ή απενεργοποιεί, Esc κλείνει"/>
                 <Item id="Open Shortcut Mapper..." name="Άνοιγμα αντιστοίχισης συντομεύσεων..."/>
                 <Item id="Open User Defined Language folder..." name="Άνοιγμα φακέλου γλωσσών καθορισμένων από τον χρήστη..."/>
                 <Item id="Open in New Instance" name="Άνοιγμα σε νέα παρουσία"/>

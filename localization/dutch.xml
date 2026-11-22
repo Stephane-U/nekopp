@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Plug-ins herladen"/>
                 <Item id="Load" name="Laden"/>
                 <Item id="Unload" name="Verwijderen"/>
+                <Item id="Manage Plugins..." name="Plugins beheren..."/>
+                <Item id="Plugin Manager" name="Pluginbeheer"/>
+                <Item id="Enabled" name="Ingeschakeld"/>
+                <Item id="Disabled" name="Uitgeschakeld"/>
+                <Item id="Space enables or disables, Esc closes" name="Spatie schakelt in of uit, Esc sluit"/>
                 <Item id="Open Shortcut Mapper..." name="Sneltoetsenoverzicht openen..."/>
                 <Item id="Open User Defined Language folder..." name="Map met door gebruiker gedefinieerde talen openen..."/>
                 <Item id="Open in New Instance" name="Openen in nieuwe instantie"/>

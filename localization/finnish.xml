@@ -297,6 +297,11 @@
                 <Item id="Reload Plugins" name="Lataa liitännäiset uudelleen"/>
                 <Item id="Load" name="Lataa"/>
                 <Item id="Unload" name="Poista"/>
+                <Item id="Manage Plugins..." name="Hallitse liitännäisiä..."/>
+                <Item id="Plugin Manager" name="Liitännäishallinta"/>
+                <Item id="Enabled" name="Käytössä"/>
+                <Item id="Disabled" name="Pois käytöstä"/>
+                <Item id="Space enables or disables, Esc closes" name="Välilyönti kytkee, Esc sulkee"/>
                 <Item id="Open Shortcut Mapper..." name="Avaa pikakuvakekartta..."/>
                 <Item id="Open User Defined Language folder..." name="Avaa käyttäjän määrittämien kielten kansio..."/>
                 <Item id="Open in New Instance" name="Avaa uudessa ilmentymässä"/>
