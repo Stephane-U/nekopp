@@ -8492,3 +8492,106 @@ that a heading cannot be added quietly.
 from the new subsection.
 
 `cargo fmt` was not run.
+
+## Sixty-sixth pass: a click has three sizes
+
+The previous pass closed by admitting that double-click word selection and
+triple-click line selection did not exist. The question that came back was the
+right one -- *why not* -- and the honest answer is that neither half of the
+feature was there to be switched on.
+
+On the window side, `WindowEvent::MouseInput` set `dragging` and called
+`click(x, y)`. Every press was a first press: nothing recorded when the previous
+one happened or where it landed, so two presses 80 ms apart at the same pixel
+were two unrelated clicks. On the editor side there was nothing to call. `Editor`
+had `select_line()` for the line *the caret is on* and `Document::word_at`, which
+returns the word's text -- the wrong shape twice over, because a double click
+needs the *range* of the unit at a given character so the selection can point at
+it, and `word_at` walks outward from a character that is already inside a word.
+The two helpers that do walk (`word_left`, `word_right`) are private to the motion
+code and answer "where does the previous word start", not "what is the word
+here". So the reference said the feature was missing rather than describing
+something the window could not do, and this pass gives both halves what they need.
+
+### The units, in the core
+
+`Editor::word_range_at(pos)` returns the run of text at a character: a word, a
+run of whitespace, or a run of punctuation, decided by a new `unit_class` next to
+`is_word_char`. Three classes rather than two, because punctuation is a unit
+people double-click on purpose -- the `.` in `foo.bar`, the `--` in a comment
+rule -- and lumping spaces in with it would make a double click on a space select
+the space *and* the `=` after it. The run never crosses a line ending, so a
+double click on the space at the end of a line takes that space and not the
+indentation below.
+
+A position on a line ending, or past the end of the document, is clamped to the
+last character of the line it is on. That is where the pointer actually is when
+it is beyond the text, and selecting a newline is never what the second press of
+a double click meant. An empty line returns `None`, and `select_word_at` then
+leaves the selection alone: a double click on blank space past the text should not
+throw away what the user had.
+
+`Editor::line_range_at(pos)` is the triple click's unit, and it includes the line
+ending -- `\n` or both halves of `\r\n`. Excluding it, the way `select_line()`
+does for the keyboard command, would make a line selected this way paste as a line
+glued to the next one.
+
+### The press, in the window
+
+`State` gained `click_count`, `last_press` and `unit_drag`. Counting happens at
+the top of `click`, before any widget gets its turn, so the count does not depend
+on what was hit: the second press on the text has to know it is the second even
+if the first one closed a menu. A press repeats when it lands within
+`CLICK_SLOP` (four pixels) and `CLICK_INTERVAL` (half a second) of the one before
+it, and a third has to clear the same bar against the second, so a triple click is
+three presses in a row rather than one fast pair and a straggler.
+
+The text branch then returns early for a repeat: it takes the range of the unit
+under the pointer, selects it, and remembers `(unit, start, end)` in `unit_drag`.
+Returning matters. The single-click path ends by placing the caret from the same
+point, which would collapse the selection the second press just made.
+
+The drag handler checks `unit_drag` first. A drag out of a double click takes the
+unit under the pointer and unions it with the anchor, in whichever direction the
+pointer went, so dragging left from a word takes whole words on the left and
+dragging back over the anchor shrinks the same selection. Without the anchor the
+first motion would have replaced a word selection with a character selection,
+which is what the previous pass fixed for plain drags.
+
+Double and triple clicks are deliberately *not* exempt from the drag: a press,
+then a drag before release, is how a person selects four words, and the unit is
+what makes it four words rather than four characters.
+
+### Verification
+
+The window, on `:9` at 1400x1000, `npp --software /tmp/wordtest.txt`, five lines
+of ordinary words, one of them `punct foo.bar(baz) end`:
+
+- Double click on `beta`: `Ln: 1, Col: 11, Sel: 4`, `beta` highlighted.
+- Triple click on line 3, `select_this whole_word`: `Ln: 4, Col: 1, Sel: 23` --
+  22 characters plus the line ending -- with the whole line highlighted.
+- Double click, then drag to `four` on line 2: `Ln: 2, Col: 19, Sel: 18`,
+  `one two three four`.
+- Double click on the `.` of `foo.bar`: `Ln: 4, Col: 11, Sel: 1`. The same pair
+  one character earlier took `foo`, which is the clamp doing its job.
+- A single click still places the caret and leaves `Sel: 0`.
+
+`cargo test --offline --release`: 940 nn-app, 876 nn-core, 70 nn-mcp, 1886 in
+all, 0 failed -- ten of the core tests are new and cover the word, the run of
+spaces, the run of punctuation, the whitespace run that stops at a line ending,
+the press past the end of a line, the empty line that selects nothing, a non-ASCII
+word, the line with its terminator, the last line without one, and `\r\n`.
+`cd plugins && cargo test --offline --release`: 47 passed.
+`cargo clippy --offline --release --all-targets`: 0 warnings.
+
+The `### The pointer` subsection now describes the three sizes of a click, the two
+bounds that make a repeat, and the drag that pulls a selection out by the unit it
+began with; the sentence saying the feature was missing is gone. No heading was
+added or removed, so `nn-mcp` still reports 104 sections, 27 chapters and 77
+subsections, and no count in `doc.rs` or `server.rs` moved.
+
+`python3 docs/build-pdf.py`: wrote `docs/nekopp-features.pdf`, 65 pages A4,
+273,429 bytes, 106 bookmarks. One page longer, same bookmark count, because the
+new prose replaced a two-line paragraph inside a section that already existed.
+
+`cargo fmt` was not run.

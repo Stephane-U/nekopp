@@ -56,6 +56,16 @@ use winit::{
 /// a pixel or two while it decides.
 const TAB_DRAG_SLOP: f64 = 6.0;
 
+/// How long two presses count as one click, and how far apart they may land.
+///
+/// Half a second and four pixels, which is what every desktop uses for a double
+/// click. A press that misses either bound starts a new click, so a slow or a
+/// wandering double click selects nothing rather than the wrong word; both
+/// bounds are measured from the press before it, not from the first of a run, so
+/// a triple click has to be three presses in a row that all pass.
+const CLICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
+const CLICK_SLOP: f64 = 4.0;
+
 /// How often the open files are checked for changes made by another program.
 ///
 /// One second is the interval every editor that polls uses, and it is well under
@@ -559,6 +569,18 @@ enum TabButton {
     Pin,
 }
 
+/// What the second and third presses of a click take.
+///
+/// A click on text has three granularities: one press takes a character, two a
+/// unit, three a line. The unit is kept because the drag that usually follows a
+/// double click pulls the selection out by the same amount -- dragging from a
+/// word takes whole words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClickUnit {
+    Word,
+    Line,
+}
+
 /// Everything that lives for as long as the window does.
 struct State {
     window: Arc<Window>,
@@ -667,6 +689,15 @@ struct State {
     renderer: Renderer,
     modifiers: ModifiersState,
     dragging: bool,
+    /// How many presses the press in progress is: one, two for a word, three
+    /// for a line.
+    click_count: u8,
+    /// Where and when the last press landed, so the next one can tell whether
+    /// it is a repeat of it or a new click.
+    last_press: Option<(f64, f64, std::time::Instant)>,
+    /// The unit a double or triple click selected, held for the drag that may
+    /// follow it.
+    unit_drag: Option<(ClickUnit, (usize, usize))>,
     /// True while the left button is held down on the minimap column.
     minimap_drag: bool,
     /// Whether the window is borderless full screen.
@@ -1681,6 +1712,9 @@ impl State {
             full_screen: false,
             always_on_top: false,
             cursor: (0.0, 0.0),
+            click_count: 0,
+            last_press: None,
+            unit_drag: None,
             clipboard: arboard::Clipboard::new().ok(),
             session,
             block_anchor: None,
@@ -4883,6 +4917,21 @@ impl State {
         let menu_height = self.menu_height();
         // Only the minimap arm below turns this back on.
         self.minimap_drag = false;
+        // A press is not always a first press. Counting here, before any widget
+        // gets its turn, keeps the count independent of what was hit: the second
+        // press on the text has to know it is the second even if the first one
+        // closed a menu.
+        let now = std::time::Instant::now();
+        let repeat = matches!(
+            self.last_press,
+            Some((px, py, at))
+                if now.duration_since(at) <= CLICK_INTERVAL
+                    && (x - px).abs() <= CLICK_SLOP
+                    && (y - py).abs() <= CLICK_SLOP
+        );
+        self.click_count = if repeat { (self.click_count + 1).min(3) } else { 1 };
+        self.last_press = Some((x, y, now));
+        self.unit_drag = None;
 
         // The character grid is drawn above everything else in the overlay pass,
         // so it gets first refusal. A click on a cell inserts and leaves the
@@ -5245,6 +5294,35 @@ impl State {
         let (text_x, text_y) = self.view.text_point(x as f32, y as f32);
         let shift = self.modifiers.shift_key();
         let alt = self.modifiers.alt_key();
+        // The second press takes the unit under the pointer and the third takes
+        // the whole line, which is what a double and a triple click mean
+        // everywhere else. Both return here: the caret the selection left at the
+        // end of the unit is already where the next keystroke goes, and running
+        // the single-click path after it would collapse what was just selected.
+        if self.click_count >= 2 {
+            let unit = if self.click_count >= 3 {
+                ClickUnit::Line
+            } else {
+                ClickUnit::Word
+            };
+            let pos = self.tab_mut().editor.char_at_point(text_x, text_y);
+            let range = match unit {
+                ClickUnit::Word => self.tab().editor.word_range_at(pos),
+                ClickUnit::Line => Some(self.tab().editor.line_range_at(pos)),
+            };
+            if let Some(range) = range {
+                let (start, end) = (range.start, range.end);
+                self.tab_mut().editor.select_range(start..end);
+                // Held for the drag that usually follows: a drag out of a word
+                // takes whole words, and out of a line whole lines.
+                self.unit_drag = Some((unit, (start, end)));
+            }
+            self.block_anchor = None;
+            self.select_anchor = None;
+            self.refresh_brace();
+            self.window.request_redraw();
+            return;
+        }
         // Ctrl+click drops another caret instead of moving the one there is.
         // Notepad++ reaches multi-caret this way and so does everything else,
         // and it is the only way to place carets on lines that are not
@@ -8784,6 +8862,27 @@ impl State {
         // Same conversion as the press, so the selection follows the pointer
         // rather than trailing it by the height of the bar.
         let (text_x, text_y) = self.view.text_point(x as f32, y as f32);
+        // A drag that began as a double or triple click pulls the selection out
+        // by the unit it picked. The anchor keeps the end it started from, so
+        // dragging back over it shrinks the same selection rather than starting
+        // a second one.
+        if let Some((unit, (anchor_start, anchor_end))) = self.unit_drag {
+            let pos = self.tab_mut().editor.char_at_point(text_x, text_y);
+            let under = match unit {
+                ClickUnit::Word => self.tab().editor.word_range_at(pos),
+                ClickUnit::Line => Some(self.tab().editor.line_range_at(pos)),
+            };
+            if let Some(range) = under {
+                let (start, end) = if range.start < anchor_start {
+                    (range.start, anchor_end)
+                } else {
+                    (anchor_start, range.end.max(anchor_end))
+                };
+                self.tab_mut().editor.select_range(start..end);
+            }
+            self.window.request_redraw();
+            return;
+        }
         self.tab_mut()
             .editor
             .set_caret_from_point(text_x, text_y, true);
@@ -9019,6 +9118,7 @@ impl ApplicationHandler<UserEvent> for App {
                         state.click(state.cursor.0, state.cursor.1);
                     } else {
                         state.minimap_drag = false;
+                        state.unit_drag = None;
                         state.drop_tab();
                         state.divider_drag = false;
                     }

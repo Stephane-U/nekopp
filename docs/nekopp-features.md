@@ -1133,8 +1133,20 @@ not a few lines below it. Ctrl with a press adds a caret instead of moving the
 one there is, Shift with a press extends the selection, and Alt with a press or a
 drag starts a rectangle.
 
-Double-click word selection and triple-click line selection are not implemented;
-`Ctrl+Shift+Left` reaches the same word and `Shift+Down` the same line.
+A click has three sizes. One press takes a character, two take the run of text
+under the pointer, three take the whole line the pointer is on. A *run* is a
+word, a run of spaces, or a run of punctuation: a double click on the `.` of
+`foo.bar` takes the dot, and one on the spaces in `a = b` takes the spaces. A
+press past the end of a line counts as a press on the last character of that
+line, and on an empty line it selects nothing rather than clearing what was
+already selected.
+
+Two presses count as one click when they land within four pixels and half a
+second of each other, and a third has to pass the same test against the second.
+A drag that begins with a double or triple click pulls the selection out by that
+same unit, so dragging from a word takes whole words and dragging from a line
+takes whole lines. A line selected with three presses carries its line ending, so
+copying it and pasting gives a line rather than a line glued to its neighbour.
 
 ### Typing
 

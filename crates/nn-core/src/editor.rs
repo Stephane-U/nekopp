@@ -91,6 +91,22 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+/// The kind of character a double click treats as one unit.
+///
+/// Three classes rather than two: a word, a run of whitespace, and a run of
+/// punctuation. Scintilla ranks characters the same way, which is why a double
+/// click on the `.` of `foo.bar` takes the dot and a double click on the space
+/// in `a = b` takes the space and not `= b`.
+fn unit_class(c: char) -> u8 {
+    if is_word_char(c) {
+        0
+    } else if c.is_whitespace() {
+        1
+    } else {
+        2
+    }
+}
+
 /// The start of the word before `caret`.
 fn word_left(doc: &Document, caret: usize) -> usize {
     let mut pos = caret;
@@ -1248,6 +1264,82 @@ impl Editor {
     pub fn select_line(&mut self) {
         let line = self.caret_line();
         let range = self.doc.line_range(line);
+        self.select_range(range);
+    }
+
+    // ---- the pointer's units ---------------------------------------------
+
+    /// The unit of text at `pos`, for a double click.
+    ///
+    /// A word, or the run of whitespace or punctuation the position sits in --
+    /// see [`unit_class`]. The run never crosses a line ending, so a double
+    /// click on the space before a newline takes that space rather than the
+    /// indentation of the line below.
+    ///
+    /// A position on a line ending, or past the end of the document, counts as
+    /// a press on the last character of the line it is on: that is where the
+    /// pointer actually is when it is beyond the text, and selecting the newline
+    /// is never what the second press of a double click meant. An empty line
+    /// gives `None`, because there is nothing there to select.
+    pub fn word_range_at(&self, pos: usize) -> Option<Range<usize>> {
+        let len = self.doc.len_chars();
+        if len == 0 {
+            return None;
+        }
+        let line = self.doc.char_to_line(pos.min(len));
+        let bounds = self.doc.line_range(line);
+        if bounds.is_empty() {
+            return None;
+        }
+        let seed = pos.clamp(bounds.start, bounds.end - 1);
+        let class = unit_class(self.doc.char_at(seed)?);
+        let same = |doc: &Document, i: usize| {
+            doc.char_at(i).is_some_and(|c| unit_class(c) == class)
+        };
+        let mut start = seed;
+        while start > bounds.start && same(&self.doc, start - 1) {
+            start -= 1;
+        }
+        let mut end = seed + 1;
+        while end < bounds.end && same(&self.doc, end) {
+            end += 1;
+        }
+        Some(start..end)
+    }
+
+    /// The line at `pos`, terminator included, for a triple click.
+    ///
+    /// Including the terminator is what makes the result useful: copy a line
+    /// selected this way and pasting it gives a line, not a line and half of the
+    /// next one glued together.
+    pub fn line_range_at(&self, pos: usize) -> Range<usize> {
+        let line = self.doc.char_to_line(pos.min(self.doc.len_chars()));
+        let bounds = self.doc.line_range(line);
+        let mut end = bounds.end;
+        while self
+            .doc
+            .char_at(end)
+            .is_some_and(|c| c == '\n' || c == '\r')
+        {
+            end += 1;
+        }
+        bounds.start..end
+    }
+
+    /// Selects the word, or the run of whitespace or punctuation, under `pos`.
+    ///
+    /// Nothing to select -- an empty line, an empty document -- leaves the
+    /// selection where it was rather than clearing it, so a double click on
+    /// blank space past the text does not throw away what the user had.
+    pub fn select_word_at(&mut self, pos: usize) {
+        if let Some(range) = self.word_range_at(pos) {
+            self.select_range(range);
+        }
+    }
+
+    /// Selects the line under `pos`, terminator included.
+    pub fn select_line_at(&mut self, pos: usize) {
+        let range = self.line_range_at(pos);
         self.select_range(range);
     }
 
@@ -2723,6 +2815,82 @@ mod tests {
         ed.set_caret(4);
         ed.select_line();
         assert_eq!(ed.selected_text(), "cd");
+    }
+
+    #[test]
+    fn a_double_click_takes_the_word_under_the_pointer() {
+        let mut ed = editor("foo bar");
+        ed.select_word_at(6);
+        assert_eq!(ed.selected_text(), "bar");
+        assert_eq!(ed.word_range_at(6), Some(4..7));
+    }
+
+    #[test]
+    fn a_double_click_on_punctuation_takes_only_the_punctuation() {
+        let mut ed = editor("foo.bar");
+        ed.select_word_at(3);
+        assert_eq!(ed.selected_text(), ".");
+    }
+
+    #[test]
+    fn a_double_click_on_whitespace_takes_the_run() {
+        let mut ed = editor("a   b");
+        ed.select_word_at(2);
+        assert_eq!(ed.selected_text(), "   ");
+    }
+
+    #[test]
+    fn a_whitespace_run_stops_at_the_line_ending() {
+        let ed = editor("a \nb");
+        assert_eq!(ed.word_range_at(1), Some(1..2));
+    }
+
+    #[test]
+    fn a_double_click_past_the_end_takes_the_last_word_of_the_line() {
+        let ed = editor("foo\nbar");
+        // On the terminator, and one past the last character, are both a press
+        // on the text the pointer is next to.
+        assert_eq!(ed.word_range_at(3), Some(0..3));
+        assert_eq!(ed.word_range_at(7), Some(4..7));
+    }
+
+    #[test]
+    fn a_double_click_on_an_empty_line_selects_nothing() {
+        let mut ed = editor("a\n\nb");
+        assert_eq!(ed.word_range_at(2), None);
+        ed.set_caret(3);
+        ed.select_word_at(2);
+        // The selection it already had is left alone rather than cleared.
+        assert_eq!(ed.selected_text(), "");
+        assert_eq!(ed.caret(), 3);
+    }
+
+    #[test]
+    fn a_double_click_reads_non_ascii_words_whole() {
+        let mut ed = editor("héllo wörld");
+        ed.select_word_at(1);
+        assert_eq!(ed.selected_text(), "héllo");
+    }
+
+    #[test]
+    fn a_triple_click_takes_the_line_and_its_terminator() {
+        let mut ed = editor("ab\ncd\nef");
+        ed.select_line_at(4);
+        assert_eq!(ed.selected_text(), "cd\n");
+    }
+
+    #[test]
+    fn a_triple_click_on_the_last_line_takes_what_there_is() {
+        let mut ed = editor("ab\ncd");
+        ed.select_line_at(4);
+        assert_eq!(ed.selected_text(), "cd");
+    }
+
+    #[test]
+    fn a_triple_click_takes_both_halves_of_a_crlf_terminator() {
+        let mut ed = editor("ab\r\ncd");
+        ed.select_line_at(0);
+        assert_eq!(ed.selected_text(), "ab\r\n");
     }
 
     #[test]
