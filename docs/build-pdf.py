@@ -34,6 +34,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MANIFEST = os.path.join(ROOT, "Cargo.toml")
 SOURCE = os.path.join(ROOT, "docs", "nekopp-features.md")
 STYLESHEET = os.path.join(ROOT, "docs", "nekopp-features.css")
 DEFAULT_OUT = os.path.join(ROOT, "docs", "nekopp-features.pdf")
@@ -43,6 +44,27 @@ WEASYPRINT_CANDIDATES = (
     os.path.expanduser("~/.local/bin/weasyprint"),
     "/usr/local/bin/weasyprint",
 )
+
+
+def workspace_version():
+    """The version the program reports elsewhere.
+
+    Read from the manifest rather than repeated here: `--version`, the About
+    window and the MCP server all take the number from that one line, and a
+    title page that says something else is a document disagreeing with the
+    program it describes.
+    """
+    with open(MANIFEST, encoding="utf-8") as handle:
+        manifest = handle.read()
+    section = manifest.split("[workspace.package]", 1)
+    if len(section) != 2:
+        raise SystemExit("build-pdf: no [workspace.package] in %s" % MANIFEST)
+    for line in section[1].splitlines():
+        if line.startswith("["):
+            break
+        if line.startswith("version"):
+            return line.split("=", 1)[1].strip().strip('"')
+    raise SystemExit("build-pdf: no version in %s" % MANIFEST)
 
 
 def escape(text):
@@ -352,7 +374,7 @@ def build_html(markdown, title):
   <h1 class="title">%s</h1>
   <p class="title-subtitle">Every feature, menu row and key binding, read from the source.</p>
   <div class="title-abstract">%s</div>
-  <p class="title-meta">npp 0.1.0 &middot; generated from docs/nekopp-features.md</p>
+  <p class="title-meta">npp %s &middot; generated from docs/nekopp-features.md</p>
 </section>
 <section class="toc">
   <h2 class="toc-title">Contents</h2>
@@ -368,6 +390,7 @@ def build_html(markdown, title):
         os.path.basename(STYLESHEET),
         escape(title),
         abstract,
+        workspace_version(),
         "\n".join("    " + row for row in toc_rows),
         body,
     )

@@ -8723,14 +8723,34 @@ the totals came out no better and much noisier. A resident process would make ev
 open cost what the hand-off already costs, 29 ms, but that is a different program
 and it is not in this pass.
 
+### The version
+
+The manifest said `0.1.0` while the program had grown well past it. The number is
+declared once, in `[workspace.package]`, so `--version`, the About window and the
+MCP server's `serverInfo` all moved by changing that line and rebuilding. Two
+places could not follow it: the debian changelog is a history and needed a new
+entry above the old one, and the man page's header names the version itself. The
+PDF's title line used to repeat the number too, and now reads the manifest, so a
+document cannot claim a version the program does not.
+
+The plugin workspace keeps its own `0.1.0`. The plugins build for a different
+target and are versioned on their own; a bump here would say their ABI changed,
+and it did not.
+
 ### Verification
 
 `cargo test --offline --all`: 1917 passed, 0 failed -- 969 in `nn-app`, 878 in
 `nn-core`, 70 in `nn-mcp`. `cargo clippy --offline --all-targets`: 0 warnings.
 
-`python3 docs/build-pdf.py --check`: up to date, 274,950 bytes. The PDF is 66 pages
+`./target/release/npp --version`: `Neko++ 0.2.0`. `npp-mcp` prints `npp-mcp 0.2.0:
+104 sections, 73 shortcuts, 1 of 5 plugins enabled` and answers `initialize` with
+`"version":"0.2.0"`; the README's examples were a section behind and now carry
+that line.
+
+`python3 docs/build-pdf.py --check`: up to date, 274,947 bytes. The PDF is 66 pages
 A4 with 106 bookmarks, from 65 pages and 106 bookmarks: the three new paragraphs
 needed the extra page, and no heading was added or removed, so `nn-mcp` still
-reports 104 sections, 27 chapters and 77 subsections.
+reports 104 sections, 27 chapters and 77 subsections. The title line accounts for
+the three bytes the rebuild lost.
 
 `cargo fmt` was not run.

@@ -1,3 +1,19 @@
+npp (0.2.0) unstable; urgency=medium
+
+  * Open several files at once: the portal's open dialog asks for a multiple
+    selection, and the built-in browser takes Ctrl+click, Shift+click and
+    Ctrl+A.
+  * Store recent and session paths absolute, so an entry still names its file
+    after a restart from another directory, and say so when the file has gone.
+  * Size the minimap to the document instead of the pane.
+  * Take the launcher's startup token, and end the startup sequence on the
+    hand-off path: a window from a right click has the focus, and the file
+    manager's pointer stops turning.
+  * Scan the fonts and measure the text beside the graphics device: 282 ms from
+    launch to a focused window becomes 235 ms.
+
+ -- Neko++ maintainers <npp@example.invalid>  Sun, 22 Nov 2026 06:52:10 +0100
+
 npp (0.1.0) unstable; urgency=medium
 
   * Initial packaging.
