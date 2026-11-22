@@ -7,6 +7,11 @@ sections at startup. The server answers questions about the editor's features,
 its menus, and its default keymap from that file and from nothing else, so an
 answer cannot disagree with the PDF built from the same markdown.
 
+It also runs the editor's WebAssembly plugins. The folder and the `plugin
+<name>` lines in `settings.txt` are the same ones the editor reads, so a plugin
+switched off in the manager is switched off here, and one that is on is on in
+both places.
+
 The binary is `npp-mcp`. It is a separate crate with no dependency on `nn-app`,
 so it builds and runs on a machine that has never started the GUI, and it takes
 no arguments: a client starts it and talks over a pipe.
@@ -30,7 +35,7 @@ The revision is `2024-11-05`. The server implements:
 | `initialize` | protocol version, `{tools: {}, resources: {}}`, server name and version, and a short set of instructions |
 | `notifications/initialized` | nothing: a notification is never answered |
 | `ping` | `{}` |
-| `tools/list` | the five tools with their JSON Schemas |
+| `tools/list` | the seven tools with their JSON Schemas |
 | `tools/call` | one or more content blocks, plus `isError` |
 | `resources/list` | `nekopp://features` and one resource per section |
 | `resources/read` | the section's markdown |
@@ -51,9 +56,11 @@ wrong and what to try instead.
 |---|---|---|
 | `search_features` | `query`, optional `limit` (1-50, default 10) | the matching sections, best match first, with headings, URIs, and a line of context |
 | `get_section` | `section`: a heading or a slug | that section as markdown, plus its resource URI |
-| `list_sections` | none | the table of contents: 27 chapters, 75 subsections |
+| `list_sections` | none | the table of contents: 27 chapters, 76 subsections |
 | `list_shortcuts` | none | all 73 default key bindings with their commands and action names |
 | `get_command` | `name`: a menu label or an action name | the shortcut, the action, the menu path, and the section that documents it |
+| `list_plugins` | none | every installed plugin: its name, its file, whether it is switched on, and its commands |
+| `run_plugin_command` | `plugin`, `command`, `text`, optional `caret`, `selection` | what the plugin made of the text, plus its log when it wrote one |
 
 Search ranks a heading that is the query above a heading that contains it, above
 a heading with one of its words, above a mention in the body. Whole words beat
@@ -87,7 +94,7 @@ printf '%s\n' \
 ```
 
 ```json
-{"id":1,"jsonrpc":"2.0","result":{"capabilities":{"resources":{},"tools":{}},"instructions":"The Neko++ feature reference. `search_features` finds sections, `get_section` returns one as markdown, `list_sections` is the table of contents, `list_shortcuts` is the whole default keymap, and `get_command` answers about a single command. Every section is also a resource: nekopp://features/<slug>, indexed by nekopp://features.","protocolVersion":"2024-11-05","serverInfo":{"name":"npp-mcp","version":"0.1.0"}}}
+{"id":1,"jsonrpc":"2.0","result":{"capabilities":{"resources":{},"tools":{}},"instructions":"The Neko++ feature reference. `search_features` finds sections, `get_section` returns one as markdown, `list_sections` is the table of contents, `list_shortcuts` is the whole default keymap, and `get_command` answers about a single command. Every section is also a resource: nekopp://features/<slug>, indexed by nekopp://features. `list_plugins` is what the editor's WebAssembly plugins add, and `run_plugin_command` runs one of their commands over text you send.","protocolVersion":"2024-11-05","serverInfo":{"name":"npp-mcp","version":"0.1.0"}}}
 ```
 
 ```json
@@ -95,8 +102,10 @@ printf '%s\n' \
 ```
 
 The same session against the built binary prints those two response lines and, on
-stderr, `npp-mcp 0.1.0: 102 sections, 73 shortcuts, one JSON object per line on
-stdio`.
+stderr, one startup line: `npp-mcp 0.1.0: 103 sections, 73 shortcuts, 1 of 5
+plugins enabled, one JSON object per line on stdio`. The plugin counts are this
+machine's -- the folder the editor uses -- so they differ from one installation
+to the next.
 
 ## Registering it with a client
 
@@ -135,7 +144,7 @@ milliseconds and does not depend on a toolchain.
 ## Development
 
 ```sh
-cargo test --offline --release -p nn-mcp          # 51 tests
+cargo test --offline --release -p nn-mcp          # 70 tests
 cargo clippy --offline --release -p nn-mcp --all-targets
 ```
 
@@ -145,6 +154,7 @@ The logic is in the library so it can be tested without a pipe:
   heading or slug.
 - `commands`: parses the keymap table and the menu tree, and joins them.
 - `search`: the ranking and the snippet selection.
+- `plugins`: the plugins this machine has, read through `nn_core::plugin`, and the one command a call runs.
 - `server`: the JSON-RPC dispatch, the tools, the resources, and the stdio loop.
 
 The markdown is embedded with `include_str!`, so the file has to exist before
