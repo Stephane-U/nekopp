@@ -3,9 +3,17 @@ Upstream-Name: npp
 
 Files: *
 Copyright: 2026 the Neko++ authors
-License: proprietary
- No license has been chosen for this project yet. The package is built for
- local use and must not be redistributed until one is added.
+License: GPL-3
+ This program is free software: you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation, version 3 of the License.
+ .
+ This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ .
+ On Debian systems the complete text is in /usr/share/common-licenses/GPL-3, and
+ it is the file `LICENSE` in the source tree.
 
 Files: crates/nn-app/assets/NekoHangul-Regular.ttf
 Copyright: 2010, NHN Corporation (http://www.nhncorp.com),

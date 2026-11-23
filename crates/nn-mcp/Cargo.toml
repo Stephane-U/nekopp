@@ -3,6 +3,7 @@ name = "nn-mcp"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 
 # Same reasoning as nn-app's `npp`: the package is named after the workspace,
 # the program is named after the editor. A client config says

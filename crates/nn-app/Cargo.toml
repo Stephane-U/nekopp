@@ -3,6 +3,7 @@ name = "nn-app"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 
 # The package is `nn-app` but the program is `npp`: the crate name is an
 # internal identifier that appears in `use` statements and in the build log,

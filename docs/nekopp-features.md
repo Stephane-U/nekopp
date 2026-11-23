@@ -3009,6 +3009,9 @@ tags with quoted attributes).
 The Korean font is NanumGothic, subset and renamed, under the SIL Open Font
 License 1.1; the licence is kept beside the font in `assets/OFL.txt`.
 
+The source is under the GNU General Public License version 3, in `LICENSE`; it is
+a workalike written from scratch and contains no code from Notepad++ or Scintilla.
+
 The About box names the version, the renderer, the adapter, the font system and
 the configuration paths, because those are the five facts a bug report needs. Its
 one interactive element is the LinkedIn address, drawn in the theme's link colour
