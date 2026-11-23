@@ -26,6 +26,12 @@
 //! by line index. Rebuilding one buffer holding every visible number would
 //! reshape all of them on every scroll step, which measured at 9 ms per frame at
 //! 4K — the difference between missing and making the 120 Hz target.
+//!
+//! An unwrapped line is shaped one screenful at a time, not whole. Shaping is
+//! linear in characters, so a thirty-thousand character JSONL record cost a
+//! second per frame when a minimap drag put forty of them on screen; only the
+//! seventy-eight columns that fit can be drawn, so only those are shaped, plus a
+//! margin that keeps a scroll from reshaping on every pixel.
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -47,6 +53,9 @@ struct CachedLine {
     text: String,
     /// `(char offset, style)` at the start of each run of equal style.
     runs: Vec<(usize, Style)>,
+    /// The column an unwrapped line's window starts at. Zero for a wrapped
+    /// segment, which is already as short as the pane.
+    window: usize,
 }
 
 /// Collapses a line's per-character styles into runs of equal style.
@@ -110,6 +119,43 @@ fn segment_bounds(doc: &Document, line: usize, segment: u16, wrap: usize) -> (us
     (start, end)
 }
 
+/// Extra columns shaped beyond the ones that fit, so a scroll of a few columns
+/// does not reshape the line.
+const WINDOW_MARGIN: usize = 64;
+
+/// The window of an unwrapped line to shape, as `(first column, columns)`.
+///
+/// The window always covers the columns on screen: it starts at a multiple of
+/// [`WINDOW_MARGIN`] and is that much wider than the pane, so the last column in
+/// view is inside it whatever the horizontal scroll. Two scrolls less than a
+/// margin apart share a window, which is what keeps a drag from reshaping the
+/// whole pane on every motion event.
+fn line_window(scroll_x: f32, char_width: f32, visible: f32) -> (usize, usize) {
+    let char_width = char_width.max(1.0);
+    let across = (visible.max(0.0) / char_width).ceil() as usize;
+    let first = (scroll_x.max(0.0) / char_width) as usize;
+    (first / WINDOW_MARGIN * WINDOW_MARGIN, across + WINDOW_MARGIN)
+}
+
+/// The characters of `range` to shape for `window`, as a character range.
+///
+/// A tab is not one column wide and a wide character is more than one, so a
+/// window that starts in the middle of such a line cannot be placed by width
+/// alone: the shaped text is laid out from its own first character, and the tab
+/// stops after the cut would be counted from the wrong place. Such a line is
+/// shaped from its start and cut at the window's right edge instead, which still
+/// costs what is on screen rather than what the line is: nothing past the last
+/// column in view is shaped either way.
+fn window_bounds(doc: &Document, range: Range<usize>, window: (usize, usize)) -> (usize, usize) {
+    let stop = (range.start + window.0 + window.1).min(range.end);
+    let one_column = doc
+        .slice(range.start..stop)
+        .chars()
+        .all(|c| c.is_ascii() && c != '\t');
+    let front = if one_column { window.0 } else { 0 };
+    ((range.start + front).min(range.end), stop)
+}
+
 /// True if `runs` describes `styles` exactly, without allocating.
 fn runs_match(styles: &[Style], runs: &[(usize, Style)]) -> bool {
     let Some(&(0, _)) = runs.first() else {
@@ -162,6 +208,9 @@ impl LineCache {
     /// `revalidate` is false when the document has not changed since the last
     /// frame, in which case a cached line is by definition still correct and the
     /// comparison — and its allocations — can be skipped entirely.
+    ///
+    /// `window` is where the shaped span starts for an unwrapped line, and how
+    /// many columns it covers; a wrapped segment ignores it.
     #[allow(clippy::too_many_arguments)]
     fn ensure(
         &mut self,
@@ -169,16 +218,29 @@ impl LineCache {
         line: usize,
         segment: u16,
         wrap: usize,
+        window: (usize, usize),
         font_system: &mut FontSystem,
         palette: &Palette,
         revalidate: bool,
     ) {
-        let (start, end) = segment_bounds(doc, line, segment, wrap);
+        let range = doc.line_range(line);
+        let (start, end) = if wrap == 0 {
+            window_bounds(doc, range.clone(), window)
+        } else {
+            segment_bounds(doc, line, segment, wrap)
+        };
+        // The column the shaped text starts at, which is where it is drawn.
+        // Zero for a line that had to be shaped from its start, and for a
+        // wrapped segment, which always is.
+        let front = if wrap == 0 { start - range.start } else { 0 };
         let styles = &doc.styles()[start..end];
 
         if let Some(cached) = self.lines.get(&(line, segment)) {
-            if !revalidate
-                || (doc.slice(start..end) == cached.text && runs_match(styles, &cached.runs))
+            // A cached window has to be the window being drawn, or the picture
+            // would be of another part of the line.
+            if cached.window == front
+                && (!revalidate
+                    || (doc.slice(start..end) == cached.text && runs_match(styles, &cached.runs)))
             {
                 return;
             }
@@ -207,6 +269,7 @@ impl LineCache {
                 buffer,
                 text,
                 runs,
+                window: front,
             },
         );
     }
@@ -917,6 +980,14 @@ impl EditorView {
             editor.doc.id() != self.cache.id || editor.doc.revision() != self.cache.revision;
         self.cache.id = editor.doc.id();
         self.cache.revision = editor.doc.revision();
+        // One window for every row of this frame: an unwrapped line is shaped a
+        // screenful at a time, so a record of thirty thousand characters costs
+        // what a line of code does.
+        let window = line_window(
+            editor.viewport.scroll_x,
+            self.char_width,
+            self.text_right() - self.text_left(),
+        );
         for i in 0..self.rows.len() {
             let (_, line, segment) = self.rows[i];
             self.cache.ensure(
@@ -924,6 +995,7 @@ impl EditorView {
                 line,
                 segment,
                 wrap,
+                window,
                 font_system,
                 &self.palette,
                 revalidate,
@@ -984,14 +1056,24 @@ impl EditorView {
         let cw = self.char_width;
         let tab = self.tab_width.max(1) as usize;
         let mid = self.line_height * 0.5;
+        // Marks are placed column by column, so an unwrapped line is walked only
+        // as far as the window that was shaped for it. Nothing is missed: the
+        // columns past the window are off screen.
+        let window = line_window(vp.scroll_x, cw, self.text_right() - self.text_left());
         for &(row, line, segment) in &self.rows {
             let (start, end) = segment_bounds(doc, line, segment, wrap);
+            let (first, last) = if wrap == 0 {
+                window_bounds(doc, start..end, window)
+            } else {
+                (start, end)
+            };
+            let clipped = last < end;
             let y = self.y(vp.line_y(row));
             let left = self.text_left() - vp.scroll_x;
-            let mut col = 0usize;
+            let mut col = first - start;
             let mut indent = 0usize;
-            let mut seen_text = false;
-            for c in doc.slice(start..end).chars() {
+            let mut seen_text = first > start;
+            for c in doc.slice(first..last).chars() {
                 match c {
                     ' ' => {
                         if self.show_whitespace {
@@ -1068,7 +1150,9 @@ impl EditorView {
                 quads.push(x + 2.0, y + mid - 3.0, 2.0, 2.0, mark);
                 quads.push(x + 2.0, y + mid + 1.0, 2.0, 2.0, mark);
             }
-            if self.show_eol && segment + 1 == segments {
+            // The end-of-line mark sits one column past the last character, so it
+            // only exists while the walk reached the line's end.
+            if self.show_eol && segment + 1 == segments && !clipped {
                 quads.push(
                     left + col as f32 * cw + 2.0,
                     y + mid - 3.0,
@@ -1362,7 +1446,9 @@ impl EditorView {
             };
             areas.push(TextArea {
                 buffer: &cached.buffer,
-                left: self.text_left() - vp.scroll_x,
+                // An unwrapped line is shaped from the column its window starts
+                // at, so the buffer's first glyph belongs that far into the line.
+                left: self.text_left() - vp.scroll_x + cached.window as f32 * self.char_width,
                 top: self.y(vp.line_y(row)),
                 scale: 1.0,
                 bounds: text_bounds,
@@ -1529,5 +1615,85 @@ mod tests {
         assert!(reflowed);
         assert_eq!(editor.doc.wrap_cols(), 0);
         assert_eq!(editor.doc.line_of_row(editor.viewport.first_line), 40);
+    }
+
+    #[test]
+    fn the_window_covers_every_column_that_fits() {
+        // Whatever the horizontal scroll, the columns the pane shows must be
+        // inside the window that gets shaped, or a line would draw blank at its
+        // right edge.
+        let (char_width, across) = (8.0, 800.0);
+        for step in 0..200 {
+            let scroll_x = step as f32 * 31.0;
+            let (first, columns) = line_window(scroll_x, char_width, across);
+            let left = (scroll_x / char_width) as usize;
+            assert_eq!(first % WINDOW_MARGIN, 0, "window is not aligned");
+            assert!(first <= left, "window starts past the left edge");
+            assert!(
+                first + columns >= left + 100,
+                "window ends before the right edge at scroll {scroll_x}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_scroll_shorter_than_the_margin_keeps_the_window() {
+        // The point of the margin: dragging a few columns must not reshape every
+        // line in the pane.
+        let first = line_window(0.0, 8.0, 800.0).0;
+        for column in 0..WINDOW_MARGIN {
+            let scroll_x = column as f32 * 8.0;
+            assert_eq!(line_window(scroll_x, 8.0, 800.0).0, first);
+        }
+        assert!(line_window(WINDOW_MARGIN as f32 * 8.0, 8.0, 800.0).0 > first);
+    }
+
+    #[test]
+    fn the_window_stops_at_the_end_of_the_line() {
+        // A line shorter than its window is shaped whole; a longer one is cut
+        // where the window ends.
+        let line = Document::from_text(&format!("{}\n", "x".repeat(30_000)));
+        assert_eq!(window_bounds(&line, 0..30_000, (640, 164)), (640, 804));
+
+        let short = Document::from_text(&format!("{}\n", "x".repeat(700)));
+        assert_eq!(window_bounds(&short, 0..700, (640, 164)), (640, 700));
+
+        let tiny = Document::from_text(&format!("{}\n", "x".repeat(100)));
+        assert_eq!(window_bounds(&tiny, 0..100, (640, 164)), (100, 100));
+    }
+
+    #[test]
+    fn a_tabbed_line_is_shaped_from_its_start() {
+        // A tab is not one column wide, so a window starting inside a tabbed
+        // line would be drawn where the text is not. Those lines keep their start
+        // and are cut at the window's right edge alone -- comparing rendered
+        // frames caught this, 79,168 pixels of a tabbed file displaced by a
+        // window that started at column 640.
+        let plain = "x".repeat(2_000);
+        let tabbed = Document::from_text(&format!("\t\t{plain}\n"));
+        assert_eq!(window_bounds(&tabbed, 0..2_002, (640, 164)), (0, 804));
+
+        let narrow = Document::from_text(&format!("{plain}x\n"));
+        assert_eq!(window_bounds(&narrow, 0..2_001, (640, 164)), (640, 804));
+
+        let wide = Document::from_text(&format!("{}\n", "é".repeat(2_000)));
+        assert_eq!(window_bounds(&wide, 0..2_001, (640, 164)), (0, 804));
+    }
+
+    #[test]
+    fn a_long_line_is_shaped_only_as_far_as_its_window() {
+        // The cost of a frame used to grow with the longest line in the file:
+        // shaping a record of thirty thousand characters took a whole second a
+        // frame. Only the window is shaped now.
+        let mut font_system = FontSystem::new();
+        let palette = Palette::new(Theme::DARK);
+        let mut cache = LineCache::new(Metrics::new(15.0, 20.0), Family::Monospace, 4);
+        let doc = Document::from_text(&format!("{}\n", "x".repeat(30_000)));
+
+        cache.ensure(&doc, 0, 0, 0, (640, 164), &mut font_system, &palette, false);
+
+        let cached = cache.get(0, 0).expect("the line was not shaped");
+        assert_eq!(cached.window, 640);
+        assert_eq!(cached.text.chars().count(), 164);
     }
 }

@@ -67,6 +67,14 @@ band, the gutter, fold markers -- go through an instanced quad renderer. Icons
 are vector paths flattened and rasterised once into an alpha atlas rather than
 loaded as bitmaps.
 
+Shaping is bounded by the pane, not by the line. An unwrapped line is shaped only
+as far as it can be drawn -- the columns on screen plus a margin -- and reshaped
+when the scroll leaves that window, so one record of thirty thousand characters
+in a log costs what a line of code does. The cost of a frame follows the size of
+the screen, not the length of the longest line in the file. A line indented with
+tabs, or holding characters wider than a column, is laid out from its start and
+cut at the right edge instead, because neither can be placed by counting columns.
+
 The GPU is the primary path, not the only one. `npp --software` selects the
 software rasteriser for machines with no usable adapter, remote sessions and
 containers; both backends draw the same scene.
@@ -2298,6 +2306,13 @@ pixel row stands for a band of document rows, and the longest of three sampled
 rows in the band is drawn as a handful of style runs, which is enough to read the
 shape of a file at a glance. Clicking or dragging in the column scrolls the
 editor, which makes it a scrollbar with content.
+
+The strip spans at most two hundred characters of a line. A line longer than that
+-- a minified bundle, a record of training data -- is cut at the right edge
+instead of squeezed into the strip: the column is seventy-eight pixels of drawing
+room and a character narrower than half a pixel is not drawn at all, so scaling
+the picture to a thirty-thousand character line is how a column of dense records
+used to come out empty.
 
 The picture is cached and rebuilt only when the document changes. Reaching into
 a rope is a tree descent per line, so doing it per frame would cost more than

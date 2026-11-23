@@ -11060,3 +11060,161 @@ each line's row count changed underneath it.
 gained three sentences in "Editor pane" that state the rule as a promise to the
 user, and `python3 docs/build-pdf.py` then `--check` reports it up to date:
 352,217 bytes, 79 pages A4.
+
+## Ninety-third pass: a map that survives a long line
+
+A file of training data -- 4.1 MB of JSONL, 1,826 records, the longest line
+33,602 characters -- opened with an empty minimap column. Not a faint one:
+background from the top of the pane to the bottom, and the column's background is
+the editor's own colour darkened by three percent, so the strip read as missing.
+The only things still visible were the one-pixel border on its left and the
+viewport box, which is how a column can be dragged to scroll a document it no
+longer shows.
+
+The size was not the cause. `LARGE_FILE_CHARS` is sixteen mebibytes, and four
+megabytes is not a large file by that measure. The longest line was. `build`
+scaled the picture against it -- 78 pixels of drawing room over 33,602
+characters, 0.0023 of a pixel per character -- and `push_run` drops a run
+narrower than half a pixel, which was 216 characters on that file. A JSON record
+is a hundred short tokens, every one of them under the floor and every one of
+them discarded, so the picture was not coarse, it was not there.
+
+The second rule was hiding behind the first. `MAX_RUNS` was six, and the count
+was taken before the width was measured: `runs += 1` sat beside the call rather
+than around it, so six discarded slivers closed the band. On a JSONL line the
+sixth style change lands inside `"messages"`, before the first `content` string,
+which is the only part of a record with any length. Taking the two long lines out
+of a copy did not bring the picture back either, so the budget alone was enough
+to lose it -- the two rules each had to be wrong for the column to be blank.
+
+There was a cost in the same place. The walk ran to the end of the line, so a
+band could pull thirty thousand characters out of the rope to find that nothing
+past the last pixel can be drawn; on an unhighlighted file, where a whole line is
+one run, every band did exactly that. The ceiling that fixes the picture fixes
+this too: nothing past the two hundredth character is read at all.
+
+So the scale has an upper bound now, `MAX_COLUMNS`, at two hundred characters --
+0.39 of a pixel each, above the floor `push_run` keeps. A line longer than that
+is cut at the right edge instead of squeezed, which is what a thumbnail of a long
+line has to be, and `push_run` clips the run to the strip, because without the
+clip the same change would paint a rectangle wider than the column over the text
+beside it. `runs` counts the runs that were drawn, and the budget is twenty-four
+rather than six, since a JSON record reaches its text after about twenty tokens.
+Source files come out a little denser for the larger budget, which is the
+faithful direction: the picture follows the text more closely than it did.
+
+Four tests in `minimap.rs` know the difference. A record two thousand characters
+long still reaches across the strip; forty sub-pixel tokens do not spend the run
+budget; a stray minified line does not blank the ordinary lines beside it; and no
+run reaches past the column's edge. The first three fail when the old rules go
+back in -- `MAX_COLUMNS` at a billion, `MAX_RUNS` at six counted unconditionally,
+the walk unbounded -- and the fourth passes either way, because one unbroken run
+was always the case that fit. It is the guard against the clip overshooting, not
+evidence of the bug, and it is worth saying so.
+
+`cargo test --offline`: 2,269 tests, 0 failed. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run.
+
+Then the window, on `:1`, with a private `XDG_CONFIG_HOME` and `--software`, the
+same file before and after the change: mean ink across the column 4.2 pixels of
+78 over 5.4 percent of rows -- the viewport box and nothing else -- before, and
+74.2 pixels over every row after. The same text hard-wrapped at a hundred and
+twenty columns reads 74.2 before and 77.3 after, so the control that always
+worked still works and gained the denser budget. `crates/nn-app/src/main.rs`
+still reads as a map: green comments, grey code, blue keywords, the ragged right
+edge of short lines.
+
+`target/release/bench` on the same file at 1920x1080, three hundred frames a
+scenario, before and after: idle 1.78 and 1.79 ms, scroll 15.94 and 16.88 ms,
+type 5.90 and 6.70 ms at p50. The denser picture costs about eight tenths of a
+millisecond on a keystroke, which leaves it inside the eight milliseconds the
+plan promises; `crates/nn-app/src/main.rs` goes from 2.30 to 2.50 ms typing. The
+record file's own scrolling costs fifteen milliseconds either way, so that is the
+document and not the map -- two thousand characters a line do not come free.
+
+The feature reference gained a paragraph in "Document Map" that states the
+ceiling as a promise to the user, and `python3 docs/build-pdf.py` then `--check`
+reports it up to date: 352,523 bytes, 79 pages A4.
+
+## Ninety-fourth pass: shaping only what is drawn
+
+Dragging the Document Map through the record file from the last pass -- 4.1 MB of
+JSONL, longest line 33,602 characters -- moved the view about once a second. The
+map's own trouble was fixed and the pixel budget is now bounded, so the strip was
+not the suspect, and the measurements said so plainly. A drag of forty lines a
+step, forty frames, `target/release/bench` at 1920x1080, p50 per step: 1.9 ms for
+a megabyte of eighty-column source, 1.9 ms for four megabytes of the same, 32 ms
+for a file of two-thousand-character lines, 1,024 ms for the JSONL. File size did
+nothing, the map did nothing; the length of the longest line did all of it.
+
+It was `LineCache::ensure`. With wrapping off a line is one row, and the row was
+shaped whole -- `doc.slice(start..end)` over the entire line, handed to cosmic-text
+-- so every wide record in the pane was shaped end to end, thirty-three
+thousand characters a frame, to draw the hundred columns the pane can hold.
+The cache made it worse rather than better: the entry was keyed by line and
+segment, so it was correctly reused, but the first frame that had to revalidate
+paid for the whole line again.
+
+So a row is now shaped as a window of columns, and the window is a function of the
+horizontal scroll for the whole frame. `line_window` starts at the column under
+the left edge aligned down to a multiple of sixty-four and is that much wider than
+the pane, which makes two things true at once: the last column in view is always
+inside the window, and a scroll of fewer than sixty-four columns reuses the window
+it already had, so a drag of a few characters does not reshape every row. A
+`CachedLine` remembers the column its shaping began at, `text_areas` draws the
+buffer that far into the line, and the cache is only reused when that column is
+the column being drawn, because a shaped window of the wrong part of a line is a
+picture of the wrong text. Nothing about the key changed, which matters: a window
+in the key would have grown the cache by one entry per scroll position.
+
+The marks have the same bound. `push_marks` walks a line character by character to
+place whitespace dots, boxes and indent guides, which was another full pass over a
+thirty-thousand-character record per frame; the walk now stops at the end of the
+window and starts at its first column, with `seen_text` set when it starts late so
+the leading indentation of a line scrolled out of view is not counted. The
+end-of-line mark is skipped when the walk stopped short, because a mark placed one
+column past the last character belongs off screen when the character does.
+
+A window that starts at column 640 cannot always be drawn where its column says.
+A tab is not one column wide and neither is a wide character, so the shaped text
+is laid out from its own first character, and the tab stops after the cut would be
+counted from the wrong place. The first version had this wrong and looked right:
+a tab-indented file of hundred-and-twenty-column lines, rendered at three scrolls
+and compared pixel for pixel against the build before the change, matched at the
+left edge and differed by 79,168 pixels at a scroll of 700 -- the text was there,
+in the wrong place. So the front of a window is cut only when what is being cut is
+plain single-width text with no tab in it; anything else is shaped from the line's
+start and cut at the window's right edge alone. That keeps the cost bounded by
+what is on screen either way -- a line scrolled to column 3,000 shapes 3,164
+characters, not 33,000 -- and the pixels are now identical at three scrolls on the
+tabbed file and at two on the record file, 0 differing pixels in all five.
+
+Five tests in `view.rs`. The window is checked to be aligned and to cover the
+columns on screen at two hundred different scrolls, and to stay put across a drag
+shorter than its margin; `window_bounds` is checked to clamp at the end of a short
+line, to cut a long one, and to refuse to cut the front of a line with a tab or a
+wide character in it; and one test builds a cache around a line of thirty thousand
+characters and asserts that a window at column 640 leaves a hundred and sixty-four
+characters shaped. That last one fails on the old code with thirty thousand
+characters and a window of zero, which is the difference being claimed.
+
+`cargo test --offline`: 2,274 tests, 0 failed. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run.
+
+Then the same four files, the same forty-frame drag, after the change, p50 per
+step: 1.76 ms, 1.75 ms, 4.82 ms, 5.01 ms. The record file goes from 1,024 ms to
+5.01 ms, two hundred times, and it now costs about what two-thousand-character
+lines cost -- which is what a bound on shaping should look like, since both are
+paying for the screen rather than for the line. The eighty-column files are
+unchanged within noise, as they must be: their lines were already shorter than the
+window. `idle` and `type` on the JSONL read 1.09 and 5.80 ms, and a keystroke
+inside a thirty-thousand-character record is 5.80 ms rather than a second, because
+the row being reshaped is the row in the window. The tabbed file scrolls in
+2.39 ms, the smallest gain of the set, since it is the one that keeps its left
+edge.
+
+The temporary patch to `bench.rs`, which made the scroll scenario jump forty lines
+and let a dump set `scroll_x`, was reverted; `git diff` on that file is empty. The
+feature reference gained a paragraph under "Rendering" that states the bound as a
+promise, including the tab exception, and `python3 docs/build-pdf.py` then `--check`
+reports it up to date: 353,459 bytes, 79 pages A4.

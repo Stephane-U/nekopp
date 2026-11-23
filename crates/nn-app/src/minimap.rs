@@ -36,9 +36,27 @@ use crate::theme::mix;
 /// jump around as the caret moves.
 const MIN_COLUMNS: f32 = 60.0;
 
+/// The widest column the runs are scaled against.
+///
+/// The column is 84 pixels wide with 78 of them to draw in, and
+/// [`push_run`](Minimap::push_run) drops a run narrower than half a pixel, so
+/// nothing past about two hundred characters can be drawn at all. Scaling
+/// against a thirty-thousand character line therefore did not make a finer
+/// picture, it made no picture: every run came out under the floor and the
+/// column stayed background from top to bottom. A line longer than this is cut
+/// at the right edge instead, which is what a thumbnail of a long line has to
+/// be.
+const MAX_COLUMNS: f32 = 200.0;
+
 /// Style runs drawn per band. A line with more runs than this is truncated: the
 /// minimap is a thumbnail, not a second renderer.
-const MAX_RUNS: usize = 6;
+///
+/// Counted against the runs that were drawn, not the ones that were measured.
+/// A JSON record reaches its text after about twenty tokens, and the old count
+/// of six, taken before any run was measured, stopped the walk inside
+/// `"messages"` -- so the long strings that carry the shape of the line were
+/// never even looked at.
+const MAX_RUNS: usize = 24;
 
 /// Bands the column is divided into. One per pixel row is more detail than a
 /// thumbnail needs and makes a rebuild expensive on a large file.
@@ -306,8 +324,12 @@ impl Minimap {
             self.lines.push(best);
         }
 
-        let columns = (longest as f32).max(MIN_COLUMNS);
+        let columns = (longest as f32).clamp(MIN_COLUMNS, MAX_COLUMNS);
         let scale = (self.width - 6.0) / columns;
+        // The walk stops where the picture stops. Nothing past the last pixel
+        // can be drawn, and a minified line or a JSONL record is thousands of
+        // characters of rope and style lookups per band for nothing.
+        let max_chars = columns as usize;
 
         // Taken out so the run list can be pushed to while the bands are read.
         let lines = std::mem::take(&mut self.lines);
@@ -323,6 +345,9 @@ impl Minimap {
             let mut indented = true;
 
             for ch in doc.line_chars(line) {
+                if offset >= max_chars {
+                    break;
+                }
                 let style = doc.style_at(start + offset);
                 if indented && ch.is_whitespace() {
                     offset += 1;
@@ -334,10 +359,11 @@ impl Minimap {
                     run_style = style;
                     started = true;
                 } else if style != run_style {
-                    self.push_run(band, run_start, offset, run_style, scale, palette);
-                    runs += 1;
-                    if runs >= MAX_RUNS {
-                        break;
+                    if self.push_run(band, run_start, offset, run_style, scale, palette) {
+                        runs += 1;
+                        if runs >= MAX_RUNS {
+                            break;
+                        }
                     }
                     run_start = offset;
                     run_style = style;
@@ -351,7 +377,11 @@ impl Minimap {
         self.lines = lines;
     }
 
-    /// Caches one style run of a band.
+    /// Caches one style run of a band, and says whether it was worth drawing.
+    ///
+    /// A run is clipped to the column rather than allowed to run past it: a line
+    /// longer than [`MAX_COLUMNS`] is cut at the right edge, and a rectangle
+    /// wider than the strip would paint over the text beside it.
     fn push_run(
         &mut self,
         band: usize,
@@ -360,14 +390,15 @@ impl Minimap {
         style: Style,
         scale: f32,
         palette: &Palette,
-    ) {
+    ) -> bool {
         if start >= end {
-            return;
+            return false;
         }
-        let x0 = start as f32 * scale;
-        let x1 = end as f32 * scale;
+        let right = self.width - 6.0;
+        let x0 = (start as f32 * scale).min(right);
+        let x1 = (end as f32 * scale).min(right);
         if x1 - x0 < 0.5 {
-            return;
+            return false;
         }
         let color = mix(palette.theme.minimap_background, palette.color(style), 0.62);
         self.runs.push(Run {
@@ -376,6 +407,7 @@ impl Minimap {
             x1,
             color: color.to_linear(),
         });
+        true
     }
 }
 
@@ -488,5 +520,79 @@ mod tests {
         let expected = MIN_ROWS as f32 * ROW_HEIGHT;
         assert_eq!(Minimap::column_height(0, 600.0), expected);
         assert_eq!(Minimap::column_height(1, 600.0), expected);
+    }
+
+    #[test]
+    fn a_record_thousands_of_characters_long_still_draws() {
+        // The JSONL case. The scale came from the longest line, so a record of
+        // two thousand characters scaled every token to a fraction of a pixel,
+        // `push_run` dropped each one and the column was background from top to
+        // bottom -- a minimap that had disappeared rather than a map of a wall
+        // of text. The picture has to reach across the strip again.
+        let record = format!(
+            "{{\"messages\": [{{\"role\": \"user\", \"content\": \"{}\"}}]}}",
+            "Java 25 grammar and rules. ".repeat(200)
+        );
+        let mut doc = Document::from_text(&record);
+        for (i, _) in doc.text().chars().enumerate() {
+            doc.set_style_at(i, (i / 7 % 3) as Style + 1);
+        }
+        let mut m = Minimap::new();
+        let palette = Palette::new(crate::theme::Theme::DARK);
+        m.build(&mut doc, 8, &palette);
+        let widest = m.runs.iter().fold(0.0f32, |w, run| w.max(run.x1));
+        assert!(widest > 40.0, "the picture reached {widest:.1} px of 78");
+    }
+
+    #[test]
+    fn sub_pixel_runs_do_not_spend_the_run_budget() {
+        // Forty one-character tokens, then one long run. Each token is narrower
+        // than the half pixel a run has to be worth, and the count used to be
+        // taken before the width was measured, so six of them closed the band
+        // and the long run -- the only thing with any width -- was never drawn.
+        let mut text: String = (0..40).map(|i| (b'a' + (i % 26) as u8) as char).collect();
+        text.push_str(&"z".repeat(1000));
+        let mut doc = Document::from_text(&text);
+        for i in 0..40 {
+            doc.set_style_at(i, (i % 3) as Style + 1);
+        }
+        let mut m = Minimap::new();
+        let palette = Palette::new(crate::theme::Theme::DARK);
+        m.build(&mut doc, 1, &palette);
+        assert!(
+            m.runs.iter().any(|run| run.x1 - run.x0 > 40.0),
+            "the long run was cut away with the sub-pixel ones"
+        );
+    }
+
+    #[test]
+    fn one_long_line_does_not_blank_the_short_ones() {
+        // A stray minified line used to set the scale for the whole document, so
+        // the ordinary lines beside it were slivers too narrow to draw. The cap
+        // keeps them on the map, which is the difference between a picture that
+        // is coarse and a picture that is not there.
+        let text = format!("let x = 1;\n{}", "a".repeat(20_000));
+        let mut doc = Document::from_text(&text);
+        let mut m = Minimap::new();
+        let palette = Palette::new(crate::theme::Theme::DARK);
+        m.build(&mut doc, 2, &palette);
+        assert!(m.runs.iter().any(|run| run.band == 0), "the short line has no ink");
+    }
+
+    #[test]
+    fn the_picture_stops_at_the_strips_edge() {
+        // A run wider than the column would paint over the text beside it, which
+        // is why the cap on characters comes with a clip and not just a scale.
+        let mut doc = Document::from_text(&"a".repeat(20_000));
+        let mut m = Minimap::new();
+        let palette = Palette::new(crate::theme::Theme::DARK);
+        m.build(&mut doc, 4, &palette);
+        assert!(!m.runs.is_empty());
+        let right = m.width - 6.0;
+        for run in &m.runs {
+            assert!(run.x1 <= right + 0.001, "a run reached {} px", run.x1);
+        }
+        let widest = m.runs.iter().fold(0.0f32, |w, run| w.max(run.x1));
+        assert!((widest - right).abs() < 0.01, "the picture stopped at {widest} px");
     }
 }
