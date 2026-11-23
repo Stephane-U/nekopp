@@ -13,24 +13,30 @@ Version 0.3.0. Linux today; Windows and macOS are not ported yet.
 
 ## Screenshots
 
-![A Rust file, its tabs, gutter and minimap](docs/shots/editor.png)
+![A Rust file of the editor's own source](docs/shots/rust.png)
 
-A Rust file of the editor's own source: the tab strip, the fold markers in the
-gutter, the minimap down the right. Dark theme, the one it ships with.
+`crates/nn-app/src/main.rs` in Tokyo Night: the tab strip, the fold markers in
+the gutter, doc comments in grey, the minimap down the right.
 
-![Find, on the docked bar](docs/shots/find.png)
+![A JSON settings file](docs/shots/json.png)
 
-`Ctrl+F`, docked at the bottom of the window: Notepad++'s option row and the
-same buttons, Enter stepping to the next match -- fifty-three in this file.
+A settings file of the shape the app writes, in Gruvbox Dark. The JSON lexer
+tells keys, strings and numbers apart.
 
-![An XML localisation file](docs/shots/xml.png)
+![Find, floating over the text](docs/shots/find-floating.png)
 
-`localization/french.xml`, another lexer and another encoding, accents and all.
+`Ctrl+F` with Floating Search on: Notepad++'s panel, its buttons and its
+transparency slider, floating over the text. Dracula.
+
+![Find, docked at the bottom](docs/shots/find-docked.png)
+
+The same search with Floating Search off: the bar docks at the bottom, option
+row and count of matches -- 1 of 214 -- in view. Solarized Light.
 
 ![The playground](docs/shots/playground.png)
 
-`Ctrl+Alt+K`: a kitten loose in a room built out of code, and the fireworks that
-come with a new page. `Esc` goes back to the document.
+`Ctrl+Alt+K`: a kitten loose in a room built out of code, and the rainbow trail
+a dash leaves behind it. Synthwave '84. `Esc` goes back to the document.
 
 ## What it does
 
