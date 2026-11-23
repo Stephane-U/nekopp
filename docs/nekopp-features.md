@@ -1799,6 +1799,7 @@ smaller window with fewer of both, and looks the same on any display.
 | The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
 | The dust | Specks that wander on their own; one within reach of a paw is thrown in a short arc and fades where it lands |
 | The light | A jump leaves a band of colour along the arc she flew, a small halo travels with her, a landing puts a ring on the paper with a burst of confetti, and every fourth piece of trail is a star |
+| The run | Now and then she picks the far end of the ledge she is standing on and crosses it at twice her running speed, taking the characters in her way and dragging a streak of light along the line as it comes apart |
 | Sleep | Three minutes with no input and it curls up where it stands, and `z` floats up off her head |
 | Sparkles | Washing and stretching raise a `*` or two off the muzzle, for a second or so |
 | Dimming | Four minutes and the page starts to dim, the way a screensaver does |
@@ -1823,6 +1824,30 @@ bug, not a joke. A bound reaches six lines, and because the arc is fixed while t
 height is not, a short hop and a long leap look the same going up and very
 different coming down. She crouches first, the way a cat does, and holds it for a
 third of a second before she springs.
+
+A run is a third verb, and not a faster walk. A dash picks the far end of the line
+she is standing on rather than the most interesting thing on the page, because a
+run is horizontal and a target nine lines up is a climb: a cat that aimed at the
+farthest thing would walk to the point under it and stand there. Twice her running
+speed is fast enough to cross the page in under two seconds, which is what makes it
+an event rather than a hurried walk, and she does not stop when she arrives -- the
+mood's own clock ends the run, and getting there early only means the paw comes
+down on what she found. What she passes comes apart. A swing takes the longest word
+under the paw; a shoulder takes whatever is in a swathe a character and a half wide
+at her own row, so a line comes out with a run of holes in it rather than a hole in
+it, and the words come away thrown the way she was going. The rake is reported
+behind her and never under her, because a cat that took the line out from under its
+own paws would drop into the page mid-run -- what she leaves is a furrow, and a
+furrow is behind. The gap a rake leaves is narrower than the bridge a shelf is built
+over, so the line she is running along stays a ledge even as it empties.
+
+What follows a run is a wash. The weights that pick her next mood are read off the
+mood she is in, and a cat that has just crossed the page at a gallop is a cat with
+no play left in it: sitting, grooming and cleaning go from one or two to nine and
+twelve, and another run is worth nothing at all. That is the whole of the
+characterisation -- there is no state machine and no script, only a table of what
+each thing is worth right now -- and it is why the mode reads as an animal rather
+than as a generator after a few minutes.
 
 The light belongs to the page and not to the drawing, which is what makes it
 checkable. The simulation owns every spark: where a piece of trail goes, how long

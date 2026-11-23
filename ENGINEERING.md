@@ -10088,3 +10088,98 @@ on why the light belongs to the page and not to the drawing. `python3
 docs/build-pdf.py` then `--check`: up to date, 315,130 bytes, 73 pages A4, 112
 bookmarks -- the same 73 pages and 112 bookmarks, 857 bytes heavier than the pass
 before.
+
+## Eighty-second pass: a cat that runs through the text
+
+### Three bugs before it ran at all
+
+The first version of the dash picked the farthest thing on the page. On seed 24301
+that is a shelf nine lines up, so she ran to the point underneath it and stood
+there for the mood's whole ten seconds of patience: the trace read `x33.0 → x10.7`
+in three seconds and then `sp0.0` for six. A run is horizontal -- what a dash aims
+at has to be on the level she is standing on, which is the far end of the ledge
+under her, or a loose word at about her height, and the surface lookup decides
+whether it is a place at all. `run_target` is that rule and nothing else.
+
+The second was arithmetic. `move_by` reports a rake at her feet, and her feet are on
+top of the glyphs she runs along: a card's centre is half a line below the shelf it
+makes. The rake was placed at `pos[1] + 0.2` with a box of half a line, so the
+swathe covered from a third of a line under her feet to a third of a line over
+them, and missed every character of the line she was taking apart -- one rake in
+ninety seconds, four characters. It is `pos[1] - 0.5` now, and the same ninety
+seconds takes fifty.
+
+The third was the timer. A mood that is going somewhere tops its own clock up while
+it travels, which is right for a walk that is late and wrong for a run: the dash
+that had arrived at its target but not within a cell of it stayed a dash for ten
+seconds of standing still. A run ends when its clock does. Arriving early only means
+the paw comes down on what she found.
+
+### A rake is not a swing
+
+The paw is a deliberate thing and takes the longest word under it. A shoulder at
+eight cells a second has no manners: it takes whatever is in a swathe of a character
+and a half at her own row, every two characters of travel, and throws the words it
+finds along her heading. Three consequences, each of which is why a number is what
+it is. The swathe is narrow because a rake happens a dozen times a dash -- wide, and
+one run would take the page apart rather than mark it. The pieces are reported
+*behind* her, because a rake under her own paws would split the shelf she is standing
+on and drop her mid-run. And the gap it leaves is narrower than `SHELF_GAP` (2.6
+cells), so the line stays a ledge with holes in it, which is the only way a cat can
+keep destroying the thing it is running on.
+
+The light follows the same rule: a piece every step of travel *scaled by 1.35* and
+smaller than a jump's, laid at her paws and not at her middle. Twenty pieces of the
+size of a leg in a row is a cloud; twenty smaller pieces a third further apart is a
+speed. A ring and a burst mark the moment she sets off and a ring the moment she
+stops, so the run has edges.
+
+### The trail clock had to stop resetting
+
+`the_trail_lies_along_the_path_and_not_along_the_clock` broke, and it was right to.
+The old code reset the clock to a step whenever a piece was due, so a frame that
+flew more than one step threw the remainder away: at 120 frames a second a jump laid
+twenty-one pieces, at thirty it laid five. The clock carries over now and a frame
+lays as many pieces as it owes, each one placed at the fraction of the frame's path
+where she crossed that step -- by distance, so a slow renderer draws the same band
+as a fast one. The test measures density (pieces per cell flown) rather than a count,
+because two runs of one seed do not have the same jumps and what has to hold is the
+rule, not the run. Both rates are within a fifth of each other and within a quarter
+of the exact density.
+
+### What makes her tired
+
+The mood table became a function, `weights`, so a test can ask what a cat wants
+without sampling a distribution. After a dash -- and only after a dash -- sitting,
+grooming and cleaning are worth 9, 9 and 12 rather than 1, 1 and 1, and another dash
+is worth nothing. That is the whole of the characterisation: there is no script, and
+the animal reads as an animal because what it has just done changes what it wants
+next. On seed 24301 over five minutes: 18 dashes, 5161 of 36000 frames at a run
+(14%), and 52 characters off the page, which leaves 593 of 645 -- a page that is
+being played in and not one that is being eaten.
+
+### Verification
+
+`cargo test --offline --all`: 2173 tests (1087 in `nn-app`, 986 in `nn-core`, 100 in
+`nn-mcp`), 0 failed. Four are new: in `scene.rs`
+`a_run_takes_characters_out_of_a_line_and_leaves_it_standing` (the line is still one
+ledge afterwards, and the word came away downwind); in `kitten.rs`
+`a_dash_is_faster_than_a_run` (a real run across a real shelf, topping out above a
+run and never above a dash) and `after_a_dash_the_cat_wants_to_wash_itself` (the
+weights, not the generator); in `playground/mod.rs`
+`a_dash_leaves_a_trail_and_a_line_full_of_holes` (four minutes of one seed: something
+dashing, trail behind it, a ring where it began or ended, and characters gone).
+`cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not run.
+
+Frames were rendered on seed 24301 at 1280 by 800 and looked at, from 6.1 to 7.5
+seconds at two tenths intervals: the ring and the confetti where she sets off, the
+streak lying along line 29 as `def sleep(self, seconds=0):` loses `secon`, then
+`se c`, then `s l f   c d 0)`, the loose characters tumbling over the line below,
+and the ring where she stops. The streak first came out as a rainbow cloud over the
+line above her (too big, too high) and was cut down and dropped to her paws. The
+stills are in `/tmp/pg` and are not committed.
+
+`docs/nekopp-features.md` gained a run row in the Playground table and two paragraphs
+-- on why a run aims at its own level and what a rake is not, and on why a wash
+follows a gallop. `python3 docs/build-pdf.py` then `--check`: up to date, 317,246
+bytes, 74 pages A4, 112 bookmarks -- one page more than the pass before.

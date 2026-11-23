@@ -43,6 +43,20 @@ pub const SLEEP_AFTER: f32 = 180.0;
 pub const WALK: f32 = 2.1;
 /// How fast it runs.
 pub const RUN: f32 = 4.4;
+/// How fast it goes when something has its whole attention and the legs are
+/// allowed to do what legs do.
+///
+/// Twice a run, which is not a number chosen for looks: at this speed a crossing of
+/// the page takes under two seconds, so a dash reads as an event rather than as a
+/// slightly hurried walk.
+pub const DASH: f32 = RUN * 2.0;
+/// How far she travels between one rake and the next, in characters.
+///
+/// A rake is a character and a half wide, so at two characters apart the furrow is
+/// a line with gaps in it rather than a row of separate bites: what a reader
+/// follows is the damage going past. Wider and a dash stops touching anything,
+/// narrower and one dash takes the page apart.
+const RAKE_EVERY: f32 = 2.0;
 /// How long a jump takes, in seconds.
 ///
 /// Fixed rather than worked out from the height: a jump of one line and a jump of
@@ -77,6 +91,13 @@ pub enum Mood {
     Perch,
     /// A lap of the page at a speed nobody asked for.
     Zoomies,
+    /// After something: flat out, in a straight line, taking what is in the way.
+    ///
+    /// Different from `Chase` in that she is not after a speck that is already
+    /// there -- she picks the far end of the length of page she is standing on and
+    /// covers it at the top of her speed, and the line she runs along comes apart
+    /// behind her as she goes.
+    Dash,
 }
 
 impl Mood {
@@ -95,6 +116,7 @@ impl Mood {
             Mood::Chase => "chase",
             Mood::Perch => "perch",
             Mood::Zoomies => "zoomies",
+            Mood::Dash => "dash",
         }
     }
 }
@@ -215,6 +237,14 @@ pub struct Kitten {
     next_raise: f32,
     /// What she is raising this frame, if anything.
     pub effect: Option<Effect>,
+    /// Where a run took the page apart this frame, if it did.
+    ///
+    /// A raking is not a strike: it happens a dozen times in a dash and it is aimed
+    /// at whatever is under her paws rather than at a thing she chose, so it is
+    /// reported as a place rather than as a swing of the paw.
+    pub rake: Option<[f32; 3]>,
+    /// How far she has come since the last rake, in characters.
+    dash_flown: f32,
 }
 
 impl Default for Kitten {
@@ -259,7 +289,17 @@ impl Kitten {
             aim: None,
             next_raise: 0.0,
             effect: None,
+            rake: None,
+            dash_flown: 0.0,
         }
+    }
+
+    /// Whether she is running flat out, which is a different thing from moving.
+    ///
+    /// Read by the page to decide how much to make of it: a cat on her way
+    /// somewhere gets a walk cycle, a cat at speed gets a trail.
+    pub fn dashing(&self) -> bool {
+        self.mood == Mood::Dash && self.speed > RUN + 0.5
     }
 
     /// How tall the kitten stands, in lines.
@@ -315,6 +355,7 @@ impl Kitten {
         self.timer -= dt;
         self.landed = false;
         self.effect = None;
+        self.rake = None;
         self.wash += dt
             * if matches!(self.mood, Mood::Clean | Mood::Groom) {
                 1.0
@@ -370,14 +411,18 @@ impl Kitten {
         let change = match self.mood {
             Mood::Sit | Mood::Groom | Mood::Sleep => 0.05,
             Mood::Swat | Mood::Chase | Mood::Zoomies | Mood::Pounce | Mood::Bat => -0.09,
+            // A dash is the most tiring thing she does, which is what makes the
+            // wash afterwards land: a cat that has just crossed the page at a
+            // gallop does not start another one.
+            Mood::Dash => -0.14,
             _ => 0.0,
         };
         self.rest = (self.rest + change * dt).clamp(0.0, 1.0);
         // The head follows her intention, and comes back to the reader when she
         // has none: a face turned away is a cat with no face.
         let want = match self.mood {
-            Mood::Follow | Mood::Pounce if self.target[0] > self.pos[0] => 0.34,
-            Mood::Follow | Mood::Pounce => -0.34,
+            Mood::Follow | Mood::Pounce | Mood::Dash if self.target[0] > self.pos[0] => 0.34,
+            Mood::Follow | Mood::Pounce | Mood::Dash => -0.34,
             Mood::Sleep => 0.30,
             _ => 0.0,
         };
@@ -403,7 +448,7 @@ impl Kitten {
     /// is what lines the swing up with the walk that brought her there.
     fn striking(&self) -> bool {
         !self.airborne
-            && matches!(self.mood, Mood::Bat | Mood::Swat | Mood::Chase)
+            && matches!(self.mood, Mood::Bat | Mood::Swat | Mood::Chase | Mood::Dash)
             && self.timer > 0.28
             && self.timer < 0.42
     }
@@ -447,6 +492,11 @@ impl Kitten {
         // thing she cannot reach is given up on instead of walked at for ever.
         let reach = self.distance_to(self.target);
         match self.mood {
+            // A dash is over when its own clock says so, not when it gets there: a
+            // run that waited for its target would slow down at the end, and the
+            // one thing a run cannot do is hesitate. Getting there early only means
+            // the paw comes down on what she found.
+            Mood::Dash if reach <= 1.0 && !self.struck => self.arm(),
             Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase if !self.arrived => {
                 if self.airborne {
                     // She is committed: the clock stops until she is down, and what
@@ -487,37 +537,59 @@ impl Kitten {
         self.start(mood, senses);
     }
 
-    /// Chooses the next thing to do, from what the page holds and how much
-    /// sitting she has left in her.
+    /// What every mood is worth right now, which is the whole character of the
+    /// animal: a cat with plans wanders, a tired one sits, and a page with nothing
+    /// on it is a page where nothing happens.
     ///
-    /// The weights are the whole character of the animal: a cat with plans
-    /// wanders, a tired one sits, and a page with nothing on it is a page where
-    /// nothing happens. A mood with no thing to go with it is weighted zero
-    /// rather than dropped, because that is what makes the choice a choice.
-    fn next_mood(&mut self, senses: &mut Senses<'_>) -> Mood {
+    /// The table is a function of its own so that it can be read without running
+    /// the generator: what a cat wants after a dash is a fact about the cat, and a
+    /// test should be able to ask about it rather than sample a distribution and
+    /// hope.
+    fn weights(&self, senses: &Senses<'_>) -> [(Mood, usize); 10] {
         let props = !senses.props.is_empty();
         let motes = !senses.motes.is_empty();
         let tokens = !senses.tokens.is_empty();
         let idle = self.rest > 0.6;
+        // A cat that has just crossed the page at a gallop has had its play. What
+        // it wants next is a wash, and this is where that is said: the three
+        // washing moods go up together because sitting still and licking a paw is
+        // one behaviour in three lengths.
+        let spent = self.mood == Mood::Dash;
         // A perch she is already on is not somewhere to go: without this, a cat
         // on a table keeps choosing the table and sits there until the page is
         // rebuilt.
         let on_a_perch = nearest_perch(senses.props, self.pos, f32::MAX)
             .map(|prop| (self.pos[1] - prop.top()).abs() < 1.2)
             .unwrap_or(false);
-        let mut weights: [(Mood, usize); 9] = [
+        let mut weights: [(Mood, usize); 10] = [
             (Mood::Wander, if idle { 5 } else { 3 }),
-            (Mood::Sit, if idle { 6 } else { 1 }),
-            (Mood::Groom, if idle { 3 } else { 1 }),
-            (Mood::Clean, if idle { 4 } else { 1 }),
+            (Mood::Sit, if spent { 9 } else if idle { 6 } else { 1 }),
+            (Mood::Groom, if spent { 9 } else if idle { 3 } else { 1 }),
+            (Mood::Clean, if spent { 12 } else if idle { 4 } else { 1 }),
             (Mood::Swat, usize::from(props) * if idle { 1 } else { 5 }),
             (
                 Mood::Perch,
                 usize::from(props && !on_a_perch) * if idle { 2 } else { 6 },
             ),
-            (Mood::Chase, usize::from(motes) * if idle { 1 } else { 6 }),
+            (Mood::Chase, usize::from(motes) * if idle { 1 } else { 5 }),
             (Mood::Zoomies, if idle { 0 } else { 3 }),
             (Mood::Bat, usize::from(tokens) * 3),
+            // A dash is worth what there is to run past, because crossing an empty
+            // margin takes her nowhere in particular. It is the most likely thing
+            // on a full page for a cat with energy left, which is what makes the
+            // page feel like it is being played in rather than decorated.
+            (
+                Mood::Dash,
+                if tokens {
+                    if idle {
+                        2
+                    } else {
+                        7
+                    }
+                } else {
+                    usize::from(props) * if idle { 1 } else { 2 }
+                },
+            ),
         ];
         // A cat does not do the same thing twice in a row. Wandering, sitting and
         // grooming are the exceptions, because a cat does those all afternoon.
@@ -531,6 +603,13 @@ impl Kitten {
                 }
             }
         }
+        weights
+    }
+
+    /// Chooses the next thing to do, from what the page holds and how much
+    /// sitting she has left in her.
+    fn next_mood(&mut self, senses: &mut Senses<'_>) -> Mood {
+        let weights = self.weights(senses);
         let total: usize = weights.iter().map(|(_, weight)| weight).sum();
         let mut at = senses.rng.below(total.max(1));
         let mut picked = Mood::Wander;
@@ -562,6 +641,7 @@ impl Kitten {
             Mood::Swat => 1.4 + senses.rng.range(0.0, 0.9),
             Mood::Chase => 3.0 + senses.rng.range(0.0, 2.5),
             Mood::Zoomies => 2.4 + senses.rng.range(0.0, 1.6),
+            Mood::Dash => 1.8 + senses.rng.range(0.0, 1.2),
             Mood::Follow | Mood::Pounce | Mood::Sleep => 1.2,
         };
         self.dwell = self.timer;
@@ -616,10 +696,68 @@ impl Kitten {
                     self.aim = Some(mote.pos);
                 }
             }
+            Mood::Dash => {
+                self.target = self.run_target(senses);
+            }
             _ => {}
         }
         self.target[0] = self.target[0].clamp(left, right);
         self.target[1] = self.target[1].clamp(bottom, top);
+    }
+
+    /// Where a dash goes: the far end of the length of page she is standing on.
+    ///
+    /// A dash is a horizontal thing, and the point of it is the run, so what it aims
+    /// at has to be on her own level. A cat that picked the farthest thing on the
+    /// page would pick a shelf nine lines up, run to the point under it and stand
+    /// there -- which is what the first version did, and it looked like a cat that
+    /// had forgotten what it was doing.
+    ///
+    /// Everything on her level is a candidate: the two ends of the ledge under her,
+    /// loose words at about her height, and furniture she could run past. The
+    /// farthest one that she can actually stand at wins, and a page with nothing on
+    /// her level gives her the run anyway, short and pointless, as a cat's is.
+    fn run_target(&mut self, senses: &mut Senses<'_>) -> [f32; 3] {
+        let (left, right, _bottom, _top) = room_to_walk(senses.page[0], senses.page[1]);
+        let here = self.pos;
+        let mut reachable: Vec<f32> = Vec::new();
+        for shelf in senses.shelves {
+            if (shelf.y - here[1]).abs() > 0.35 {
+                continue;
+            }
+            reachable.push(shelf.span[0].clamp(left, right));
+            reachable.push(shelf.span[1].clamp(left, right));
+        }
+        for token in senses.tokens.iter().filter(|token| token.rest) {
+            if (token.pos[1] - here[1]).abs() < 2.2 {
+                reachable.push(token.pos[0].clamp(left, right));
+            }
+        }
+        for prop in senses.props {
+            if (prop.pos[1] - here[1]).abs() < 3.0 {
+                reachable.push(prop.pos[0].clamp(left, right));
+            }
+        }
+        let mut best = [here[0], here[1], 0.0];
+        let mut longest = 0.0;
+        for x in reachable {
+            // A ledge that is not under the place is not a place she can run to:
+            // the surface at `x` is what her paws would land on.
+            let stand = senses.surface(x, here[1] + 0.05);
+            if (stand - here[1]).abs() > 0.6 {
+                continue;
+            }
+            let far = (x - here[0]).abs();
+            if far > longest {
+                longest = far;
+                best = [x, stand, 0.0];
+            }
+        }
+        if longest < 5.0 {
+            let elsewhere = self.elsewhere(senses);
+            return [elsewhere[0], elsewhere[1], 0.0];
+        }
+        best
     }
 
     /// A point on a ledge, a few cells away: a cat crosses the text along the
@@ -693,7 +831,8 @@ impl Kitten {
             | Mood::Swat
             | Mood::Chase
             | Mood::Perch
-            | Mood::Zoomies => self.target,
+            | Mood::Zoomies
+            | Mood::Dash => self.target,
             // Sitting, grooming and washing: stay put.
             _ => self.pos,
         };
@@ -722,6 +861,9 @@ impl Kitten {
         self.next_leap = (self.next_leap - dt).max(0.0);
 
         let wanted = match self.mood {
+            // Nothing else is allowed to be faster than a dash: it is the top of
+            // the range, and a pounce that outran it would read as the wrong event.
+            Mood::Dash => DASH,
             Mood::Pounce => RUN * 1.25,
             Mood::Zoomies => RUN * 1.15,
             Mood::Chase if across > 2.0 => RUN,
@@ -746,7 +888,7 @@ impl Kitten {
         // so a place is only leapt at while the page still holds it up. Dust and a
         // word in the air are the exception: those are caught on the way up.
         let holds = senses.surface(goal[0], goal[1] + 0.05) >= goal[1] - 0.05;
-        let overhead = matches!(self.mood, Mood::Bat | Mood::Chase);
+        let overhead = matches!(self.mood, Mood::Bat | Mood::Chase | Mood::Dash);
         if dy > 0.6 && dy <= CLIMB && dx.abs() < 2.4 && (holds || overhead) && self.mood != Mood::Sleep {
             if self.next_leap > 0.0 {
                 // Gathering herself under it: the crouch before the spring is
@@ -768,6 +910,7 @@ impl Kitten {
         // Approach the wanted speed smoothly, so the first frame of a run is not
         // an instant jump.
         self.speed += (speed - self.speed) * (dt * 6.0).min(1.0);
+        let mut travel = 0.0;
         if dx.abs() > 0.02 {
             // Facing is horizontal whatever way it is going: a cat that turned to
             // face up the page would be a cat seen end on, which is a blob.
@@ -776,8 +919,29 @@ impl Kitten {
             } else {
                 -std::f32::consts::FRAC_PI_2
             };
-            let travel = (self.speed * dt).min(dx.abs());
+            travel = (self.speed * dt).min(dx.abs());
             self.pos[0] += dx.signum() * travel;
+        }
+        // A dash does not swing: it takes the line apart as it goes, a rake every
+        // few characters. Reported behind her rather than under her, because a rake
+        // under her own paws would cut the ledge out from under her and drop her
+        // mid-dash -- what she leaves is a furrow, and a furrow is behind.
+        //
+        // The line she runs along is half a line below her feet: her paws are on
+        // top of the glyphs, which is where the cat stands, so the place a rake is
+        // reported at is the row of text and not the surface she is held up by.
+        if self.mood == Mood::Dash {
+            self.dash_flown += travel;
+            if self.dash_flown >= RAKE_EVERY {
+                self.dash_flown -= RAKE_EVERY;
+                self.rake = Some([
+                    self.pos[0] - dx.signum() * 0.85,
+                    self.pos[1] - 0.5,
+                    0.0,
+                ]);
+            }
+        } else {
+            self.dash_flown = 0.0;
         }
 
         self.step_gravity(dt, senses);
@@ -2185,6 +2349,69 @@ mod tests {
             kitten.think(1.0 / 120.0, &mut senses(&mut rng, None, 0.0));
         }
         assert!(kitten.rest < rested, "{} then {}", kitten.rest, rested);
+    }
+
+    #[test]
+    fn a_dash_is_faster_than_a_run() {
+        // The name of the mood is a promise about speed, and this is the test that
+        // holds it to it: twice a run, and she gets there without being told twice.
+        const { assert!(DASH > RUN * 1.5) };
+        let page = page();
+        let mut rng = Rng::new(0x0D15);
+        let shelf = page
+            .shelves
+            .iter()
+            .max_by(|a, b| {
+                let (a, b) = (a.span[1] - a.span[0], b.span[1] - b.span[0]);
+                a.total_cmp(&b)
+            })
+            .copied()
+            .expect("a line to run along");
+        let mut kitten = Kitten::new(shelf.span[0] + 2.0, shelf.y);
+        let mut senses = senses_on(&mut rng, &page, None, 1.0);
+        kitten.start(Mood::Dash, &mut senses);
+        let furthest = (kitten.target[0] - kitten.pos[0]).abs();
+        assert!(furthest > 4.0, "the run is {furthest} cells long");
+        let mut quickest = 0.0f32;
+        for _ in 0..120 {
+            kitten.think(1.0 / 120.0, &mut senses);
+            quickest = quickest.max(kitten.speed);
+        }
+        assert!(quickest > RUN, "{quickest} cells a second is a run");
+        assert!(quickest <= DASH + 0.01, "{quickest} is faster than a dash");
+    }
+
+    #[test]
+    fn after_a_dash_the_cat_wants_to_wash_itself() {
+        // A run is the most tiring thing she does, so what follows it is a wash
+        // rather than another lap: without that she is a cat made of moods, and the
+        // mode looks like a generator instead of an animal.
+        let page = page();
+        let mut rng = Rng::new(0x11CE);
+        let mut kitten = Kitten::new(20.0, 20.0);
+        let mut weigh = |kitten: &Kitten, mood: Mood| {
+            let senses = senses_on(&mut rng, &page, None, 1.0);
+            let table = kitten.weights(&senses);
+            table
+                .iter()
+                .find(|(what, _)| *what == mood)
+                .expect("every mood is weighed")
+                .1
+        };
+        kitten.mood = Mood::Bat;
+        let (sit, groom, clean, dash) = (
+            weigh(&kitten, Mood::Sit),
+            weigh(&kitten, Mood::Groom),
+            weigh(&kitten, Mood::Clean),
+            weigh(&kitten, Mood::Dash),
+        );
+        kitten.mood = Mood::Dash;
+        assert!(weigh(&kitten, Mood::Sit) > sit);
+        assert!(weigh(&kitten, Mood::Groom) > groom);
+        assert!(weigh(&kitten, Mood::Clean) > clean);
+        // And what she does not want, having just done it, is another run.
+        assert_eq!(weigh(&kitten, Mood::Dash), 0);
+        assert!(dash > 0, "she never wants to run at all");
     }
 
     #[test]

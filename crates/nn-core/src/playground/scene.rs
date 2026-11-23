@@ -94,6 +94,14 @@ const MAX_TOKENS: usize = 48;
 const MAX_FLOATING: usize = 32;
 /// How close a paw has to be to a character to pull it out of the line, in cells.
 const KNOCK: [f32; 2] = [2.2, 1.1];
+/// How wide the swathe a body at a run takes is, in cells, and how many whole words
+/// it can come away with at once.
+///
+/// Narrower than a paw's box and shallower, because a rake happens ten times in a
+/// dash where a swing happens once: the point is that the page is damaged along the
+/// route, not that the route is deleted.
+const RAKE: [f32; 2] = [0.7, 0.6];
+const RAKE_WORDS: usize = 2;
 /// Two runs of glyphs with a gap no wider than this are one shelf, so a line with
 /// a space in it is a line to stand on rather than two.
 const SHELF_GAP: f32 = 2.6;
@@ -526,6 +534,84 @@ impl Page {
         made
     }
 
+    /// A cat at a run: it does not swing, it takes what it runs into.
+    ///
+    /// A paw takes the longest whole word under it, because a swing is a deliberate
+    /// thing. A body at speed has no such manners -- every character in its way comes
+    /// loose, a word among them -- and because the swathe is narrow, what it meets is
+    /// a gap in a line rather than a line gone. `heading` is which way she is going,
+    /// and it is what the words she takes are thrown along: what a cat runs into goes
+    /// the way the cat was going.
+    ///
+    /// Returns how many characters came away, which is what a caller wants to know to
+    /// decide whether the page noticed.
+    pub fn rake(&mut self, at: [f32; 3], heading: f32, rng: &mut Rng) -> usize {
+        let mut lifted: Vec<Card> = Vec::new();
+        self.text.retain(|card| {
+            let near = card.alpha >= 0.9
+                && card.pos[0] > GUTTER as f32 * GLYPH_WIDTH
+                && (card.pos[0] - at[0]).abs() <= RAKE[0]
+                && (card.pos[1] - at[1]).abs() <= RAKE[1];
+            if near {
+                lifted.push(*card);
+            }
+            !near
+        });
+        if lifted.is_empty() {
+            return 0;
+        }
+        // One row at a time again: a swathe across two lines that are not joined
+        // would splice their ends into a word nobody wrote.
+        let mut lines: BTreeMap<i32, Vec<Card>> = BTreeMap::new();
+        for card in &lifted {
+            let row = (self.rows as f32 - card.pos[1] - 0.5).round() as i32;
+            lines.entry(row).or_default().push(*card);
+        }
+        let mut runs: Vec<Vec<Card>> = Vec::new();
+        for (_, mut line) in lines {
+            line.sort_by(|a, b| a.pos[0].total_cmp(&b.pos[0]));
+            for card in line {
+                let joined = runs.last().is_some_and(|run: &Vec<Card>| {
+                    run.last().is_some_and(|last| {
+                        // Only within the row: a run that jumped between lines is two
+                        // runs, which the row grouping has already arranged.
+                        (card.pos[1] - last.pos[1]).abs() < 0.01
+                            && card.pos[0] - last.pos[0] <= GLYPH_WIDTH * 1.5
+                    })
+                });
+                if joined {
+                    runs.last_mut().expect("the run was just checked").push(card);
+                } else {
+                    runs.push(vec![card]);
+                }
+            }
+        }
+        runs.sort_by_key(|run| std::cmp::Reverse(run.len()));
+        for run in runs.into_iter().take(RAKE_WORDS) {
+            let first = run[0].pos[0];
+            let last = run[run.len() - 1].pos[0];
+            self.tokens.push(Token {
+                text: run.iter().map(|card| card.ch).collect(),
+                styles: run.iter().map(|card| card.style).collect(),
+                pos: [(first + last) * 0.5, run[0].pos[1], 0.35],
+                vel: [
+                    heading * rng.range(1.8, 3.6),
+                    rng.range(1.4, 3.4),
+                ],
+                roll: rng.range(-0.5, 0.5),
+                pitch: 0.0,
+                spin: heading * rng.range(1.5, 5.0),
+                rest: false,
+            });
+        }
+        while self.tokens.len() > MAX_TOKENS {
+            self.tokens.remove(0);
+        }
+        let taken = lifted.len();
+        self.refresh_shelves();
+        taken
+    }
+
     /// Lays the ledges out again, which a page needs after a paw took a line apart.
     pub fn refresh_shelves(&mut self) {
         let body = self.rows.saturating_sub(LABEL_ROWS).max(8);
@@ -582,6 +668,11 @@ impl Page {
     /// A ring on the paper, widening as it fades.
     pub fn ring(&mut self, at: [f32; 3], hue: f32, size: f32) {
         self.push_spark(Spark::ring(at, hue, size));
+    }
+
+    /// A speck of the dust a run kicks up: dim, small, and rising.
+    pub fn dust(&mut self, at: [f32; 3], hue: f32, size: f32, rng: &mut Rng) {
+        self.push_spark(Spark::dust(at, hue, size, rng));
     }
 
     /// Confetti: `count` sparks thrown from `at`, their hues fanned out from `hue`
@@ -1329,6 +1420,46 @@ mod tests {
         let lifted = page.tokens.last().expect("a word");
         assert!(!lifted.rest, "{lifted:?}");
         assert!(!lifted.text.is_empty(), "{lifted:?}");
+    }
+
+    #[test]
+    fn a_run_takes_characters_out_of_a_line_and_leaves_it_standing() {
+        // A rake is to a swing what a shoulder is to a paw: narrower and without
+        // manners. What matters is that the line is still a ledge afterwards -- the
+        // gap a rake leaves is bridged, so a cat does not run into a hole it dug
+        // itself -- and that what came away went the way she was going.
+        let mut page = page();
+        let mut rng = Rng::new(0x7A4E);
+        let shelf = *page
+            .shelves
+            .iter()
+            .find(|shelf| shelf.row > 10 && shelf.span[1] - shelf.span[0] > 8.0)
+            .expect("a long line");
+        // Centred on a character rather than on the middle of the line: a swathe in
+        // a gap would take nothing, which is right of the page and wrong of a test.
+        let x = page
+            .text
+            .iter()
+            .filter(|card| {
+                card.pos[0] >= shelf.span[0]
+                    && card.pos[0] <= shelf.span[1]
+                    && (page.rows as f32 - card.pos[1] - 0.5).round() as u32 == shelf.row
+            })
+            .map(|card| card.pos[0])
+            .next()
+            .expect("a character on the line");
+        let before = page.text.len();
+        let ledges = page.shelves.len();
+        let taken = page.rake([x, shelf.y - 0.5, 0.0], 1.0, &mut rng);
+        assert!(taken >= 2, "{taken} characters came away");
+        assert_eq!(page.text.len(), before - taken);
+        assert_eq!(
+            page.shelves.len(),
+            ledges,
+            "the rake split the line it ran along"
+        );
+        let thrown = page.tokens.last().expect("a word in the air");
+        assert!(thrown.vel[0] > 0.0, "{thrown:?} went the wrong way");
     }
 
     #[test]

@@ -196,6 +196,8 @@ pub struct Playground {
     /// Whether she was in the air last frame, so taking off can be seen as an
     /// event rather than as a state.
     was_air: bool,
+    /// The same for running flat out, so a dash has a beginning and an end.
+    was_dash: bool,
     /// Pieces of trail dropped since she left the page, so every fourth one can be
     /// a star.
     trail_count: u32,
@@ -237,6 +239,7 @@ impl Playground {
             trail_hue,
             trail_clock: 0.0,
             was_air: false,
+            was_dash: false,
             trail_count: 0,
             last_at,
             vel: [0.0; 2],
@@ -317,6 +320,23 @@ impl Playground {
             let paw = self.kitten.paw();
             self.page.land(paw, &mut self.rng);
         }
+        // A cat at a gallop does not swing at one thing, it takes everything it
+        // passes: the page is asked about a place rather than about a paw, and the
+        // place moves with her, which is what draws a line of damage across the
+        // page instead of a hole in it.
+        if let Some(at) = self.kitten.rake {
+            let heading = if self.kitten.yaw < 0.0 { -1.0 } else { 1.0 };
+            if self.page.rake(at, heading, &mut self.rng) > 0 {
+                self.page.dust(at, self.trail_hue, 0.3, &mut self.rng);
+                // Furniture in the way of a run is worth the page saying so: a
+                // table that only shakes for a paw slamming into it at eight cells
+                // a second is a table nobody believes in.
+                if self.page.bump(at, 1.8, 1.7) {
+                    self.page.ring(at, (self.trail_hue + 0.5) % 1.0, 0.55);
+                    self.page.confetti(at, self.trail_hue, 8, 4.2, &mut self.rng);
+                }
+            }
+        }
         match self.kitten.effect {
             Some(Effect::Zzz) => {
                 let at = self.kitten.crown();
@@ -357,6 +377,7 @@ impl Playground {
             // the fifth minute does not look like the first.
             self.trail_hue = (self.trail_hue + 0.37) % 1.0;
             self.was_air = false;
+            self.was_dash = false;
             self.trail_clock = 0.0;
             self.trail_count = 0;
             self.last_at = [
@@ -370,6 +391,26 @@ impl Playground {
                 self.previous = None;
             }
         }
+    }
+
+    /// How many pieces of trail this frame owes, given how far she flew, and where
+    /// along the frame's path each of them belongs.
+    ///
+    /// The clock is a distance and it carries over: one piece every [`TRAIL_STEP`]
+    /// cells, so a frame that flew three steps lays three pieces instead of one.
+    /// Reset to a step each time, a trail thins out as frames get longer, and the
+    /// light behind a jump would depend on the renderer rather than on the jump.
+    ///
+    /// Each answer is a fraction of the path this frame, 0 at the start of it and 1
+    /// at the end, which is where the piece is placed.
+    fn due_trail(&mut self, flown: f32) -> Vec<f32> {
+        let mut due = Vec::new();
+        self.trail_clock -= flown;
+        while self.trail_clock <= 0.0 && due.len() < 8 {
+            due.push(1.0 - (-self.trail_clock / flown.max(1e-4)).clamp(0.0, 1.0));
+            self.trail_clock += TRAIL_STEP;
+        }
+        due
     }
 
     /// What the page answers, per frame: a rainbow behind a jump, a ring where she
@@ -420,17 +461,15 @@ impl Playground {
         // around the wheel from the last, so a jump is a band of colour with its
         // bands in order rather than a cloud of one.
         if air {
-            self.trail_clock -= flown;
-            if self.trail_clock <= 0.0 {
-                self.trail_clock = TRAIL_STEP;
+            for fraction in self.due_trail(flown) {
                 self.trail_hue = (self.trail_hue + TRAIL_HUE) % 1.0;
                 // A little scatter, so the band has a thickness: two sparks of one
                 // colour exactly on the line read as a drawn stroke, the same two
                 // off it read as light.
                 let size = self.rng.range(0.7, 1.0);
                 let at = [
-                    at[0] + self.rng.range(-0.3, 0.3),
-                    at[1] + self.rng.range(-0.35, 0.35),
+                    at[0] - moved[0] * (1.0 - fraction) + self.rng.range(-0.3, 0.3),
+                    at[1] - moved[1] * (1.0 - fraction) + self.rng.range(-0.35, 0.35),
                     at[2],
                 ];
                 // Left going the other way to her: up while she drops, down while
@@ -454,21 +493,55 @@ impl Playground {
             // is dim on purpose -- it is there to say she is lit, not to cover the
             // colours she has left behind.
             self.page.aura(at, self.trail_hue, 1.2);
-        } else if self.kitten.speed > 7.0 {
-            // A lap of the rug gets a trail as well: the light is the page's answer
-            // to speed, not a prize for jumping.
-            self.trail_clock -= flown;
-            if self.trail_clock <= 0.0 {
-                self.trail_clock = TRAIL_STEP * 1.6;
+        } else if self.kitten.dashing() {
+            // A dash gets a trail of its own, on the paper rather than in the air,
+            // and it is a different animal from the jump's rainbow: the pieces are
+            // laid at her feet, thrown hard the way she came, and the wheel turns
+            // per piece instead of per jump, so what follows her is a streak.
+            // Laid a third again as far apart as a jump's pieces and smaller, so the
+            // streak is a line: a run has twenty of these on screen at once, and
+            // twenty blobs of the size of a leg is a cloud, not a speed.
+            for fraction in self.due_trail(flown * 1.35) {
                 self.trail_hue = (self.trail_hue + TRAIL_HUE) % 1.0;
+                // At her paws and not above them: the light of a run belongs on the
+                // line she is taking apart, and a streak at the height of her shoulders
+                // would be drawn across the line above her.
+                let feet = [
+                    self.kitten.pos[0] - moved[0] * (1.0 - fraction),
+                    self.kitten.pos[1] - 0.15,
+                    0.35,
+                ];
+                // Nothing here is drawn at random: a streak is laid often enough
+                // that a generator would only make it look noisy, and a page that
+                // takes a number out of the generator per piece is a page whose
+                // sparks depend on how many frames were rendered.
+                self.trail_count = self.trail_count.wrapping_add(1);
+                let lift = 0.12 + 0.24 * (self.trail_count % 5) as f32 * 0.25;
                 self.page.ribbon(
-                    [self.kitten.pos[0], self.kitten.pos[1] + 0.5, 0.4],
-                    [-self.vel[0] * 0.2, 0.4, 0.0],
+                    feet,
+                    [-self.vel[0] * 0.5, lift, 0.0],
                     self.trail_hue,
-                    0.5,
+                    0.4 + (self.trail_count % 4) as f32 * 0.05,
                 );
+                // Dust off the paper, which is most of what a run looks like at
+                // this size: the ribbons are the speed, the dust is the floor.
+                if self.trail_count % 3 == 0 {
+                    self.page.dust(feet, (self.trail_hue + 0.5) % 1.0, 0.28, &mut self.rng);
+                }
             }
         }
+        // A dash is bookended: something at the moment she goes and something at
+        // the moment she stops, so the run has edges rather than fading in and out.
+        let dash = self.kitten.dashing();
+        if dash && !self.was_dash {
+            self.page.ring(at, self.trail_hue, 0.55);
+            self.page
+                .confetti(at, (self.trail_hue + 0.3) % 1.0, 8, 5.4, &mut self.rng);
+        }
+        if !dash && self.was_dash {
+            self.page.ring(at, (self.trail_hue + 0.5) % 1.0, 0.5);
+        }
+        self.was_dash = dash;
         self.was_air = air;
     }
 
@@ -695,34 +768,92 @@ mod tests {
 
     #[test]
     fn the_trail_lies_along_the_path_and_not_along_the_clock() {
-        // The same fall at two frame rates: the band of light has to be the same,
-        // because the light is laid every part of a cell she flies. Laid per frame
-        // instead, the slow run would show a quarter of it.
-        let longest = |dt: f32| {
+        // The same light at two frame rates: a piece every part of a cell she flies,
+        // so the pieces a jump leaves are the distance divided by the step, whatever
+        // the frame rate. Laid per frame instead, a slow renderer would draw a dotted
+        // line and a fast one a smear. The measure is density rather than a count,
+        // because two runs of the same seed do not have the same jumps: what has to
+        // hold is the rule, not the run.
+        let density = |dt: f32| {
             let mut playground = open();
             let input = Input::default();
-            let mut most = 0;
+            let mut flown = 0.0f32;
+            let mut pieces = 0;
             for _ in 0..(60.0 / dt) as usize {
+                let was = playground.kitten().pos;
+                let was_hop = playground.kitten().hop;
+                let air = playground.kitten().airborne;
                 playground.step(dt, &input);
-                let pieces = playground
+                if !air {
+                    continue;
+                }
+                let now = playground.kitten().pos;
+                flown += (now[0] - was[0]).hypot(now[1] + playground.kitten().hop - was[1] - was_hop);
+                // A piece made this frame is the one with no age on it beyond the
+                // frame itself: the page steps its sparks after the frame they were
+                // made in, and the list is capped, so an index taken before the step
+                // would be a lie.
+                pieces += playground
                     .page()
                     .sparks
                     .iter()
-                    // Only a piece of trail swells as it fades: the halo holds its
-                    // size, confetti is confetti, and a ring is a ring.
-                    .filter(|spark| spark.kind == GlowKind::Blob && spark.grow > 0.0)
+                    .filter(|spark| {
+                        spark.age <= dt * 1.05
+                            && spark.kind == GlowKind::Blob
+                            && spark.grow > 0.0
+                            && spark.pull > 0.0
+                    })
                     .count();
-                most = most.max(pieces);
             }
-            most
+            assert!(flown > 4.0, "{flown} cells in the air");
+            pieces as f32 / flown
         };
-        let quick = longest(1.0 / 120.0);
-        let slow = longest(1.0 / 30.0);
-        assert!(quick >= 6, "{quick} pieces of trail in the air at once");
+        let quick = density(1.0 / 120.0);
+        let slow = density(1.0 / 30.0);
+        let wanted = 1.0 / TRAIL_STEP;
+        // Scatter lands two pieces of a step in the same place, so the density is
+        // allowed to be under the exact one, never over it by much.
+        assert!((0.75..=1.15).contains(&(quick / wanted)), "{quick} pieces a cell at a hundred and twenty frames a second");
+        assert!((0.75..=1.15).contains(&(slow / wanted)), "{slow} pieces a cell at thirty");
         assert!(
-            (quick as i32 - slow as i32).abs() <= 3,
-            "{quick} pieces at a hundred and twenty frames a second, {slow} at thirty"
+            (quick - slow).abs() <= quick.max(slow) * 0.2,
+            "{quick} pieces a cell against {slow}"
         );
+    }
+
+    #[test]
+    fn a_dash_leaves_a_trail_and_a_line_full_of_holes() {
+        // A dash is the one mood that damages the page on its own: it takes the
+        // line it runs along, a rake at a time, and it drags a streak of light the
+        // length of the run. Both are the page answering her, so both are counted
+        // here rather than looked at.
+        let mut playground = open();
+        let input = Input::default();
+        let mut dashing = 0;
+        let mut trail = 0;
+        let mut rings = 0;
+        let mut taken = 0;
+        for _ in 0..(120 * 240) {
+            let before = playground.page().text.len();
+            playground.step(1.0 / 120.0, &input);
+            let after = playground.page().text.len();
+            if !playground.kitten().dashing() {
+                continue;
+            }
+            dashing += 1;
+            taken += before.saturating_sub(after);
+            for glow in playground.frame(&input).glows {
+                match glow.kind {
+                    GlowKind::Ring => rings += 1,
+                    GlowKind::Blob if glow.size < 1.0 => trail += 1,
+                    _ => {}
+                }
+            }
+        }
+        assert!(dashing > 60, "{dashing} frames at a run");
+        assert!(trail > 20, "{trail} pieces of trail behind a run");
+        assert!(rings > 0, "a run began or ended without a ring");
+        assert!(taken >= 4, "{taken} characters came off the page");
     }
 
     #[test]

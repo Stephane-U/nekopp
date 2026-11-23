@@ -16,10 +16,11 @@
 
 use super::Rng;
 
-/// How hard a spark is pulled down, in cells per second squared.
+/// How hard confetti is pulled down, in cells per second squared.
 ///
 /// An eighth of the page's gravity: confetti is paper, not a word, and a spark that
-/// fell as fast as a token would land before the reader saw it in the air.
+/// fell as fast as a token would land before the reader saw it in the air. Dust is
+/// lighter than paper and rises; light is pulled by nothing at all.
 const SPARK_GRAVITY: f32 = 3.2;
 /// How fast a spark loses its speed sideways, per second.
 const SPARK_DRAG: f32 = 2.4;
@@ -57,6 +58,9 @@ pub struct Spark {
     pub base: f32,
     /// How fast it grows, in cells per second: a ring widens, a blob does not.
     pub grow: f32,
+    /// How hard the page pulls it down, in cells per second squared: confetti
+    /// falls, dust rises, and light is pulled by nothing at all.
+    pub pull: f32,
     /// Seconds it has been alive, and seconds it lasts.
     pub age: f32,
     pub life: f32,
@@ -106,6 +110,7 @@ impl Spark {
             size,
             base: 0.9,
             grow: 1.4,
+            pull: 0.8,
             age: 0.0,
             life: 0.8,
             roll: 0.0,
@@ -126,6 +131,7 @@ impl Spark {
             size,
             base: 1.0,
             grow: 0.6,
+            pull: 0.5,
             age: 0.0,
             life: 0.45,
             roll: hue * std::f32::consts::TAU,
@@ -134,6 +140,28 @@ impl Spark {
             // The hue again, folded: two stars of one colour do not put their rays
             // in the same place.
             seed: (hue * 7.0).fract(),
+        }
+    }
+
+    /// A speck of the page's dust kicked up by a run: dim, small, and rising,
+    /// because what a paw lifts off paper is lighter than the paper.
+    pub fn dust(at: [f32; 3], hue: f32, size: f32, rng: &mut Rng) -> Self {
+        let angle = rng.range(0.0, std::f32::consts::TAU);
+        let out = rng.range(0.5, 1.8);
+        Self {
+            pos: at,
+            vel: [angle.cos() * out, rng.range(0.6, 1.8), 0.0],
+            hue,
+            size,
+            base: 0.4,
+            grow: 1.1,
+            pull: -0.7,
+            age: 0.0,
+            life: rng.range(0.4, 0.9),
+            roll: 0.0,
+            spin: 0.0,
+            kind: GlowKind::Blob,
+            seed: 0.0,
         }
     }
 
@@ -147,6 +175,7 @@ impl Spark {
             size,
             base: 0.12,
             grow: 0.0,
+            pull: 0.0,
             age: 0.0,
             life: 0.1,
             roll: 0.0,
@@ -165,6 +194,7 @@ impl Spark {
             size,
             base: 0.65,
             grow: 3.4,
+            pull: 0.0,
             age: 0.0,
             life: 0.55,
             roll: 0.0,
@@ -194,6 +224,7 @@ impl Spark {
             size: rng.range(0.22, 0.40),
             base: 1.0,
             grow: 0.0,
+            pull: SPARK_GRAVITY,
             age: 0.0,
             life: rng.range(0.5, 1.0),
             roll: rng.range(0.0, std::f32::consts::TAU),
@@ -203,7 +234,7 @@ impl Spark {
         }
     }
 
-    /// One step of a spark: it moves, it is pulled down, it slows, it grows.
+    /// One step of a spark: it moves, it is pulled, it slows, it grows.
     ///
     /// Fixed steps are the caller's job, as everywhere in this mode: a half-second
     /// frame must not throw confetti off the page.
@@ -211,7 +242,7 @@ impl Spark {
         self.age += dt;
         self.pos[0] += self.vel[0] * dt;
         self.pos[1] += self.vel[1] * dt;
-        self.vel[1] -= SPARK_GRAVITY * dt;
+        self.vel[1] -= self.pull * dt;
         let keep = (1.0 - SPARK_DRAG * dt).max(0.0);
         self.vel[0] *= keep;
         self.vel[1] *= keep;
