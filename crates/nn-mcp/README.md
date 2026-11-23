@@ -103,7 +103,7 @@ printf '%s\n' \
 ```
 
 ```json
-{"id":1,"jsonrpc":"2.0","result":{"capabilities":{"resources":{},"tools":{}},"instructions":"The Neko++ feature reference. `search_features` finds sections, `get_section` returns one as markdown, `list_sections` is the table of contents, `list_shortcuts` is the whole default keymap, and `get_command` answers about a single command. Every section is also a resource: nekopp://features/<slug>, indexed by nekopp://features. `list_plugins` is what the editor's WebAssembly plugins add, and `run_plugin_command` runs one of their commands over text you send.","protocolVersion":"2024-11-05","serverInfo":{"name":"npp-mcp","version":"0.2.0"}}}
+{"id":1,"jsonrpc":"2.0","result":{"capabilities":{"resources":{},"tools":{}},"instructions":"The Neko++ feature reference. `search_features` finds sections, `get_section` returns one as markdown, `list_sections` is the table of contents, `list_shortcuts` is the whole default keymap, and `get_command` answers about a single command. Every section is also a resource: nekopp://features/<slug>, indexed by nekopp://features. `list_plugins` is what the editor's WebAssembly plugins add, and `run_plugin_command` runs one of their commands over text you send.","protocolVersion":"2024-11-05","serverInfo":{"name":"npp-mcp","version":"0.3.0"}}}
 ```
 
 ```json
@@ -111,7 +111,7 @@ printf '%s\n' \
 ```
 
 The same session against the built binary prints those two response lines and, on
-stderr, one startup line: `npp-mcp 0.2.0: 104 sections, 73 shortcuts, 1 of 5
+stderr, one startup line: `npp-mcp 0.3.0: 110 sections, 74 shortcuts, 1 of 5
 plugins enabled, one JSON object per line on stdio`. The plugin counts are this
 machine's -- the folder the editor uses -- so they differ from one installation
 to the next.

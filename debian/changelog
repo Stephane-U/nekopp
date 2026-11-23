@@ -1,3 +1,20 @@
+npp (0.3.0) unstable; urgency=medium
+
+  * Finish the find bar: Notepad++'s search options on three rows, the dialog's
+    ten buttons and both histories, the mark tab, and the replace row on Ctrl+H,
+    with Enter acting the replacement.
+  * Select the find field with Ctrl+A and paste into it instead of behind it.
+  * Add Notepad++'s floating Search window, behind a Preference; the docked bar
+    stays what Ctrl+F and Ctrl+H open.
+  * Give the editor's own commands an API, headless and in the window, and let
+    get_command answer to the names run_command takes.
+  * Add Playground mode: a page of code with a kitten on it -- gravity and
+    ledges, a rainbow trail, runs that take the text with them, a page that
+    mends, a wall of furniture to climb, super jumps across the page, and a page
+    rebuilt every three minutes in fireworks.
+
+ -- Neko++ maintainers <npp@example.invalid>  Mon, 23 Nov 2026 16:52:18 +0100
+
 npp (0.2.0) unstable; urgency=medium
 
   * Open several files at once: the portal's open dialog asks for a multiple

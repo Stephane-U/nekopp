@@ -10710,3 +10710,25 @@ tokens" and put four cells in a two-cell row, which the PDF had been rendering a
 table. `python3 docs/build-pdf.py` then `--check`: up to date, 328,497 bytes, 77 pages A4.
 The corpus line that opens the Rust page -- "a page of code, a kitten, and five minutes of
 nothing to do" -- went to three as well, since it is the mode's own tagline.
+
+## The version at 0.3.0
+
+Twenty commits of work since the number last moved, so it moves again: 0.2.0 to 0.3.0. It is
+still declared once, in `[workspace.package]`, and everything that reports a version reads it
+from there -- `--version`, the About window, the single-instance bus property and the MCP
+server's `serverInfo` -- so nothing else had to be found: the line changed, the workspace
+rebuilt, and all four moved.
+
+What could not follow the manifest was edited by hand, the same three places as last time: a
+debian changelog entry above 0.2.0, which is also what `dpkg-parsechangelog` hands the package
+build, the man page's header, and the MCP README's transcript, which carries the version the
+binary prints and the counts of an actual run. The reference's title line reads the manifest
+already, so `python3 docs/build-pdf.py` was all the PDF needed.
+
+Verified: `npp --version` prints `Neko++ 0.3.0`; `npp-mcp` prints `npp-mcp 0.3.0: 110 sections,
+74 shortcuts, 1 of 5 plugins enabled` and answers `initialize` with `"version":"0.3.0"`; the
+`search_features` transcript in the README still matches the binary line for line, although the
+reference has grown six sections and one shortcut since it was written. `cargo test --offline`:
+2,195 tests, 0 failed. `cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not
+run. The plugin workspace keeps its own 0.1.0 -- different target, versioned separately,
+interface unchanged.
