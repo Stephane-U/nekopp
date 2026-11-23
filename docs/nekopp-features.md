@@ -1773,9 +1773,10 @@ exists falls back to the built-in pair rather than failing to start.
 "View > Playground" (`Ctrl+Alt+K`) hands the window to a page: a line-number
 gutter, rows of code at the editor's own line height, furniture drawn in
 characters, a rug of punctuation along the bottom, and a kitten two lines tall who
-walks across the text, follows the pointer, bats loose words around and -- left
-alone -- finds things on the page to do: swats the furniture, climbs onto a table
-and sits there, chases dust, runs a lap, and eventually falls asleep. `Escape`
+walks across the text, follows the pointer, jumps from line to line, bats loose
+words off them and -- left alone -- finds things on the page to do: swats the
+furniture, climbs onto a table and sits there, chases dust, runs a lap, and
+eventually falls asleep. `Escape`
 gives the window back. The document is never
 read and never written, so a screenshot of the mode cannot show anyone's work and
 five minutes in the page cost no undo step.
@@ -1792,13 +1793,35 @@ smaller window with fewer of both, and looks the same on any display.
 | Piece | Behaviour |
 |---|---|
 | The page | A gutter of line numbers, rows of code, the bottom five rows a rug of scattered punctuation, and a corner label on a line kept clear for it |
+| The ledges | Every intact row of code is a shelf a paw can stand on, and the floor runs under the rug at the bottom of the page, so falling always ends somewhere |
 | The furniture | Two to four pieces drawn in characters -- a table, a plant, a lamp, a shelf, a framed picture -- each standing in its own cleared box in the lower half of the page, and swaying when a paw hits it |
-| The kitten | Walks, sits, crouches, pounces, bats a token, swats the furniture, climbs a table or a shelf and perches on its top edge, chases dust, runs laps, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
-| The tokens | Whole words lifted off the material, with the syntax colour they had on the line they came from; they drift across the page, slow down and settle, with no gravity pulling them anywhere and a shadow under each, and a word within reach of a paw is knocked away |
+| The kitten | Walks, sits, crouches, gathers herself and springs onto a line of code, bats a token, swats the furniture, climbs a table or a shelf and perches on its top edge, chases dust, runs laps, washes a paw, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
+| The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
 | The dust | Specks that wander on their own; one within reach of a paw is thrown in a short arc and fades where it lands |
-| Sleep | Three minutes with no input and it curls up where it stands |
+| Sleep | Three minutes with no input and it curls up where it stands, and `z` floats up off her head |
+| Sparkles | Washing and stretching raise a `*` or two off the muzzle, for a second or so |
 | Dimming | Four minutes and the page starts to dim, the way a screensaver does |
 | Rebuild | Five minutes and the page is rebuilt from the next seed, the old one fading out over two and a half seconds |
+
+A line of code is a place, not a stripe of colour. Every row the page still holds
+is a shelf: a paw can stand on it, a word knocked off it falls onto the shelf
+below, and a cat can spring from one to the next. That is what lets the mode read
+as a room instead of a scrolling background -- she climbs the page the way it is
+laid out, and the page answers by emptying. Gravity is one number, a bounce, and a
+surface lookup that asks what is under a point and where it starts, so a word in
+the air and the cat in the air are subject to the same rule and no falling thing
+can pass through a line that is still there.
+
+A landing and a swing are not the same thing, and the page treats them
+differently. A swing takes what is under the paw: the longest run of whole words
+on that one line is lifted out, keeping their colours, so a row reads
+`let count = 0;` on the left and then a gap and the rest of the line. A landing
+only shakes the page and raises dust -- taking a line out from under the paws
+would leave her standing on nothing, and a cat that deletes its own ledge is a
+bug, not a joke. A bound reaches six lines, and because the arc is fixed while the
+height is not, a short hop and a long leap look the same going up and very
+different coming down. She crouches first, the way a cat does, and holds it for a
+third of a second before she springs.
 
 The kitten is a few dozen boxes and no skeleton: a body, a head, two ears, four
 legs with cream socks, a muzzle, a chin, a nose, two eyes and a tail on a bow
@@ -1826,7 +1849,9 @@ and a band across a face is a muzzle nobody drew.
 What she does is picked from what the page holds. A mood lasts a few seconds and
 is drawn by weight from a table that knows the page: swat a piece of furniture,
 chase the nearest speck of dust, climb a table or a shelf and perch on its edge,
-bat a loose word, run a lap of the rug, pounce, sit, groom, sleep. The weights
+bat a loose word, run a lap of the rug, pounce, sit, groom, sleep. A line of code
+is a better perch than any of the furniture, so she looks up from where she stands
+rather than across the page, and a shelf she can already reach is not worth a walk.
 follow one drive, rest, which fills while she sits and empties while she plays, so
 a cat that has been idle reaches for a table and a cat that has been chasing dust
 sits down. A page with nothing to perch on offers no perch, and a cat already

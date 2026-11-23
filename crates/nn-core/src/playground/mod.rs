@@ -33,11 +33,11 @@ pub mod kitten;
 pub mod scene;
 
 use camera::Camera;
-use kitten::{Kitten, Mood, Senses};
-use scene::Page;
+use kitten::{Effect, Kitten, Mood, Senses};
+use scene::{Page, GLYPH_WIDTH};
 
 pub use corpus::Flavour;
-pub use scene::{Mote, Token};
+pub use scene::{Floating, Mote, Shelf, Token};
 
 /// One unit: the height of a line of the editor's text.
 pub const CELL: f32 = 1.0;
@@ -251,12 +251,31 @@ impl Playground {
             props: &self.page.props,
             tokens: &self.page.tokens,
             motes: &self.page.motes,
+            shelves: &self.page.shelves,
+            floor: self.page.floor(),
             rng: &mut self.rng,
         };
         let strike = self.kitten.think(dt, &mut senses);
+        // A paw that swings takes what is under it; a cat that lands only shakes the
+        // page and raises dust. Landing on a line and taking the line out from under
+        // herself is a page a cat cannot stand on.
         if strike {
             let paw = self.kitten.paw();
             self.page.strike(paw, &mut self.rng);
+        } else if self.kitten.landed {
+            let paw = self.kitten.paw();
+            self.page.land(paw, &mut self.rng);
+        }
+        match self.kitten.effect {
+            Some(Effect::Zzz) => {
+                let at = self.kitten.crown();
+                self.page.float('z', 7, at, &mut self.rng);
+            }
+            Some(Effect::Lick) => {
+                let at = self.kitten.muzzle();
+                self.page.float('*', 5, at, &mut self.rng);
+            }
+            None => {}
         }
 
         // Fixed steps, so the same sequence of frames always gives the same
@@ -267,6 +286,7 @@ impl Playground {
             self.page.step_tokens(step);
             self.page.step_motes(step);
             self.page.step_props(step);
+            self.page.step_floating(step);
             left -= step;
         }
 
@@ -321,6 +341,20 @@ impl Playground {
         for prop in &self.page.props {
             prop.cards((1.0 - arrive) * -1.5, arrive, &mut cards);
         }
+        // Zzz and sparkles: the page's own glyphs, held up for a moment.
+        for glyph in &self.page.floating {
+            cards.push(Card {
+                ch: glyph.ch,
+                style: glyph.style,
+                pos: glyph.pos,
+                yaw: 0.0,
+                pitch: 0.0,
+                roll: 0.0,
+                size: [GLYPH_WIDTH * glyph.size, glyph.size],
+                alpha: glyph.alpha() * arrive,
+                kind: CardKind::Glyph,
+            });
+        }
         for token in &self.page.tokens {
             token.cards(arrive, &mut cards);
             // A drop shadow, so a loose word sits on the paper rather than being
@@ -357,17 +391,23 @@ impl Playground {
         }
 
         // A soft shadow under the kitten, which is what makes a box look like it
-        // is standing on the page rather than floating over it.
-        let squash = 1.0 - self.kitten.hop * 0.12;
+        // is standing on the page rather than floating over it. It falls on the
+        // ledge under her rather than on her paws, so a jump reads as a jump: the
+        // shadow stays down where the ground is while the cat goes up.
+        let ground = self
+            .page
+            .surface(self.kitten.pos[0], self.kitten.pos[1] + self.kitten.hop);
+        let height = (self.kitten.pos[1] + self.kitten.hop - ground).max(0.0);
+        let squash = (1.0 - height * 0.12).max(0.35);
         cards.push(Card {
             ch: ' ',
             style: 0,
-            pos: [self.kitten.pos[0], self.kitten.pos[1] - 0.05, 0.02],
+            pos: [self.kitten.pos[0], ground - 0.05, 0.02],
             yaw: 0.0,
             pitch: 0.0,
             roll: 0.0,
             size: [1.9 * squash, 0.5 * squash],
-            alpha: 0.3 - self.kitten.hop * 0.1,
+            alpha: (0.3 - height * 0.05).max(0.05),
             kind: CardKind::Dot,
         });
         blocks.extend(self.kitten.blocks());
@@ -587,11 +627,15 @@ mod tests {
             .page(Some([0.5, -0.8]))
             .expect("the page");
         let before = playground.kitten().pos[0];
-        for _ in 0..(120 * 4) {
+        for _ in 0..(120 * 8) {
             playground.step(1.0 / 120.0, &target);
         }
         let kitten = playground.kitten();
-        assert!(kitten.pos[0] > before, "{:?} toward {place:?}", kitten.pos);
+        assert!(
+            (kitten.pos[0] - place[0]).abs() < 3.0,
+            "{:?} toward {place:?} from {before}",
+            kitten.pos
+        );
     }
 
     #[test]

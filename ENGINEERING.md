@@ -9824,3 +9824,159 @@ word lying turned on the rug.
 a kitten row that climbs, and two paragraphs on what she picks and what a paw does.
 `python3 docs/build-pdf.py` then `--check`: up to date, 312,308 bytes, 73 pages A4,
 112 bookmarks -- one page more than the pass before, the same 112 bookmarks.
+
+## Eightieth pass: a page with gravity, and a cat that climbs it
+
+"no gravity effect, I want the cat to jump onto platforms of code, knock out text
+which should fall, do things when staying in the same place, clean, sleep with zzz
+etc ...". The seventy-ninth pass gave her somewhere to be and something to do;
+what it did not give her was a page with weight. Props swayed and words drifted,
+but a row of code was a colour, not a thing, so a cat could not be on one, a word
+could not land on one, and the only vertical movement in the mode was a jump that
+went nowhere. A page you can climb is a different mode from a page things slide
+across.
+
+### A line of code is a place
+
+`Shelf` is a run of characters on one row, seen as an edge to stand on: `row`, `y`
+(its top, in cells) and a `span` across the page, with `covers(x)` and
+`nearest_point(x)` as the whole of its geometry. `Page::shelves` is rebuilt by
+`shelves_from` whenever the page is laid out, out of the same `solid` grid the
+layout already uses, and only above the rug: the gutter is a margin and the rug is
+the floor, so neither is a ledge, and a cat can stand only on what the code
+printed.
+
+Runs are merged across gaps of up to `SHELF_GAP` (2.6 cell widths), because
+`let x = 1;` is one line to walk along and eight separate things to fall off. The
+rug is punctuation lying about on the floor and the floor is `FLOOR` under it, one
+row above the app's own label line -- the same line the label has always been kept
+clear, which is why a word that falls off the page lands in the same place a cat
+does.
+
+`shelves` is public and passed to the kitten as part of `Senses`, together with
+`floor`. The kitten does not know what a shelf is made of; it asks `surface(x,
+from)` -- the height of the highest edge under `x` that is no higher than `from` --
+and gets a number. Three callers ask: a falling word, a falling cat, and the shadow
+under her.
+
+### One gravity, two bodies
+
+`GRAVITY` is 26 cells per second squared, and `pub` because words and cat share the
+number: a page whose letters fall faster than its kitten is a page drawn at two
+scales. `BOUNCE` is 0.22, small because paper on paper does not bounce, and enough
+that a knocked word gives a hop when it lands -- which is how a fall reads as a
+fall rather than as a cut.
+
+`surface_from` is a free function rather than a method because its callers hold a
+mutable borrow of the list it is asking about: a word is moved while it asks what
+is under it. It looks for shelves and for the flat tops of perches only -- a word
+does not come to rest on a lamp's shade -- and returns the floor when nothing
+qualifies, so no falling thing ever comes to rest in the air.
+
+Tokens are dropped onto their ledge when the page is laid out, too, at
+`surface_from`. A page whose loose words hang in the air over gravity has the
+gravity switched off for the thing the reader notices first.
+
+### The paw takes one thing
+
+`knock_out` used to sort everything under the paw by x and lift it in one piece. A
+paw is taller than a line and lands between two, so what it takes is the ends of
+two different lines, and sorting by x alone interleaved them: the token that came
+out was two half-words spliced. It now buckets by row into a `BTreeMap`, sorts each
+row by x, splits it into runs, and lifts the longest run. A word knocked off a page
+is still a word, and the page loses one thing per paw rather than a strip.
+
+### Six lines up, and no jumping at holes
+
+`CLIMB` is how high a bound reaches: six lines. It is used three times -- the leap
+guard, the window `nearest_shelf_above` looks in, and `nearest_perch` -- so what she
+can jump to and what she can jump from agree.
+
+The arc is fixed and the time grows with the height
+(`LEAP_TIME + rise * 0.05`), with `hop` scaled by `1.0 + rise * 0.1` up to 2.6. A
+cat scaling a table does not fly over it by the height of the table: what the
+reader sees is a bound, not a parabola scaled to the furniture. `leap` leaves `pos`
+on the ground and animates `hop`, so the shadow the app draws can stay on the ledge
+she left -- it is dropped to `surface(x, pos.y)` and shrunk with the height, which
+is the difference between a jump and a cat that grew.
+
+The bug that came out of the first run was a cat leaping at a hole. A landing used
+to take the line out, so the place she was aiming at could be gone before she got
+there, and she would spring at the gap again and again: bouncing in place at the
+same cell for ten seconds. `move_by` now asks `senses.surface(goal[0], goal[1] +
+0.05) >= goal[1] - 0.05` before it leaves the ground -- a place is leapt at only
+while the page still holds it up -- except for dust and loose words, which a bat or
+a chase catches on the way up. `nearest_perch` also refuses a perch under her own
+paws (`prop.top() - at[1] > 0.6`) and `nearest_shelf_above` looks up rather than
+across, so the perching weight can be raised to 2 idle and 6 active without her
+spending the mood walking to something she can already reach.
+
+### Land, gather, spring
+
+`next_leap` is the pause between touch-down and the next bound: `0.3 + rng(0.0,
+0.2)` seconds, during which she crouches (`crouch = 1.0`) and the leap is not
+taken. It is one number and it is the whole of "a cat looks before it jumps". A
+wave of jumps with no gap between them reads as a bouncing ball, whatever the arc
+looks like.
+
+### A landing is not a swing
+
+`Page::strike` takes, `Page::land` does not: the same `bump` and a smaller `puff`,
+and no `knock_out`. A landing that took the line out from under the paws would
+leave her standing on nothing, and a page of ledges a cat cannot stand on is a page
+with no ledges. What falls off a line falls to a paw, not to a landing. The caller
+picks between them from `kitten.landed` and the strike flag, and `land` is what
+makes the two dozen jumps of a long run free of holes she punched herself.
+
+### Zzz and sparkles
+
+`Floating` is a glyph the page holds up for a moment: character, style, position,
+drift, `age` and `life`, and `alpha()` that arrives over a sixth of a second and
+fades out. `Effect` on the kitten says which -- `Zzz` from `crown()`, `Lick` from
+`muzzle()` -- and `Page::float` is capped at 32 so an idle afternoon cannot fill
+the buffer. They are drawn as glyph cards from the page's own atlas, not as a
+sprite, so a `z` is the same `z` as the code under it.
+
+The same `Effect` drives the wash animation, which is the answer to "do things when
+staying in the same place": a mood that keeps her still now has a paw moving in
+front of her face, and the sparkle that comes off it is what tells a reader she is
+washing rather than sitting.
+
+### Verification
+
+`cargo test --offline --all`: 2163 tests (1087 in `nn-app`, 976 in `nn-core`, 100
+in `nn-mcp`), 0 failed. Ten of them are new. In `kitten.rs`:
+`it_jumps_onto_a_line_of_code_and_sits_on_it` runs a perch on a line rather than a
+prop, `it_steps_off_the_end_of_a_line_and_drops_to_the_one_below` pins that the
+page is what holds her up, `she_gathers_herself_before_the_next_jump` that the
+crouch comes before the bound, `she_does_not_jump_at_a_line_that_is_not_there_any_more`
+that a hole is not leapt at, `a_sleeping_cat_puts_a_zzz_over_its_head`,
+`washing_puts_a_paw_in_front_of_its_face`, and
+`it_does_not_swat_the_furniture_it_is_standing_on`. In `scene.rs`:
+`a_paw_on_a_line_takes_characters_out_of_it`,
+`a_paw_between_two_lines_takes_one_word_not_two` (the splice), and
+`a_word_knocked_off_a_line_falls_to_the_one_below`. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run.
+
+The bench was given a `NN_TRACE` line and a `playground_seed` flag and run for 120
+seconds at 1280 by 800 on seed 24301: 13 jumps, 49 characters taken off the page,
+11 loose words, and the moods perch 24.6 s, wander 33.1 s, zoomies 19.7 s, chase
+15.9 s, bat 11.8 s, groom 6.7 s, swat 4.7 s, sit 3.0 s, clean 0.6 s. The trace is
+how the jumping-at-a-hole loop was found: a table of jump times with several
+leaps inside a few seconds is a loop, whatever the frames look like. The page lost
+49 of its 642 characters over the two minutes and ended with 11 words lying about.
+The instrumentation was removed before the commit.
+
+Frames were rendered and looked at: 3.6, 11.9 and 12.5 seconds zoomed on the cat
+(mid-air between two lines with her shadow a speck below, then standing on a line
+of code between `self.naps` and `kitten().purr`), 120 seconds full page (gaps
+knocked through two comment lines with the surviving runs resting on their rows)
+and 200 seconds zoomed (asleep in a loaf, `z` above the head, the hint reading
+"asleep · Esc leaves").
+
+`docs/nekopp-features.md` gained a ledges row, a tokens row whose words fall and
+land, Zzz on the sleep row, a sparkles row, and two paragraphs on the page as a
+place and on a landing not being a swing; the old claim that the words drift with
+no gravity pulling them anywhere is gone. `python3 docs/build-pdf.py` then
+`--check`: up to date, 314,273 bytes, 73 pages A4, 112 bookmarks -- the same 73
+pages and 112 bookmarks, 1,965 bytes heavier than the pass before.

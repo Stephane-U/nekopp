@@ -22,12 +22,18 @@
 //! inside a silhouette is a bright band across the cat, and a band across a face
 //! is a muzzle nobody drew.
 //!
-//! The behaviour is a small state machine with a timer per state. It sees three
-//! things: where the pointer is on the page, how long ago anything happened, and
-//! the seeded generator. Nothing else, which is what makes it testable without a
-//! window.
+//! The behaviour is a small state machine with a timer per state. It sees where
+//! the pointer is on the page, how long ago anything happened, the ledges the page
+//! is made of, and the seeded generator. Nothing else, which is what makes it
+//! testable without a window.
+//!
+//! Gravity is the page's, not hers. She stands on the highest ledge under her --
+//! a line of code, a table top, the rug -- walks along it, drops to the one below
+//! when she steps off the end, and jumps when what she wants is over her head.
+//! That is the whole of the movement, and it is why the page's lines are load
+//! bearing rather than decoration.
 
-use super::scene::{Mote, Prop, Token};
+use super::scene::{surface_from, Mote, Prop, Shelf, Token, GLYPH_WIDTH, GRAVITY};
 use super::{Block, Rng, Shade};
 
 /// How long nothing has to happen before the kitten gives up and sleeps.
@@ -37,6 +43,12 @@ pub const SLEEP_AFTER: f32 = 180.0;
 pub const WALK: f32 = 2.1;
 /// How fast it runs.
 pub const RUN: f32 = 4.4;
+/// How long a jump takes, in seconds.
+///
+/// Fixed rather than worked out from the height: a jump of one line and a jump of
+/// four should leave the ground with the same hurry, and it is the arc that is
+/// scaled to the height instead.
+const LEAP_TIME: f32 = 0.42;
 
 /// What the kitten is doing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +65,8 @@ pub enum Mood {
     Sit,
     /// Licking a paw.
     Groom,
+    /// Washing its face with a wet paw.
+    Clean,
     /// Curled up.
     Sleep,
     /// Going for a piece of furniture with a paw.
@@ -75,6 +89,7 @@ impl Mood {
             Mood::Bat => "bat",
             Mood::Sit => "sit",
             Mood::Groom => "groom",
+            Mood::Clean => "clean",
             Mood::Sleep => "sleep",
             Mood::Swat => "swat",
             Mood::Chase => "chase",
@@ -100,7 +115,27 @@ pub struct Senses<'a> {
     pub tokens: &'a [Token],
     /// Dust, which is what there is to chase.
     pub motes: &'a [Mote],
+    /// The ledges, which are what there is to jump onto.
+    pub shelves: &'a [Shelf],
+    /// The floor of the page: the top of the rug.
+    pub floor: f32,
     pub rng: &'a mut Rng,
+}
+
+impl Senses<'_> {
+    /// The ledge under a point, which is what a cat falls onto.
+    pub fn surface(&self, x: f32, from: f32) -> f32 {
+        surface_from(self.shelves, self.props, self.floor, x, from)
+    }
+}
+
+/// Something the page should hold up for a moment because of what the cat is doing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Effect {
+    /// Sleep: a Zzz off the top of her head.
+    Zzz,
+    /// Washing: a sparkle off the paw on her face.
+    Lick,
 }
 
 /// The kitten.
@@ -150,6 +185,36 @@ pub struct Kitten {
     pub dwell: f32,
     /// Whether the paw has already landed in this window.
     pub struck: bool,
+    /// Downward speed, in cells per second, while she is in the air without a
+    /// jump under her.
+    pub vy: f32,
+    /// Whether she is in the air on a jump, which is not the same as falling.
+    pub airborne: bool,
+    /// How far through that jump she is, 0 to 1.
+    pub jump: f32,
+    /// Where the jump started and where it is aimed.
+    pub jump_from: [f32; 3],
+    pub jump_to: [f32; 3],
+    /// Whether she touched down this frame, so the page can be told.
+    pub landed: bool,
+    /// Seconds before she is ready to leave the ground again.
+    ///
+    /// A cat lands, gathers itself, and only then goes up: without this a chase
+    /// after dust is a cat on a spring, hopping off the same spot every half
+    /// second.
+    pub next_leap: f32,
+    /// Washing phase, in radians.
+    pub wash: f32,
+    /// What the paw is aimed at, if anything: the thing she walked over to hit.
+    ///
+    /// A paw goes where she is looking, not where she happens to be facing. Landing
+    /// beside a table turned away from it and then swatting the air is what a cat
+    /// does not do.
+    pub aim: Option<[f32; 3]>,
+    /// Seconds until the next thing she raises off the page.
+    next_raise: f32,
+    /// What she is raising this frame, if anything.
+    pub effect: Option<Effect>,
 }
 
 impl Default for Kitten {
@@ -183,6 +248,17 @@ impl Kitten {
             patience: 0.0,
             dwell: 0.0,
             struck: false,
+            vy: 0.0,
+            airborne: false,
+            jump: 0.0,
+            jump_from: pos,
+            jump_to: pos,
+            landed: false,
+            next_leap: 0.0,
+            wash: 0.0,
+            aim: None,
+            next_raise: 0.0,
+            effect: None,
         }
     }
 
@@ -202,15 +278,22 @@ impl Kitten {
     ///
     /// In front of the nose along the page, at the height of the cat's own
     /// shoulder, because a paw that reached the top of its head would look like a
-    /// cat striking a wasp.
+    /// cat striking a wasp. When there is something to hit, the paw goes to that
+    /// side of her and no higher than her shoulders: the aim is the thing, the reach
+    /// is the cat's.
     pub fn paw(&self) -> [f32; 3] {
         let (sin, _cos) = self.yaw.sin_cos();
         let forward = 1.2;
-        [
+        let mut at = [
             self.pos[0] + forward * sin,
             self.pos[1] + 0.4 + self.hop,
             self.pos[2],
-        ]
+        ];
+        if let Some(aim) = self.aim {
+            at[0] = self.pos[0] + forward * (aim[0] - self.pos[0]).signum();
+            at[1] = aim[1].clamp(self.pos[1] + 0.2, self.pos[1] + 1.0) + self.hop;
+        }
+        at
     }
 
     /// Keeps the cat on a page of this size, which is what a resize asks for.
@@ -230,6 +313,31 @@ impl Kitten {
         self.breath += dt;
         self.tail += dt * if self.mood == Mood::Sleep { 0.6 } else { 2.4 };
         self.timer -= dt;
+        self.landed = false;
+        self.effect = None;
+        self.wash += dt
+            * if matches!(self.mood, Mood::Clean | Mood::Groom) {
+                1.0
+            } else {
+                0.0
+            };
+        // What she raises off the page: a Zzz while she sleeps, a sparkle while she
+        // washes. Both are the page's own glyphs, so even what she feels is printed.
+        if self.mood == Mood::Sleep {
+            self.next_raise -= dt;
+            if self.next_raise <= 0.0 {
+                self.next_raise = 0.9 + senses.rng.range(0.0, 0.4);
+                self.effect = Some(Effect::Zzz);
+            }
+        } else if matches!(self.mood, Mood::Clean | Mood::Groom) && self.sit > 0.6 {
+            self.next_raise -= dt;
+            if self.next_raise <= 0.0 {
+                self.next_raise = 0.7;
+                self.effect = Some(Effect::Lick);
+            }
+        } else {
+            self.next_raise = 0.0;
+        }
 
         // Blinking runs on its own clock: a cat that blinked only when it changed
         // its mind would look painted on.
@@ -294,7 +402,8 @@ impl Kitten {
     /// clock of its own: the paw arrives a fixed time after the decision, which
     /// is what lines the swing up with the walk that brought her there.
     fn striking(&self) -> bool {
-        matches!(self.mood, Mood::Bat | Mood::Swat | Mood::Chase)
+        !self.airborne
+            && matches!(self.mood, Mood::Bat | Mood::Swat | Mood::Chase)
             && self.timer > 0.28
             && self.timer < 0.42
     }
@@ -304,9 +413,11 @@ impl Kitten {
         let pointer = senses.pointer.filter(|_| senses.pointer_age < 1.6);
         if let Some(pointer) = pointer {
             let distance = self.distance_to(pointer);
-            // A pointer that has just stopped is the most interesting thing on
-            // the page, so it overrides whatever the cat was doing.
-            if self.mood != Mood::Bat || distance < 1.4 {
+            // A pointer that is still moving is the most interesting thing on the
+            // page, so it overrides whatever the cat was doing. One that has been
+            // sitting still does not take her off a word she is already batting.
+            let fresh = senses.pointer_age < 0.5;
+            if fresh || self.mood != Mood::Bat || distance < 1.4 {
                 self.target = pointer;
                 if distance > 3.2 && senses.pointer_age < 0.5 {
                     if self.mood != Mood::Pounce {
@@ -337,7 +448,11 @@ impl Kitten {
         let reach = self.distance_to(self.target);
         match self.mood {
             Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase if !self.arrived => {
-                if reach > 1.0 && self.patience > 0.0 {
+                if self.airborne {
+                    // She is committed: the clock stops until she is down, and what
+                    // she gets up to in the air is the leap's business.
+                    self.timer = self.timer.max(0.6);
+                } else if reach > 1.0 && self.patience > 0.0 {
                     self.patience -= dt;
                     self.timer = self.timer.max(0.6);
                 } else if reach <= 1.0 {
@@ -387,17 +502,18 @@ impl Kitten {
         // A perch she is already on is not somewhere to go: without this, a cat
         // on a table keeps choosing the table and sits there until the page is
         // rebuilt.
-        let on_a_perch = nearest_perch(senses.props, self.pos)
+        let on_a_perch = nearest_perch(senses.props, self.pos, f32::MAX)
             .map(|prop| (self.pos[1] - prop.top()).abs() < 1.2)
             .unwrap_or(false);
-        let mut weights: [(Mood, usize); 8] = [
+        let mut weights: [(Mood, usize); 9] = [
             (Mood::Wander, if idle { 5 } else { 3 }),
             (Mood::Sit, if idle { 6 } else { 1 }),
             (Mood::Groom, if idle { 3 } else { 1 }),
+            (Mood::Clean, if idle { 4 } else { 1 }),
             (Mood::Swat, usize::from(props) * if idle { 1 } else { 5 }),
             (
                 Mood::Perch,
-                usize::from(props && !on_a_perch) * if idle { 1 } else { 4 },
+                usize::from(props && !on_a_perch) * if idle { 2 } else { 6 },
             ),
             (Mood::Chase, usize::from(motes) * if idle { 1 } else { 6 }),
             (Mood::Zoomies, if idle { 0 } else { 3 }),
@@ -405,7 +521,10 @@ impl Kitten {
         ];
         // A cat does not do the same thing twice in a row. Wandering, sitting and
         // grooming are the exceptions, because a cat does those all afternoon.
-        if !matches!(self.mood, Mood::Wander | Mood::Sit | Mood::Groom) {
+        if !matches!(
+            self.mood,
+            Mood::Wander | Mood::Sit | Mood::Groom | Mood::Clean
+        ) {
             for (mood, weight) in &mut weights {
                 if *mood == self.mood {
                     *weight = 0;
@@ -436,14 +555,9 @@ impl Kitten {
         } else {
             0.0
         };
-        self.crouch = if matches!(mood, Mood::Bat | Mood::Swat) {
-            0.5
-        } else {
-            0.0
-        };
         self.timer = match mood {
             Mood::Wander => 1.6 + senses.rng.range(0.0, 2.6),
-            Mood::Sit | Mood::Groom | Mood::Perch => 2.4 + senses.rng.range(0.0, 3.6),
+            Mood::Sit | Mood::Groom | Mood::Clean | Mood::Perch => 2.4 + senses.rng.range(0.0, 3.6),
             Mood::Bat => 1.0 + senses.rng.range(0.0, 1.4),
             Mood::Swat => 1.4 + senses.rng.range(0.0, 0.9),
             Mood::Chase => 3.0 + senses.rng.range(0.0, 2.5),
@@ -452,6 +566,7 @@ impl Kitten {
         };
         self.dwell = self.timer;
         self.struck = false;
+        self.aim = None;
         // A mood that goes nowhere has already arrived.
         self.arrived = !matches!(mood, Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase);
         match mood {
@@ -460,23 +575,45 @@ impl Kitten {
             Mood::Wander | Mood::Zoomies => {
                 self.target = self.elsewhere(senses);
             }
-            Mood::Swat => {
-                if let Some(prop) = nearest_prop(senses.props, self.pos) {
-                    self.target = [prop.pos[0], prop.pos[1] - prop.size[1] * 0.5 - 0.6, 0.0];
+            Mood::Swat => match nearest_prop(senses.props, self.pos) {
+                Some(prop) => {
+                    self.aim = Some(prop.pos);
+                    // Beside it, at the foot of it, on the side she is already on:
+                    // a cat swats what is next to it, not what is over its head, and
+                    // a paw that has walked into a table is drawn through a table.
+                    let side = if self.pos[0] < prop.pos[0] { -1.0 } else { 1.0 };
+                    let reach = prop.size[0] * GLYPH_WIDTH * 0.5 + 1.2;
+                    let base = prop.pos[1] - prop.size[1] * 0.5;
+                    // The foot of it is where she stands to swat it: a plant on a
+                    // table is reached from the table, and one on the rug from the
+                    // rug, rather than from a point in the air beside its pot.
+                    let at = prop.pos[0] + side * reach;
+                    let stand = senses.surface(at, base + 0.2).max(senses.floor);
+                    self.target = [at, stand, 0.0];
                 }
-            }
-            Mood::Perch => match nearest_perch(senses.props, self.pos) {
-                Some(prop) => self.target = [prop.pos[0], prop.top() - 0.1, 0.0],
                 None => self.mood = Mood::Wander,
             },
+            // A line above is something to jump on, and a table is something to
+            // jump on: whichever is nearer is the thing she climbs.
+            Mood::Perch => {
+                if let Some(shelf) = nearest_shelf_above(senses.shelves, self.pos) {
+                    self.target = [shelf.nearest_point(self.pos[0]), shelf.y, 0.0];
+                } else if let Some(prop) = nearest_perch(senses.props, self.pos, CLIMB) {
+                    self.target = [prop.pos[0], prop.top(), 0.0];
+                } else {
+                    self.mood = Mood::Wander;
+                }
+            }
             Mood::Bat => {
                 if let Some(token) = nearest_token(senses.tokens, self.pos) {
                     self.target = token.pos;
+                    self.aim = Some(token.pos);
                 }
             }
             Mood::Chase => {
                 if let Some(mote) = nearest_mote(senses.motes, self.pos) {
                     self.target = mote.pos;
+                    self.aim = Some(mote.pos);
                 }
             }
             _ => {}
@@ -485,14 +622,51 @@ impl Kitten {
         self.target[1] = self.target[1].clamp(bottom, top);
     }
 
-    /// A point on the page a few cells away, so the cat crosses the text.
+    /// A point on a ledge, a few cells away: a cat crosses the text along the
+    /// lines, and steps off the end of one into the line below.
+    ///
+    /// Every walk is on a surface, because a page whose cat could stand anywhere
+    /// would be a page with nothing to stand on.
     fn elsewhere(&mut self, senses: &mut Senses<'_>) -> [f32; 3] {
         let (left, right, bottom, top) = room_to_walk(senses.page[0], senses.page[1]);
-        let mut point = [0.0, 0.0, 0.0];
+        let floor = senses.floor.clamp(bottom, top);
+        // Her own line or one below it: going up is what the jump is for.
+        let mut places: Vec<[f32; 3]> = vec![[0.0, floor, 0.0]];
+        for shelf in senses.shelves {
+            if shelf.y > self.pos[1] + 0.3 || shelf.y < bottom {
+                continue;
+            }
+            let lo = shelf.span[0].max(left);
+            let hi = shelf.span[1].min(right);
+            if hi > lo {
+                places.push([(lo + hi) * 0.5, shelf.y, 0.0]);
+            }
+        }
+        // Under the text when there is text over her: a cat that wanders out into
+        // the blank half of the page has nothing above its head to jump at, and a
+        // page is mostly margin.
+        let mut over: Vec<[f32; 2]> = Vec::new();
+        for shelf in senses.shelves {
+            if shelf.y <= self.pos[1] + 0.6 {
+                continue;
+            }
+            let span = [shelf.span[0].max(left), shelf.span[1].min(right)];
+            if span[1] > span[0] {
+                over.push(span);
+            }
+        }
+        let mut point = places[0];
         for _ in 0..9 {
+            let pick = places[senses.rng.below(places.len())];
+            let x = if pick[1] <= senses.floor + 0.01 && !over.is_empty() {
+                let span = over[senses.rng.below(over.len())];
+                senses.rng.range(span[0], span[1])
+            } else {
+                senses.rng.range(left, right)
+            };
             point = [
-                senses.rng.range(left, right),
-                senses.rng.range(bottom, top),
+                if pick[0] == 0.0 { x } else { (pick[0] + x) * 0.5 },
+                pick[1],
                 0.0,
             ];
             if self.distance_to(point) > 4.0 {
@@ -502,7 +676,13 @@ impl Kitten {
         point
     }
 
-    /// Walks, runs or leaps toward the target.
+    /// Walks, runs, jumps or falls toward the target.
+    ///
+    /// Two motions share the paws. Along the page she goes where the mood says;
+    /// down the page the page itself decides, because the ledges are what she
+    /// stands on. A cat that walks off the end of a line drops to the one under it,
+    /// and a cat that wants the line above has to jump: that is the whole
+    /// difference between a page with lines on it and a picture of a page.
     fn move_by(&mut self, dt: f32, senses: &mut Senses<'_>) {
         let goal = match self.mood {
             // The moods that are going somewhere.
@@ -514,71 +694,221 @@ impl Kitten {
             | Mood::Chase
             | Mood::Perch
             | Mood::Zoomies => self.target,
-            // Sitting and grooming: stay put.
+            // Sitting, grooming and washing: stay put.
             _ => self.pos,
         };
+        // What is below her is not reached by standing over it. She walks to the end
+        // of the line she is on and steps off, and the page does the rest: without
+        // this a cat that wants a table under her shelf waits out its patience
+        // standing exactly on top of it.
+        let mut goal = goal;
+        if goal[1] < self.pos[1] - 1.2 && (goal[0] - self.pos[0]).abs() < 1.2 {
+            if let Some(edge) = ledge_end(senses, self.pos) {
+                goal = [edge, self.pos[1], 0.0];
+            }
+        }
         let dx = goal[0] - self.pos[0];
         let dy = goal[1] - self.pos[1];
-        let distance = dx.hypot(dy);
+        let across = dx.hypot(dy);
+        let (left, right, bottom, top) = room_to_walk(senses.page[0], senses.page[1]);
+        let floor = senses.floor.clamp(bottom, top);
+
+        if self.airborne {
+            self.step_leap(dt);
+            self.blend_crouch(dt);
+            self.clamp_to_room(left, right, top, floor);
+            return;
+        }
+        self.next_leap = (self.next_leap - dt).max(0.0);
+
         let wanted = match self.mood {
             Mood::Pounce => RUN * 1.25,
             Mood::Zoomies => RUN * 1.15,
-            Mood::Chase if distance > 2.0 => RUN,
+            Mood::Chase if across > 2.0 => RUN,
             Mood::Chase => WALK * 1.6,
-            Mood::Follow if distance > 3.0 => RUN,
-            Mood::Swat | Mood::Perch if distance > 5.0 => RUN,
+            Mood::Follow if across > 3.0 => RUN,
+            Mood::Swat | Mood::Perch if across > 5.0 => RUN,
             Mood::Follow | Mood::Wander | Mood::Bat | Mood::Swat | Mood::Perch => WALK,
             _ => 0.0,
         };
         // Arriving is not the end of a walk: a cat that stops dead where it was
         // going stands in the middle of the page for the rest of its mood. A lap
         // or a patrol picks the next somewhere instead.
-        if matches!(self.mood, Mood::Wander | Mood::Zoomies) && distance < 0.8 {
+        if matches!(self.mood, Mood::Wander | Mood::Zoomies) && across < 0.8 {
             self.target = self.elsewhere(senses);
         }
-        let speed = if distance < 0.35 { 0.0 } else { wanted };
+        // A line above is not walked up. When she is under what she wants and it is
+        // over her head, she crouches and leaves the ground.
+        //
+        // A jump needs something to come down on, and the paw takes a line apart
+        // where it lands: the place she was going can be a hole by the time she
+        // stands under it. Jumping at a hole again and again is bouncing in place,
+        // so a place is only leapt at while the page still holds it up. Dust and a
+        // word in the air are the exception: those are caught on the way up.
+        let holds = senses.surface(goal[0], goal[1] + 0.05) >= goal[1] - 0.05;
+        let overhead = matches!(self.mood, Mood::Bat | Mood::Chase);
+        if dy > 0.6 && dy <= CLIMB && dx.abs() < 2.4 && (holds || overhead) && self.mood != Mood::Sleep {
+            if self.next_leap > 0.0 {
+                // Gathering herself under it: the crouch before the spring is
+                // most of what tells a reader that a jump is being aimed.
+                self.crouch = 1.0;
+                self.step_gravity(dt, senses);
+                self.blend_crouch(dt);
+                self.clamp_to_room(left, right, top, floor);
+                return;
+            }
+            self.leap(goal);
+            self.next_leap = 0.3 + senses.rng.range(0.0, 0.2);
+            self.step_leap(dt);
+            self.blend_crouch(dt);
+            self.clamp_to_room(left, right, top, floor);
+            return;
+        }
+        let speed = if dx.abs() < 0.35 { 0.0 } else { wanted };
         // Approach the wanted speed smoothly, so the first frame of a run is not
         // an instant jump.
         self.speed += (speed - self.speed) * (dt * 6.0).min(1.0);
-        if distance > 0.05 {
+        if dx.abs() > 0.02 {
             // Facing is horizontal whatever way it is going: a cat that turned to
             // face up the page would be a cat seen end on, which is a blob.
-            if dx.abs() > 0.02 {
-                self.yaw = if dx > 0.0 {
-                    std::f32::consts::FRAC_PI_2
-                } else {
-                    -std::f32::consts::FRAC_PI_2
-                };
-            }
-            self.pos[0] += dx / distance * self.speed * dt;
-            self.pos[1] += dy / distance * self.speed * dt;
+            self.yaw = if dx > 0.0 {
+                std::f32::consts::FRAC_PI_2
+            } else {
+                -std::f32::consts::FRAC_PI_2
+            };
+            let travel = (self.speed * dt).min(dx.abs());
+            self.pos[0] += dx.signum() * travel;
         }
-        // Paws stay on the page, and the page has edges. The kitten is kept far
-        // enough from them that its ears and its tail stay on the paper: an ear cut
-        // off by the window frame stops the animal from reading as an animal.
-        let (left, right, bottom, top) = room_to_walk(senses.page[0], senses.page[1]);
-        self.pos[0] = self.pos[0].clamp(left, right);
-        self.pos[1] = self.pos[1].clamp(bottom, top);
+
+        self.step_gravity(dt, senses);
 
         self.phase += self.speed * dt * 2.4;
-        // The leap: up at the start, down before the landing.
+        // A pounce is a hop she talks herself into: the leap above is for ledges,
+        // this one is for a pointer on the page.
         if self.mood == Mood::Pounce {
             let t = (0.55 - self.timer.max(0.0)) / 0.55;
             self.hop = (t * std::f32::consts::PI).sin() * 1.5;
         } else {
-            self.hop = (self.hop - dt * 4.0).max(0.0);
+            self.hop = (self.hop - dt * 6.0).max(0.0);
         }
-        let crouch = if self.mood == Mood::Sleep { 0.0 } else { self.crouch };
+        self.blend_crouch(dt);
+        self.clamp_to_room(left, right, top, floor);
+    }
+
+    /// Lets the page hold her up: she stands on the highest ledge under her, and a
+    /// step past the end of it is a step into the air.
+    fn step_gravity(&mut self, dt: f32, senses: &Senses<'_>) {
+        let ground = senses.surface(self.pos[0], self.pos[1]);
+        if self.pos[1] > ground + 0.02 {
+            self.vy -= GRAVITY * dt;
+            self.pos[1] += self.vy * dt;
+            if self.pos[1] <= ground {
+                self.pos[1] = ground;
+                self.vy = 0.0;
+                self.crouch = 0.7;
+                self.landed = true;
+            }
+        } else {
+            self.pos[1] = ground;
+            self.vy = 0.0;
+        }
+    }
+
+    /// Leaves the ground for `to`, on an arc.
+    ///
+    /// The arc is the whole of it: a cat that slid up a line of code would be an
+    /// elevator with ears. What is animated is `hop`, and `pos` is the ground under
+    /// the jump, so the shadow can be dropped to the page while she is in the air.
+    fn leap(&mut self, to: [f32; 3]) {
+        self.airborne = true;
+        self.jump = 0.0;
+        self.jump_from = self.pos;
+        self.jump_to = to;
+        self.speed = 0.0;
+        self.vy = 0.0;
+    }
+
+    /// One step of a jump in the air.
+    ///
+    /// The hump is a fixed size and the time grows with the height. A cat scaling a
+    /// table does not fly over it by the height of the table: she goes up the side
+    /// of it in one bound, and what the reader sees is the bound, not a parabola
+    /// scaled to the furniture.
+    fn step_leap(&mut self, dt: f32) {
+        let rise = (self.jump_to[1] - self.jump_from[1]).max(0.0);
+        self.jump = (self.jump + dt / (LEAP_TIME + rise * 0.05)).min(1.0);
+        let t = self.jump;
+        self.pos[0] = self.jump_from[0] + (self.jump_to[0] - self.jump_from[0]) * t;
+        self.pos[1] = self.jump_from[1] + (self.jump_to[1] - self.jump_from[1]) * t;
+        self.hop = (t * std::f32::consts::PI).sin() * (1.0 + rise * 0.1).min(2.6);
+        if (self.jump_to[0] - self.jump_from[0]).abs() > 0.02 {
+            self.yaw = if self.jump_to[0] > self.jump_from[0] {
+                std::f32::consts::FRAC_PI_2
+            } else {
+                -std::f32::consts::FRAC_PI_2
+            };
+        }
+        if t >= 1.0 {
+            self.airborne = false;
+            self.hop = 0.0;
+            self.arrived = true;
+            self.crouch = 0.7;
+            self.landed = true;
+            // A landing on a thing is still a paw landing on it: the swing comes
+            // after touchdown, when the cat is where it meant to be.
+            if matches!(self.mood, Mood::Bat | Mood::Swat | Mood::Chase) {
+                self.arm();
+            }
+        }
+    }
+
+    /// How deep a crouch this mood asks for, eased into.
+    ///
+    /// Landing folds her up for a frame as well, which is the only thing a squash
+    /// needs to read as weight.
+    fn blend_crouch(&mut self, dt: f32) {
+        let crouch = match self.mood {
+            Mood::Bat | Mood::Swat => 0.5,
+            _ => 0.0,
+        };
         self.crouch += (crouch - self.crouch) * (dt * 8.0).min(1.0);
         // A cat sits down when it has nothing to do, and gets up before it moves.
         // Sitting includes sitting on something: a cat on a table folds itself up
         // the same way as a cat on the page.
         let sit = match self.mood {
-            Mood::Sit | Mood::Groom | Mood::Perch => 1.0,
+            Mood::Sit | Mood::Groom | Mood::Clean | Mood::Perch => 1.0,
             Mood::Sleep => 0.0,
             _ => 0.0,
         };
         self.sit += (sit - self.sit) * (dt * 3.4).min(1.0);
+    }
+
+    /// Keeps her on the paper and on the ledges it has.
+    fn clamp_to_room(&mut self, left: f32, right: f32, top: f32, floor: f32) {
+        self.pos[0] = self.pos[0].clamp(left, right);
+        self.pos[1] = self.pos[1].clamp(floor, top);
+        if self.airborne {
+            self.jump_to[0] = self.jump_to[0].clamp(left, right);
+            self.jump_to[1] = self.jump_to[1].clamp(floor, top);
+        }
+    }
+
+    /// The top of her head, where a Zzz starts.
+    pub fn crown(&self) -> [f32; 3] {
+        [
+            self.pos[0] + 0.18,
+            self.pos[1] + self.height() - 0.2 + self.hop,
+            self.pos[2] + STAND + 0.15,
+        ]
+    }
+
+    /// The paw she washes with, which is where a sparkle starts.
+    pub fn muzzle(&self) -> [f32; 3] {
+        [
+            self.pos[0],
+            self.pos[1] + 0.94 + self.hop,
+            self.pos[2] + STAND + 0.4,
+        ]
     }
 
     fn distance_to(&self, at: [f32; 3]) -> f32 {
@@ -640,6 +970,26 @@ impl Kitten {
                 size: part.size,
                 yaw: self.head_yaw,
                 shade: part.shade,
+            });
+        }
+        // A paw up at the face. A cat washing itself is a cat with one front paw
+        // over its muzzle: at this size that is a box in front of the nose that
+        // moves while the head rocks behind it, and it is the difference between
+        // washing and staring.
+        if !asleep && self.sit > 0.35 && matches!(self.mood, Mood::Clean | Mood::Groom) {
+            let lick = (self.wash * 7.0).sin();
+            let at = self.muzzle();
+            out.push(Block {
+                pos: [at[0] + lick * 0.05, at[1] - 0.28, at[2]],
+                size: [0.19, 0.46, 0.19],
+                yaw: self.head_yaw,
+                shade: Shade::Fur,
+            });
+            out.push(Block {
+                pos: [at[0] + lick * 0.07, at[1] - 0.02 + lick * 0.04, at[2] + 0.01],
+                size: [0.22, 0.15, 0.22],
+                yaw: self.head_yaw,
+                shade: Shade::FurLight,
             });
         }
         out
@@ -1056,18 +1406,79 @@ struct Motion {
 /// would be cut by the letters it stands on, which reads as a hole in the cat.
 const STAND: f32 = 0.62;
 
-/// The nearest piece of furniture to `at`.
+/// The nearest piece of furniture to `at`, other than what she is standing on.
 fn nearest_prop(props: &[Prop], at: [f32; 3]) -> Option<&Prop> {
     props
         .iter()
+        .filter(|prop| !standing_on(prop, at))
         .min_by(|a, b| a.distance_to(at).total_cmp(&b.distance_to(at)))
 }
 
-/// The nearest piece of furniture that can be sat on.
-fn nearest_perch(props: &[Prop], at: [f32; 3]) -> Option<&Prop> {
+/// The nearest end of what she is standing on, which is the way down.
+///
+/// A line of code is a ledge and a table top is a ledge, so both are asked: a cat
+/// that can only get off a line and not off a table is a cat stuck on a table.
+fn ledge_end(senses: &Senses<'_>, at: [f32; 3]) -> Option<f32> {
+    let shelf = senses
+        .shelves
+        .iter()
+        .filter(|shelf| shelf.covers(at[0]) && (shelf.y - at[1]).abs() < 0.1)
+        .min_by(|a, b| a.span[0].total_cmp(&b.span[0]))
+        .map(|shelf| shelf.span);
+    let table = senses
+        .props
+        .iter()
+        .filter(|prop| prop.kind.is_perch() && standing_on(prop, at))
+        .map(|prop| {
+            let half = prop.size[0] * GLYPH_WIDTH * 0.5;
+            [prop.pos[0] - half, prop.pos[0] + half]
+        })
+        .fold(None, |best: Option<[f32; 2]>, span| match best {
+            Some(best) => Some([best[0].min(span[0]), best[1].max(span[1])]),
+            None => Some(span),
+        });
+    let span = shelf.or(table)?;
+    let left = span[0] - 0.6;
+    let right = span[1] + 0.6;
+    Some(if (left - at[0]).abs() < (right - at[0]).abs() {
+        left
+    } else {
+        right
+    })
+}
+
+/// Whether she is standing on that piece of furniture.
+fn standing_on(prop: &Prop, at: [f32; 3]) -> bool {
+    let half = prop.size[0] * GLYPH_WIDTH * 0.5;
+    (at[1] - prop.top()).abs() < 0.35 && (at[0] - prop.pos[0]).abs() <= half
+}
+
+/// The ledge above her that is nearest to being under her.
+///
+/// Usually the next line up: a cat that climbed from the rug to the top of the
+/// page in one jump would be a cat on a lift.
+fn nearest_shelf_above(shelves: &[Shelf], at: [f32; 3]) -> Option<&Shelf> {
+    let near = |shelf: &Shelf| (shelf.nearest_point(at[0]) - at[0]).abs() + (shelf.y - at[1]) * 0.5;
+    shelves
+        .iter()
+        .filter(|shelf| shelf.y > at[1] + 0.5 && shelf.y < at[1] + CLIMB)
+        .filter(|shelf| shelf.span[0] < at[0] + 8.0 && shelf.span[1] > at[0] - 8.0)
+        .min_by(|a, b| near(a).total_cmp(&near(b)))
+}
+
+/// How high a bound can take her, in cells.
+///
+/// A cat clears a chair, not a bookshelf: the height is what makes the arc read
+/// as a jump rather than as a cat being lifted up the page.
+const CLIMB: f32 = 6.0;
+
+/// The nearest piece of furniture that can be climbed onto, no higher than
+/// `highest` and no lower than her own paws.
+fn nearest_perch(props: &[Prop], at: [f32; 3], highest: f32) -> Option<&Prop> {
     props
         .iter()
         .filter(|prop| prop.kind.is_perch())
+        .filter(|prop| prop.top() - at[1] > 0.6 && prop.top() - at[1] <= highest)
         .min_by(|a, b| a.distance_to(at).total_cmp(&b.distance_to(at)))
 }
 
@@ -1140,6 +1551,8 @@ mod tests {
             props: &[],
             tokens: &[],
             motes: &[],
+            shelves: &[],
+            floor: 1.6,
             rng,
         }
     }
@@ -1157,6 +1570,8 @@ mod tests {
             input_age: age,
             page: [page.width(), page.rows as f32],
             props: &page.props,
+            shelves: &page.shelves,
+            floor: page.floor(),
             tokens: &page.tokens,
             motes: &page.motes,
             rng,
@@ -1260,14 +1675,18 @@ mod tests {
     fn it_follows_the_pointer_when_it_moves() {
         let mut rng = Rng::new(3);
         let mut kitten = Kitten::new(10.0, 20.0);
+        // Up to the moment she gets there: what she does next is another mood, and
+        // a test that read the mood at an arbitrary second would be reading the
+        // generator, not the following.
+        let mut closest = f32::MAX;
         for _ in 0..(120 * 3) {
             kitten.think(
                 1.0 / 120.0,
                 &mut senses(&mut rng, Some([12.5, 20.0, 0.0]), 0.0),
             );
+            closest = closest.min((kitten.pos[0] - 12.5).abs());
         }
-        assert!(kitten.pos[0] > 11.0, "{:?}", kitten.pos);
-        assert!(matches!(kitten.mood, Mood::Follow | Mood::Bat | Mood::Sit | Mood::Groom));
+        assert!(closest < 1.0, "she never came within a cell of it: {closest}");
     }
 
     #[test]
@@ -1362,32 +1781,113 @@ mod tests {
         shook: bool,
         words_moved: bool,
         dust_thrown: bool,
+        jumped: bool,
+        knocked: bool,
+        washed: bool,
     }
 
     /// Runs the cat on a page for `seconds`, doing what the app does to it.
     fn live_for(page: &mut Page, kitten: &mut Kitten, rng: &mut Rng, seconds: f32) -> Show {
         let mut show = Show::default();
         let dt = 1.0 / 60.0;
+        let mut characters = page.text.len();
         for _ in 0..(seconds / dt) as usize {
             let strike = {
                 let mut senses = senses_on(rng, page, None, 0.0);
                 kitten.think(dt, &mut senses)
             };
+            // A swing takes what is under it, a landing only shakes the page.
             if strike {
                 page.strike(kitten.paw(), rng);
+            } else if kitten.landed {
+                page.land(kitten.paw(), rng);
+            }
+            show.washed |= kitten.effect == Some(Effect::Lick);
+            match kitten.effect {
+                Some(Effect::Zzz) => page.float('z', 7, kitten.crown(), rng),
+                Some(Effect::Lick) => page.float('*', 5, kitten.muzzle(), rng),
+                None => {}
             }
             page.step_tokens(dt);
             page.step_motes(dt);
             page.step_props(dt);
+            page.step_floating(dt);
             *show.moods.entry(kitten.mood.name()).or_insert(0) += 1;
+            show.jumped |= kitten.airborne;
             show.shook |= page.props.iter().any(|prop| prop.wobble > 0.0);
             show.words_moved |= page.tokens.iter().any(|token| !token.rest);
             show.dust_thrown |= page
                 .motes
                 .iter()
                 .any(|mote| mote.vel[0].hypot(mote.vel[1]) > 0.5);
+            show.knocked |= page.text.len() < characters;
+            characters = page.text.len();
         }
         show
+    }
+
+    #[test]
+    fn she_gathers_herself_before_the_next_jump() {
+        // Land, crouch, spring: a cat that left the ground on the frame it landed
+        // would be a cat bouncing.
+        let page = page();
+        let mut rng = Rng::new(55);
+        let shelf = *page
+            .shelves
+            .iter()
+            .find(|shelf| {
+                shelf.y > page.floor() + 1.0 && shelf.y < page.floor() + CLIMB
+            })
+            .expect("a line within a bound");
+        let x = shelf.nearest_point(page.width() * 0.5);
+        let mut kitten = Kitten::new(x, page.floor());
+        kitten.mood = Mood::Perch;
+        kitten.arrived = false;
+        kitten.patience = 8.0;
+        kitten.target = [x, shelf.y, 0.0];
+        kitten.next_leap = 0.25;
+        for _ in 0..6 {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+        }
+        assert!(!kitten.airborne, "she left the ground while gathering herself");
+        for _ in 0..(120 * 2) {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+            if kitten.airborne {
+                return;
+            }
+        }
+        panic!("she never jumped once she was ready");
+    }
+
+    #[test]
+    fn she_does_not_jump_at_a_line_that_is_not_there_any_more() {
+        // The paw takes a line apart where it lands, so the place she was going can
+        // be a hole by the time she stands under it. Jumping at the hole again is
+        // bouncing in place, which is what this is here to stop.
+        let mut page = page();
+        let mut rng = Rng::new(56);
+        let mut hole = None;
+        for y in [18.0, 22.0, 26.0, 30.0] {
+            for x in [8.0, page.width() * 0.5, page.width() - 6.0] {
+                if page.surface(x, y + 0.05) < y - 1.0 {
+                    hole = Some([x, y, 0.0]);
+                }
+            }
+        }
+        let hole = hole.expect("a stretch of the page with nothing on it");
+        let mut kitten = Kitten::new(hole[0], page.floor());
+        kitten.mood = Mood::Perch;
+        kitten.arrived = false;
+        kitten.patience = 20.0;
+        kitten.target = hole;
+        for _ in 0..(120 * 4) {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+            assert!(!kitten.airborne, "she jumped at a hole at {hole:?}");
+            page.step_tokens(1.0 / 120.0);
+        }
     }
 
     #[test]
@@ -1408,21 +1908,31 @@ mod tests {
         assert!(show.shook, "the furniture was never touched");
         assert!(show.words_moved, "no word was ever batted");
         assert!(show.dust_thrown, "no dust was ever thrown");
+        assert!(show.jumped, "she never left the floor");
+        assert!(show.knocked, "the page lost nothing to her");
+        assert!(show.washed, "she never washed her face");
     }
 
     #[test]
     fn a_swat_is_aimed_at_the_furniture_and_lands_on_it() {
         let mut page = page();
         let mut rng = Rng::new(31);
-        let mut kitten = Kitten::new(40.0, 12.0);
+        let mut kitten = Kitten::new(40.0, page.floor());
         {
             let mut senses = senses_on(&mut rng, &page, None, 0.0);
             kitten.start(Mood::Swat, &mut senses);
         }
         assert_eq!(kitten.mood, Mood::Swat);
-        // The walk goes to the thing, not to where it happened to be standing.
+        // The walk goes to the thing, not to where it happened to be standing: to
+        // the side of it, because the paw is what reaches and the cat is not a paw.
         let prop = nearest_prop(&page.props, kitten.pos).expect("furniture");
-        assert_eq!(kitten.target[0], prop.pos[0]);
+        let half = prop.size[0] * GLYPH_WIDTH * 0.5;
+        assert!(
+            (kitten.target[0] - prop.pos[0]).abs() > half
+                && (kitten.target[0] - prop.pos[0]).abs() < half + 1.6,
+            "{:?} against a box of half width {half}",
+            kitten.target
+        );
         let mut struck = false;
         for _ in 0..(120 * 6) {
             let strike = {
@@ -1445,28 +1955,188 @@ mod tests {
         let page = page();
         let mut rng = Rng::new(32);
         let mut kitten = Kitten::new(10.0, 8.0);
-        let perch = nearest_perch(&page.props, kitten.pos)
+        let perch = nearest_perch(&page.props, kitten.pos, f32::MAX)
             .expect("somewhere to sit")
             .clone();
+        // Her paws one bound under the top: what this test is about is the climb,
+        // not how she crossed the whole page to get under it.
+        kitten.pos = [perch.pos[0], perch.top() - 4.0, 0.0];
         {
-            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            // Nothing to jump on but the furniture: on a page with lines in reach
+            // she would take the next line up instead, which is the other test.
+            let mut senses = Senses {
+                shelves: &[],
+                ..senses_on(&mut rng, &page, None, 0.0)
+            };
             kitten.start(Mood::Perch, &mut senses);
         }
+        let mut jumped = false;
         for _ in 0..(120 * 8) {
             let mut senses = senses_on(&mut rng, &page, None, 0.0);
             kitten.think(1.0 / 120.0, &mut senses);
+            jumped |= kitten.airborne;
             if kitten.mood != Mood::Perch {
                 break;
             }
         }
+        assert!(jumped, "she got onto the table without leaving the floor");
         // She is on the top edge of it, and folded up the way a sitting cat is.
         assert!(
-            (kitten.pos[1] - (perch.top() - 0.1)).abs() < 0.35,
+            (kitten.pos[1] - perch.top()).abs() < 0.35,
             "{:?} against a top of {}",
             kitten.pos,
             perch.top()
         );
         assert!(kitten.sit > 0.5, "{}", kitten.sit);
+    }
+
+    #[test]
+    fn it_jumps_onto_a_line_of_code_and_sits_on_it() {
+        let page = page();
+        let mut rng = Rng::new(41);
+        // Started on the lowest long line, because a cat on the rug is under the
+        // first line of code by more than a bound, and this is about the bound.
+        let lowest = page
+            .shelves
+            .iter()
+            .filter(|shelf| shelf.span[1] - shelf.span[0] > 2.0)
+            .min_by(|a, b| a.y.total_cmp(&b.y))
+            .expect("a line of code");
+        let mut kitten = Kitten::new((lowest.span[0] + lowest.span[1]) * 0.5, lowest.y);
+        {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.start(Mood::Perch, &mut senses);
+        }
+        let aim = kitten.target;
+        assert!(aim[1] > lowest.y + 0.5, "{aim:?} was not above her");
+        let mut jumped = false;
+        for _ in 0..(120 * 8) {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+            jumped |= kitten.airborne;
+            if kitten.mood != Mood::Perch {
+                break;
+            }
+        }
+        assert!(jumped, "she never left the floor");
+        // On the line, not through it, and looking like a cat that got up there.
+        assert!(
+            (kitten.pos[1] - aim[1]).abs() < 0.2,
+            "{:?} against {aim:?}",
+            kitten.pos
+        );
+        assert!(kitten.sit > 0.5, "{}", kitten.sit);
+    }
+
+    #[test]
+    fn it_steps_off_the_end_of_a_line_and_drops_to_the_one_below() {
+        let page = page();
+        let mut rng = Rng::new(42);
+        let shelf = *page
+            .shelves
+            .iter()
+            .find(|shelf| shelf.y > page.floor() + 3.0 && shelf.span[1] < page.width() - 6.0)
+            .expect("a line with an edge");
+        let mut kitten = Kitten::new(shelf.span[0] + 1.0, shelf.y);
+        // Something to walk to beyond the end of the line she is on: gravity is
+        // what takes her down, not a decision.
+        kitten.mood = Mood::Wander;
+        kitten.timer = 3.0;
+        kitten.target = [shelf.span[1] + 4.0, page.floor(), 0.0];
+        let mut fell = false;
+        for _ in 0..(120 * 4) {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+            fell |= kitten.landed;
+        }
+        assert!(fell, "she walked off the line and stayed in the air");
+        assert!(
+            kitten.pos[1] < shelf.y - 0.5,
+            "{:?} never left a line at {}",
+            kitten.pos,
+            shelf.y
+        );
+        let surface = page.surface(kitten.pos[0], kitten.pos[1] + 0.01);
+        assert!(
+            (kitten.pos[1] - surface).abs() < 0.05,
+            "{:?} is not standing on the page at {surface}",
+            kitten.pos
+        );
+    }
+
+    #[test]
+    fn a_sleeping_cat_puts_a_zzz_over_its_head() {
+        let page = page();
+        let mut rng = Rng::new(43);
+        let mut kitten = Kitten::new(20.0, page.floor());
+        let mut seen = false;
+        for _ in 0..(120 * 6) {
+            let mut senses = senses_on(&mut rng, &page, None, SLEEP_AFTER + 1.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+            seen |= kitten.effect == Some(Effect::Zzz);
+        }
+        assert_eq!(kitten.mood, Mood::Sleep);
+        assert!(seen, "she slept without a Zzz");
+        // A sleeping cat is a loaf, so the glyph comes off the top of the loaf
+        // rather than off the top of the cat she was standing up.
+        assert!(
+            kitten.crown()[1] > kitten.pos[1] + 0.5,
+            "{:?} off {:?}",
+            kitten.crown(),
+            kitten.pos
+        );
+    }
+
+    #[test]
+    fn washing_puts_a_paw_in_front_of_its_face() {
+        let page = page();
+        let mut rng = Rng::new(44);
+        let mut kitten = Kitten::new(20.0, page.floor());
+        {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.start(Mood::Clean, &mut senses);
+        }
+        let mut licked = false;
+        for _ in 0..(120 * 3) {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+            licked |= kitten.effect == Some(Effect::Lick);
+        }
+        assert!(kitten.sit > 0.5, "she washed standing up: {}", kitten.sit);
+        assert!(licked, "nothing came off the paw");
+        // A box in front of the muzzle, which is the paw.
+        let muzzle = kitten.muzzle();
+        let paw = kitten
+            .blocks()
+            .into_iter()
+            .filter(|block| block.shade == Shade::FurLight)
+            .any(|block| {
+                block.pos[2] > muzzle[2] - 0.2
+                    && (block.pos[1] - muzzle[1]).abs() < 0.4
+                    && (block.pos[0] - muzzle[0]).abs() < 0.3
+            });
+        assert!(paw, "no paw at the face");
+    }
+
+    #[test]
+    fn it_does_not_swat_the_furniture_it_is_standing_on() {
+        let page = page();
+        let mut rng = Rng::new(45);
+        let perch = page
+            .props
+            .iter()
+            .find(|prop| prop.kind.is_perch())
+            .expect("a table")
+            .clone();
+        let mut kitten = Kitten::new(perch.pos[0], perch.top());
+        {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.start(Mood::Swat, &mut senses);
+        }
+        let her_own = (kitten.target[0] - perch.pos[0]).abs()
+            < perch.size[0] * GLYPH_WIDTH * 0.5 + 1.6
+            && (kitten.target[1] - perch.pos[1]).abs() < perch.size[1];
+        assert!(!her_own, "she went for the table she was on: {:?}", kitten.target);
     }
 
     #[test]

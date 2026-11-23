@@ -18,11 +18,21 @@
 //! bookkeeping, so it can be tested without a window: [`Page::strike`] is the whole
 //! vocabulary of a paw landing.
 //!
+//! Underneath all of it the page has ledges. Every run of code on a row is a
+//! [`Shelf`] with a top edge, the rug is the floor, and the furniture's top is a
+//! ledge of its own; a word knocked off a line falls to the nearest ledge under it
+//! and stays there. That is how the page has gravity without turning into a heap
+//! of letters along the bottom: the lines catch what falls. And a paw that lands
+//! on a line takes characters out of it -- [`Page::knock_out`] lifts them into
+//! tokens -- so the cat leaves gaps in the code she has been playing in.
+//!
 //! Coordinates: one unit is one line of text. `x` runs right from the left edge,
 //! `y` runs up the page from the bottom edge, and `z` comes out of the page towards
 //! the reader, which is where the kitten's boxes and a lifted token live. Row 0 is
 //! the top of the page, so a cell at row `r` has its centre at
 //! `y = rows - r - 0.5`.
+
+use std::collections::BTreeMap;
 
 use super::corpus::Flavour;
 use super::{Card, CardKind, Rng};
@@ -40,6 +50,12 @@ const GUTTER: u32 = 4;
 const RUG_ROWS: u32 = 5;
 /// The rows a piece of furniture needs under it, so nothing stands on the rug.
 const FLOOR_MARGIN: u32 = RUG_ROWS + 1;
+/// The height of the floor, in cells: the last line above the app's label.
+///
+/// The rug is the floor of the room, scattered with the punctuation the page is
+/// not using, so the floor is under the rug rather than on top of it: the cat walks
+/// in it and the words land in it.
+const FLOOR: f32 = (LABEL_ROWS + 1) as f32;
 /// How many rows at the bottom are left to the app's own label.
 ///
 /// The label is drawn by the text renderer in screen space, so the page keeps the
@@ -56,11 +72,30 @@ const MAX_SPEED: f32 = 14.0;
 /// The fastest a batted token may spin.
 const MAX_SPIN: f32 = 16.0;
 /// How fast a token loses its speed to the page, per second.
-///
-/// The page has no gravity: a word the kitten bats slides away, turns, and
-/// stops where the friction leaves it. A page that pulled its own letters down
-/// would be a page with a floor, and this one is a sheet of paper seen head on.
 const DRAG: f32 = 1.6;
+
+/// How hard the page pulls, in cells per second squared.
+///
+/// Words and cat share the number: a page whose letters fall faster than its
+/// kitten is a page drawn at two scales.
+pub const GRAVITY: f32 = 26.0;
+/// What a word keeps of its fall when it hits a ledge.
+///
+/// Small, because paper on paper does not bounce; enough that a word knocked off
+/// a line gives a hop when it lands, which is how a fall reads as a fall.
+const BOUNCE: f32 = 0.22;
+/// The most loose words a page will carry. A cat left alone all afternoon takes
+/// the page apart one glyph at a time; the oldest word goes rather than the
+/// newest, so what is left is what she has just been doing.
+const MAX_TOKENS: usize = 48;
+/// The most glyphs a page will float at once: Zzz above a sleeping cat, and the
+/// sparkles of one washing itself.
+const MAX_FLOATING: usize = 32;
+/// How close a paw has to be to a character to pull it out of the line, in cells.
+const KNOCK: [f32; 2] = [2.2, 1.1];
+/// Two runs of glyphs with a gap no wider than this are one shelf, so a line with
+/// a space in it is a line to stand on rather than two.
+const SHELF_GAP: f32 = 2.6;
 
 /// One loose token: a word the kitten can knock about.
 #[derive(Debug, Clone, PartialEq)]
@@ -134,6 +169,55 @@ pub struct Mote {
     pub life: f32,
 }
 
+/// One ledge: a run of code on a row, seen as something to stand on.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Shelf {
+    /// The row whose top edge this is.
+    pub row: u32,
+    /// Where its top edge is, in cells.
+    pub y: f32,
+    /// Left and right edge across the page, in cells.
+    pub span: [f32; 2],
+}
+
+impl Shelf {
+    /// Whether `x` is over this ledge.
+    pub fn covers(&self, x: f32) -> bool {
+        x >= self.span[0] && x <= self.span[1]
+    }
+
+    /// The point on it closest to `x`, which is where a cat would land.
+    pub fn nearest_point(&self, x: f32) -> f32 {
+        x.clamp(self.span[0], self.span[1])
+    }
+}
+
+/// A glyph the page is holding up for a moment: the Zzz of a sleeping cat, or a
+/// sparkle off one washing itself.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Floating {
+    pub ch: char,
+    pub style: u8,
+    /// Centre, in cells.
+    pub pos: [f32; 3],
+    /// Drift, in cells per second.
+    pub vel: [f32; 2],
+    /// Seconds it has been up, and seconds it lasts.
+    pub age: f32,
+    pub life: f32,
+    /// Size, in cells.
+    pub size: f32,
+}
+
+impl Floating {
+    /// How solid it is: it arrives and leaves, so it is not a thing that pops.
+    pub fn alpha(&self) -> f32 {
+        let in_at = (self.age * 6.0).min(1.0);
+        let out = (1.0 - self.age / self.life).clamp(0.0, 1.0);
+        in_at * out
+    }
+}
+
 /// What one page is made of.
 #[derive(Debug, Clone)]
 pub struct Page {
@@ -149,10 +233,14 @@ pub struct Page {
     pub text: Vec<Card>,
     /// The furniture, each with the box it stands in.
     pub props: Vec<Prop>,
+    /// The ledges: every run of code on a row, highest row first.
+    pub shelves: Vec<Shelf>,
     /// Loose tokens.
     pub tokens: Vec<Token>,
     /// Dust.
     pub motes: Vec<Mote>,
+    /// Glyphs the kitten raises for a moment: Zzz, sparkles.
+    pub floating: Vec<Floating>,
 }
 
 impl Page {
@@ -231,7 +319,14 @@ impl Page {
             }
         }
 
-        let tokens = loose_tokens(&mut rng, flavour, columns, rows);
+        let shelves = shelves_from(&text, columns, rows, body);
+        let mut tokens = loose_tokens(&mut rng, flavour, columns, rows);
+        // A word starts where the page would have let it fall: on the ledge under
+        // it. Words hanging in the air over a page with gravity on it would be a
+        // page with the gravity switched off.
+        for token in &mut tokens {
+            token.pos[1] = surface_from(&shelves, &props, FLOOR, token.pos[0], token.pos[1]);
+        }
         let motes = (0..40)
             .map(|index| Mote {
                 pos: [
@@ -255,8 +350,10 @@ impl Page {
             rows,
             text,
             props,
+            shelves,
             tokens,
             motes,
+            floating: Vec::new(),
         }
     }
 
@@ -270,30 +367,61 @@ impl Page {
         format!("{} · page {}", self.flavour.name(), self.index + 1)
     }
 
+    /// The floor of the page, which is where a word comes to rest when there is no
+    /// line under it.
+    pub fn floor(&self) -> f32 {
+        FLOOR
+    }
+
+    /// The height of the highest ledge under `x` that is no higher than `from`:
+    /// a line of code, the top of a table, or the rug.
+    pub fn surface(&self, x: f32, from: f32) -> f32 {
+        surface_from(&self.shelves, &self.props, self.floor(), x, from)
+    }
+
     /// Moves every loose token by `dt` seconds.
     ///
     /// Fixed steps are the caller's job: one step of `1/120` and one of `1/60` are
     /// not the same integration, and a jump of half a second -- which a loaded
     /// machine will produce -- would send a token off the page.
+    ///
+    /// The page pulls sideways with friction and down with gravity, and a token
+    /// stops falling when it reaches the ledge under it. That is the whole of the
+    /// floor: no token ever comes to rest in the air, and none of them lands
+    /// anywhere the page does not have a surface.
     pub fn step_tokens(&mut self, dt: f32) {
         let width = self.width();
         let top = self.rows as f32;
+        let floor = self.floor();
+        let shelves = &self.shelves;
+        let props = &self.props;
         for token in &mut self.tokens {
             if token.rest {
                 continue;
             }
+            let ground = surface_from(shelves, props, floor, token.pos[0], token.pos[1]);
             token.pos[0] += token.vel[0] * dt;
             token.pos[1] += token.vel[1] * dt;
             token.roll += token.spin * dt;
-            // Paper drag, not a floor: the word keeps going until it does not.
-            let keep = (1.0 - DRAG * dt).max(0.0);
-            token.vel[0] *= keep;
-            token.vel[1] *= keep;
+            token.vel[1] -= GRAVITY * dt;
+            // Paper drag sideways, and only sideways: the fall is the page's.
+            token.vel[0] *= (1.0 - DRAG * dt).max(0.0);
             token.spin *= (1.0 - 2.4 * dt).max(0.0);
+            // A word that has hit a ledge hops a little and stays there.
+            if token.pos[1] <= ground {
+                token.pos[1] = ground;
+                if token.vel[1] < -0.4 {
+                    token.vel[1] = -token.vel[1] * BOUNCE;
+                    token.vel[0] *= 0.7;
+                } else {
+                    token.vel[1] = 0.0;
+                }
+            }
             // A sliding token settles flat as it slows: a card that stops standing
             // on its edge looks broken.
             token.pitch += (0.0 - token.pitch) * 3.0 * dt;
-            if token.vel[0].hypot(token.vel[1]) < 0.06 && token.spin.abs() < 0.3 {
+            let landed = (token.pos[1] - ground).abs() < 0.01 && token.vel[1].abs() < 0.5;
+            if landed && token.vel[0].abs() < 0.08 && token.spin.abs() < 0.3 {
                 token.vel = [0.0, 0.0];
                 token.spin = 0.0;
                 token.pitch = 0.0;
@@ -310,16 +438,122 @@ impl Page {
                 token.pos[0] = width - half;
                 token.vel[0] = -token.vel[0].abs() * 0.4;
             }
-            let low = TOKEN_RADIUS;
-            if token.pos[1] < low {
-                token.pos[1] = low;
-                token.vel[1] = token.vel[1].abs() * 0.4;
-            }
-            if token.pos[1] > top - low {
-                token.pos[1] = top - low;
+            if token.pos[1] > top - TOKEN_RADIUS {
+                token.pos[1] = top - TOKEN_RADIUS;
                 token.vel[1] = -token.vel[1].abs() * 0.4;
             }
         }
+    }
+
+    /// Takes the characters a paw landed on out of the page, and lets them fall.
+    ///
+    /// They come back as tokens with the colours they had on the line, one per run
+    /// of characters that stood next to each other, so a knocked-out piece still
+    /// spells something. The page is left with a gap where they were, which is the
+    /// only way a page can show that a cat has been on it.
+    pub fn knock_out(&mut self, at: [f32; 3], rng: &mut Rng) -> usize {
+        let mut lifted: Vec<Card> = Vec::new();
+        self.text.retain(|card| {
+            let near = card.alpha >= 0.9
+                && card.pos[0] > GUTTER as f32 * GLYPH_WIDTH
+                && (card.pos[0] - at[0]).abs() <= KNOCK[0]
+                && (card.pos[1] - at[1]).abs() <= KNOCK[1];
+            if near {
+                lifted.push(*card);
+            }
+            !near
+        });
+        if lifted.is_empty() {
+            return 0;
+        }
+        // The paw is taller than a line and lands between two of them, so what it
+        // takes can be the ends of two different lines. A word knocked off a page
+        // is still a word: the characters are gathered one line at a time and the
+        // longest run under the paw is the one that comes loose.
+        let mut lines: BTreeMap<i32, Vec<Card>> = BTreeMap::new();
+        for card in lifted {
+            let row = (self.rows as f32 - card.pos[1] - 0.5).round() as i32;
+            lines.entry(row).or_default().push(card);
+        }
+        let mut best: Option<Vec<Card>> = None;
+        for (_, mut line) in lines {
+            line.sort_by(|a, b| a.pos[0].total_cmp(&b.pos[0]));
+            let mut runs: Vec<Vec<Card>> = Vec::new();
+            for card in line {
+                let joined = runs.last().is_some_and(|run| {
+                    run.last()
+                        .is_some_and(|last| card.pos[0] - last.pos[0] <= GLYPH_WIDTH * 1.5)
+                });
+                if joined {
+                    runs.last_mut().expect("the run was just checked").push(card);
+                } else {
+                    runs.push(vec![card]);
+                }
+            }
+            for run in runs {
+                if best.as_ref().is_none_or(|kept| run.len() > kept.len()) {
+                    best = Some(run);
+                }
+            }
+        }
+        let made = usize::from(best.is_some());
+        // One piece per paw, not the whole line: a page that lost a line every time
+        // a cat looked at it would be a page with nothing left to read.
+        if let Some(run) = best {
+            let first = run[0].pos[0];
+            let last = run[run.len() - 1].pos[0];
+            self.tokens.push(Token {
+                text: run.iter().map(|card| card.ch).collect(),
+                styles: run.iter().map(|card| card.style).collect(),
+                pos: [(first + last) * 0.5, run[0].pos[1], 0.35],
+                vel: [rng.range(-1.4, 1.4), rng.range(1.0, 3.2)],
+                roll: rng.range(-0.4, 0.4),
+                pitch: 0.0,
+                spin: rng.range(-3.0, 3.0),
+                rest: false,
+            });
+        }
+        // The page is not a shredder: past a few dozen loose words the oldest one
+        // goes, so what is left is what the cat has just been doing.
+        while self.tokens.len() > MAX_TOKENS {
+            self.tokens.remove(0);
+        }
+        self.refresh_shelves();
+        made
+    }
+
+    /// Lays the ledges out again, which a page needs after a paw took a line apart.
+    pub fn refresh_shelves(&mut self) {
+        let body = self.rows.saturating_sub(LABEL_ROWS).max(8);
+        self.shelves = shelves_from(&self.text, self.columns, self.rows, body);
+    }
+
+    /// Raises a glyph off the page for a moment: the Zzz of a sleeping cat, or a
+    /// sparkle off one washing itself.
+    pub fn float(&mut self, ch: char, style: u8, at: [f32; 3], rng: &mut Rng) {
+        if self.floating.len() >= MAX_FLOATING {
+            self.floating.remove(0);
+        }
+        self.floating.push(Floating {
+            ch,
+            style,
+            pos: at,
+            vel: [rng.range(-0.1, 0.5), rng.range(0.7, 1.3)],
+            age: 0.0,
+            life: rng.range(1.6, 2.4),
+            size: 0.85,
+        });
+    }
+
+    /// Ages the floating glyphs and lets them drift.
+    pub fn step_floating(&mut self, dt: f32) {
+        for glyph in &mut self.floating {
+            glyph.age += dt;
+            glyph.pos[0] += glyph.vel[0] * dt;
+            glyph.pos[1] += glyph.vel[1] * dt;
+            glyph.vel[1] *= (1.0 - 0.5 * dt).max(0.0);
+        }
+        self.floating.retain(|glyph| glyph.age < glyph.life);
     }
 
     /// Pushes a token near `at` away from the kitten, and the dust with it.
@@ -396,14 +630,27 @@ impl Page {
     }
 
     /// Everything a paw landing at `at` does to the page: a word goes flying, the
-    /// furniture shakes, the dust is thrown and new dust is raised.
+    /// furniture shakes, the dust is thrown, new dust is raised and the characters
+    /// under the paw come out of the line.
     ///
-    /// One method rather than four calls from the caller, so the consequences of a
+    /// One method rather than five calls from the caller, so the consequences of a
     /// strike are in one place and a test can assert them together.
     pub fn strike(&mut self, at: [f32; 3], rng: &mut Rng) {
         self.bat(at, 1.7, 6.0);
         self.bump(at, 1.2, 1.0);
         self.puff(at, 4, rng);
+        self.knock_out(at, rng);
+    }
+
+    /// A landing: the same dust and the same shake, and nothing taken.
+    ///
+    /// A paw that swings takes what is under it, but a cat that came down on a line
+    /// would take the line out from under itself, and a page of ledges a cat cannot
+    /// stand on is a page with no ledges. What falls off a line falls to a paw, not
+    /// to a landing.
+    pub fn land(&mut self, at: [f32; 3], rng: &mut Rng) {
+        self.bump(at, 1.2, 1.0);
+        self.puff(at, 3, rng);
     }
 
     /// Lets the furniture's shaking decay, and moves it on.
@@ -521,6 +768,97 @@ impl Prop {
             });
         }
     }
+}
+
+/// The height of the highest ledge under a point at `x`, no higher than `from`.
+///
+/// A free function rather than a method because the caller is usually holding a
+/// mutable borrow of something else on the page: a falling word is asking what is
+/// under it while it is being moved.
+pub(crate) fn surface_from(shelves: &[Shelf], props: &[Prop], floor: f32, x: f32, from: f32) -> f32 {
+    let mut best = floor;
+    for shelf in shelves {
+        if shelf.covers(x) && shelf.y <= from + 0.05 && shelf.y > best {
+            best = shelf.y;
+        }
+    }
+    for prop in props {
+        // Only a flat top catches anything: a word does not come to rest on a
+        // lamp's shade.
+        if !prop.kind.is_perch() {
+            continue;
+        }
+        let half = prop.size[0] * GLYPH_WIDTH * 0.5;
+        let top = prop.top();
+        if (x - prop.pos[0]).abs() <= half && top <= from + 0.05 && top > best {
+            best = top;
+        }
+    }
+    best
+}
+
+/// Every run of code on the page, seen as a ledge.
+///
+/// The gutter is a margin and the rug is the floor, so neither is a ledge: what a
+/// cat can stand on is what the code printed. Runs are merged across the spaces
+/// inside a line, because a line with a gap in it is still a line to walk along.
+fn shelves_from(text: &[Card], columns: u32, rows: u32, body: u32) -> Vec<Shelf> {
+    let mut solid = vec![false; (columns * rows) as usize];
+    for card in text {
+        if card.alpha < 0.9 || card.pos[0] < GUTTER as f32 * GLYPH_WIDTH {
+            continue;
+        }
+        let column = (card.pos[0] / GLYPH_WIDTH).floor();
+        let row = (rows as f32 - card.pos[1] - 0.5).round();
+        if column < 0.0 || row < 0.0 || column >= columns as f32 || row >= rows as f32 {
+            continue;
+        }
+        solid[(row as u32 * columns + column as u32) as usize] = true;
+    }
+    let code = body.saturating_sub(RUG_ROWS);
+    let mut out = Vec::new();
+    for row in 0..code {
+        let mut run: Option<[u32; 2]> = None;
+        for column in 0..columns {
+            if solid[(row * columns + column) as usize] {
+                match &mut run {
+                    Some(span) if (column - span[1]) as f32 * GLYPH_WIDTH <= SHELF_GAP => {
+                        span[1] = column;
+                    }
+                    Some(span) => {
+                        push_shelf(&mut out, row, rows, span[0], span[1]);
+                        run = Some([column, column]);
+                    }
+                    None => run = Some([column, column]),
+                }
+                continue;
+            }
+            if let Some(span) = run {
+                if (column - span[1]) as f32 * GLYPH_WIDTH > SHELF_GAP {
+                    push_shelf(&mut out, row, rows, span[0], span[1]);
+                    run = None;
+                }
+            }
+        }
+        if let Some(span) = run {
+            push_shelf(&mut out, row, rows, span[0], span[1]);
+        }
+    }
+    out
+}
+
+/// Adds the ledge a run of cells makes, if it is wide enough to land on.
+fn push_shelf(out: &mut Vec<Shelf>, row: u32, rows: u32, from: u32, to: u32) {
+    // One character is not a ledge: a cat that landed on it would be a cat
+    // standing on a comma.
+    if to <= from {
+        return;
+    }
+    out.push(Shelf {
+        row,
+        y: rows as f32 - row as f32,
+        span: [from as f32 * GLYPH_WIDTH, (to + 1) as f32 * GLYPH_WIDTH],
+    });
 }
 
 /// One character of the page, placed on the grid.
@@ -846,6 +1184,88 @@ mod tests {
             page.step_motes(1.0 / 120.0);
         }
         assert_eq!(page.motes.len(), before);
+    }
+
+    #[test]
+    fn a_paw_on_a_line_takes_characters_out_of_it() {
+        let mut page = page();
+        let mut rng = Rng::new(0xBEEF);
+        let shelf = *page.shelves.iter().find(|shelf| shelf.row > 10).expect("a line");
+        let before = page.text.len();
+        let made = page.knock_out([shelf.nearest_point(40.0), shelf.y + 0.4, 0.0], &mut rng);
+        assert!(made > 0, "nothing came out of the line");
+        assert!(page.text.len() < before, "the page kept its characters");
+        // What came out is a word, in the air, on its way down.
+        let lifted = page.tokens.last().expect("a word");
+        assert!(!lifted.rest, "{lifted:?}");
+        assert!(!lifted.text.is_empty(), "{lifted:?}");
+    }
+
+    #[test]
+    fn a_paw_between_two_lines_takes_one_word_not_two() {
+        // The paw is taller than a line, so it comes down on the gap and reaches
+        // into both of them. What comes loose is one run off one line: two lines
+        // shuffled together would not be a word.
+        let mut page = page();
+        let mut rng = Rng::new(0x5A17);
+        let mut pair = None;
+        for above in &page.shelves {
+            for below in &page.shelves {
+                let overlap =
+                    above.span[1].min(below.span[1]) - above.span[0].max(below.span[0]);
+                if (above.y - below.y - 1.0).abs() < 0.01 && overlap > 4.0 {
+                    pair = Some((*above, *below));
+                }
+            }
+        }
+        let (above, below) = pair.expect("two lines a row apart");
+        let x = (above.span[0].max(below.span[0]) + above.span[1].min(below.span[1])) * 0.5;
+        let mut lines: Vec<String> = Vec::new();
+        for row in [above.row, below.row] {
+            let mut cards: Vec<&Card> = page
+                .text
+                .iter()
+                .filter(|card| {
+                    (card.pos[0] - x).abs() <= KNOCK[0]
+                        && (page.rows as f32 - card.pos[1] - 0.5).round() as u32 == row
+                })
+                .collect();
+            cards.sort_by(|a, b| a.pos[0].total_cmp(&b.pos[0]));
+            lines.push(cards.iter().map(|card| card.ch).collect());
+        }
+        assert!(page.knock_out([x, (above.y + below.y) * 0.5, 0.0], &mut rng) > 0);
+        let word = page.tokens.last().expect("a word");
+        let text: String = word.text.iter().collect();
+        assert!(
+            lines.iter().any(|line| line.contains(&text)),
+            "{text:?} came off {lines:?}"
+        );
+    }
+
+    #[test]
+    fn a_word_knocked_off_a_line_falls_to_the_one_below() {
+        let mut page = page();
+        let mut rng = Rng::new(0x1234);
+        let shelf = *page
+            .shelves
+            .iter()
+            .find(|shelf| shelf.y > 12.0)
+            .expect("a line high enough to fall from");
+        let at = [shelf.nearest_point(40.0), shelf.y + 0.4, 0.0];
+        page.knock_out(at, &mut rng);
+        let start = page.tokens.last().expect("a word").pos[1];
+        assert!(start > 10.0, "{start}");
+        for _ in 0..(120 * 4) {
+            page.step_tokens(1.0 / 120.0);
+        }
+        let word = page.tokens.last().expect("a word");
+        let ground = page.surface(word.pos[0], word.pos[1] + 0.01);
+        assert!(word.pos[1] < start, "it did not fall: {} then {}", start, word.pos[1]);
+        assert!(
+            (word.pos[1] - ground).abs() < 0.05,
+            "it came to rest in the air at {} with the page at {ground}",
+            word.pos[1]
+        );
     }
 
     #[test]
