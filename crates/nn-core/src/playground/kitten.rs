@@ -85,6 +85,33 @@ const CLAW_EVERY: f32 = 0.9;
 /// and then it is not a climb any more. Where the page above her column runs out, the
 /// ascent has run out with it.
 const REACH: f32 = 3.0;
+/// How far across the page one leg of a swoop goes, in cells.
+///
+/// The page is sixty-six of them wide and the wall of furniture is against its right
+/// edge, so a leg of twenty-four crosses a third of the page: from the top of the wall to
+/// the far end of the code, and then again, and then again. Longer than this and one jump
+/// is the whole page and the trail behind it is a straight line rather than an arc; much
+/// shorter and it is a hop with a rainbow on it.
+const SWOOP_LEG: f32 = 24.0;
+/// How far across a leg has to go to be worth taking, in cells.
+///
+/// A swoop that landed where it took off would be a cat bouncing. Under this there is
+/// nothing left to the left worth leaving the ground for, and the mood has run out.
+const SWOOP_MIN: f32 = 7.0;
+/// How far below her a leg may land, in cells.
+///
+/// A swoop is the way down as well as across: every leg is a few lines lower than the one
+/// before, so a cat at the top of the wall comes down the page in three bounds. Any
+/// further than this and the leg is a fall with a jump drawn on it.
+const SWOOP_DROP: f32 = 9.0;
+/// How long a swoop is in the air for, in seconds, and how much each cell across adds.
+///
+/// A jump is timed by its height and takes four tenths of a second; a swoop is timed by
+/// its length, because the thing worth looking at is the arc going past. A leg of
+/// twenty-four cells lasts the better part of a second, which is slow enough to follow
+/// the trail and fast enough to read as thrown.
+const SWOOP_TIME: f32 = 0.45;
+const SWOOP_PER_CELL: f32 = 0.02;
 
 /// What the kitten is doing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,6 +155,17 @@ pub enum Mood {
     /// covers it at the top of her speed, and the line she runs along comes apart
     /// behind her as she goes.
     Dash,
+    /// Down and across: the long leaps from the top of the wall of furniture to the
+    /// far side of the page, and the ones after them.
+    ///
+    /// The wall up the right of the page exists to be got up, and a cat that has got
+    /// up it is a cat with the whole width of the page in front of her and nothing
+    /// above. What she does with that is leave it: one bound per leg, each a few lines
+    /// lower than the last and as far across as one jump reaches, with the rainbow of
+    /// a jump behind every one of them. It ends where the page does -- there is no
+    /// further left to go -- and what she does there is land in the code and run along
+    /// it, which is the destruction the whole circuit is for.
+    Swoop,
 }
 
 impl Mood {
@@ -148,6 +186,7 @@ impl Mood {
             Mood::Zoomies => "zoomies",
             Mood::Climb => "climb",
             Mood::Dash => "dash",
+            Mood::Swoop => "swoop",
         }
     }
 }
@@ -358,6 +397,16 @@ impl Kitten {
         self.dashing() || (self.mood == Mood::Zoomies && self.speed > RUN)
     }
 
+    /// Whether she is in the middle of a swoop, which is the page's cue to make the
+    /// rainbow of a jump into the rainbow of a leap across the page.
+    ///
+    /// The mood rather than the air, because the two ends of a swoop matter as much as
+    /// its middle: it takes off with a crouch, and it comes down into the code with the
+    /// whole of the page's weight behind it.
+    pub fn swooping(&self) -> bool {
+        self.mood == Mood::Swoop
+    }
+
     /// Whether what she is doing rakes the line she runs along.
     ///
     /// Both of the fast moods do it. A lap is the same animal in the same hurry as a
@@ -478,6 +527,10 @@ impl Kitten {
         // a cat is not rested and restless at once.
         let change = match self.mood {
             Mood::Sit | Mood::Groom | Mood::Sleep => 0.05,
+            // A leap across the page is the most tiring thing there is, and it is where
+            // the mood goes afterwards that matters: a cat that has just flown the width
+            // of the paper wants a wash, not another flight.
+            Mood::Swoop => -0.18,
             Mood::Swat
             | Mood::Chase
             | Mood::Zoomies
@@ -494,8 +547,12 @@ impl Kitten {
         // The head follows her intention, and comes back to the reader when she
         // has none: a face turned away is a cat with no face.
         let want = match self.mood {
-            Mood::Follow | Mood::Pounce | Mood::Dash if self.target[0] > self.pos[0] => 0.34,
-            Mood::Follow | Mood::Pounce | Mood::Dash => -0.34,
+            Mood::Follow | Mood::Pounce | Mood::Dash | Mood::Swoop
+                if self.target[0] > self.pos[0] =>
+            {
+                0.34
+            }
+            Mood::Follow | Mood::Pounce | Mood::Dash | Mood::Swoop => -0.34,
             Mood::Sleep => 0.30,
             _ => 0.0,
         };
@@ -614,7 +671,37 @@ impl Kitten {
                         self.topped_said = true;
                         self.topped = true;
                     }
+                    // And then off it. The top of a climb is the one place on the page
+                    // where the whole of it is below her and to one side, so a cat that
+                    // has just got up there leaves it the long way.
+                    if self.swoop_target(senses).is_some() {
+                        self.start(Mood::Swoop, senses);
+                    }
                 }
+            },
+            // A swoop is a run of legs, not one leap: she is on her way to the far side
+            // of the page, and the clock does not run out between two of them.
+            Mood::Swoop if !self.arrived => {
+                if self.airborne {
+                    self.timer = self.timer.max(0.9);
+                } else if self.patience > 0.0 {
+                    self.patience -= dt;
+                    self.timer = self.timer.max(0.9);
+                }
+            }
+            // Paws down on the far side: another leg, further left and lower, or the run
+            // through what is left of the code.
+            Mood::Swoop => match self.swoop_target(senses) {
+                Some(next) => {
+                    self.target = next;
+                    self.arrived = false;
+                    self.patience = 10.0;
+                    self.timer = self.timer.max(1.2);
+                }
+                // Nowhere left to swoop to: the page has run out on that side. What a
+                // cat does with a landing is run, and what a run does to a page of code
+                // is take it apart.
+                None => self.start(Mood::Dash, senses),
             },
             Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase if !self.arrived => {
                 if self.airborne {
@@ -664,7 +751,7 @@ impl Kitten {
     /// the generator: what a cat wants after a dash is a fact about the cat, and a
     /// test should be able to ask about it rather than sample a distribution and
     /// hope.
-    fn weights(&self, senses: &Senses<'_>) -> [(Mood, usize); 11] {
+    fn weights(&self, senses: &Senses<'_>) -> [(Mood, usize); 12] {
         let props = !senses.props.is_empty();
         let motes = !senses.motes.is_empty();
         let tokens = !senses.tokens.is_empty();
@@ -687,7 +774,7 @@ impl Kitten {
         let on_a_perch = nearest_perch(senses.props, self.pos, f32::MAX)
             .map(|prop| (self.pos[1] - prop.top()).abs() < 1.2)
             .unwrap_or(false);
-        let mut weights: [(Mood, usize); 11] = [
+        let mut weights: [(Mood, usize); 12] = [
             (Mood::Wander, if idle { 5 } else { 3 }),
             (Mood::Sit, if spent { 8 } else if idle { 5 } else { 1 }),
             (Mood::Groom, if spent { 8 } else if idle { 2 } else { 1 }),
@@ -708,6 +795,13 @@ impl Kitten {
             // rather not, which is why the weight falls with the rest of her.
             (Mood::Climb, usize::from(above) * if idle { 3 } else { 12 }),
             (Mood::Bat, usize::from(tokens) * 3),
+            // Leaving the top of the page the long way. It is worth what the page below
+            // her is worth: a cat with the whole width of it under her feet and one leap
+            // after another in her is the middle of the circuit the wall is there for.
+            (
+                Mood::Swoop,
+                usize::from(self.swoop_target(senses).is_some()) * if idle { 1 } else { 7 },
+            ),
             // A dash is worth what there is to run past, because crossing an empty
             // margin takes her nowhere in particular. It is the most likely thing
             // on a full page for a cat with energy left, which is what makes the
@@ -765,7 +859,7 @@ impl Kitten {
         self.arrived = false;
         self.patience = if matches!(
             mood,
-            Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase | Mood::Climb
+            Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase | Mood::Climb | Mood::Swoop
         ) {
             10.0
         } else {
@@ -784,6 +878,8 @@ impl Kitten {
             // Only a floor: the clock is refreshed at every foothold, so what ends a
             // climb is the page running out and not this.
             Mood::Climb => 5.0 + senses.rng.range(0.0, 3.0),
+            // A run of legs, so only a floor: the clock is refreshed at every landing.
+            Mood::Swoop => 3.6 + senses.rng.range(0.0, 2.0),
             Mood::Dash => 2.2 + senses.rng.range(0.0, 1.4),
             Mood::Follow | Mood::Pounce | Mood::Sleep => 1.2,
         };
@@ -794,7 +890,7 @@ impl Kitten {
         // A mood that goes nowhere has already arrived.
         self.arrived = !matches!(
             mood,
-            Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase | Mood::Climb
+            Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase | Mood::Climb | Mood::Swoop
         );
         match mood {
             // Somewhere else on the page: a cat that walked to a point and stayed
@@ -853,6 +949,12 @@ impl Kitten {
                 Some(at) => self.target = at,
                 // Nothing over her head after all: a cat with no cliff to climb
                 // walks instead of gathering itself under the sky.
+                None => self.mood = Mood::Wander,
+            },
+            Mood::Swoop => match self.swoop_target(senses) {
+                Some(at) => self.target = at,
+                // No far side to leave it for: a cat in the corner of the page has
+                // nowhere to swoop to and wanders off instead.
                 None => self.mood = Mood::Wander,
             },
             _ => {}
@@ -1044,6 +1146,52 @@ impl Kitten {
         Some([(self.pos[0] + step).clamp(lo, hi), y, 0.0])
     }
 
+    /// Where a swoop goes: the far side of the page, a few lines down, on something she
+    /// can stand on.
+    ///
+    /// What it looks for is distance, and the page's own lines are the far side. The wall
+    /// of furniture is against the right edge and there is nothing to land on between it
+    /// and the code, so the far end of a line is the end of a leg; a cat that has come
+    /// down onto the left of the page has nowhere further left to swoop to, and that is
+    /// where the mood ends.
+    ///
+    /// The longest leap wins and, among equals, the least fall: a cat that has just
+    /// launched itself off the top of a bookshelf is not looking for somewhere to drop
+    /// to, she is looking for somewhere to arrive.
+    fn swoop_target(&self, senses: &Senses<'_>) -> Option<[f32; 3]> {
+        let (left, right, _bottom, _top) = room_to_walk(senses.page[0], senses.page[1]);
+        let mut best: Option<([f32; 3], f32)> = None;
+        for shelf in senses.shelves {
+            let drop = self.pos[1] - shelf.y;
+            if drop < 0.8 || drop > SWOOP_DROP {
+                continue;
+            }
+            let lo = shelf.span[0].max(left) + 0.4;
+            let hi = shelf.span[1].min(right) - 0.4;
+            if hi <= lo {
+                continue;
+            }
+            // As far as one leg reaches, or the end of the line if that is nearer. The end
+            // of a line is where most legs come down, because that is where the code stops
+            // and a swoop is a leap from one edge of the writing to the other.
+            let x = (self.pos[0] - SWOOP_LEG).clamp(lo, hi);
+            let across = self.pos[0] - x;
+            if across < SWOOP_MIN {
+                continue;
+            }
+            // The leg nearest the length a leg ought to be wins, and among those the one
+            // that falls least: a swoop is a run of leaps across the page, not one leap
+            // from edge to edge, so a target twice as far as a leg is worth less than one
+            // that is a leg away even though it is on the same line.
+            let score = -(across - SWOOP_LEG).abs() - drop * 0.2;
+            if best.is_some_and(|(_, been)| score <= been) {
+                continue;
+            }
+            best = Some(([x, shelf.y, 0.0], score));
+        }
+        best.map(|(at, _)| at)
+    }
+
     /// A point on a ledge, a few cells away: a cat crosses the text along the
     /// lines, and steps off the end of one into the line below.
     ///
@@ -1117,7 +1265,8 @@ impl Kitten {
             | Mood::Perch
             | Mood::Zoomies
             | Mood::Climb
-            | Mood::Dash => self.target,
+            | Mood::Dash
+            | Mood::Swoop => self.target,
             // Sitting, grooming and washing: stay put.
             _ => self.pos,
         };
@@ -1170,9 +1319,13 @@ impl Kitten {
             // A climb walks and bounds: the sideways part is a step and a half, and
             // the way up is the jump's business. There is no such thing as a cat that
             // runs up a wall.
-            Mood::Follow | Mood::Wander | Mood::Bat | Mood::Swat | Mood::Perch | Mood::Climb => {
-                WALK
-            }
+            Mood::Follow
+            | Mood::Wander
+            | Mood::Bat
+            | Mood::Swat
+            | Mood::Perch
+            | Mood::Climb
+            | Mood::Swoop => WALK,
             _ => 0.0,
         };
         // Arriving is not the end of a walk: a cat that stops dead where it was
@@ -1182,6 +1335,28 @@ impl Kitten {
             self.target = self.lap_target(senses);
         } else if self.mood == Mood::Wander && across < 0.8 {
             self.target = self.elsewhere(senses);
+        }
+        // A swoop is not a walk to somewhere and then a jump: the leap is the whole of
+        // it. She gathers herself where she stands and goes, and what is under her at
+        // the far end is where she lands -- which is why the place is asked about again
+        // here rather than trusted from the moment the mood began. A page whose code is
+        // still being printed back has holes in it, and a leg aimed at one is a leg into
+        // the middle of the page.
+        if self.mood == Mood::Swoop && across > SWOOP_MIN * 0.5 && self.patience > 0.0 {
+            let holds = senses.surface(goal[0], goal[1] + 0.05) >= goal[1] - 0.05;
+            if self.next_leap > 0.0 || !holds {
+                self.crouch = 1.0;
+                self.step_gravity(dt, senses);
+                self.blend_crouch(dt);
+                self.clamp_to_room(left, right, top, floor);
+                return;
+            }
+            self.leap(goal);
+            self.next_leap = 0.12 + senses.rng.range(0.0, 0.1);
+            self.step_leap(dt);
+            self.blend_crouch(dt);
+            self.clamp_to_room(left, right, top, floor);
+            return;
         }
         // A line above is not walked up. When she is under what she wants and it is
         // over her head, she crouches and leaves the ground.
@@ -1322,11 +1497,26 @@ impl Kitten {
     fn step_leap(&mut self, dt: f32) {
         let was = self.pos[1];
         let rise = (self.jump_to[1] - self.jump_from[1]).max(0.0);
-        self.jump = (self.jump + dt / (LEAP_TIME + rise * 0.05)).min(1.0);
+        let across = (self.jump_to[0] - self.jump_from[0])
+            .hypot(self.jump_to[1] - self.jump_from[1]);
+        // A jump is timed by how high it goes and a swoop by how far: the one thing a
+        // cat crossing the page cannot do is arrive in the time a hop takes.
+        let time = if self.mood == Mood::Swoop {
+            SWOOP_TIME + across * SWOOP_PER_CELL
+        } else {
+            LEAP_TIME + rise * 0.05
+        };
+        self.jump = (self.jump + dt / time).min(1.0);
         let t = self.jump;
         self.pos[0] = self.jump_from[0] + (self.jump_to[0] - self.jump_from[0]) * t;
         self.pos[1] = self.jump_from[1] + (self.jump_to[1] - self.jump_from[1]) * t;
-        self.hop = (t * std::f32::consts::PI).sin() * (1.0 + rise * 0.1).min(2.6);
+        // The hump of a jump is a hump; the hump of a swoop is a flight, and it grows
+        // with the length of the leg so that the longest of them is the highest.
+        self.hop = if self.mood == Mood::Swoop {
+            (t * std::f32::consts::PI).sin() * (1.2 + across * 0.055).min(3.2)
+        } else {
+            (t * std::f32::consts::PI).sin() * (1.0 + rise * 0.1).min(2.6)
+        };
         if (self.jump_to[0] - self.jump_from[0]).abs() > 0.02 {
             self.yaw = if self.jump_to[0] > self.jump_from[0] {
                 std::f32::consts::FRAC_PI_2
@@ -2690,16 +2880,38 @@ mod tests {
             let mut senses = senses_on(&mut rng, &page, None, 0.0);
             kitten.start(Mood::Swat, &mut senses);
         }
-        let her_own = (kitten.target[0] - perch.pos[0]).abs()
-            < perch.size[0] * GLYPH_WIDTH * 0.5 + 1.6
-            && (kitten.target[1] - perch.pos[1]).abs() < perch.size[1];
-        assert!(!her_own, "she went for the table she was on: {:?}", kitten.target);
+        // What matters is the thing she picked, not where she is standing to reach it: on
+        // a page with a wall of furniture, everything above the sofa is swatted from the
+        // sofa, so a paw on the sofa is the rule working rather than the rule broken.
+        let aim = kitten.aim.expect("something to swat from a table");
+        assert_ne!(aim, perch.pos, "she went for the furniture she was on");
+        let her_own = (aim[1] - perch.top()).abs() < 0.2
+            && (aim[0] - perch.pos[0]).abs() <= perch.size[0] * GLYPH_WIDTH * 0.5;
+        assert!(!her_own, "the thing under her paws: {aim:?}");
     }
 
     #[test]
     fn a_chase_follows_dust_that_keeps_moving() {
-        // Dust does not sit still, so the target is read again every frame.
+        // Dust does not sit still, so the target is read again every frame. The speck it
+        // follows is put on her own line, because a chase after one over her head is a
+        // cat jumping at it again and again, and that is the leap's business rather than
+        // the chase's.
         let mut page = page();
+        // Its own dust is put aside, so that the speck she chases is the one this test
+        // put there rather than whichever mote the page's seed happened to leave beside
+        // her paw.
+        page.motes.clear();
+        page.motes.insert(
+            0,
+            Mote {
+                pos: [13.0, 20.0, 0.0],
+                vel: [0.8, 0.0],
+                drift: 0.2,
+                phase: 0.0,
+                size: 0.05,
+                life: f32::MAX,
+            },
+        );
         let mut rng = Rng::new(33);
         let mut kitten = Kitten::new(10.0, 20.0);
         {
@@ -2771,22 +2983,89 @@ mod tests {
         let shelf = page
             .shelves
             .iter()
-            .find(|shelf| shelf.row > 10 && (4.0..7.0).contains(&(shelf.span[1] - shelf.span[0])))
+            .find(|shelf| shelf.row > 5 && (4.0..9.5).contains(&(shelf.span[1] - shelf.span[0])))
             .copied()
             .expect("a short line");
         let mut kitten = Kitten::new(shelf.span[0] + 0.5, shelf.y);
         let mut senses = senses_on(&mut rng, &page, None, 1.0);
         kitten.start(Mood::Dash, &mut senses);
         let first = kitten.target;
-        let mut legs = 0;
-        for _ in 0..(120 * 2) {
-            kitten.think(1.0 / 120.0, &mut senses);
-            if kitten.target != first {
-                legs += 1;
-            }
-            assert_eq!(kitten.mood, Mood::Dash, "the run ended early");
-        }
-        assert!(legs > 0, "the run never took a second leg");
+        // The end of the first leg, with the clock still on it. A run that stopped here
+        // would be a cat crossing a line and standing at the end of it.
+        kitten.pos = first;
+        let mut senses = senses_on(&mut rng, &page, None, 1.0);
+        kitten.think(1.0 / 120.0, &mut senses);
+        assert_ne!(kitten.target, first, "the run stood at the end of its first leg");
+        assert_eq!(kitten.mood, Mood::Dash, "the run ended early");
+    }
+
+    /// The highest thing on the page she can stand on: the top of the wall.
+    fn highest_perch(page: &Page) -> &Prop {
+        page.props
+            .iter()
+            .filter(|prop| prop.kind.is_perch())
+            .max_by(|a, b| a.top().total_cmp(&b.top()))
+            .expect("a perch")
+    }
+
+    #[test]
+    fn a_swoop_heads_for_the_far_side_and_down() {
+        // The wall is climbed for this: its top is high and off to one side, so the
+        // whole width of the page is below her on one hand and nothing is above her.
+        // What a leg of a swoop is, then, is a jump of a leg's length to the left and
+        // a few lines down -- not the crossing of the page in one bound, which is a
+        // fall with a cat on it.
+        let page = page();
+        let mut rng = Rng::new(0x5EED);
+        let perch = highest_perch(&page);
+        let kitten = Kitten::new(perch.pos[0], perch.top());
+        let senses = senses_on(&mut rng, &page, None, 0.0);
+        let to = kitten.swoop_target(&senses).expect("somewhere to swoop to");
+        let across = kitten.pos[0] - to[0];
+        let drop = kitten.pos[1] - to[1];
+        assert!(
+            (SWOOP_MIN..=SWOOP_LEG).contains(&across),
+            "a leg of {across} cells"
+        );
+        assert!(
+            (0.8..=SWOOP_DROP).contains(&drop),
+            "a drop of {drop} lines: {:?} to {to:?}",
+            kitten.pos
+        );
+        // And it is a landing rather than a point in the air: what holds her up at the
+        // far end of the leg is the ledge she can see from where she stands.
+        let stand = senses.surface(to[0], to[1] + 0.05);
+        assert!(
+            (stand - to[1]).abs() < 0.01,
+            "nothing to land on at {to:?}: the surface there is {stand}"
+        );
+    }
+
+    #[test]
+    fn the_top_of_a_climb_is_where_the_swoop_begins() {
+        // Climbing and swooping are one circuit, and this is the joint: the wall is
+        // climbed for the top of it, and a cat that has got up there leaves it the long
+        // way instead of standing on the highest shelf until the clock runs out.
+        let page = page();
+        let mut rng = Rng::new(0x5EED);
+        let perch = highest_perch(&page);
+        let mut kitten = Kitten::new(perch.pos[0], perch.top());
+        kitten.mood = Mood::Climb;
+        kitten.arrived = true;
+        kitten.timer = 5.0;
+        let mut senses = senses_on(&mut rng, &page, None, 1.0);
+        kitten.think(1.0 / 120.0, &mut senses);
+        assert_eq!(kitten.mood, Mood::Swoop, "the climb stopped at the top");
+        assert!(
+            kitten.target[1] < kitten.pos[1],
+            "the swoop went up: {:?}",
+            kitten.target
+        );
+        assert!(
+            kitten.target[0] < kitten.pos[0] - SWOOP_MIN,
+            "the swoop went right: {:?}",
+            kitten.target
+        );
     }
 
     #[test]
@@ -3018,6 +3297,9 @@ mod tests {
             Mood::Chase,
             Mood::Perch,
             Mood::Zoomies,
+            Mood::Climb,
+            Mood::Dash,
+            Mood::Swoop,
         ] {
             assert!(!mood.name().is_empty());
             let kitten = Kitten {

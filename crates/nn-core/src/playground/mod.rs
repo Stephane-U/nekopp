@@ -324,6 +324,21 @@ impl Playground {
             let paw = self.kitten.paw();
             self.page.land(paw, &mut self.rng);
         }
+        // A swoop comes down the way something thrown does. Every other landing on the
+        // page only shakes it, because a cat that took the line it stood on would have
+        // nowhere to stand -- but a swoop is the end of a flight the wall was climbed for,
+        // and what it is for is the damage. The line under her paws gives way, the words
+        // in it are in the air, and the furniture within reach of her sheds.
+        if self.kitten.landed && self.kitten.swooping() {
+            let feet = [self.kitten.pos[0], self.kitten.pos[1] - 0.5, 0.0];
+            let torn = self.page.blast(feet, 4.0, 16.0, &mut self.rng);
+            self.page.puff(feet, 12, &mut self.rng);
+            self.page.ring(feet, self.trail_hue, 0.8);
+            self.page.ring(feet, (self.trail_hue + 0.5) % 1.0, 0.55);
+            self.page
+                .confetti(feet, self.trail_hue, 16 + torn, 6.2, &mut self.rng);
+            self.page.chip(feet, 3.0, &mut self.rng);
+        }
         // A cat at a gallop does not swing at one thing, it takes everything it
         // passes: the page is asked about a place rather than about a paw, and the
         // place moves with her, which is what draws a line of damage across the
@@ -537,12 +552,28 @@ impl Playground {
         // around the wheel from the last, so a jump is a band of colour with its
         // bands in order rather than a cloud of one.
         if air {
+            // A swoop is the long one, and the page says so. Its band is half again as
+            // wide as a jump's and doubled, so what crosses the page is a ribbon rather
+            // than a line; its colour is a whole turn of the wheel laid along the arc
+            // instead of a step per piece, so one leg is one rainbow from the tail of it
+            // to the landing; and it puts a star in every third piece rather than every
+            // fourth. A jump is a hop with light behind it and a swoop is the light.
+            let swoop = self.kitten.swooping();
             for fraction in self.due_trail(flown) {
-                self.trail_hue = (self.trail_hue + TRAIL_HUE) % 1.0;
+                let hue = if swoop {
+                    (self.trail_hue + self.kitten.jump * 1.15) % 1.0
+                } else {
+                    self.trail_hue = (self.trail_hue + TRAIL_HUE) % 1.0;
+                    self.trail_hue
+                };
                 // A little scatter, so the band has a thickness: two sparks of one
                 // colour exactly on the line read as a drawn stroke, the same two
                 // off it read as light.
-                let size = self.rng.range(0.7, 1.0);
+                let size = if swoop {
+                    self.rng.range(1.0, 1.4)
+                } else {
+                    self.rng.range(0.7, 1.0)
+                };
                 let at = [
                     at[0] - moved[0] * (1.0 - fraction) + self.rng.range(-0.3, 0.3),
                     at[1] - moved[1] * (1.0 - fraction) + self.rng.range(-0.35, 0.35),
@@ -555,20 +586,36 @@ impl Playground {
                     self.rng.range(0.0, 0.6) - self.vel[1] * 0.45,
                     0.0,
                 ];
-                self.page.ribbon(at, vel, self.trail_hue, size);
+                self.page.ribbon(at, vel, hue, size);
+                if swoop {
+                    // A second band over the first, smaller and dimmer: a bow is thick
+                    // in the middle and thin at its edges, and one row of blobs is a
+                    // stroke rather than a bow.
+                    self.page.ribbon(
+                        [at[0], at[1] + 0.5, at[2]],
+                        [vel[0] * 0.6, vel[1] * 0.6 + 0.2, 0.0],
+                        (hue + 0.035) % 1.0,
+                        size * 0.55,
+                    );
+                }
                 // Every fourth piece puts a star in the ribbon, so the trail has
                 // something in it that turns rather than only something that glows.
                 self.trail_count = self.trail_count.wrapping_add(1);
-                if self.trail_count % 4 == 0 {
-                    self.page
-                        .twinkle(at, (self.trail_hue + 0.02) % 1.0, 0.45);
+                let stars = if swoop { 3 } else { 4 };
+                if self.trail_count % stars == 0 {
+                    self.page.twinkle(at, (hue + 0.02) % 1.0, 0.45);
                 }
             }
             // The halo comes with her: its life is a tenth of a second and it is
             // pushed again every frame, so it is one light that follows the cat. It
             // is dim on purpose -- it is there to say she is lit, not to cover the
             // colours she has left behind.
-            self.page.aura(at, self.trail_hue, 1.2);
+            let halo = if swoop {
+                (self.trail_hue + self.kitten.jump * 1.15) % 1.0
+            } else {
+                self.trail_hue
+            };
+            self.page.aura(at, halo, if swoop { 1.9 } else { 1.2 });
         } else if self.kitten.streaking() {
             // A run gets a trail of its own, on the paper rather than in the air, and
             // it is a different animal from the jump's rainbow -- a lap drags the same
@@ -848,6 +895,70 @@ mod tests {
     }
 
     #[test]
+    fn a_swoop_lays_a_rainbow_across_the_page() {
+        // What the wall is climbed for: leaving the top of it lays a band a whole turn of
+        // the wheel long, across the page rather than along it, and the landing at the end
+        // of a leg is the one landing on the page that takes the line with it.
+        let mut playground = open();
+        let input = Input::default();
+        let mut swoops = 0;
+        let mut in_one = false;
+        let mut left = f32::MAX;
+        let mut right = f32::MIN;
+        let mut widest = 0.0f32;
+        let mut colours = [false; 6];
+        let mut spread = [false; 6];
+        let mut torn = 0;
+        let mut chars = playground.page().text.len();
+        for _ in 0..(120 * 300) {
+            let swoop = playground.kitten().swooping();
+            if swoop && !in_one {
+                in_one = true;
+                swoops += 1;
+                left = f32::MAX;
+                right = f32::MIN;
+            }
+            if !swoop && in_one {
+                in_one = false;
+                widest = widest.max(right - left);
+                for (seen, here) in colours.iter_mut().zip(spread) {
+                    *seen |= here;
+                }
+                spread = [false; 6];
+            }
+            playground.step(1.0 / 120.0, &input);
+            let now = playground.page().text.len();
+            if playground.kitten().swooping() {
+                torn += chars.saturating_sub(now);
+            }
+            chars = now;
+            if playground.kitten().swooping() {
+                for glow in playground.frame(&input).glows {
+                    // The band of a swoop is a cell wide or wider; the halo that follows
+                    // her is a light rather than a colour, so it is not counted.
+                    if glow.kind != GlowKind::Blob || !(1.0..1.8).contains(&glow.size) {
+                        continue;
+                    }
+                    left = left.min(glow.pos[0]);
+                    right = right.max(glow.pos[0]);
+                    let bucket = (glow.hue * 6.0) as usize % 6;
+                    spread[bucket] = true;
+                }
+            }
+        }
+        assert!(swoops > 0, "she never left the top of anything");
+        // A jump is two or three cells of light. This is a band the width of the page.
+        assert!(
+            widest > 30.0,
+            "the longest rainbow laid was {widest} cells of a page {}",
+            playground.page().width()
+        );
+        let wheel = colours.iter().filter(|seen| **seen).count();
+        assert!(wheel >= 5, "{wheel} of six colours on one leg");
+        assert!(torn > 10, "{torn} characters came off under a landing");
+    }
+
+    #[test]
     fn the_trail_lies_along_the_path_and_not_along_the_clock() {
         // The same light at two frame rates: a piece every part of a cell she flies,
         // so the pieces a jump leaves are the distance divided by the step, whatever
@@ -865,7 +976,10 @@ mod tests {
                 let was_hop = playground.kitten().hop;
                 let air = playground.kitten().airborne;
                 playground.step(dt, &input);
-                if !air {
+                // A swoop lays two bands where a jump lays one, on purpose: what this
+                // measures is the rule a jump follows, so the long leaps are left out of
+                // it rather than averaged in.
+                if !air || playground.kitten().swooping() {
                     continue;
                 }
                 let now = playground.kitten().pos;
@@ -994,7 +1108,11 @@ mod tests {
         let mut highest = 0.0f32;
         let mut clawed = 0;
         let mut chars = playground.page().text.len();
-        for _ in 0..(120 * 120) {
+        // Five minutes rather than two, because the page now has a wall of furniture up
+        // the right of it and climbs of that take nothing off the code: an ascent of the
+        // text happens when she is over the text, and that is a matter of where her
+        // wandering has put her.
+        for _ in 0..(120 * 300) {
             playground.step(1.0 / 120.0, &input);
             highest = highest.max(playground.kitten().pos[1]);
             let now = playground.page().text.len();
@@ -1132,9 +1250,12 @@ mod tests {
     #[test]
     fn the_pointer_reaches_the_kitten_as_a_place_on_the_page() {
         let mut playground = open();
+        // A pointer that arrived and then held still, which is what a reader does with
+        // one: a pointer that reports itself as still moving is a cat pouncing at it for
+        // ever, and what this asks about is the walk to it.
         let target = Input {
             pointer: Some([0.5, -0.8]),
-            pointer_age: 0.0,
+            pointer_age: 1.0,
             input_age: 0.0,
             ..Input::default()
         };

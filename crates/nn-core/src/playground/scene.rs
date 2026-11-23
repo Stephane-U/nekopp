@@ -1072,6 +1072,7 @@ pub enum PropKind {
     Lamp,
     Shelf,
     Frame,
+    Sofa,
 }
 
 impl PropKind {
@@ -1083,16 +1084,36 @@ impl PropKind {
             PropKind::Lamp => "lamp",
             PropKind::Shelf => "shelf",
             PropKind::Frame => "frame",
+            PropKind::Sofa => "sofa",
         }
     }
 
-    /// Whether its top is flat and wide enough to sit on.
+    /// Whether its top is somewhere a cat would end up.
     ///
-    /// A cat sits on tables and shelves; a plant, a lamp and a picture are things
-    /// to look at and knock about, and a cat standing on top of a lamp would be a
-    /// cat floating over a lamp.
+    /// A cat sits on tables, shelves and the back of a sofa, and it ends up in a
+    /// plant -- a fern's crown and a cactus's arm are things a kitten stands on
+    /// because it does not know better, which is exactly what happens on the wall
+    /// up the right of the page. A lamp and a picture are things to look at and
+    /// knock about; a cat standing on top of a lamp would be a cat floating over a
+    /// lamp.
     pub fn is_perch(self) -> bool {
-        matches!(self, PropKind::Table | PropKind::Shelf)
+        matches!(
+            self,
+            PropKind::Table | PropKind::Shelf | PropKind::Sofa | PropKind::Plant
+        )
+    }
+
+    /// How far a shake moves it, as a fraction of the hardest a paw can make it.
+    ///
+    /// A plant bends and a lamp swings on its foot; a picture tips on its nail; a table,
+    /// a shelf and a sofa are boards and books, and a table that swayed as far as a fern
+    /// would be a table drawn wobbly rather than a table being shaken.
+    pub fn sway(self) -> f32 {
+        match self {
+            PropKind::Plant | PropKind::Lamp => 1.0,
+            PropKind::Frame => 0.6,
+            PropKind::Table | PropKind::Shelf | PropKind::Sofa => 0.35,
+        }
     }
 }
 
@@ -1129,7 +1150,7 @@ impl Prop {
 
     /// Its characters, swaying by however much it is still shaking.
     pub fn cards(&self, lift: f32, alpha: f32, out: &mut Vec<Card>) {
-        let sway = self.phase.sin() * self.wobble * 0.45;
+        let sway = self.phase.sin() * self.wobble * 0.45 * self.kind.sway();
         for card in &self.cards {
             out.push(Card {
                 pos: [
@@ -1287,11 +1308,22 @@ fn cell(row: u32, column: u32, rows: u32, ch: char, style: u8, alpha: f32) -> Ca
     }
 }
 
-/// Two to four pieces of furniture, standing in the lower half of the page.
+/// The furniture: the wall up the right of the page, and a piece or two standing in
+/// the room beside the code.
 ///
 /// It marks the cells it took in `taken` as it goes, so the code and the rug are
 /// generated around the boxes rather than over them.
 fn furniture(rng: &mut Rng, columns: u32, rows: u32, taken: &mut [bool]) -> Vec<Prop> {
+    let body = rows.saturating_sub(LABEL_ROWS).max(8);
+    let mut out = wall(rng, columns, rows, body, taken);
+    // The room the wall has left. A cat walks in the part of the page the wall is
+    // not standing in, and so does everything else it stands beside.
+    let left_of_wall = out
+        .iter()
+        .map(|prop| prop.pos[0] - prop.size[0] * GLYPH_WIDTH * 0.5)
+        .fold(columns as f32 * GLYPH_WIDTH, f32::min);
+    let room = (left_of_wall / GLYPH_WIDTH).floor() as u32;
+
     let designs: [(&[&str], PropKind); 5] = [
         (&TABLE, PropKind::Table),
         (&PLANT, PropKind::Plant),
@@ -1305,75 +1337,180 @@ fn furniture(rng: &mut Rng, columns: u32, rows: u32, taken: &mut [bool]) -> Vec<
         let other = rng.below(index + 1);
         order.swap(index, other);
     }
-    let count = 2 + rng.below(3);
-    let mut out = Vec::new();
-    let mut occupied = vec![false; (columns * rows) as usize];
-    // The last line is the app's label, so nothing stands on it.
-    let body = rows.saturating_sub(LABEL_ROWS).max(8);
+    let count = 1 + rng.below(2);
     let usable = body.saturating_sub(FLOOR_MARGIN);
     for (place, pick) in order.into_iter().take(count).enumerate() {
         let (design, kind) = designs[pick];
         let height = design.len() as u32;
         let width = design.iter().map(|line| line.chars().count()).max().unwrap_or(0) as u32;
-        if width == 0 || height == 0 || usable < height + 2 || columns < width + 6 {
+        if width == 0 || height == 0 || usable < height + 2 || room < width + 6 {
             continue;
         }
-        // Spread them across the page rather than stacking them on one side.
+        // Spread them across the room rather than stacking them on one side.
         let slot = (place as f32 + 0.5) / count as f32;
-        let centre = slot * (columns - width) as f32;
+        let centre = slot * (room - width) as f32;
         // In the lower part of the page, where furniture stands in a document
         // rather than across the first lines of it.
         let lowest = usable.saturating_sub(height);
         let highest = (body / 3).min(lowest);
         let row = highest + rng.below((lowest - highest) as usize + 1) as u32;
-        let column = (centre as u32).min(columns - width - 1).max(GUTTER + 1);
-        // Two pieces of furniture in the same cells would be one piece of
-        // furniture drawn twice.
-        let free = (0..height).all(|down| {
-            (0..width).all(|across| {
-                let (row, column) = (row + down, column + across);
-                row < rows && column < columns && !occupied[(row * columns + column) as usize]
-            })
-        });
-        if !free {
-            continue;
-        }
-        let mut cards = Vec::with_capacity((width * height) as usize);
-        for down in 0..height {
-            for across in 0..width {
-                let (row, column) = (row + down, column + across);
-                if row < rows && column < columns {
-                    occupied[(row * columns + column) as usize] = true;
-                    taken[(row * columns + column) as usize] = true;
-                }
-            }
-        }
-        for (down, line) in design.iter().enumerate() {
-            for (across, ch) in line.chars().enumerate() {
-                if ch == ' ' {
-                    continue;
-                }
-                let (row, column) = (row + down as u32, column + across as u32);
-                if row >= rows || column >= columns {
-                    continue;
-                }
-                cards.push(cell(row, column, rows, ch, 2, 0.95));
-            }
-        }
-        out.push(Prop {
+        let column = (centre as u32).min(room - width - 1).max(GUTTER + 1);
+        if let Some(prop) = stand(
+            design,
             kind,
-            pos: [
-                (column as f32 + width as f32 * 0.5) * GLYPH_WIDTH,
-                rows as f32 - row as f32 - height as f32 * 0.5,
-                0.0,
-            ],
-            size: [width as f32, height as f32],
-            cards,
-            wobble: 0.0,
-            phase: place as f32 * 0.7,
-        });
+            [row, column],
+            [rows, columns],
+            taken,
+            place as f32 * 0.7,
+        ) {
+            out.push(prop);
+        }
     }
     out
+}
+
+/// How many pieces of furniture the wall has, at most.
+///
+/// Eight is a page of forty lines: a sofa on the rug and seven things standing above
+/// it, with a line of paper showing between one and the next. That is a way up the
+/// page rather than a room in it, and it is what the wall is for.
+const WALL: usize = 8;
+
+/// The furniture standing against the right edge of the page, one piece above another.
+///
+/// Furniture scattered about is a room; furniture up one wall is a way up it. The page's
+/// own ledges are the lines of code, and they stop where the code does -- the right hand
+/// side of the page is margin, and margin is nowhere for a cat to stand. So the margin
+/// gets what a room puts against a wall: a sofa on the rug, then a shelf, a fern, a table,
+/// a cactus, two more shelves and a pot of flowers. Each top is four or five lines over
+/// the last, which is one bound, and the highest of them is a cat's height under the top
+/// of the page.
+///
+/// The pieces are right-aligned with a column or two of play in them, so the wall looks
+/// stacked by someone rather than laid out by a grid engine, and each of them is wide
+/// enough to land on and narrow enough to stay out of the code.
+fn wall(rng: &mut Rng, columns: u32, rows: u32, body: u32, taken: &mut [bool]) -> Vec<Prop> {
+    let designs: [(&[&str], PropKind); 8] = [
+        (&SOFA, PropKind::Sofa),
+        (&SHELF, PropKind::Shelf),
+        (&FERN, PropKind::Plant),
+        (&TABLE, PropKind::Table),
+        (&TOPIARY, PropKind::Plant),
+        (&SHELF, PropKind::Shelf),
+        (&SHELF, PropKind::Shelf),
+        (&FLOWERS, PropKind::Plant),
+    ];
+    let mut out: Vec<Prop> = Vec::with_capacity(WALL);
+    // The top row of the last piece placed. Every piece above it stands clear of that
+    // row by as many rows as it is tall, plus a gap of one or two, so that its top edge
+    // rises four or five lines: one bound, and not a lift.
+    let mut last: Option<i32> = None;
+    for (place, (design, kind)) in designs.iter().enumerate() {
+        let height = design.len() as i32;
+        let width = design.iter().map(|line| line.chars().count()).max().unwrap_or(0) as i32;
+        if height == 0 || width == 0 || columns < (width + GUTTER as i32 + 4) as u32 {
+            continue;
+        }
+        let rise = height.max(3 + rng.below(3) as i32);
+        let top = match last {
+            // The foot of the wall stands on the floor: its box's bottom edge is the
+            // page's floor line rather than the bottom row of the window, which belongs to
+            // the app's label.
+            None => body as i32 - height - 1,
+            Some(last) => last - rise,
+        };
+        // The top rows of the page are where a cat's ears go, not its paws.
+        if top < 3 {
+            break;
+        }
+        // Against the right edge, with a column or two of play so the wall is stacked
+        // rather than aligned.
+        let jitter = rng.below(3) as i32;
+        let column = columns as i32 - width - 1 - jitter;
+        if column < GUTTER as i32 + 2 {
+            break;
+        }
+        let Some(prop) = stand(
+            design,
+            *kind,
+            [top as u32, column as u32],
+            [rows, columns],
+            taken,
+            place as f32 * 0.7,
+        ) else {
+            break;
+        };
+        last = Some(top);
+        out.push(prop);
+        if out.len() >= WALL {
+            break;
+        }
+    }
+    out
+}
+
+/// One piece of furniture, printed where it stands, with its cells marked as taken.
+///
+/// `row` and `column` are its top row and its left edge. The whole box is marked and not
+/// only the cells the design draws ink in: a table with a line of code showing through its
+/// top is a table drawn on a page, not furniture standing on one. A box with anything
+/// already in it is refused rather than drawn through, and a box that would hang off the
+/// page is refused too.
+fn stand(
+    design: &[&str],
+    kind: PropKind,
+    at: [u32; 2],
+    page: [u32; 2],
+    taken: &mut [bool],
+    phase: f32,
+) -> Option<Prop> {
+    let [row, column] = at;
+    let [rows, columns] = page;
+    let height = design.len() as u32;
+    let width = design.iter().map(|line| line.chars().count()).max().unwrap_or(0) as u32;
+    if width == 0 || height == 0 || row + height > rows || column + width > columns {
+        return None;
+    }
+    for down in 0..height {
+        for across in 0..width {
+            if taken[((row + down) * columns + column + across) as usize] {
+                return None;
+            }
+        }
+    }
+    for down in 0..height {
+        for across in 0..width {
+            taken[((row + down) * columns + column + across) as usize] = true;
+        }
+    }
+    let mut cards = Vec::with_capacity((width * height) as usize);
+    for (down, line) in design.iter().enumerate() {
+        for (across, ch) in line.chars().enumerate() {
+            if ch == ' ' {
+                continue;
+            }
+            cards.push(cell(
+                row + down as u32,
+                column + across as u32,
+                rows,
+                ch,
+                2,
+                0.95,
+            ));
+        }
+    }
+    Some(Prop {
+        kind,
+        pos: [
+            (column as f32 + width as f32 * 0.5) * GLYPH_WIDTH,
+            rows as f32 - row as f32 - height as f32 * 0.5,
+            0.0,
+        ],
+        size: [width as f32, height as f32],
+        cards,
+        wobble: 0.0,
+        phase,
+    })
 }
 
 /// A table: a top, two legs, and a line under it.
@@ -1392,6 +1529,42 @@ const PLANT: [&str; 5] = [
     "   \\|/   ",
     "    |    ",
     "  [___]  ",
+];
+
+/// A sofa: a back, a seat in front of it, two arms, and two feet.
+const SOFA: [&str; 5] = [
+    " _________________ ",
+    "|  _____________  |",
+    "| |             | |",
+    "|_|_____________|_|",
+    "  ||           ||  ",
+];
+
+/// A fern: fronds arching out of a pot, wide enough to sit down in.
+const FERN: [&str; 5] = [
+    " \\ \\ | / / ",
+    "  \\ \\|/ /  ",
+    "   \\ | /   ",
+    "     |     ",
+    "  [_____]  ",
+];
+
+/// A topiary: a clipped ball on a stem, in a pot.
+const TOPIARY: [&str; 5] = [
+    "  (###)  ",
+    " (#####) ",
+    "  (###)  ",
+    "   (|)   ",
+    "  [___]  ",
+];
+
+/// A pot of flowers: three heads on stems.
+const FLOWERS: [&str; 5] = [
+    " *  *  *  ",
+    "  \\ | /   ",
+    " .-\\|/-.  ",
+    "    |     ",
+    "  [_____] ",
 ];
 
 /// A lamp: a shade, a stem and a foot.
@@ -1613,17 +1786,85 @@ mod tests {
     }
 
     #[test]
-    fn the_furniture_stands_on_the_page_and_not_on_the_rug() {
+    fn the_furniture_stands_on_the_page_and_not_on_the_label() {
+        // One piece stands on the floor, and it has to: the wall up the right of the page
+        // starts with a sofa on the rug, because a cat has to be able to get onto the
+        // bottom of it from the floor. What nothing may do is stand on the app's own line
+        // at the bottom of the window.
         let page = page();
         assert!(!page.props.is_empty(), "a page with furniture");
-        let rug = page.rows - RUG_ROWS;
+        // The rug is a band of cells standing on the floor, not the row it starts at.
+        let rug = FLOOR + RUG_ROWS as f32;
+        let mut on_the_floor = 0;
         for prop in &page.props {
-            // The whole box, not just its ink: the bottom edge of the box is what
-            // has to stay above the rug.
+            // The whole box, not just its ink: the bottom edge of the box is what stands
+            // on something.
             let low = prop.pos[1] - prop.size[1] * 0.5;
-            let row = page.rows as f32 - low;
-            assert!(row <= rug as f32, "{} on the rug: row {row}", prop.kind.name());
+            assert!(low >= FLOOR, "{} below the page: {low}", prop.kind.name());
+            if low < rug {
+                on_the_floor += 1;
+                assert!(
+                    prop.top() <= rug,
+                    "{} is a wall of furniture, not the foot of one",
+                    prop.kind.name()
+                );
+            }
             assert!(!prop.cards.is_empty(), "{}", prop.kind.name());
+        }
+        assert_eq!(on_the_floor, 1, "the foot of the wall, and nothing else");
+    }
+
+    #[test]
+    fn a_wall_of_furniture_stands_up_the_right_of_the_page() {
+        // The right of the page is a wall of household things, and it is a wall rather
+        // than a scatter: each piece stands clear of the top of the one below it by one
+        // bound, so the whole of it can be climbed in three or four jumps instead of
+        // being a shelf a cat stands on once. Plants are in it because a room has plants
+        // and because a cat ends up in them.
+        let page = page();
+        let width = page.width();
+        // One or two columns in from the right edge, and no further.
+        let edge = width - 4.0 * GLYPH_WIDTH;
+        let mut wall: Vec<&Prop> = page
+            .props
+            .iter()
+            .filter(|prop| prop.pos[0] + prop.size[0] * GLYPH_WIDTH * 0.5 > edge)
+            .collect();
+        wall.sort_by(|a, b| a.pos[1].total_cmp(&b.pos[1]));
+        assert!(wall.len() >= 5, "{} pieces of furniture up the right", wall.len());
+        assert!(
+            wall.iter().any(|prop| prop.kind == PropKind::Sofa),
+            "nothing to get onto from the floor"
+        );
+        assert!(
+            wall.iter().any(|prop| prop.kind == PropKind::Plant),
+            "no plants on the wall"
+        );
+        for pair in wall.windows(2) {
+            let (below, above) = (pair[0], pair[1]);
+            let rise = above.top() - below.top();
+            assert!(
+                (3.5..=6.0).contains(&rise),
+                "a rise of {rise} lines from {} to {}",
+                below.kind.name(),
+                above.kind.name()
+            );
+            let low = above.pos[1] - above.size[1] * 0.5;
+            assert!(
+                low >= below.top() - 0.01,
+                "{} stands in the {} below it",
+                above.kind.name(),
+                below.kind.name()
+            );
+        }
+        for prop in wall {
+            assert!(prop.kind.is_perch(), "{} is not a place to land", prop.kind.name());
+            let left = prop.pos[0] - prop.size[0] * GLYPH_WIDTH * 0.5;
+            assert!(
+                left > width * 0.6,
+                "{} stands at {left} of a page {width} wide: that is the code",
+                prop.kind.name()
+            );
         }
     }
 

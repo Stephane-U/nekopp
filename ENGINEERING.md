@@ -10410,3 +10410,107 @@ claws, the top -- and the mending row rewritten for the new rate, plus two parag
 what an ascent is, and why a claw goes in the row she has left. The kitten row now lists
 going up the page. `python3 docs/build-pdf.py` then `--check`: up to date, 322,208 bytes,
 75 pages A4, 112 bookmarks.
+
+## Eighty-fifth pass: a wall of furniture, and a cat that leaves it
+
+The last pass taught the cat to go up the page, and it found the page's ceiling quickly:
+the code only reaches so far to the right, so past the longest line there is nothing to
+climb and nothing to land on. The right hand margin was dead space with a cat's whole
+width of page beside it. This pass furnishes it and gives the top of it somewhere to go.
+
+### The wall
+
+`wall()` lays seven pieces against the right edge: a sofa standing on the rug, then a
+shelf, a fern, a table, a topiary, two more shelves. Designs are new -- `SOFA` at 19 by 5,
+`FERN` at 11 by 5, `TOPIARY` at 9 by 5, `FLOWERS` at 10 by 5 -- and `PLANT`'s stems were
+double-backslash rows that had been drawing nothing. Each piece's top is `height.max(3 +
+jitter)` rows over the one below, which measures out at four or five lines: one bound, and
+not a lift. `stand()` does the placing for both the wall and the scatter now, marking the
+whole box in `taken` and refusing an overlap or a box off the page, so a piece either
+stands where it can be stood on or is not placed at all.
+
+They are right-aligned with zero to two columns of play, because a wall is stacked by
+someone rather than laid out by a grid engine. `is_perch()` now also says yes for `Sofa`
+and `Plant` -- a cat ends up in a plant -- and `PropKind::sway()` scales the wobble
+amplitude: a plant and a lamp move four times as far as a shelf. The wall is placed first
+and the one or two scattered pieces afterwards, confined by `left_of_wall`, so the room's
+loose furniture stands to the left of the wall instead of in the middle of the way up it.
+
+### The swoop
+
+`Mood::Swoop` is the other half of the circuit: the climb exists so there is a top to
+leave. A leg is `SWOOP_LEG` = 24 cells across -- a third of the page -- and `swoop_target`
+picks, among the ledges 0.8 to 9 lines below her, `x = (pos - 24).clamp(lo, hi)` with
+`score = -(|across - 24|) - drop * 0.2`. Nearest-to-a-leg rather than farthest, because
+what is being built is a run of leaps across the page and one edge-to-edge jump is a fall
+with a cat on it. `SWOOP_MIN` = 7 keeps her from a leg that would land where it took off.
+
+The clock is refreshed on every landing, so what ends a swoop is the page running out and
+not a timer, and the top of a climb calls it directly: the `None` arm of `Climb`'s ascent
+now starts a `Swoop` if there is one to be had. `move_by` gives a swoop its own leap gate
+-- it gathers and jumps instead of walking -- and `step_leap` times the flight by its
+length: `SWOOP_TIME` 0.45 s plus 0.02 s a cell, with a hop of `sin(pi t) * (1.2 + across
+* 0.055).min(3.2)`, so a long leg is flat and a short one is a bound. It costs 0.18 of the
+rest scale, the most tiring thing on the page, because what a cat does after flying the
+width of the paper is wash.
+
+### The rainbow, and the landing
+
+The trail of a swoop is the trail of a jump at twice the width: `emote` asks for two
+ribbons per piece, the second half a cell over and half the size, and its colour is a
+whole turn of the wheel along the arc -- `(trail_hue + jump * 1.15) % 1.0` -- instead of a
+step per piece, so one leg is one rainbow from tail to landing. A star in every third
+piece rather than every fourth, and a 1.9-cell aura instead of 1.2. What the landing does
+is the one exception on the page: every other landing only shakes the paper, because a cat
+that took the line out from under its paws would have nowhere to stand, but a swoop coming
+down `blast`s four cells out of the row it lands in, throws everything within sixteen, puts
+two rings and confetti on the page and shakes the furniture in reach, and then a dash runs
+along the wreckage. That is the damage the whole circuit is for.
+
+### The numbers
+
+Six seeds, five minutes each, from the current constants: 3 to 8 swoops, 4 to 15 legs
+between them, legs of 7.1 to 32.3 cells across and 0.0 to 8.9 lines down, 17 to 21 dashes,
+the highest point 37.0 to 37.6 of a 40 line page, 783 to 2,055 characters taken off the
+page, 183 to 218 sparks alive at a swoop landing, and a hue span of 0.99 to 1.00 -- the
+whole wheel, on every seed. Seed 99 is the quiet one at 3 swoops: the wall is on the right
+of the page and whether she gets up it is a matter of where her wandering has put her, so a
+swoop is a thing that happens some minutes and not others. That is the same shape as the
+climb, and it is the reason a five minute window is the measurement.
+
+### What the tests caught
+
+Two of the old ones were wrong rather than the code. The furniture test computed the rug as
+`rows - RUG_ROWS` -- a row index, 35 -- and compared it with a cell height, 5.0, so every
+piece counted as standing on the floor; it is `FLOOR + RUG_ROWS` now. And
+`a_dash_with_time_left_on_its_clock_runs_another_leg` waited two seconds for a second leg
+from a six-cell line, which on this page aims at the wall fifty-five cells away: the window
+was measuring the page's furniture rather than the rule. It now puts her at the end of the
+first leg and asks for the second one there, which is what the rule is. The first attempt
+at a fix was to cap how far a dash may aim, and that was wrong in a way the suite caught:
+with the cap she never crossed to the right hand side of the page at all, and
+`left_alone_it_finds_something_to_do_on_the_page` lost its furniture. A run across the page
+is the feature, not the bug.
+
+### Verification
+
+`cargo test --offline`: 2,191 tests (1,087 in `nn-app`, 1,004 in `nn-core`, 100 in
+`nn-mcp`), 0 failed. Four are new. In `scene.rs`,
+`a_wall_of_furniture_stands_up_the_right_of_the_page` -- five or more pieces, a sofa and a
+plant among them, each top 3.5 to 6 lines over the last, no piece standing in the one below
+it, every piece a perch, and all of it right of 60% of the width. In `kitten.rs`,
+`a_swoop_heads_for_the_far_side_and_down` (a leg of 7 to 24 cells, 0.8 to 9 lines down, and
+a surface at the far end to land on) and `the_top_of_a_climb_is_where_the_swoop_begins`. In
+`playground/mod.rs`, `a_swoop_lays_a_rainbow_across_the_page`: over five minutes it finds
+the swoops, the widest band laid is over 30 cells, five of six colours turn up, and more
+than ten characters come off the page under a landing. `every_mood_has_a_name_and_a_pose`
+gained `Climb`, `Dash` and `Swoop`, which had never been in it.
+`cargo clippy --offline --all-targets`: 0 warnings, which is why `stand()` takes its row
+and column as one pair and its page size as another. `cargo fmt` was not run.
+
+`docs/nekopp-features.md` has four new rows in the Playground table -- the wall, the swoop,
+the rainbow, the landing -- and three rewritten ones (the furniture, the kitten, the light),
+the introduction now says what is against the right edge, and two paragraphs follow the
+climb: what a wall of furniture is doing on a page, and what a swoop is and why its landing
+is the only one allowed to take the line. `python3 docs/build-pdf.py` then `--check`: up to
+date, 325,273 bytes, 76 pages A4.
