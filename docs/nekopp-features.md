@@ -1776,8 +1776,8 @@ furniture up the right of it -- a sofa, shelves, a table and plants of three kin
 -- a rug of punctuation along the bottom, and a kitten two lines tall who walks
 across the text, follows the pointer, jumps from line to line, bats loose words off
 them and -- left alone -- finds things on the page to do: swats the furniture,
-climbs the wall a piece at a time, leaves the top of it in long leaps across the
-page, chases dust, runs a lap, and eventually falls asleep. `Escape` gives the
+climbs the wall a piece at a time, crosses the page in super jumps between the
+furniture and the code, chases dust, runs a lap, and eventually falls asleep. `Escape` gives the
 window back. The document is never read and never written, so a screenshot of the
 mode cannot show anyone's work and five minutes in the page cost no undo step.
 
@@ -1796,8 +1796,8 @@ smaller window with fewer of both, and looks the same on any display.
 | The ledges | Every intact row of code is a shelf a paw can stand on, and the floor runs under the rug at the bottom of the page, so falling always ends somewhere |
 | The furniture | One or two pieces drawn in characters -- a table, a plant, a lamp, a framed picture -- each standing in its own cleared box in the lower half of the page and in the room to the left of the wall, swaying when a paw hits it |
 | The wall | Seven or eight pieces against the right edge, one above another: a sofa standing on the rug, then a shelf, a fern, a table, a topiary and two more shelves, each top four or five lines over the last, which is one bound; right-aligned with a column or two of play, and every piece of it somewhere to land |
-| The kitten | Walks, sits, crouches, gathers herself and springs onto a line of code, bats a token, swats the furniture, bounds up the wall and onto a plant, goes up the page a foothold at a time, leaves the top of it in long leaps across the page, chases dust, runs laps, washes a paw, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
-| The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
+| The kitten | Walks, sits, crouches, gathers herself and springs onto a line of code, bats a token, swats the furniture, bounds up the wall and onto a plant, goes up the page a foothold at a time, crosses it in super jumps between the furniture and the code, chases dust, runs laps, washes a paw, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
+| Wanting up | Going up is worth half again as much on the rug as at the top of the page: climbing, perching and the super jumps are weighted by how far up she already is, so the low half of the page is a place she leaves rather than a place she lives | The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
 | The dust | Specks that wander on their own; one within reach of a paw is thrown in a short arc and fades where it lands |
 | The light | A jump leaves a band of colour along the arc she flew, a small halo travels with her, a landing puts a ring on the paper with a burst of confetti, and every fourth piece of trail is a star; a swoop lays the same light twice as wide and a whole turn of the wheel long |
 | The run | Now and then she picks the far end of the ledge she is standing on and crosses it at twice her running speed, taking the characters in her way and dragging a streak of light along the line as it comes apart; a run with time left on its clock takes another leg, and one leg in three is the line over her head |
@@ -1806,7 +1806,7 @@ smaller window with fewer of both, and looks the same on any display.
 | The climb | She takes the highest foothold one bound can reach -- a line of code or the top of a table, whichever is higher, up to six lines and three across -- and takes another from there, for as long as there is anything over her head, so the ascent zigzags up the page and stops only where the page does |
 | The claws | A climb digs in where it leaves: every nine tenths of a line she rises takes a swathe two words wide out of the row her back paws are in, thrown down and outwards, and the furniture in reach sheds what it is made of |
 | The top | Reaching the highest place a cat may stand -- two lines short of the top of the page, which is where its ears go -- puts a double ring, a puff of dust and two dozen pieces of confetti on the paper, and the top of a climb is where a swoop begins |
-| The swoop | Off the top of the wall she leaves it the long way: one bound after another to the left, each up to twenty-four characters across and a few lines lower than the last, aimed at the end of a line of code, because that is where the writing stops; the clock is refreshed at every landing, so a leg is followed by another while there is page left to cross |
+| The swoop | A super jump across the page: up to thirty-four characters in one bound, from the wall of furniture to the code and back again. Out of the wall it is a leg at a time to the left, each a few lines lower than the last, aimed at the end of a line of code, because that is where the writing stops; out of the code it is one leg to the right and up to five lines, landing on the flat top of a piece of furniture. A run keeps one direction and its clock is refreshed at every landing, so a leg is followed by another while there is page left to cross |
 | The rainbow | A swoop's trail is twice a jump's: two bands of light, the wider one carrying a whole turn of the colour wheel from the tail of the leg to its landing, and a star in every third piece, so what crosses the page is a ribbon rather than a stroke |
 | The landing | The one landing on the page that takes the line it lands on: four characters bitten out of the row, everything within sixteen thrown, two rings, a puff, confetti and the furniture in reach shaking; then a run along what is left |
 | The mending | Everything a paw, a run, a claw or a landing takes is remembered and printed back, three characters a second while the page is barely damaged and up to seven times that when much of it is in the air, each one fading in over four tenths of a second, so the page is taken apart and put back rather than emptied |
@@ -1906,22 +1906,36 @@ because a room has plants and because a cat that has climbed a fern ends up sitt
 in it. The wall is placed first and the loose furniture afterwards, so the scatter
 stands in the room to the left of it instead of in the way up.
 
-The top of the wall is the one place on the page where all of it is below her and to
-one side, and what a cat does there is leave: a swoop is a run of leaps to the left,
-each as far across as a leap reaches and a few lines lower than the last, aimed at
-the end of a line of code because that is where the writing stops and where a leap
-comes down. The arc is a fixed shape and its height grows with its width, so a long
-leg is a flat, fast crossing rather than a fall, and the clock is refreshed at every
-landing, so there is another leg while there is page left to cross. What follows her
-is the rainbow of a jump at twice the width and in two bands, with the colour turning
-once over the whole length of the leg -- one rainbow per leg rather than a scatter of
-them -- and a star in every third piece. The landing at the end of it is the only one
-on the page that takes the line it lands on: four characters gone, everything within
-sixteen thrown, two rings and confetti on the paper, the furniture in reach shaking.
-Every other landing only shakes, because a cat that took the line out from under its
-own paws would have nowhere to stand; a swoop is the end of a flight the wall was
-climbed for, so it is allowed to bring the line down with it. What follows is a run
-along what is left.
+A cat wants up. It is the one thing the mood table says about the animal rather than
+about the page: the moods that go up -- climbing, perching on the furniture, and the
+super jumps -- are worth more the lower she is, half again as much on the rug as at
+the top of the page, so the low half of the page is somewhere she leaves. What that
+buys is a mode that is vertical: over five minutes she spends between a third and a
+half of the frames climbing or in the air between two footholds, and the top of the
+page is reached on every seed rather than once in a while. The pointer still wins over all of
+it -- a mouse that has just moved takes her off the wall -- but a mouse that is
+already still does not, and the clock does not run out on one.
+
+The wall and the code are the two halves of the page, and a swoop is the leap between
+them: up to thirty-four characters in one bound, aimed at whichever half she is not
+standing in, because a leap that stayed on its own side would be a jump along a shelf
+and that is what a dash is for. Out of the top of the wall it is a leg at a time to the
+left, each aimed at the end of a line of code, where the writing stops; out of the code
+it is one leg back to the right and up to five lines, because the furniture over her
+head is what there is to come down on. Each run keeps one direction -- a cat that
+turned round at every landing would be a cat bouncing -- and the clock is refreshed at
+every landing, so there is another leg while there is page left to cross. The arc is a
+fixed shape and its height grows with its width, so a long leg is a flat, fast crossing
+rather than a fall. What follows her is the rainbow of a jump at twice the width and in
+two bands, with the colour turning once over the whole length of the leg -- one rainbow
+per leg rather than a scatter of them -- and a star in every third piece. The landing
+at the end of it is the only one on the page that takes the line it lands on: four
+characters gone, everything within sixteen thrown, two rings and confetti on the paper,
+the furniture in reach shaking. Every other landing only shakes, because a cat that
+took the line out from under its own paws would have nowhere to stand; a swoop is the
+end of a flight the wall was climbed for, so it is allowed to bring the line down with
+it. A run that comes back to the wall ends in a climb rather than a dash, because the
+furniture is what there is to go up.
 
 The furrow is not permanent, and that is what makes the rest of it possible. The
 page remembers every character it loses, with the cell it stood in, and prints them

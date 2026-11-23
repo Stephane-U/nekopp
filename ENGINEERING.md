@@ -10514,3 +10514,88 @@ the introduction now says what is against the right edge, and two paragraphs fol
 climb: what a wall of furniture is doing on a page, and what a swoop is and why its landing
 is the only one allowed to take the line. `python3 docs/build-pdf.py` then `--check`: up to
 date, 325,273 bytes, 76 pages A4.
+
+## Eighty-sixth pass: a cat that always wants up, and super jumps across the page
+
+The last pass furnished the right of the page and gave the cat a way off the top of it.
+Two things were still wrong with what came out. The descending run of legs was one-way:
+having come down into the code there was no way back up except walking the whole width of
+the page, so the wall was climbed once and then abandoned. And the cat was still a cat that
+did whatever the page offered next -- an animal in a room rather than one with a plan.
+
+### Wanting up
+
+The mood table is the character of the animal, and it now says one thing about her before
+it says anything about the page: `weights` scales climbing, perching and the super jumps by
+how far up the page she already is, `1.0 + low * 0.6` where `low` is the fraction of the
+page under her feet, so going up is worth half again as much on the rug as at the ceiling.
+Nothing else changed weight. What that buys, over six seeds of five minutes: climbing 17 to
+26% of frames, super jumps 12 to 17%, dashing 13 to 20%, sitting and washing 7 to 12%, dust
+1 to 3% -- a vertical animal that still wrecks the page it is climbing.
+
+Two smaller things follow from the same idea. A run of legs that ends on the furniture ends
+in a `Climb` rather than a `Dash`, because the wall is what there is to go up and a dash
+along a furniture top is a run over an empty box; a run that ends in the code still ends in
+a dash, which is what the damage is for. And a pointer holds her: `choose` refreshes the
+clock while a reader's mouse is on the page, so the low-half pull cannot take her off the
+mouse a second after the mouse stopped moving.
+
+### The super jump
+
+`SWOOP_LEG` went from 24 cells to 34, which is the width of the page less a margin: one
+bound from one side of it to the other. `swoop_side` now decides what a leg is allowed to
+land on from the direction it is going -- to the right the flat tops of the furniture, to
+the left the runs of code -- because the two halves of the page are the two ends of the
+jump and a leap that stayed on its own side would be a jump along a shelf, which is what a
+dash is for. A leg's height is one-sided too: `drop` must be between 0.8 and 9 lines going
+left, and between `-SUPER_RISE` and 9 going right, so leaving the top of the wall is always
+leaving it downwards and coming back to the furniture is always coming back upwards. Five
+lines is a table's top over a shelf, and under what one bound climbs.
+
+`swoop_target` tries both directions and keeps the better score, `-|across - 34| - drop *
+0.2`: a rise therefore beats a fall of the same length, which is the same preference as the
+mood table in the small. The direction of a run is remembered in `Kitten::swoop_dir` and
+every later leg uses `swoop_side` with it, so a crossing is a crossing and not a bounce: a
+cat that picked the best leap from wherever it landed would ping-pong between the wall and
+the code for the rest of the session.
+
+What it looks like from the trace of seed 24301: `(21.6, 2.9) -> (55.4, 7.0)` is a leg out
+of the code and up onto the sofa, `(31.2, 2.0) -> (63.9, 7.0)` is one of 32.7 cells and five
+lines up, `(63.0, 35.9) -> (29.2, 27.0)` is the way back down off the top of the wall at 33.8
+cells across and 8.9 down, and `(54.4, 7.1) -> (64.0, 12.0)` is a 9.6-cell hop from one
+piece of furniture to the next, which is the wall being taken in leaps rather than climbed.
+
+### What the tests caught
+
+The first version allowed a rise in both directions, and `the_top_of_a_climb_is_where_the
+_swoop_begins` failed with a target at 37.0 from a cat standing at 36.0: she was leaving the
+top of the wall by jumping *up* into the code above it, which is not leaving. Hence the
+one-sided height rule. The first version of the bias was `1.0 + low`, twice as much at the
+floor, and `left_alone_it_finds_something_to_do_on_the_page` reported `never chase` -- the
+long chained moods ate the decision budget and dust chasing never came up in three minutes.
+`the_pointer_reaches_the_kitten_as_a_place_on_the_page` caught the pointer problem on its
+own: the cat walked to the mouse, the mood clock ran out on the way, and a new mood had her
+off the wall while the reader's mouse sat still.
+
+### The numbers
+
+Six seeds, five minutes each: 12 to 16 climbs, 17 to 24 super jumps, 29 to 42 legs of which
+8 to 14 gain ground (the best 5.0 to 6.0 lines), 15 to 23 dashes, the highest point 37.0 on
+every seed against a ceiling of 37.6, the mean height 13.1 to 17.1 of 40, and 1,042 to 1,482
+characters taken off the page -- which is in the same range as the pass before, so the extra
+verticality has cost the damage nothing.
+
+### Verification
+
+`cargo test --offline`: 2,193 tests (1,087 in `nn-app`, 1,006 in `nn-core`, 100 in `nn-mcp`),
+0 failed. Two are new: `a_super_jump_goes_back_up_to_the_furniture` (some line of code in
+the middle of the page can reach a furniture top in one rightward leg, gaining no more than
+`SUPER_RISE` lines and landing on a flat top) and `the_lower_she_is_the_more_she_wants_up`
+(the climb, perch and swoop weights sum higher on the rug than in the middle of the page).
+`a_swoop_heads_for_the_far_side_and_down` now asks for the direction as well as the leg, and
+`cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not run.
+
+`docs/nekopp-features.md` gained a row -- "Wanting up" -- and rewrote the swoop row for the
+crossing, the kitten row and the introduction; the two paragraphs from the last pass are now
+three, on the drive upward, the crossing both ways, and the landing. `python3
+docs/build-pdf.py` then `--check`: up to date, 327,584 bytes, 77 pages A4.

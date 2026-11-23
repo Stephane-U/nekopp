@@ -88,11 +88,19 @@ const REACH: f32 = 3.0;
 /// How far across the page one leg of a swoop goes, in cells.
 ///
 /// The page is sixty-six of them wide and the wall of furniture is against its right
-/// edge, so a leg of twenty-four crosses a third of the page: from the top of the wall to
-/// the far end of the code, and then again, and then again. Longer than this and one jump
-/// is the whole page and the trail behind it is a straight line rather than an arc; much
-/// shorter and it is a hop with a rainbow on it.
-const SWOOP_LEG: f32 = 24.0;
+/// edge, so a leg of thirty-four crosses the page and no further: the wall to the code,
+/// and back again, which is the leap the wall is there to make possible. Longer than this
+/// and one jump is the whole page and the trail behind it is a straight line rather than
+/// an arc; much shorter and it is a hop with a rainbow on it.
+const SWOOP_LEG: f32 = 34.0;
+/// How far a super jump may gain, in cells.
+///
+/// The wall is climbed from the left as well as from the right. A cat standing in the
+/// code with the furniture over her head has the whole width of the page between her and
+/// a foothold, and a leap that could only go down would leave her in the code for ever;
+/// five lines is a table's top over a shelf, and under what one bound climbs, so going up
+/// this way is still a jump rather than a lift.
+const SUPER_RISE: f32 = 5.0;
 /// How far across a leg has to go to be worth taking, in cells.
 ///
 /// A swoop that landed where it took off would be a cat bouncing. Under this there is
@@ -155,16 +163,16 @@ pub enum Mood {
     /// covers it at the top of her speed, and the line she runs along comes apart
     /// behind her as she goes.
     Dash,
-    /// Down and across: the long leaps from the top of the wall of furniture to the
-    /// far side of the page, and the ones after them.
+    /// Across the page: the long leaps between the wall of furniture on the right and
+    /// the code on the left, and the ones after them.
     ///
-    /// The wall up the right of the page exists to be got up, and a cat that has got
-    /// up it is a cat with the whole width of the page in front of her and nothing
-    /// above. What she does with that is leave it: one bound per leg, each a few lines
-    /// lower than the last and as far across as one jump reaches, with the rainbow of
-    /// a jump behind every one of them. It ends where the page does -- there is no
-    /// further left to go -- and what she does there is land in the code and run along
-    /// it, which is the destruction the whole circuit is for.
+    /// The wall is against the right edge and the code fills the rest, so a leap from
+    /// one to the other is the only way across without walking. Out of the wall it is a
+    /// leg at a time to the left, each a few lines lower than the last; back out of the
+    /// code it is one leg to the right and up, because the furniture over her head is
+    /// what there is to come down on. A run of legs is one direction -- a cat that
+    /// turned round at every landing would be a cat bouncing -- and it ends where the
+    /// page does, in the code or on the wall.
     Swoop,
 }
 
@@ -295,6 +303,12 @@ pub struct Kitten {
     /// after dust is a cat on a spring, hopping off the same spot every half
     /// second.
     pub next_leap: f32,
+    /// Which way the legs of this swoop go: -1 left, 1 right, 0 not swooping.
+    ///
+    /// One direction per run. A cat that picked the longest leap from wherever it
+    /// happened to land would bounce between the wall and the code for ever without
+    /// getting anywhere; a run is a crossing, and it ends where the page does.
+    pub swoop_dir: f32,
     /// Washing phase, in radians.
     pub wash: f32,
     /// What the paw is aimed at, if anything: the thing she walked over to hit.
@@ -367,6 +381,7 @@ impl Kitten {
             jump_to: pos,
             landed: false,
             next_leap: 0.0,
+            swoop_dir: 0.0,
             wash: 0.0,
             aim: None,
             next_raise: 0.0,
@@ -603,6 +618,10 @@ impl Kitten {
                 } else if self.mood != Mood::Pounce && self.mood != Mood::Bat {
                     self.mood = Mood::Follow;
                 }
+                // The clock does not run out on a reader's pointer. Otherwise a cat on
+                // its way to the mouse decides to go up the wall instead, and what the
+                // reader sees is a cat that ignored the mouse.
+                self.timer = self.timer.max(0.6);
             }
         }
 
@@ -691,17 +710,25 @@ impl Kitten {
             }
             // Paws down on the far side: another leg, further left and lower, or the run
             // through what is left of the code.
-            Mood::Swoop => match self.swoop_target(senses) {
-                Some(next) => {
+            Mood::Swoop => match self.swoop_side(senses, self.swoop_dir) {
+                Some((next, _)) => {
                     self.target = next;
                     self.arrived = false;
                     self.patience = 10.0;
                     self.timer = self.timer.max(1.2);
                 }
-                // Nowhere left to swoop to: the page has run out on that side. What a
-                // cat does with a landing is run, and what a run does to a page of code
-                // is take it apart.
-                None => self.start(Mood::Dash, senses),
+                // Nowhere further to swoop to: the page has run out on that side. A
+                // super jump that ended on the furniture was a way back up to the wall,
+                // and what a cat does there is climb it; one that ended in the code is a
+                // cat among the characters, and what it does there is run along them.
+                None => {
+                    let on_the_wall = self.pos[0] > senses.page[0] * 0.72;
+                    if on_the_wall {
+                        self.start(Mood::Climb, senses);
+                    } else {
+                        self.start(Mood::Dash, senses);
+                    }
+                }
             },
             Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase if !self.arrived => {
                 if self.airborne {
@@ -774,6 +801,13 @@ impl Kitten {
         let on_a_perch = nearest_perch(senses.props, self.pos, f32::MAX)
             .map(|prop| (self.pos[1] - prop.top()).abs() < 1.2)
             .unwrap_or(false);
+        // A cat wants up, always. The page's way out is over her head, the wall of
+        // furniture runs the whole height of the right of it, and the floor is the one
+        // place with nothing to recommend it -- so the moods that go up are worth more
+        // the lower she is, half again as much on the rug as at the top of the page, and
+        // what she does on the floor is leave it.
+        let low = (1.0 - self.pos[1] / senses.page[1].max(1.0)).clamp(0.0, 1.0);
+        let up = |weight: usize| (weight as f32 * (1.0 + low * 0.6)).round() as usize;
         let mut weights: [(Mood, usize); 12] = [
             (Mood::Wander, if idle { 5 } else { 3 }),
             (Mood::Sit, if spent { 8 } else if idle { 5 } else { 1 }),
@@ -782,7 +816,7 @@ impl Kitten {
             (Mood::Swat, usize::from(props) * if idle { 1 } else { 5 }),
             (
                 Mood::Perch,
-                usize::from(props && !on_a_perch) * if idle { 2 } else { 6 },
+                up(usize::from(props && !on_a_perch) * if idle { 2 } else { 6 }),
             ),
             (Mood::Chase, usize::from(motes) * if idle { 1 } else { 5 }),
             // A lap is a serious thing: the whole page, at speed, taking what is
@@ -793,14 +827,14 @@ impl Kitten {
             // it stacked to the top edge -- and a cat that can climb it and take it
             // apart on the way is the whole of what this mode is for. Tired, she would
             // rather not, which is why the weight falls with the rest of her.
-            (Mood::Climb, usize::from(above) * if idle { 3 } else { 12 }),
+            (Mood::Climb, up(usize::from(above) * if idle { 3 } else { 12 })),
             (Mood::Bat, usize::from(tokens) * 3),
             // Leaving the top of the page the long way. It is worth what the page below
             // her is worth: a cat with the whole width of it under her feet and one leap
             // after another in her is the middle of the circuit the wall is there for.
             (
                 Mood::Swoop,
-                usize::from(self.swoop_target(senses).is_some()) * if idle { 1 } else { 7 },
+                up(usize::from(self.swoop_target(senses).is_some()) * if idle { 1 } else { 7 }),
             ),
             // A dash is worth what there is to run past, because crossing an empty
             // margin takes her nowhere in particular. It is the most likely thing
@@ -952,7 +986,10 @@ impl Kitten {
                 None => self.mood = Mood::Wander,
             },
             Mood::Swoop => match self.swoop_target(senses) {
-                Some(at) => self.target = at,
+                Some((at, dir)) => {
+                    self.target = at;
+                    self.swoop_dir = dir;
+                }
                 // No far side to leave it for: a cat in the corner of the page has
                 // nowhere to swoop to and wanders off instead.
                 None => self.mood = Mood::Wander,
@@ -1146,50 +1183,82 @@ impl Kitten {
         Some([(self.pos[0] + step).clamp(lo, hi), y, 0.0])
     }
 
-    /// Where a swoop goes: the far side of the page, a few lines down, on something she
-    /// can stand on.
+    /// Where a swoop goes: the far side of the page, on something she can stand on.
     ///
-    /// What it looks for is distance, and the page's own lines are the far side. The wall
-    /// of furniture is against the right edge and there is nothing to land on between it
-    /// and the code, so the far end of a line is the end of a leg; a cat that has come
-    /// down onto the left of the page has nowhere further left to swoop to, and that is
-    /// where the mood ends.
+    /// A super jump is a leap between the two halves of the page -- the wall of furniture
+    /// against the right edge and the code to the left of it -- so both are candidates,
+    /// and both directions are tried. What wins is the leg nearest `SWOOP_LEG` long:
+    /// long enough to cross, short enough to be one bound, because a cat that aimed at the
+    /// extreme far corner would be leaping off the page rather than across it.
     ///
-    /// The longest leap wins and, among equals, the least fall: a cat that has just
-    /// launched itself off the top of a bookshelf is not looking for somewhere to drop
-    /// to, she is looking for somewhere to arrive.
-    fn swoop_target(&self, senses: &Senses<'_>) -> Option<[f32; 3]> {
-        let (left, right, _bottom, _top) = room_to_walk(senses.page[0], senses.page[1]);
-        let mut best: Option<([f32; 3], f32)> = None;
-        for shelf in senses.shelves {
-            let drop = self.pos[1] - shelf.y;
-            if drop < 0.8 || drop > SWOOP_DROP {
+    /// A leg may also gain ground now, by up to `SUPER_RISE`, which is what lets a cat
+    /// standing in the code come back up to the furniture. Ties are broken by height: a
+    /// rise beats a fall, because going up is what the whole page is for.
+    fn swoop_target(&self, senses: &Senses<'_>) -> Option<([f32; 3], f32)> {
+        let mut best: Option<([f32; 3], f32, f32)> = None;
+        for dir in [-1.0, 1.0] {
+            let Some((at, score)) = self.swoop_side(senses, dir) else {
+                continue;
+            };
+            if best.is_some_and(|(_, _, been)| score <= been) {
                 continue;
             }
-            let lo = shelf.span[0].max(left) + 0.4;
-            let hi = shelf.span[1].min(right) - 0.4;
+            best = Some((at, dir, score));
+        }
+        best.map(|(at, dir, _)| (at, dir))
+    }
+
+    /// The best leg in one direction: a landing on a line of code or on the flat top of a
+    /// piece of furniture, on the far side of the page from where she stands.
+    fn swoop_side(&self, senses: &Senses<'_>, dir: f32) -> Option<([f32; 3], f32)> {
+        let (left, right, _bottom, _top) = room_to_walk(senses.page[0], senses.page[1]);
+        let mut best: Option<([f32; 3], f32)> = None;
+        // The two halves of the page are the two ends of a super jump: a leap to the
+        // right lands on the furniture against the wall, and a leap to the left comes
+        // down in the code. A leap that stayed on its own side would be a jump along a
+        // shelf, which is what a dash is for.
+        let mut ledges: Vec<([f32; 2], f32)> = Vec::new();
+        if dir > 0.0 {
+            for prop in senses.props.iter().filter(|prop| prop.kind.is_perch()) {
+                let half = prop.size[0] * GLYPH_WIDTH * 0.5;
+                ledges.push(([prop.pos[0] - half, prop.pos[0] + half], prop.top()));
+            }
+        } else {
+            ledges.extend(senses.shelves.iter().map(|shelf| (shelf.span, shelf.y)));
+        }
+        // A leap into the code is the way down -- leaving the top of the wall is leaving
+        // it -- and a leap on to the furniture is the way back up, so that one may gain
+        // what a super jump gains.
+        let (least, most) = if dir > 0.0 {
+            (-SUPER_RISE, SWOOP_DROP)
+        } else {
+            (0.8, SWOOP_DROP)
+        };
+        for (span, y) in ledges {
+            let drop = self.pos[1] - y;
+            if drop < least || drop > most {
+                continue;
+            }
+            let lo = span[0].max(left) + 0.4;
+            let hi = span[1].min(right) - 0.4;
             if hi <= lo {
                 continue;
             }
-            // As far as one leg reaches, or the end of the line if that is nearer. The end
+            // As far as one leg reaches, or the end of the ledge if that is nearer. The end
             // of a line is where most legs come down, because that is where the code stops
             // and a swoop is a leap from one edge of the writing to the other.
-            let x = (self.pos[0] - SWOOP_LEG).clamp(lo, hi);
-            let across = self.pos[0] - x;
+            let x = (self.pos[0] + dir * SWOOP_LEG).clamp(lo, hi);
+            let across = (x - self.pos[0]) * dir;
             if across < SWOOP_MIN {
                 continue;
             }
-            // The leg nearest the length a leg ought to be wins, and among those the one
-            // that falls least: a swoop is a run of leaps across the page, not one leap
-            // from edge to edge, so a target twice as far as a leg is worth less than one
-            // that is a leg away even though it is on the same line.
             let score = -(across - SWOOP_LEG).abs() - drop * 0.2;
             if best.is_some_and(|(_, been)| score <= been) {
                 continue;
             }
-            best = Some(([x, shelf.y, 0.0], score));
+            best = Some(([x, y, 0.0], score));
         }
-        best.map(|(at, _)| at)
+        best
     }
 
     /// A point on a ledge, a few cells away: a cat crosses the text along the
@@ -2637,6 +2706,32 @@ mod tests {
     }
 
     #[test]
+    fn the_lower_she_is_the_more_she_wants_up() {
+        // The whole point of a page of code with a wall of furniture on the right of it:
+        // whatever else she is doing, the way on is over her head. What that is worth is
+        // a function of how far up the page she already is, so the two moods that go up,
+        // and the furniture she goes up on, are worth more on the rug than in the middle.
+        let page = page();
+        let mut rng = Rng::new(0x5EED);
+        let up = |rng: &mut Rng, y: f32| {
+            let kitten = Kitten::new(30.0, y);
+            let senses = senses_on(rng, &page, None, 1.0);
+            kitten
+                .weights(&senses)
+                .iter()
+                .filter(|(mood, _)| matches!(mood, Mood::Climb | Mood::Swoop | Mood::Perch))
+                .map(|(_, weight)| *weight)
+                .sum::<usize>()
+        };
+        let (floor, middle) = (up(&mut rng, 2.0), up(&mut rng, page.rows as f32 * 0.5));
+        assert!(floor > 0, "nothing to go up from the floor");
+        assert!(
+            floor > middle,
+            "{floor} on the floor against {middle} in the middle of the page"
+        );
+    }
+
+    #[test]
     fn left_alone_it_finds_something_to_do_on_the_page() {
         // The whole point of the mode: nothing happens, and the cat makes
         // something happen. A minute of it has to contain play, not just sitting.
@@ -3010,25 +3105,28 @@ mod tests {
 
     #[test]
     fn a_swoop_heads_for_the_far_side_and_down() {
-        // The wall is climbed for this: its top is high and off to one side, so the
-        // whole width of the page is below her on one hand and nothing is above her.
-        // What a leg of a swoop is, then, is a jump of a leg's length to the left and
-        // a few lines down -- not the crossing of the page in one bound, which is a
-        // fall with a cat on it.
+        // The wall is climbed for this: its top is high and off to one side, so the whole
+        // width of the page is below her on one hand and nothing is above her. What a leg
+        // of a swoop is, then, is a super jump of a leg's length to the left and a few
+        // lines down -- not the crossing of the page in one bound, which is a fall with a
+        // cat on it.
         let page = page();
         let mut rng = Rng::new(0x5EED);
         let perch = highest_perch(&page);
         let kitten = Kitten::new(perch.pos[0], perch.top());
         let senses = senses_on(&mut rng, &page, None, 0.0);
-        let to = kitten.swoop_target(&senses).expect("somewhere to swoop to");
-        let across = kitten.pos[0] - to[0];
+        let (to, dir) = kitten
+            .swoop_target(&senses)
+            .expect("somewhere to swoop to");
+        assert_eq!(dir, -1.0, "the far side of the wall is the code");
+        let across = (to[0] - kitten.pos[0]) * dir;
         let drop = kitten.pos[1] - to[1];
         assert!(
             (SWOOP_MIN..=SWOOP_LEG).contains(&across),
             "a leg of {across} cells"
         );
         assert!(
-            (0.8..=SWOOP_DROP).contains(&drop),
+            (-SUPER_RISE..=SWOOP_DROP).contains(&drop),
             "a drop of {drop} lines: {:?} to {to:?}",
             kitten.pos
         );
@@ -3038,6 +3136,46 @@ mod tests {
         assert!(
             (stand - to[1]).abs() < 0.01,
             "nothing to land on at {to:?}: the surface there is {stand}"
+        );
+    }
+
+    #[test]
+    fn a_super_jump_goes_back_up_to_the_furniture() {
+        // The other half of the crossing. A cat in the code with the furniture over her
+        // head has the whole width of the page between her and the next foothold, and a
+        // leap that could only go down would leave her down there for good. What a super
+        // jump gains it gains on the wall: the landing is a flat top, and it is higher
+        // than the line she left.
+        let page = page();
+        let mut rng = Rng::new(0x5EED);
+        let standable: Vec<&Prop> = page
+            .props
+            .iter()
+            .filter(|prop| prop.kind.is_perch())
+            .collect();
+        let mut gains = Vec::new();
+        for shelf in page.shelves.iter().filter(|shelf| shelf.span[1] > 20.0) {
+            let kitten = Kitten::new(shelf.span[1] - 1.0, shelf.y);
+            let senses = senses_on(&mut rng, &page, None, 0.0);
+            let Some((to, dir)) = kitten.swoop_target(&senses) else {
+                continue;
+            };
+            let rise = to[1] - kitten.pos[1];
+            if dir == 1.0 && rise > 0.0 && rise <= SUPER_RISE {
+                gains.push((shelf.y, to, rise));
+            }
+        }
+        let (from, to, rise) = *gains
+            .first()
+            .expect("no super jump off the code gained any ground");
+        assert!(rise <= SUPER_RISE, "a rise of {rise} lines from {from}");
+        // And it comes down on the flat top of a piece of furniture, which is the whole
+        // point: a landing in the middle of a fern would be a cat in a plant.
+        assert!(
+            standable
+                .iter()
+                .any(|prop| (prop.top() - to[1]).abs() < 0.01),
+            "nothing to land on at {to:?}"
         );
     }
 
