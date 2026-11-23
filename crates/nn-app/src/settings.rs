@@ -472,6 +472,15 @@ pub struct Settings {
     /// import. A path that no longer exists falls back to the built-in pair
     /// rather than failing to start.
     pub theme_path: Option<String>,
+    /// Whether the REST listener starts with the window.
+    ///
+    /// Off by default, and the default is the feature: a listener that starts on
+    /// its own is a service the user did not ask for and cannot see. `--rest`
+    /// turns it on for one launch; this key turns it on for every launch, which
+    /// is what a harness or a script on the same machine wants.
+    pub rest_enabled: bool,
+    /// The port the REST listener takes when `--rest` names none.
+    pub rest_port: u16,
 }
 
 impl Default for Settings {
@@ -501,6 +510,8 @@ impl Default for Settings {
             sync_scroll_v: false,
             sync_scroll_h: false,
             theme_path: None,
+            rest_enabled: false,
+            rest_port: crate::rest::DEFAULT_PORT,
             file_dialog: FileDialog::Portal,
             print_paper: "a4".to_string(),
             print_landscape: false,
@@ -622,6 +633,17 @@ impl Settings {
                 "file_dialog" => {
                     settings.file_dialog = FileDialog::from_key(value).unwrap_or_default()
                 }
+                "rest" => settings.rest_enabled = value == "on",
+                "rest_port" => {
+                    // Zero is not a port a client can reach, so it is refused
+                    // rather than stored: a listener on port 0 picks one the
+                    // user would then have to look up in the log.
+                    if let Ok(port) = value.parse::<u16>() {
+                        if port > 0 {
+                            settings.rest_port = port;
+                        }
+                    }
+                }
                 "datetime_format" => settings.datetime_format = value.to_string(),
                 "search_engine" => settings.search_engine = value.to_string(),
                 "zoom_sync" => settings.zoom_sync = value == "on",
@@ -726,6 +748,8 @@ impl Settings {
             "theme_path {}\n",
             self.theme_path.as_deref().unwrap_or("none")
         ));
+        out.push_str(&format!("rest {}\n", on_off(self.rest_enabled)));
+        out.push_str(&format!("rest_port {}\n", self.rest_port));
         out.push_str(&self.runs.render());
         out.push_str(&self.keymap.render());
         out
@@ -792,6 +816,33 @@ mod tests {
             ..Settings::default()
         };
         assert_eq!(Settings::parse(&settings.render()), settings);
+    }
+
+    #[test]
+    fn the_rest_listener_is_off_until_it_is_asked_for() {
+        assert!(!Settings::default().rest_enabled);
+        assert_eq!(Settings::default().rest_port, crate::rest::DEFAULT_PORT);
+        let settings = Settings {
+            rest_enabled: true,
+            rest_port: 9000,
+            ..Settings::default()
+        };
+        let text = settings.render();
+        assert!(text.contains("rest on\n"));
+        assert!(text.contains("rest_port 9000\n"));
+        let parsed = Settings::parse(&text);
+        assert!(parsed.rest_enabled);
+        assert_eq!(parsed.rest_port, 9000);
+    }
+
+    #[test]
+    fn a_rest_port_of_zero_is_not_stored() {
+        // 0 means "any port" to the kernel, which is not something the user can
+        // type into a client, so it is refused rather than remembered.
+        let parsed = Settings::parse("rest_port 0\n");
+        assert_eq!(parsed.rest_port, crate::rest::DEFAULT_PORT);
+        let parsed = Settings::parse("rest_port not-a-port\n");
+        assert_eq!(parsed.rest_port, crate::rest::DEFAULT_PORT);
     }
 
     #[test]

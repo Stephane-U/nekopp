@@ -101,20 +101,34 @@ usage: npp [switches] [file ...]
 
 A file named - reads the document from standard input.
 
+--call sends a JSON call to the editor that is already running and
+prints its answer: `npp --call '{"method":"document.list"}'`.
+Nothing opens.
+
+--rest serves the same calls over HTTP on 127.0.0.1, for a client that
+would rather fetch a URL: `--rest=8085`, then `GET /status`. The port
+goes straight after the switch, so a file called 8085 still opens.
+
 switches:
-  -n, --new-instance start a new process even if one is running
-  -w, --wait         block until the document is closed
-  -l, --line         put the caret on this line (one-based)
-  -c, --column       put the caret on this column (one-based)
-  -s, --software     draw with the software rasterizer, not the GPU
-  -C, --call         send a JSON call to the running editor and print the answer
-  -h, --help         print this text
-  -V, --version      print the version
+  -n, --new-instance    start a new process even if one is running
+  -w, --wait            block until the document is closed
+  -l, --line            put the caret on this line (one-based)
+  -c, --column          put the caret on this column (one-based)
+  -s, --software        draw with the software rasterizer, not the GPU
+  -C, --call            send a JSON call to the running editor and print the answer
+      --rest            serve the REST face on 127.0.0.1 (--rest=PORT names the port)
+  -h, --help            print this text
+  -V, --version         print the version
 ```
 
-`--call` is the one switch that does not start an editor: it hands a JSON request
-to the window that is already running and prints the answer. "Commands over the
-API" is what it is for.
+`--call` is the one switch that opens nothing while the editor runs: it hands a
+JSON request to the window that is already running and prints the answer.
+"Commands over the API" is what it is for.
+
+`--rest` opens a listener instead, and it is the only switch whose port must be
+attached: `--rest 8085` is a listener on the default port and a file called
+`8085`, because an editor that guesses which of the two a word meant is an editor
+that has opened the wrong thing. "The REST face" describes what it serves.
 
 The parser follows the conventions a shell user expects. `--` ends the switches,
 so a file called `-w` can still be opened. A lone `-` means standard input, and
@@ -2606,6 +2620,56 @@ frames, and the client collects the answer with a second call. A blocking method
 would stall the message loop that has to deliver its own reply. The client asks
 every 5 ms and gives up after 5 s.
 
+### Over HTTP
+
+`--rest` serves the same call table over HTTP on `127.0.0.1`, for a client that
+would rather fetch a URL than speak JSON-RPC on a pipe or find a session bus. The
+port is `8085` unless `--rest=PORT` says otherwise, and the `rest_port` key sets
+the default for a launch that names none.
+
+| Method and path | Call | Reads |
+|---|---|---|
+| `GET /` | -- | the route list, as JSON |
+| `GET /help` | `app.help` | -- |
+| `GET /status` | `app.status` | -- |
+| `GET /documents` | `document.list` | -- |
+| `GET /document` | `document.get` | `path`, `range` |
+| `PUT /document` | `document.set` | `path`, `range`; body is the new text |
+| `POST /document/save` | `document.save` | `path` |
+| `POST /command/<name>` | `command.run` | `return_text`, `whole_document`, `range` |
+
+```sh
+curl -s http://127.0.0.1:8085/status
+curl -s -X PUT --data-binary @notes.txt http://127.0.0.1:8085/document
+curl -s -X POST 'http://127.0.0.1:8085/command/sort_asc?whole_document=1'
+```
+
+`path` names a document and leaving it out means the active tab, exactly as in
+`--call`. `range` is `start-end`, half-open character offsets, the same pair the
+JSON spelling takes. A `PUT` body is the document's new text; with
+`Content-Type: application/json` it is `{"text": ..., "range": [start, end]}`
+instead, which is how a caller sends a span without percent-encoding it into a
+query.
+
+A route does not validate anything. It builds the request object a `--call` user
+would have typed and hands it to the same parser, so the one rule about whether
+`whole_document` and `range` can travel together is stated once, in the place that
+already had tests for it, and the REST face cannot answer a request the other two
+faces would refuse. What HTTP adds is the status line: `200` when the call
+answered, `400` for a malformed request, `404` for a path or a document that is
+not there, `405` with an `Allow` header for the wrong verb, `500` for a call that
+failed, `503` when no window answered in 5 s. The body is always the `error`
+object `--call` answers with, so a client parses one thing.
+
+The listener is loopback and nothing else. A request that carries an `Origin`
+header is refused with `403`, because no shell tool sends one and every browser
+does: that single rule is what stops a page on another site from replacing the
+text in an open window and saving it. `NPP_REST_TOKEN` in the environment of the
+launch adds a bearer check (`Authorization: Bearer <token>`) for a machine other
+users can log in to, and it never goes into a settings file. Eight requests may be
+in flight at once and a body may be 32 MiB; past either, the answer is `413` or
+`503` rather than a thread or an allocation per connection.
+
 ### Over MCP
 
 `live_call` takes the call itself -- `method` and whatever that method reads --
@@ -2871,6 +2935,8 @@ able to fix in an editor when it goes wrong.
 | `sync_scroll_v` | `on`, `off` | `off` |
 | `sync_scroll_h` | `on`, `off` | `off` |
 | `theme_path` | path to an imported `stylers.xml` | none |
+| `rest` | `on`, `off`: start the REST listener with the window | `off` |
+| `rest_port` | the port `--rest` takes when it names none | `8085` |
 | `file_dialog` | `portal`, `builtin` | `portal` |
 | `print_paper` | `a4`, `a5`, `letter`, `legal`, `tabloid` | `a4` |
 | `print_landscape` | `on`, `off` | `off` |

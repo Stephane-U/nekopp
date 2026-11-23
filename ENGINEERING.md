@@ -10800,3 +10800,62 @@ characters, and a directory handed to the same route still prints exactly one
 --offline --all-targets`: 0 warnings. `cargo fmt` was not run.
 `docs/nekopp-features.md` gained the paragraph after `--wait`, and `python3
 docs/build-pdf.py` then `--check`: up to date, 329,787 bytes, 77 pages A4.
+
+## Eighty-ninth pass: the same calls, addressed by URL
+
+`npp --call` speaks JSON over the session bus and `npp-mcp` speaks JSON-RPC over a
+pipe, and a publishing script, a notebook or a language whose HTTP client is
+already on the shelf has neither. So the call table got a third transport:
+`--rest=8085`
+serves it on the loopback interface, and `PUT /document` with the new text is the
+same act as `document.set` over the bus.
+
+The design that made it small is that a route is a *spelling*, not a second API.
+Each row builds the JSON object a `--call` user would have typed and hands it to
+`api::parse`, so the rules -- a range in either order, `whole_document` and `range`
+are alternatives, an empty `path` names nothing -- are stated once, in a place that
+already had tests. The REST face therefore cannot answer a request the other two
+would refuse, and the shared parser's own words reach the client: a `POST
+/command/sort_asc?whole_document=1&range=1-2` answers "send `whole_document` or
+`range`, not both: they choose the same block" with a 400, because that sentence
+was written for the other transport and did not need rewriting.
+
+What HTTP adds is the status line and the safety rails. 200 for an answer, 400 for
+a malformed request, 404 for a path or a document that is not there, 405 with an
+`Allow` header for the wrong verb, 503 when the window did not answer in 5 s. The
+body is always the `error` object `--call` answers with, so a client parses one
+thing. The listener binds `127.0.0.1` and has no way to bind anything else: this
+API replaces the text in a window and saves it over a file, and a desktop editor
+is not something to expose on a network without being asked. A request carrying
+`Origin` is refused with 403 -- no shell tool sends one, every browser does, and
+that single rule is the whole cross-site story. `NPP_REST_TOKEN` adds a bearer
+check for a shared machine, and it is an environment variable rather than a
+setting because a settings file is world-readable and a token in one would be a
+secret written down in the wrong place.
+
+Threading decided the shape of the module. The editor state lives on the event
+loop, so the listener is a thread that turns a request into an `api::Call`, posts
+it to the loop with `EventLoopProxy`, and waits on a channel for the answer: the
+HTTP side knows nothing about a window, and `rest` compiles and tests without one.
+Twenty-nine tests, seven of which open a real socket against a canned dispatch,
+which is what proves the header parsing, the body split across two writes, the
+token and the `Origin` refusal without a display in sight.
+
+Two numbers moved because the feature is documented where the other two transports
+are: the reference gained a subsection, so `npp-mcp` reports 111 sections, 29
+chapters and 82 subsections, and the three tests that had those counts written into
+them were updated with it. `settings.txt` gained `rest` (off) and `rest_port`
+(8085), which is how a launch starts the listener without a flag; the switch keeps
+its port attached rather than taking the next word, because `npp --rest 8085` is a
+listener and a file called `8085`, and guessing would open the wrong thing.
+
+Verified against the running binary with `curl`, not only in tests: `GET /`,
+`/status`, `/documents`; `PUT /document` with `c\n a\n b\n`; `POST
+/command/sort_asc?whole_document=1`; `GET /document?range=0-4`; `POST
+/document/save`, which wrote the sorted text to the file; 404 for `/nope` and for
+an unopened path; 405 with `allow: GET, PUT`; 403 for an `Origin`; 401 with
+`NPP_REST_TOKEN` set and 200 with the bearer; 400 for `?range=abc`, for a body
+that is not UTF-8 and for `whole_document` with `range`. `cargo test --offline`:
+2,235 tests, 0 failed. `cargo clippy --offline --all-targets`: 0 warnings.
+`cargo fmt` was not run. `python3 docs/build-pdf.py` then `--check`: up to date,
+342,134 bytes, 78 pages A4.

@@ -56,7 +56,7 @@ wrong and what to try instead.
 |---|---|---|
 | `search_features` | `query`, optional `limit` (1-50, default 10) | the matching sections, best match first, with headings, URIs, and a line of context |
 | `get_section` | `section`: a heading or a slug | that section as markdown, plus its resource URI |
-| `list_sections` | none | the table of contents: 29 chapters, 81 subsections |
+| `list_sections` | none | the table of contents: 29 chapters, 82 subsections |
 | `list_shortcuts` | none | all 74 default key bindings with their commands and action names |
 | `get_command` | `name`: a menu label, an action name, or a `run_command` name | the shortcut, the action, the menu path, the section that documents it, and whether it runs with no window |
 | `list_plugins` | none | every installed plugin: its name, its file, whether it is switched on, and its commands |
@@ -111,7 +111,7 @@ printf '%s\n' \
 ```
 
 The same session against the built binary prints those two response lines and, on
-stderr, one startup line: `npp-mcp 0.3.0: 110 sections, 74 shortcuts, 1 of 5
+stderr, one startup line: `npp-mcp 0.3.0: 111 sections, 74 shortcuts, 1 of 5
 plugins enabled, one JSON object per line on stdio`. The plugin counts are this
 machine's -- the folder the editor uses -- so they differ from one installation
 to the next.

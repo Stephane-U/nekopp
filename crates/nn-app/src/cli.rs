@@ -46,6 +46,14 @@ pub struct Args {
     /// the caller wants the *running* editor, and finding it is this binary's
     /// job.
     pub call: Option<String>,
+    /// Whether to serve the REST face for this run.
+    ///
+    /// A listener is not a thing to start behind the user's back, so it is off
+    /// unless this switch or the `rest` setting asks for it. `--rest=PORT` names
+    /// the port; a bare `--rest` takes the one in the settings file.
+    pub rest: bool,
+    /// The port `--rest` named, if it named one.
+    pub rest_port: Option<u16>,
 }
 
 impl Args {
@@ -79,7 +87,9 @@ pub type Error = String;
 /// The switches this editor understands, as `(short, long, help)`.
 ///
 /// One table, used by both the parser and the usage text, so a switch cannot be
-/// documented and unimplemented or the other way round.
+/// documented and unimplemented or the other way round. A short letter of `\0`
+/// means there is none: `--rest` is a listener rather than a file operation, and
+/// the three letters left unclaimed are worth more to a switch typed constantly.
 const SWITCHES: &[(char, &str, &str)] = &[
     ('n', "new-instance", "start a new process even if one is running"),
     ('w', "wait", "block until the document is closed"),
@@ -87,6 +97,7 @@ const SWITCHES: &[(char, &str, &str)] = &[
     ('c', "column", "put the caret on this column (one-based)"),
     ('s', "software", "draw with the software rasterizer, not the GPU"),
     ('C', "call", "send a JSON call to the running editor and print the answer"),
+    ('\0', "rest", "serve the REST face on 127.0.0.1 (--rest=PORT names the port)"),
     ('h', "help", "print this text"),
     ('V', "version", "print the version"),
 ];
@@ -103,10 +114,17 @@ pub fn usage() -> String {
          --call sends a JSON call to the editor that is already running and\n\
          prints its answer: `npp --call '{\"method\":\"document.list\"}'`.\n\
          Nothing opens.\n\n\
+         --rest serves the same calls over HTTP on 127.0.0.1, for a client that\n\
+         would rather fetch a URL: `--rest=8085`, then `GET /status`. The port\n\
+         goes straight after the switch, so a file called 8085 still opens.\n\n\
          switches:\n",
     );
     for (short, long, help) in SWITCHES {
-        text.push_str(&format!("  -{short}, --{long:<14} {help}\n"));
+        if *short == '\0' {
+            text.push_str(&format!("      --{long:<14}  {help}\n"));
+        } else {
+            text.push_str(&format!("  -{short}, --{long:<14}  {help}\n"));
+        }
     }
     text
 }
@@ -149,6 +167,15 @@ where
                 "version" => out.version = true,
                 "software" => out.software = true,
                 "call" => out.call = Some(text(name, inline, &mut rest)?),
+                "rest" => {
+                    out.rest = true;
+                    // The port is inline only. A bare `--rest` must not eat the
+                    // next argument: `npp --rest 8085` is a listener and a file
+                    // called 8085, and only the user knows which was meant.
+                    if let Some(value) = inline {
+                        out.rest_port = Some(port(&value)?);
+                    }
+                }
                 "line" => out.line = Some(number(name, inline, &mut rest)?),
                 "column" => out.column = Some(number(name, inline, &mut rest)?),
                 other => return Err(format!("unknown switch --{other}")),
@@ -227,6 +254,16 @@ where
     match inline {
         Some(value) => Ok(value),
         None => rest.next().ok_or_else(|| format!("--{name} needs a value")),
+    }
+}
+
+/// A port number, rejecting zero and anything outside the range.
+fn port(text: &str) -> Result<u16, Error> {
+    match text.parse::<u32>() {
+        Ok(value) if (1..=65535).contains(&value) => Ok(value as u16),
+        _ => Err(format!(
+            "--rest needs a port between 1 and 65535, not {text:?}"
+        )),
     }
 }
 
@@ -384,8 +421,36 @@ mod tests {
     fn the_usage_text_documents_every_switch() {
         let text = usage();
         for (short, long, _) in SWITCHES {
-            assert!(text.contains(&format!("-{short}")), "missing -{short}");
+            if *short != '\0' {
+                assert!(text.contains(&format!("-{short}")), "missing -{short}");
+            }
             assert!(text.contains(&format!("--{long}")), "missing --{long}");
+        }
+    }
+
+    #[test]
+    fn rest_is_a_listener_and_its_port_is_inline() {
+        let a = args(&["--rest"]);
+        assert!(a.rest);
+        assert_eq!(a.rest_port, None);
+        let a = args(&["--rest=9000"]);
+        assert!(a.rest);
+        assert_eq!(a.rest_port, Some(9000));
+    }
+
+    #[test]
+    fn a_bare_rest_does_not_swallow_the_next_argument() {
+        // `npp --rest 8085` is a listener and a file called 8085: only the user
+        // knows which one was meant, so neither is guessed at.
+        let a = args(&["--rest", "8085"]);
+        assert_eq!(a.rest_port, None);
+        assert_eq!(a.files, vec![PathBuf::from("8085")]);
+    }
+
+    #[test]
+    fn a_port_that_is_not_a_port_is_refused() {
+        for value in ["--rest=0", "--rest=70000", "--rest=http"] {
+            assert!(parse([value.to_string()]).is_err(), "{value}");
         }
     }
 

@@ -32,8 +32,8 @@ Version 0.3.0. Linux today; Windows and macOS are not ported yet.
 - **Plugins**: WebAssembly, one `.wasm` file per plugin, run in an interpreter
   with its own limits rather than in the editor's address space.
 - **Automation**: `npp --call` takes a JSON request against the running window,
-  and `npp-mcp` serves the same commands over MCP on standard input, needing no
-  window and no display.
+  `npp-mcp` serves the same commands over MCP on standard input with no window
+  and no display, and `npp --rest` serves them as REST on `127.0.0.1`.
 - **Playground**: `Ctrl+Alt+K` hands the window to a page of code with a kitten
   on it, which walks the page, climbs the furniture, takes the text apart and
   falls asleep. It is not in Notepad++.

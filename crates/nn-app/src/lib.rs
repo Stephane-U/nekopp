@@ -41,6 +41,7 @@ pub mod print;
 pub mod prompt;
 pub mod quad;
 pub mod renderer;
+pub mod rest;
 pub mod results;
 pub mod session;
 pub mod settings;

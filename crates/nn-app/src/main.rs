@@ -9865,6 +9865,16 @@ enum UserEvent {
         kind: nn_app::portal::Kind,
         outcome: nn_app::portal::Outcome,
     },
+    /// One REST request, waiting for the window to answer it.
+    ///
+    /// The listener runs on its own thread and the editor state lives on this
+    /// one, so the request travels in and the answer travels back: the sender is
+    /// the connection's end of that conversation, and it outlives the frame
+    /// because the HTTP thread is still waiting on it.
+    Rest {
+        call: nn_app::api::Call,
+        answer: std::sync::mpsc::Sender<serde_json::Value>,
+    },
 }
 
 impl From<accesskit_winit::Event> for UserEvent {
@@ -9980,6 +9990,15 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::Scheme(scheme) => {
                 state.scheme_changed(scheme);
+                return;
+            }
+            UserEvent::Rest { call, answer } => {
+                // The same `call` the bus and MCP reach, answered on the thread
+                // that owns the documents, and a repaint because a `PUT` may
+                // have replaced the text the frame is holding.
+                let value = state.call(call);
+                state.window.request_redraw();
+                let _ = answer.send(value);
                 return;
             }
             UserEvent::A11y(event) => event,
@@ -10265,6 +10284,33 @@ fn main() {
     let proxy = event_loop.create_proxy();
     // Wait, not Poll: we redraw when something changes, and vsync paces us.
     event_loop.set_control_flow(ControlFlow::Wait);
+    // The REST listener, when this launch asked for one. It is started here
+    // rather than from `State::new` because it has to outlive the window: a
+    // request that arrives while the frame is being drawn waits in the queue
+    // instead of being refused.
+    let settings = nn_app::settings::Settings::load();
+    if args.rest || settings.rest_enabled {
+        let port = args.rest_port.unwrap_or(settings.rest_port);
+        let token = std::env::var("NPP_REST_TOKEN").ok().filter(|t| !t.is_empty());
+        let dispatch_proxy = proxy.clone();
+        let dispatch = move |call| {
+            let (sender, answer) = std::sync::mpsc::channel();
+            dispatch_proxy
+                .send_event(UserEvent::Rest { call, answer: sender })
+                .ok()?;
+            answer.recv_timeout(nn_app::rest::ANSWER_TIMEOUT).ok()
+        };
+        match nn_app::rest::serve(port, token, dispatch) {
+            Ok(address) => eprintln!("npp: REST on http://{address}/ (loopback only)"),
+            Err(error) if args.rest => {
+                // Asked for on the command line, so a silent fallback would be
+                // the editor pretending to have done something it did not.
+                eprintln!("npp: cannot serve REST on 127.0.0.1:{port}: {error}");
+                std::process::exit(1);
+            }
+            Err(error) => eprintln!("npp: REST from settings not started: {error}"),
+        }
+    }
     let mut app = App {
         state: None,
         args,
