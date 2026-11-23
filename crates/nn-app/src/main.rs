@@ -4153,13 +4153,11 @@ impl State {
         let (first, second) = self.pane_rects();
         self.view
             .resize(&mut self.tabs[self.active].editor, first.width, first.height);
-        self.tabs[self.active].editor.ensure_caret_visible();
         if let (Some(other), Some(rect)) = (&mut self.other, second) {
             let active = other.active;
             other
                 .view
                 .resize(&mut other.tabs[active].editor, rect.width, rect.height);
-            other.tabs[active].editor.ensure_caret_visible();
         }
     }
 

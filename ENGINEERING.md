@@ -10988,3 +10988,75 @@ notice and `npp-mcp` prints it on stderr beside its status line. `cargo test
 licence URL and the row between its two rules. `cargo clippy --offline
 --all-targets`: 0 warnings. `cargo fmt` was not run. `python3
 docs/build-pdf.py` then `--check`: up to date, 351,974 bytes, 79 pages A4.
+
+## Ninety-second pass: the line under the top edge
+
+The report was one sentence: resizing the screen changes the line we were at.
+It reproduced first try. Twenty-five wheel clicks into a five hundred line file
+put line 130 under the top edge while the caret stayed on line one -- the wheel
+scrolls the pane and does not move the caret -- and one resize brought the pane
+back to line one.
+
+`WindowEvent::Resized` reaches `State::resize`, which calls `resize_view`, and
+`resize_view` ended with a call to `ensure_caret_visible` on both panes. That
+line was written when the wheel moved the caret: the caret was then the only
+thing that knew where the reader was, so putting it back on screen after a
+resize was right. Once the wheel scrolls by pixels and leaves the caret where
+it is, the same line becomes a reset button. An off-screen caret is the ordinary
+state of a reader a hundred lines into a file, and chasing it throws away the
+place that reader had scrolled to.
+
+So the view has one anchor now and it is the top row. `EditorView` remembers
+`last_rows`, the room the previous frame had, which is what lets the next frame
+tell a window that shrank from one that did not. The caret is pulled back in
+exactly two cases: it was on screen in the previous frame and the window now has
+room for fewer rows -- a shrink, a zoom step, a dock that took a slice of the
+pane -- or wrapping was reflowed underneath it. Growing is never followed by a
+scroll, and a caret that was already off screen is never chased, because being
+off screen is not a mistake the view can correct without losing a place the
+reader chose.
+
+The policy also moved out of `resize_view` and into `prepare`. `text_height` and
+the origin are set by the renderer a few lines before it calls `prepare`; when
+the resize event arrives they still describe the old window, so any row count
+measured there was the previous frame's arithmetic about the previous frame's
+geometry. `resize` keeps the job it is good at, sizing the text column, and the
+draw pass -- the only place that knows how many rows fit -- decides what to do
+about the caret.
+
+The second cause was hiding behind the first. `first_line` is a row number and
+`prepare` set the wrap width from the window every frame, so narrowing the
+window renumbered every row in the document, and row 130 of the new numbering
+was a different line of text. `sync_wrap` now remaps through the text rather
+than the arithmetic: it reads the line under the top row, sets the wrap width,
+and asks for that line's first row in the new numbering. It answers whether it
+reflowed, which is the second of the two cases above.
+
+Asking whether the caret is on screen needed a way to ask without moving the
+document, which `ensure_caret_visible` cannot be -- it reveals a collapsed block
+before it answers. `Editor::caret_row` returns the row the caret would be drawn
+at, and `None` inside a fold; `ensure_caret_visible` became its first caller
+rather than its own duplicate of the arithmetic, and recomputes the column
+locally for the horizontal scroll because that is the only place that needs it.
+
+Five tests in a new module at the end of `view.rs` pin the behaviour: a view
+scrolled away from its caret is left alone by a grow and by a shrink, a window
+that shrinks keeps the caret it was showing, a window that grows does not scroll
+to a caret already in view, and both directions of a wrap change keep the line
+under the top edge. Putting the old behaviour back fails three of the five,
+which is the only evidence worth having that they test the bug and not the fix.
+
+Then the window, through XTEST, because this machine has no `xdotool`: a five
+hundred line file, the pointer over the text, twenty-five wheel clicks to line
+130, `XResizeWindow` to 900x520 and then to 1100x800. The gutter said 130 before
+both and 130 after both. Word wrap is off by default, so the reflow path was
+exercised the other way: `Ctrl+Alt+W` turned it on -- and scrolled to the caret,
+correctly, since an explicit command should -- thirty clicks more put line 3 at
+the top, and resizing to 700x600 and then to 700x380 left line 3 there while
+each line's row count changed underneath it.
+
+`cargo test --offline`: 2,265 tests, 0 failed. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference
+gained three sentences in "Editor pane" that state the rule as a promise to the
+user, and `python3 docs/build-pdf.py` then `--check` reports it up to date:
+352,217 bytes, 79 pages A4.

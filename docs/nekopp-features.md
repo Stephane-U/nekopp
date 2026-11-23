@@ -251,6 +251,11 @@ line band, the selection, the caret and any additional carets, the minimap on
 the right edge when it is on, and the whitespace and end-of-line marks when they
 are on.
 
+The pane keeps its place when the window changes shape. The line under the top
+edge is still the line under the top edge after a resize, a zoom or a toggle of
+word wrap, whatever the caret was doing; the caret is scrolled back into view
+only when it was on screen already and the window has left it no room to be.
+
 ### Layout
 
 Without a split there is one pane filling the window. A vertical split puts two

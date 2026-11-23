@@ -1640,6 +1640,27 @@ impl Editor {
             .unwrap_or(0)
     }
 
+    /// The row the caret is drawn at, once folding and wrapping have had their
+    /// say.
+    ///
+    /// `None` when the caret's line is inside a collapsed block: there is no row
+    /// to point at until the block is revealed, which is why
+    /// [`Self::ensure_caret_visible`] reveals first and asks afterwards. A
+    /// caller that only wants to know whether the caret is on screen can use
+    /// this without moving the document at all.
+    pub fn caret_row(&mut self) -> Option<usize> {
+        let caret = self.caret();
+        let line = self.doc.char_to_line(caret);
+        let first = self.doc.row_of_line(line)?;
+        let column = caret - self.doc.line_to_char(line);
+        // A wrapped line occupies several rows, so the caret's row is its first
+        // row plus the segment its column falls in. `checked_div` is the honest
+        // spelling: with no wrapping there is no segment to divide by, and the
+        // row is the line's first.
+        let wrap = self.doc.wrap_cols();
+        Some(first + column.checked_div(wrap).unwrap_or(0))
+    }
+
     /// Scrolls the minimum amount needed to show the caret.
     pub fn ensure_caret_visible(&mut self) {
         let caret = self.caret();
@@ -1647,17 +1668,17 @@ impl Editor {
         // Moving into a collapsed block expands it, which is what Notepad++ does
         // and what keeps the caret from disappearing.
         self.doc.reveal_line(line);
-        let first = self.doc.row_of_line(line).unwrap_or(0);
-        let column = caret - self.doc.line_to_char(line);
-        let wrap = self.doc.wrap_cols();
-        // A wrapped line occupies several rows, so the caret's row is its first
-        // row plus the segment its column falls in.
-        // `checked_div` is the honest spelling: with no wrapping there is no
-        // segment to divide by, and the row is the line's first.
-        let row = first + column.checked_div(wrap).unwrap_or(0);
+        let Some(row) = self.caret_row() else {
+            return;
+        };
         let total = self.doc.visible_line_count();
         self.viewport.ensure_line_visible(row, total);
+        let wrap = self.doc.wrap_cols();
         if wrap == 0 {
+            // The column is recomputed rather than carried: `caret_row` owns the
+            // only subtraction that needs it, and a second variable that had to
+            // stay equal to it would be one more thing to keep right.
+            let column = caret - self.doc.line_to_char(line);
             let x = column as f32 * self.viewport.char_width;
             let content = self.doc.line_len(line) as f32 * self.viewport.char_width;
             self.viewport.ensure_x_visible(x, content);

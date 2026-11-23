@@ -272,6 +272,12 @@ pub struct EditorView {
     rows: Vec<(usize, usize, u16)>,
     /// Whether long lines wrap instead of scrolling sideways.
     wrap: bool,
+    /// How many whole rows the last prepared frame had room for.
+    ///
+    /// Kept so the next one can tell a window that shrank from one that did not:
+    /// a caret that was on screen and no longer fits is scrolled back into
+    /// view, and a caret that was already scrolled away is left alone.
+    last_rows: usize,
     /// How many columns a tab occupies.
     tab_width: u16,
     /// The document thumbnail on the right edge.
@@ -345,6 +351,7 @@ impl EditorView {
             smart: Vec::new(),
             rows: Vec::new(),
             wrap: false,
+            last_rows: 0,
             tab_width: 4,
             minimap: Minimap::new(),
             show_whitespace: false,
@@ -737,6 +744,46 @@ impl EditorView {
             .set_metrics(self.line_height, self.char_width);
     }
 
+    /// Applies the wrap width the window now allows, keeping the top line.
+    ///
+    /// Rows are a function of the wrap width: a resize or a zoom renumbers every
+    /// one of them, and a `first_line` that stayed put as a number would jump to
+    /// another part of the document. The row is remapped through the line it was
+    /// showing, so the text under the top edge does not move. Returns whether
+    /// anything was reflowed.
+    fn sync_wrap(&mut self, editor: &mut Editor) -> bool {
+        let wrap = self.wrap_cols();
+        if wrap == editor.doc.wrap_cols() {
+            return false;
+        }
+        let top = editor.doc.line_of_row(editor.viewport.first_line);
+        editor.doc.set_wrap(wrap);
+        editor.viewport.first_line = editor.doc.row_of_line(top).unwrap_or(0);
+        true
+    }
+
+    /// Keeps the caret on screen when the window changes shape under it.
+    ///
+    /// The rule is deliberately narrow. The anchor of the view is its top row,
+    /// not the caret: the wheel scrolls the pane without moving the caret, so a
+    /// resize that chased the caret would throw away the place the reader had
+    /// scrolled to. The caret is pulled back only when it was on screen in the
+    /// last frame and the window now has room for fewer rows -- a shrink, a zoom
+    /// step, or a dock that took a slice of the pane -- or when wrapping was
+    /// reflowed under it.
+    fn keep_the_caret_in_view(&mut self, editor: &mut Editor, reflowed: bool) {
+        let rows = editor.viewport.full_line_count();
+        let top = editor.viewport.first_line;
+        let was_visible = editor
+            .caret_row()
+            .is_some_and(|row| row >= top && row < top + self.last_rows);
+        let shrank = rows < self.last_rows;
+        self.last_rows = rows;
+        if (shrank || reflowed) && was_visible {
+            editor.ensure_caret_visible();
+        }
+    }
+
     /// Recomputes the gutter width for a document of `lines` lines.
     fn update_gutter(&mut self, lines: usize) {
         let digits = lines.max(1).to_string().len().max(3);
@@ -751,13 +798,14 @@ impl EditorView {
         quads: &mut QuadRenderer,
     ) {
         self.update_gutter(editor.doc.len_lines());
+        // The wrap width is a function of the font and the window, so it is
+        // recomputed here rather than stored: a zoom or a resize changes it.
+        let reflowed = self.sync_wrap(editor);
         editor.viewport.set_size(
             self.text_right() - self.text_left(),
             self.text_height(),
         );
-        // The wrap width is a function of the font and the window, so it is
-        // recomputed here rather than stored: a zoom or a resize changes it.
-        editor.doc.set_wrap(self.wrap_cols());
+        self.keep_the_caret_in_view(editor, reflowed);
 
         let total = editor.doc.visible_line_count();
         let visible = editor.viewport.visible_lines(total);
@@ -1355,5 +1403,131 @@ fn measure_char_width(
         width / SAMPLE.len() as f32
     } else {
         metrics.font_size * 0.6
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::Theme;
+
+    /// A document of `lines` lines, each roughly `width` characters wide.
+    ///
+    /// The numbers are part of the text so a line can be recognised in a
+    /// failure, and the padding makes lines long enough to wrap.
+    fn document(lines: usize, width: usize) -> Document {
+        let mut text = String::new();
+        for line in 0..lines {
+            text.push_str(&format!("{line:04} "));
+            text.push_str(&"x".repeat(width.saturating_sub(5)));
+            text.push('\n');
+        }
+        Document::from_text(&text)
+    }
+
+    /// A view sized like a window, as if one frame had already been drawn.
+    fn view(editor: &mut Editor, width: f32, height: f32) -> EditorView {
+        let mut view = EditorView::with_char_width(Theme::default(), 8.0);
+        view.set_text_height(height);
+        view.resize(editor, width, height);
+        view.last_rows = editor.viewport.full_line_count();
+        view
+    }
+
+    /// One resize, the way `prepare` sees it.
+    fn resize(view: &mut EditorView, editor: &mut Editor, height: f32) -> bool {
+        view.set_text_height(height);
+        view.resize(editor, 900.0, height);
+        let reflowed = view.sync_wrap(editor);
+        view.keep_the_caret_in_view(editor, reflowed);
+        reflowed
+    }
+
+    #[test]
+    fn resizing_leaves_a_view_that_was_scrolled_away_from_the_caret_alone() {
+        // The wheel scrolls without moving the caret, so this is the ordinary
+        // state of a reader three hundred lines into a file whose caret is
+        // still on line one. Resizing used to chase the caret and throw that
+        // place away.
+        let mut editor = Editor::new(document(500, 20));
+        let mut view = view(&mut editor, 900.0, 420.0);
+        assert_eq!(editor.viewport.full_line_count(), 21);
+        editor.viewport.first_line = 100;
+        editor.set_caret(0);
+        assert_eq!(editor.caret_row(), Some(0));
+
+        resize(&mut view, &mut editor, 700.0);
+        assert_eq!(editor.viewport.first_line, 100, "growing moved the view");
+
+        resize(&mut view, &mut editor, 200.0);
+        assert_eq!(editor.viewport.first_line, 100, "shrinking moved the view");
+    }
+
+    #[test]
+    fn a_window_that_shrinks_keeps_the_caret_it_was_showing() {
+        let mut editor = Editor::new(document(500, 20));
+        let mut view = view(&mut editor, 900.0, 420.0);
+        editor.viewport.first_line = 100;
+        editor.set_caret(editor.doc.line_to_char(110));
+        assert_eq!(editor.caret_row(), Some(110));
+
+        resize(&mut view, &mut editor, 200.0);
+
+        let total = editor.doc.visible_line_count();
+        let visible = editor.viewport.visible_lines(total);
+        assert!(
+            visible.contains(&110),
+            "the caret is off screen at {visible:?}"
+        );
+    }
+
+    #[test]
+    fn a_window_that_grows_does_not_scroll_to_a_visible_caret() {
+        let mut editor = Editor::new(document(500, 20));
+        let mut view = view(&mut editor, 900.0, 420.0);
+        editor.viewport.first_line = 100;
+        editor.set_caret(editor.doc.line_to_char(105));
+
+        resize(&mut view, &mut editor, 700.0);
+
+        assert_eq!(editor.viewport.first_line, 100);
+    }
+
+    #[test]
+    fn wrapping_keeps_the_line_under_the_top_edge() {
+        // Rows are a function of the wrap width, so a resize renumbers every one
+        // of them: without a remap the top row would show another line.
+        let mut editor = Editor::new(document(300, 200));
+        let mut view = view(&mut editor, 900.0, 420.0);
+        editor.viewport.first_line = 40;
+        assert_eq!(editor.doc.wrap_cols(), 0);
+        assert_eq!(editor.doc.line_of_row(40), 40);
+
+        view.set_wrap(true);
+        let reflowed = view.sync_wrap(&mut editor);
+
+        assert!(reflowed, "the wrap width did not change");
+        assert!(editor.doc.wrap_cols() > 0);
+        assert_eq!(
+            editor.doc.line_of_row(editor.viewport.first_line),
+            40,
+            "the top of the view moved to another line"
+        );
+    }
+
+    #[test]
+    fn a_wider_window_that_unwraps_keeps_the_line_too() {
+        let mut editor = Editor::new(document(300, 200));
+        let mut view = view(&mut editor, 900.0, 420.0);
+        view.set_wrap(true);
+        view.sync_wrap(&mut editor);
+        editor.viewport.first_line = editor.doc.row_of_line(40).unwrap();
+
+        view.set_wrap(false);
+        let reflowed = view.sync_wrap(&mut editor);
+
+        assert!(reflowed);
+        assert_eq!(editor.doc.wrap_cols(), 0);
+        assert_eq!(editor.doc.line_of_row(editor.viewport.first_line), 40);
     }
 }
