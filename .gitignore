@@ -1,3 +1,9 @@
+# A GitHub token used to publish a release. It is a secret, it lives in the
+# working tree only so that the tools here can read it, and it must never be
+# committed: `git status` reports the tree clean with it in place because of this
+# line.
+/nekopp.token
+
 # Build output.
 /target/
 /dist/
