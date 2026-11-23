@@ -11,6 +11,27 @@ the page with `wgpu`. It shares no code with Notepad++ or Scintilla.
 
 Version 0.3.0. Linux today; Windows and macOS are not ported yet.
 
+## Screenshots
+
+![A Rust file, its tabs, gutter and minimap](docs/shots/editor.png)
+
+A Rust file of the editor's own source: the tab strip, the fold markers in the
+gutter, the minimap down the right. Dark theme, the one it ships with.
+
+![Find, on the docked bar](docs/shots/find.png)
+
+`Ctrl+F`, docked at the bottom of the window: Notepad++'s option row and the
+same buttons, Enter stepping to the next match -- fifty-three in this file.
+
+![An XML localisation file](docs/shots/xml.png)
+
+`localization/french.xml`, another lexer and another encoding, accents and all.
+
+![The playground](docs/shots/playground.png)
+
+`Ctrl+Alt+K`: a kitten loose in a room built out of code, and the fireworks that
+come with a new page. `Esc` goes back to the document.
+
 ## What it does
 
 - **The document**: a rope, so an insert in the middle of a 200 MB file does not
