@@ -128,6 +128,13 @@ one-based; the editor converts once, in one place.
 every document it opened is closed, so a tool that shells out to an editor can
 wait for the edit to finish.
 
+A file named on the command line that does not exist yet opens an empty buffer
+of that name, and the first save creates it, the way `vim` and `nano` do. The
+buffer is not dirty until something is typed, the file only enters the recent
+list once it exists, and a path that is there but cannot be read -- a directory,
+a file without permission -- is still reported as an error rather than replaced
+by a blank page.
+
 ### One editor per session
 
 A second launch does not open a second window by default. The first process owns

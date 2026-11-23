@@ -1577,11 +1577,19 @@ impl State {
         let mut active = 0;
         match &path {
             Some(p) => {
-                let doc = Document::from_file(p).unwrap_or_else(|err| {
+                // The first file gets the window, so it is opened here rather
+                // than through `open_path`. A name that is not there yet is a
+                // blank page of that name, and it is not a recent file until
+                // the first save puts it on disk: `npp notes.txt` in a fresh
+                // directory is the usual way to start writing something new.
+                let existed = p.exists();
+                let doc = Document::open(p).unwrap_or_else(|err| {
                     eprintln!("npp: cannot open {}: {err}", p.display());
                     Document::new()
                 });
-                session.push_recent(p);
+                if existed {
+                    session.push_recent(p);
+                }
                 tabs.push(Tab::new(doc, &langs));
             }
             None => {
@@ -2559,10 +2567,18 @@ impl State {
             self.after_tab_change();
             return;
         }
-        match Document::from_file(path) {
+        // A name that is not there opens a blank page that will create it on
+        // the first save; anything else that cannot be read is still an error.
+        let existed = path.exists();
+        match Document::open(path) {
             Ok(doc) => {
-                self.session.push_recent(path);
-                self.sync_recent();
+                // A buffer for a file that has never been written is not a
+                // recent file yet: the list is a history of what was opened,
+                // and the first save is what earns the entry.
+                if existed {
+                    self.session.push_recent(path);
+                    self.sync_recent();
+                }
                 self.tabs.push(Tab::new(doc, &self.langs));
                 self.active = self.tabs.len() - 1;
                 self.after_tab_change();

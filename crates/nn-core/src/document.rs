@@ -244,6 +244,36 @@ impl Document {
         Ok(doc)
     }
 
+    /// Reads a file, or makes the blank page for a path that does not exist yet.
+    ///
+    /// `npp notes.txt` in a directory where `notes.txt` is not there opens an
+    /// empty buffer called `notes.txt`, and the first save creates the file.
+    /// Every editor does this; the alternative -- a status message and no tab --
+    /// turns a name the user has not used yet into a dead end.
+    ///
+    /// Only absence counts. A path that exists and cannot be read -- a
+    /// directory, a file with no permission -- is still an error: replacing it
+    /// with an empty buffer would offer to overwrite something the user never
+    /// got to see.
+    pub fn open(path: impl AsRef<Path>) -> std::io::Result<Self> {
+        let path = path.as_ref();
+        match Self::from_file(path) {
+            Ok(doc) => Ok(doc),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                let mut doc = Self::new();
+                doc.path = Some(path.to_path_buf());
+                // The stamp of a file that is not there is `None`, and so is the
+                // stamp of a buffer that has never been written. The two agree,
+                // which is what stops the change monitor from reporting the file
+                // as deleted on the frame the tab appears, and what stops the
+                // buffer from carrying a dirty mark the user did not make.
+                doc.stamp = FileStamp::of(path);
+                Ok(doc)
+            }
+            Err(err) => Err(err),
+        }
+    }
+
     /// Writes the document back to its path.
     pub fn save(&mut self) -> std::io::Result<()> {
         let path = self.path.clone().ok_or_else(|| {
@@ -1723,6 +1753,49 @@ mod tests {
         fn drop(&mut self) {
             std::fs::remove_file(&self.0).ok();
         }
+    }
+
+    /// A path in the scratch directory that nothing has created.
+    fn absent(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join("nn-core-tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::remove_file(&path).ok();
+        path
+    }
+
+    #[test]
+    fn a_path_that_is_not_there_opens_a_blank_page() {
+        let path = absent("never-written.txt");
+        let doc = Document::open(&path).unwrap();
+        assert_eq!(doc.path(), Some(path.as_path()));
+        assert_eq!(doc.display_name(), "never-written.txt");
+        assert!(doc.text().is_empty());
+        assert!(!doc.is_dirty());
+        // The stamp of an absent file is `None`, the same as the stamp of a
+        // buffer that was never written, so the page is not reported as a file
+        // that has just been deleted.
+        assert!(!doc.disk_changed());
+    }
+
+    #[test]
+    fn the_first_save_of_an_absent_file_creates_it() {
+        let path = absent("first-save.txt");
+        let mut doc = Document::open(&path).unwrap();
+        doc.insert(0, "hello\n");
+        doc.save().unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "hello\n");
+        assert!(!doc.is_dirty());
+        assert!(!doc.disk_changed());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn a_directory_is_still_an_error() {
+        // Absence is the only failure that means "blank page". A path that is
+        // there and cannot be read stays an error, so the editor never offers
+        // to replace something the user has not seen with an empty buffer.
+        assert!(Document::open(std::env::temp_dir()).is_err());
     }
 
     #[test]

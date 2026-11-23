@@ -10756,3 +10756,47 @@ finds no `notepad-plus-plus.org`, `npp-user-manual.org` or `community.notepad-pl
 in the source. Two labels changed with the destinations -- `Neko++ Project Page` to `Neko++
 Issues`, `Neko++ Community (Forum)` to `(LinkedIn)` -- so the menu does not promise a forum it
 does not have.
+
+## Eighty-eighth pass: a name that does not exist yet
+
+`nn nekopp.token`, in a directory where the file was not there, printed
+`npp: cannot open ...: No such file or directory` and opened nothing. That was
+deliberate and it was wrong. The editor was built around "a file is read", and
+reading a file that is not there is an error; but the one failure that is not a
+failure is a name the user has not used yet. `vim notes.txt` and `nano notes.txt`
+both open an empty page and create the file at the first write, and `npp
+notes.txt` is the same act: naming the document you are about to write.
+
+So `Document::open` sits beside `from_file`: it reads, and on an `Err` whose kind
+is `NotFound` it builds `Document::new()`, adopts the path and stamps it. Only
+absence counts. A directory, or a file with no permission, is still an error,
+because replacing something that is there and cannot be shown with a blank page
+offers to overwrite what the user never saw. The stamp is what makes the blank
+page behave: `FileStamp::of` on an absent file is `None`, the same as on a buffer
+that has been written nowhere, so the change monitor does not report the tab as a
+file deleted on the frame it appears, and the buffer is not dirty until a key is
+pressed.
+
+Two call sites, and they are not the same one twice. `open_path` is every later
+route -- a second file, a dialog answer, a drop, another process's request -- and
+`State::new` is the file the window is born with, which is the route the command
+line takes for its first argument. Both call it, which is why the check on the
+binary matters: the first version of this change only reached `open_path`, and
+`nn nekopp.token` still printed the old line. Session restore keeps `from_file`,
+because a tab the session remembers is a file that existed last run and a stale
+entry should report rather than conjure a tab.
+
+The recent list keeps its meaning by being skipped: a buffer whose file has never
+been written is not something you opened, so `push_recent` runs only when the path
+already existed. An ordinary save reaches `save_active`, which pushes the path
+then, so the entry appears when the file does and never before.
+
+Verified on the running binary, not only in tests: `document.list` shows the tab
+at the absent path with `modified: false` while the directory stays empty to `ls`,
+`document.set` then `document.save` writes 6 bytes and creates the file, and no
+`cannot open` line reaches the log. An existing file still opens with its 11
+characters, and a directory handed to the same route still prints exactly one
+`cannot open`. `cargo test --offline`: 2,201 tests, 0 failed. `cargo clippy
+--offline --all-targets`: 0 warnings. `cargo fmt` was not run.
+`docs/nekopp-features.md` gained the paragraph after `--wait`, and `python3
+docs/build-pdf.py` then `--check`: up to date, 329,787 bytes, 77 pages A4.
