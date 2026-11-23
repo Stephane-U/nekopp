@@ -100,8 +100,25 @@ const KNOCK: [f32; 2] = [2.2, 1.1];
 /// Narrower than a paw's box and shallower, because a rake happens ten times in a
 /// dash where a swing happens once: the point is that the page is damaged along the
 /// route, not that the route is deleted.
-const RAKE: [f32; 2] = [0.7, 0.6];
-const RAKE_WORDS: usize = 2;
+const RAKE: [f32; 2] = [1.35, 0.8];
+const RAKE_WORDS: usize = 3;
+/// How many characters the page reprints per second.
+///
+/// This is the number that lets the cat be as destructive as it likes. The page is
+/// a playground and not a document, so the one thing it cannot do is run out: a run
+/// takes three characters a rake and a rake every two cells, which is more than this
+/// while she is at it, so a line empties under her and fills again behind her. The
+/// two rates are close on purpose. Much faster and the damage is never seen; much
+/// slower and a long afternoon leaves a page of gaps with a cat walking about in it.
+const HEAL_RATE: f32 = 3.0;
+/// How fast a character that is being printed again fades in, in alpha per second.
+///
+/// Not instant: a page that blinked characters back into place would read as a page
+/// that was never damaged. A quarter of a second of fading is long enough to see and
+/// short enough not to be waited for.
+const HEAL_FADE: f32 = 2.5;
+/// The most characters the page will hold in its memory of what it has lost.
+const MAX_MISSING: usize = 900;
 /// Two runs of glyphs with a gap no wider than this are one shelf, so a line with
 /// a space in it is a line to stand on rather than two.
 const SHELF_GAP: f32 = 2.6;
@@ -252,6 +269,12 @@ pub struct Page {
     pub floating: Vec<Floating>,
     /// The page's light: a jump's trail, a landing's ring, a paw's confetti.
     pub sparks: Vec<Spark>,
+    /// Characters the page has lost, in no order, waiting to be printed again.
+    missing: Vec<Card>,
+    /// Characters on their way back: printed faint and filled in.
+    pub mending: Vec<Card>,
+    /// Characters the page owes its reader, as a fraction.
+    heal_clock: f32,
 }
 
 impl Page {
@@ -366,6 +389,9 @@ impl Page {
             motes,
             floating: Vec::new(),
             sparks: Vec::new(),
+            missing: Vec::new(),
+            mending: Vec::new(),
+            heal_clock: 0.0,
         }
     }
 
@@ -478,36 +504,12 @@ impl Page {
         if lifted.is_empty() {
             return 0;
         }
+        self.lost(&lifted);
         // The paw is taller than a line and lands between two of them, so what it
         // takes can be the ends of two different lines. A word knocked off a page
         // is still a word: the characters are gathered one line at a time and the
         // longest run under the paw is the one that comes loose.
-        let mut lines: BTreeMap<i32, Vec<Card>> = BTreeMap::new();
-        for card in lifted {
-            let row = (self.rows as f32 - card.pos[1] - 0.5).round() as i32;
-            lines.entry(row).or_default().push(card);
-        }
-        let mut best: Option<Vec<Card>> = None;
-        for (_, mut line) in lines {
-            line.sort_by(|a, b| a.pos[0].total_cmp(&b.pos[0]));
-            let mut runs: Vec<Vec<Card>> = Vec::new();
-            for card in line {
-                let joined = runs.last().is_some_and(|run| {
-                    run.last()
-                        .is_some_and(|last| card.pos[0] - last.pos[0] <= GLYPH_WIDTH * 1.5)
-                });
-                if joined {
-                    runs.last_mut().expect("the run was just checked").push(card);
-                } else {
-                    runs.push(vec![card]);
-                }
-            }
-            for run in runs {
-                if best.as_ref().is_none_or(|kept| run.len() > kept.len()) {
-                    best = Some(run);
-                }
-            }
-        }
+        let best = runs(&lifted).into_iter().next();
         let made = usize::from(best.is_some());
         // One piece per paw, not the whole line: a page that lost a line every time
         // a cat looked at it would be a page with nothing left to read.
@@ -560,34 +562,12 @@ impl Page {
         if lifted.is_empty() {
             return 0;
         }
+        self.lost(&lifted);
         // One row at a time again: a swathe across two lines that are not joined
-        // would splice their ends into a word nobody wrote.
-        let mut lines: BTreeMap<i32, Vec<Card>> = BTreeMap::new();
-        for card in &lifted {
-            let row = (self.rows as f32 - card.pos[1] - 0.5).round() as i32;
-            lines.entry(row).or_default().push(*card);
-        }
-        let mut runs: Vec<Vec<Card>> = Vec::new();
-        for (_, mut line) in lines {
-            line.sort_by(|a, b| a.pos[0].total_cmp(&b.pos[0]));
-            for card in line {
-                let joined = runs.last().is_some_and(|run: &Vec<Card>| {
-                    run.last().is_some_and(|last| {
-                        // Only within the row: a run that jumped between lines is two
-                        // runs, which the row grouping has already arranged.
-                        (card.pos[1] - last.pos[1]).abs() < 0.01
-                            && card.pos[0] - last.pos[0] <= GLYPH_WIDTH * 1.5
-                    })
-                });
-                if joined {
-                    runs.last_mut().expect("the run was just checked").push(card);
-                } else {
-                    runs.push(vec![card]);
-                }
-            }
-        }
-        runs.sort_by_key(|run| std::cmp::Reverse(run.len()));
-        for run in runs.into_iter().take(RAKE_WORDS) {
+        // would splice their ends into a word nobody wrote. The widest runs are the
+        // ones that come loose, so what she takes reads as words rather than as
+        // crumbs.
+        for run in runs(&lifted).into_iter().take(RAKE_WORDS) {
             let first = run[0].pos[0];
             let last = run[run.len() - 1].pos[0];
             self.tokens.push(Token {
@@ -612,10 +592,172 @@ impl Page {
         taken
     }
 
+    /// Everything within `reach` comes off the page at once, thrown away from `at`.
+    ///
+    /// This is what the end of a run does, where a paw would only take a word. A cat
+    /// that has been running has the whole of its weight behind the stop, so what she
+    /// lands among goes in every direction: each run of characters becomes one piece
+    /// and each piece is thrown along the line from `at` to where it stood, which is
+    /// why the middle of the hole is empty and the edges look like a burr.
+    ///
+    /// Returns how many characters came away.
+    pub fn blast(&mut self, at: [f32; 3], reach: f32, power: f32, rng: &mut Rng) -> usize {
+        let mut lifted: Vec<Card> = Vec::new();
+        self.text.retain(|card| {
+            let near = card.alpha >= 0.9
+                && card.pos[0] > GUTTER as f32 * GLYPH_WIDTH
+                && (card.pos[0] - at[0]).abs() <= reach
+                && (card.pos[1] - at[1]).abs() <= reach * 0.8;
+            if near {
+                lifted.push(*card);
+            }
+            !near
+        });
+        if lifted.is_empty() {
+            return 0;
+        }
+        self.lost(&lifted);
+        let taken = lifted.len();
+        for run in runs(&lifted) {
+            let first = run[0].pos[0];
+            let last = run[run.len() - 1].pos[0];
+            let middle = [(first + last) * 0.5, run[0].pos[1]];
+            let dx = middle[0] - at[0];
+            let dy = middle[1] - at[1];
+            let away = dx.hypot(dy).max(0.4);
+            self.tokens.push(Token {
+                text: run.iter().map(|card| card.ch).collect(),
+                styles: run.iter().map(|card| card.style).collect(),
+                pos: [middle[0], middle[1], 0.35],
+                vel: [
+                    dx / away * power * rng.range(0.6, 1.2),
+                    dy / away * power * 0.6 + rng.range(1.0, 3.4),
+                ],
+                roll: rng.range(-0.7, 0.7),
+                pitch: 0.0,
+                spin: rng.range(-7.0, 7.0),
+                rest: false,
+            });
+        }
+        while self.tokens.len() > MAX_TOKENS {
+            self.tokens.remove(0);
+        }
+        self.refresh_shelves();
+        taken
+    }
+
+    /// Takes a piece off the furniture where a body hit it.
+    ///
+    /// The furniture is made of characters too, and a cat that can wreck a line but
+    /// not a card is a cat playing in front of a backdrop. What comes off is thrown
+    /// up and away from `at`, one card at a time, so a hit prop visibly loses its
+    /// middle instead of sitting there being hit.
+    ///
+    /// Returns how many cards came off.
+    pub fn chip(&mut self, at: [f32; 3], reach: f32, rng: &mut Rng) -> usize {
+        let mut shed: Vec<Card> = Vec::new();
+        for prop in &mut self.props {
+            if prop.cards.is_empty() || prop.distance_to(at) > reach {
+                continue;
+            }
+            let take = 1 + rng.below(3).min(prop.cards.len().saturating_sub(1));
+            for _ in 0..take.min(prop.cards.len()) {
+                let index = rng.below(prop.cards.len());
+                shed.push(prop.cards.swap_remove(index));
+            }
+        }
+        let taken = shed.len();
+        for card in shed {
+            if self.tokens.len() >= MAX_TOKENS {
+                break;
+            }
+            let dx = card.pos[0] - at[0];
+            let dy = card.pos[1] - at[1];
+            let away = dx.hypot(dy).max(0.4);
+            self.tokens.push(Token {
+                text: vec![card.ch],
+                styles: vec![card.style],
+                pos: [card.pos[0], card.pos[1], 0.35],
+                vel: [
+                    dx / away * rng.range(1.6, 4.0),
+                    dy / away * rng.range(0.8, 2.0) + rng.range(1.4, 3.6),
+                ],
+                roll: rng.range(-0.9, 0.9),
+                pitch: 0.0,
+                spin: rng.range(-8.0, 8.0),
+                rest: false,
+            });
+        }
+        while self.tokens.len() > MAX_TOKENS {
+            self.tokens.remove(0);
+        }
+        taken
+    }
+
     /// Lays the ledges out again, which a page needs after a paw took a line apart.
     pub fn refresh_shelves(&mut self) {
         let body = self.rows.saturating_sub(LABEL_ROWS).max(8);
         self.shelves = shelves_from(&self.text, self.columns, self.rows, body);
+    }
+
+    /// Keeps what a paw or a run took off the page, so that the page can print it
+    /// again.
+    ///
+    /// It is the characters that are remembered, each with the cell it stood in, so a
+    /// line that lost its middle comes back with the middle in the middle. Past
+    /// `MAX_MISSING` the first loss is dropped: an afternoon of this must not grow a
+    /// second page in memory, and a page that forgot the far past simply ends up with
+    /// the lines the cat has not been at lately.
+    fn lost(&mut self, cards: &[Card]) {
+        for card in cards {
+            if self.missing.len() >= MAX_MISSING {
+                self.missing.remove(0);
+            }
+            self.missing.push(*card);
+        }
+    }
+
+    /// Puts the page back together at a read's pace, and fades in what it prints.
+    ///
+    /// The mending is what makes the wrecking possible. Without it every run would
+    /// cost the page a line for good, and the mode would spend its second minute on a
+    /// blank page -- so the cat would have to be kept too calm to damage anything,
+    /// which is exactly what a playground should not be. Printed characters go into
+    /// `mending` at nothing and are filled in over `HEAL_FADE`, and only when a card is
+    /// back to full does it rejoin the page and the ledges. That is also what keeps
+    /// her honest: a character that has not finished coming back cannot be taken
+    /// again.
+    pub fn mend(&mut self, dt: f32, rng: &mut Rng) {
+        if self.missing.is_empty() {
+            self.heal_clock = 0.0;
+        } else {
+            self.heal_clock += dt * HEAL_RATE;
+            while self.heal_clock >= 1.0 && !self.missing.is_empty() {
+                self.heal_clock -= 1.0;
+                let index = rng.below(self.missing.len());
+                let card = self.missing.swap_remove(index);
+                self.mending.push(Card { alpha: 0.0, ..card });
+            }
+        }
+        if self.mending.is_empty() {
+            return;
+        }
+        for card in &mut self.mending {
+            card.alpha = (card.alpha + HEAL_FADE * dt).min(1.0);
+        }
+        let mut arrived: Vec<Card> = Vec::new();
+        self.mending.retain(|card| {
+            if card.alpha >= 1.0 {
+                arrived.push(*card);
+                false
+            } else {
+                true
+            }
+        });
+        if !arrived.is_empty() {
+            self.text.extend(arrived);
+            self.refresh_shelves();
+        }
     }
 
     /// Raises a glyph off the page for a moment: the Zzz of a sleeping cat, or a
@@ -955,6 +1097,38 @@ pub(crate) fn surface_from(shelves: &[Shelf], props: &[Prop], floor: f32, x: f32
 /// The gutter is a margin and the rug is the floor, so neither is a ledge: what a
 /// cat can stand on is what the code printed. Runs are merged across the spaces
 /// inside a line, because a line with a gap in it is still a line to walk along.
+/// The runs of characters that stood next to each other, widest first.
+///
+/// One row at a time: a swathe across two lines that are not joined would splice their
+/// ends into a word nobody wrote. Within a row, two characters are in the same run when
+/// the gap between them is no wider than a word space, so a word keeps its punctuation
+/// and loses the space before the next one.
+fn runs(cards: &[Card]) -> Vec<Vec<Card>> {
+    let mut rows: BTreeMap<i32, Vec<Card>> = BTreeMap::new();
+    for card in cards {
+        rows.entry(card.pos[1].round() as i32).or_default().push(*card);
+    }
+    let mut out: Vec<Vec<Card>> = Vec::new();
+    for (_, mut row) in rows {
+        row.sort_by(|a, b| a.pos[0].total_cmp(&b.pos[0]));
+        let mut run: Vec<Card> = Vec::new();
+        for card in row {
+            let joined = run
+                .last()
+                .is_some_and(|last: &Card| card.pos[0] - last.pos[0] <= GLYPH_WIDTH * 1.5);
+            if !joined && !run.is_empty() {
+                out.push(std::mem::take(&mut run));
+            }
+            run.push(card);
+        }
+        if !run.is_empty() {
+            out.push(run);
+        }
+    }
+    out.sort_by_key(|run| std::cmp::Reverse(run.len()));
+    out
+}
+
 fn shelves_from(text: &[Card], columns: u32, rows: u32, body: u32) -> Vec<Shelf> {
     let mut solid = vec![false; (columns * rows) as usize];
     for card in text {
@@ -1233,6 +1407,28 @@ mod tests {
         Page::new(Flavour::Rust, 0x5EED, 0, 120, 40)
     }
 
+    /// A long line with ink on it, and a character on that line to aim at: a swathe
+    /// in a gap would take nothing, which is right of the page and wrong of a test.
+    fn inked(page: &Page) -> (Shelf, f32) {
+        let shelf = *page
+            .shelves
+            .iter()
+            .find(|shelf| shelf.row > 10 && shelf.span[1] - shelf.span[0] > 8.0)
+            .expect("a long line");
+        let x = page
+            .text
+            .iter()
+            .filter(|card| {
+                card.pos[0] >= shelf.span[0]
+                    && card.pos[0] <= shelf.span[1]
+                    && (page.rows as f32 - card.pos[1] - 0.5).round() as u32 == shelf.row
+            })
+            .map(|card| card.pos[0])
+            .next()
+            .expect("a character on the line");
+        (shelf, x)
+    }
+
     #[test]
     fn a_ring_on_the_paper_widens_as_it_fades() {
         let mut page = page();
@@ -1430,24 +1626,7 @@ mod tests {
         // itself -- and that what came away went the way she was going.
         let mut page = page();
         let mut rng = Rng::new(0x7A4E);
-        let shelf = *page
-            .shelves
-            .iter()
-            .find(|shelf| shelf.row > 10 && shelf.span[1] - shelf.span[0] > 8.0)
-            .expect("a long line");
-        // Centred on a character rather than on the middle of the line: a swathe in
-        // a gap would take nothing, which is right of the page and wrong of a test.
-        let x = page
-            .text
-            .iter()
-            .filter(|card| {
-                card.pos[0] >= shelf.span[0]
-                    && card.pos[0] <= shelf.span[1]
-                    && (page.rows as f32 - card.pos[1] - 0.5).round() as u32 == shelf.row
-            })
-            .map(|card| card.pos[0])
-            .next()
-            .expect("a character on the line");
+        let (shelf, x) = inked(&page);
         let before = page.text.len();
         let ledges = page.shelves.len();
         let taken = page.rake([x, shelf.y - 0.5, 0.0], 1.0, &mut rng);
@@ -1460,6 +1639,102 @@ mod tests {
         );
         let thrown = page.tokens.last().expect("a word in the air");
         assert!(thrown.vel[0] > 0.0, "{thrown:?} went the wrong way");
+    }
+
+    #[test]
+    fn the_page_prints_back_what_a_run_took() {
+        // A playground that could be emptied would have to keep the cat too calm to
+        // empty it, which is the version of this mode that was boring. The page mends
+        // instead: a character at a time, a quarter of a second behind the paw, so a
+        // furrow is a furrow and not a hole that never closes.
+        let mut page = page();
+        let mut rng = Rng::new(0x4EE7);
+        let (shelf, x) = inked(&page);
+        let before = page.text.len();
+        let taken = page.rake([x, shelf.y - 0.5, 0.0], 1.0, &mut rng);
+        assert!(taken >= 2, "{taken} characters came away");
+        // Not at once: a page that blinked its characters back would read as a page
+        // that had never been damaged at all.
+        page.mend(1.0 / 120.0, &mut rng);
+        assert_eq!(page.text.len(), before - taken);
+        // One character per heal, at the page's own rate: long enough for the first one
+        // to be printed and still be faint.
+        for _ in 0..(120.0 / HEAL_RATE) as usize + 6 {
+            page.mend(1.0 / 120.0, &mut rng);
+        }
+        assert!(!page.mending.is_empty(), "nothing was ever on its way back");
+        // And what is back is whole: the ghosts are the ones still fading.
+        for _ in 0..(120 * 4) {
+            page.mend(1.0 / 120.0, &mut rng);
+        }
+        assert_eq!(page.text.len(), before, "the line never came back");
+        assert!(page.mending.is_empty(), "{} still ghosting", page.mending.len());
+    }
+
+    #[test]
+    fn a_blast_takes_a_radius_where_a_paw_takes_a_word() {
+        // What ends a run: a cat stopping from a gallop puts all of itself down, so
+        // the page gives way in every direction at once instead of losing the one word
+        // a swinging paw would have taken.
+        let (shelf, _) = inked(&page());
+        let middle = (shelf.span[0] + shelf.span[1]) * 0.5;
+        let at = [middle, shelf.y - 0.5, 0.0];
+        let mut struck = page();
+        let mut blasted = page();
+        let words = struck.text.len();
+        struck.strike(at, &mut Rng::new(0xB1A5));
+        let paw = words - struck.text.len();
+        let thrown = blasted.tokens.len();
+        let taken = blasted.blast(at, 2.6, 10.0, &mut Rng::new(0xB1A5));
+        assert_eq!(blasted.text.len(), words - taken);
+        assert!(paw > 0, "the paw took nothing to compare with");
+        assert!(taken > paw, "{taken} against a paw's {paw}");
+        assert!(blasted.tokens.len() > thrown, "nothing was thrown clear");
+        let near = |page: &Page| {
+            page.text
+                .iter()
+                .filter(|card| {
+                    (card.pos[0] - at[0]).abs() <= 2.6 && (card.pos[1] - at[1]).abs() <= 2.0
+                })
+                .count()
+        };
+        assert!(near(&blasted) == 0, "{} characters stayed in the hole", near(&blasted));
+        assert!(near(&struck) > 0, "a paw took the whole radius too");
+    }
+
+    #[test]
+    fn the_furniture_sheds_what_it_is_made_of_when_it_is_hit_hard() {
+        // A cat that can wreck a line but not a card is a cat playing in front of a
+        // backdrop. What comes off a prop is thrown up and away from the hit, so a
+        // table loses its middle rather than sitting there being hit.
+        let mut page = page();
+        let mut rng = Rng::new(0xC41F);
+        let index = page
+            .props
+            .iter()
+            .position(|prop| prop.cards.len() > 3)
+            .expect("a prop with ink in it");
+        let at = page.props[index].pos;
+        let before = page.props[index].cards.len();
+        let shed = page.chip(at, 1.0, &mut rng);
+        let after = page.props[index].cards.len();
+        assert!(after < before, "the prop kept every character");
+        assert!(shed >= before - after, "{shed} came off a prop of {before}");
+    }
+
+    #[test]
+    fn the_page_remembers_only_so_much_of_what_it_lost() {
+        // An afternoon of this must not grow a second page in memory. Past the cap the
+        // oldest loss is forgotten, which leaves the page with the lines the cat has
+        // not been at lately and not with an unbounded list of everything she has.
+        let mut page = page();
+        let cards: Vec<Card> = std::mem::take(&mut page.text);
+        let mut lost = 0;
+        while lost <= MAX_MISSING {
+            page.lost(&cards);
+            lost += cards.len();
+        }
+        assert_eq!(page.missing.len(), MAX_MISSING);
     }
 
     #[test]

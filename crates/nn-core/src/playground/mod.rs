@@ -198,6 +198,9 @@ pub struct Playground {
     was_air: bool,
     /// The same for running flat out, so a dash has a beginning and an end.
     was_dash: bool,
+    /// The same for raking, which is either of the fast moods: the frames a run
+    /// begins and ends are the frames the page is hit as a whole.
+    was_raking: bool,
     /// Pieces of trail dropped since she left the page, so every fourth one can be
     /// a star.
     trail_count: u32,
@@ -240,6 +243,7 @@ impl Playground {
             trail_clock: 0.0,
             was_air: false,
             was_dash: false,
+            was_raking: false,
             trail_count: 0,
             last_at,
             vel: [0.0; 2],
@@ -327,13 +331,29 @@ impl Playground {
         if let Some(at) = self.kitten.rake {
             let heading = if self.kitten.yaw < 0.0 { -1.0 } else { 1.0 };
             if self.page.rake(at, heading, &mut self.rng) > 0 {
+                // Two specks, not one: what a run kicks up is a spray along the
+                // furrow rather than a puff at the end of it.
                 self.page.dust(at, self.trail_hue, 0.3, &mut self.rng);
+                self.page.dust(at, self.trail_hue, 0.24, &mut self.rng);
+                // A little confetti in the furrow, often enough to read as debris
+                // and not so often that the page is fireworks.
+                if self.rng.below(2) == 0 {
+                    self.page.confetti(at, self.trail_hue, 3, 3.4, &mut self.rng);
+                }
                 // Furniture in the way of a run is worth the page saying so: a
                 // table that only shakes for a paw slamming into it at eight cells
-                // a second is a table nobody believes in.
-                if self.page.bump(at, 1.8, 1.7) {
+                // a second is a table nobody believes in. It sheds, too -- the box
+                // keeps its shape and loses the characters it was made of.
+                if self.page.bump(at, 2.0, 1.9) {
+                    let shed = self.page.chip(at, 1.8, &mut self.rng);
                     self.page.ring(at, (self.trail_hue + 0.5) % 1.0, 0.55);
-                    self.page.confetti(at, self.trail_hue, 8, 4.2, &mut self.rng);
+                    self.page.confetti(
+                        at,
+                        self.trail_hue,
+                        10 + shed * 2,
+                        4.6,
+                        &mut self.rng,
+                    );
                 }
             }
         }
@@ -360,6 +380,10 @@ impl Playground {
             self.page.step_props(step);
             self.page.step_floating(step);
             self.page.step_sparks(step);
+            // The page mends itself at the same cadence as everything else that
+            // moves on it: what a run takes away comes back, so she can take it
+            // away again.
+            self.page.mend(step, &mut self.rng);
             left -= step;
         }
 
@@ -454,8 +478,27 @@ impl Playground {
             self.page
                 .ring(paw, (self.trail_hue + 0.35) % 1.0, 0.3);
             self.page
-                .confetti(paw, (self.trail_hue + 0.2) % 1.0, 12, 5.0, &mut self.rng);
+                .confetti(paw, (self.trail_hue + 0.2) % 1.0, 18, 5.0, &mut self.rng);
         }
+        // The two ends of a run. A cat that leaves the ground at a gallop pushes off
+        // with everything it has, and a cat that stops from one puts the whole of
+        // itself down; either way the page gives way in every direction at once
+        // instead of losing the one word a paw would take. This is what makes a run an
+        // event rather than a line drawn quietly across a page, and it happens twice
+        // because a run has two ends.
+        let raking = self.kitten.raking();
+        if raking != self.was_raking {
+            let feet = [self.kitten.pos[0], self.kitten.pos[1] - 0.5, 0.0];
+            let torn = self.page.blast(feet, 2.8, 10.0, &mut self.rng);
+            if torn > 0 {
+                self.page.puff(feet, 12, &mut self.rng);
+                self.page.ring(feet, (self.trail_hue + 0.5) % 1.0, 0.7);
+                self.page
+                    .confetti(feet, self.trail_hue, 18, 6.0, &mut self.rng);
+            }
+            self.page.chip(feet, 2.2, &mut self.rng);
+        }
+        self.was_raking = raking;
 
         // The trail: a piece of light every part of a cell she flies, each a step
         // around the wheel from the last, so a jump is a band of colour with its
@@ -493,14 +536,14 @@ impl Playground {
             // is dim on purpose -- it is there to say she is lit, not to cover the
             // colours she has left behind.
             self.page.aura(at, self.trail_hue, 1.2);
-        } else if self.kitten.dashing() {
-            // A dash gets a trail of its own, on the paper rather than in the air,
-            // and it is a different animal from the jump's rainbow: the pieces are
-            // laid at her feet, thrown hard the way she came, and the wheel turns
-            // per piece instead of per jump, so what follows her is a streak.
-            // Laid a third again as far apart as a jump's pieces and smaller, so the
-            // streak is a line: a run has twenty of these on screen at once, and
-            // twenty blobs of the size of a leg is a cloud, not a speed.
+        } else if self.kitten.streaking() {
+            // A run gets a trail of its own, on the paper rather than in the air, and
+            // it is a different animal from the jump's rainbow -- a lap drags the same
+            // one. The pieces are laid at her feet, thrown hard the way she came, and
+            // the wheel turns per piece instead of per jump, so what follows her is a
+            // streak. Laid a third again as far apart as a jump's pieces and smaller,
+            // so the streak is a line: a run has twenty of these on screen at once,
+            // and twenty blobs of the size of a leg is a cloud, not a speed.
             for fraction in self.due_trail(flown * 1.35) {
                 self.trail_hue = (self.trail_hue + TRAIL_HUE) % 1.0;
                 // At her paws and not above them: the light of a run belongs on the
@@ -576,6 +619,11 @@ impl Playground {
         }
         for prop in &self.page.props {
             prop.cards((1.0 - arrive) * -1.5, arrive, &mut cards);
+        }
+        // Characters the page is printing again, faint and in the cell they stood
+        // in: a wrecked line is seen filling rather than seen being replaced.
+        for card in &self.page.mending {
+            cards.push(lift(card, (1.0 - arrive) * -1.5, card.alpha * arrive));
         }
         // Zzz and sparkles: the page's own glyphs, held up for a moment.
         for glyph in &self.page.floating {
@@ -854,6 +902,52 @@ mod tests {
         assert!(trail > 20, "{trail} pieces of trail behind a run");
         assert!(rings > 0, "a run began or ended without a ring");
         assert!(taken >= 4, "{taken} characters came off the page");
+    }
+
+    #[test]
+    fn a_page_under_a_cat_that_never_stops_is_never_emptied() {
+        // The mode is a playground and not a document, and the one thing a playground
+        // cannot do is run out. Five minutes of the busiest animal this mode has is what
+        // this costs: the page is taken apart and printed again, and at no point is it a
+        // page of gaps with a cat walking about in it.
+        let mut playground = open();
+        let input = Input::default();
+        let floor = playground.page().rows as usize * 10;
+        let mut least = playground.page().text.len();
+        let mut printed = false;
+        for _ in 0..(120 * 300) {
+            playground.step(1.0 / 120.0, &input);
+            assert!(
+                playground.page().text.len() > floor,
+                "the page was down to {} characters",
+                playground.page().text.len()
+            );
+            least = least.min(playground.page().text.len());
+            printed |= !playground.page().mending.is_empty();
+        }
+        assert!(printed, "nothing was ever coming back");
+        assert!(least > floor);
+    }
+
+    #[test]
+    fn the_end_of_a_run_blasts_a_hole_in_the_page() {
+        // A run does not stop, it arrives: the last thing a dash or a lap does is put
+        // the whole animal down among the characters it was chasing. A rake takes two or
+        // three at once, so a frame that loses ten is a landing and not a furrow.
+        let mut playground = open();
+        let input = Input::default();
+        let mut biggest = 0;
+        let mut holes = 0;
+        for _ in 0..(120 * 240) {
+            let before = playground.page().text.len();
+            playground.step(1.0 / 120.0, &input);
+            let lost = before.saturating_sub(playground.page().text.len());
+            biggest = biggest.max(lost);
+            if lost >= 8 {
+                holes += 1;
+            }
+        }
+        assert!(holes > 0, "no run ever ended in a hole, biggest loss {biggest}");
     }
 
     #[test]

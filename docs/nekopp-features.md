@@ -1799,7 +1799,10 @@ smaller window with fewer of both, and looks the same on any display.
 | The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
 | The dust | Specks that wander on their own; one within reach of a paw is thrown in a short arc and fades where it lands |
 | The light | A jump leaves a band of colour along the arc she flew, a small halo travels with her, a landing puts a ring on the paper with a burst of confetti, and every fourth piece of trail is a star |
-| The run | Now and then she picks the far end of the ledge she is standing on and crosses it at twice her running speed, taking the characters in her way and dragging a streak of light along the line as it comes apart |
+| The run | Now and then she picks the far end of the ledge she is standing on and crosses it at twice her running speed, taking the characters in her way and dragging a streak of light along the line as it comes apart; a run with time left on its clock takes another leg, and one leg in three is the line over her head |
+| The lap | Her other fast mood: the whole page is the target and the speed is between a run and a dash, raking and streaking exactly as a dash does, turning onto a new line whenever it reaches the end of the one it is on |
+| The blast | A run has two ends and both of them hit: pushing off and stopping from that speed take everything within a radius of her paws at once, each run of characters thrown away from her |
+| The mending | Everything a paw, a run or a landing takes is remembered and printed back at three characters a second, each one fading in over four tenths of a second, so the page is taken apart and put back rather than emptied |
 | Sleep | Three minutes with no input and it curls up where it stands, and `z` floats up off her head |
 | Sparkles | Washing and stretching raise a `*` or two off the muzzle, for a second or so |
 | Dimming | Four minutes and the page starts to dim, the way a screensaver does |
@@ -1833,18 +1836,48 @@ speed is fast enough to cross the page in under two seconds, which is what makes
 an event rather than a hurried walk, and she does not stop when she arrives -- the
 mood's own clock ends the run, and getting there early only means the paw comes
 down on what she found. What she passes comes apart. A swing takes the longest word
-under the paw; a shoulder takes whatever is in a swathe a character and a half wide
+under the paw; a shoulder takes whatever is in a swathe nearly three characters wide
 at her own row, so a line comes out with a run of holes in it rather than a hole in
-it, and the words come away thrown the way she was going. The rake is reported
-behind her and never under her, because a cat that took the line out from under its
-own paws would drop into the page mid-run -- what she leaves is a furrow, and a
-furrow is behind. The gap a rake leaves is narrower than the bridge a shelf is built
-over, so the line she is running along stays a ledge even as it empties.
+it, and the words come away thrown the way she was going. The rake is reported a
+character and a half behind her and never under her, because a cat that took the
+line out from under its own paws would drop into the page mid-run -- what she leaves
+is a furrow, and a furrow is behind. The gap a rake leaves is narrower than the
+bridge a shelf is built over, so the line she is running along stays a ledge even as
+it empties.
+
+A run has two ends and both of them hit. Leaving the ground at that speed is a
+push-off and stopping from it is a fall, so the frames where a run begins and ends
+each take everything within a radius of her paws at once, each run of characters
+thrown along the line from her to where it stood, which is why the middle of the
+hole is empty and the edges look like a burr. That is the page's loudest answer and
+it happens twice a run; the furrow between the two is what carries the reader along.
+
+The zoomies are the same animal with the whole page for a target. At one and seven
+tenths of a run they rake and streak exactly as a dash does, and because they turn,
+one lap crosses four or five lines instead of one. Both of the fast moods start on a
+line and not on the rug, because the floor of the room is a rug of punctuation at a
+third of the opacity -- scenery and not text -- so a run that started there would
+take nothing at all; standing on it, they go up first.
+
+The furrow is not permanent, and that is what makes the rest of it possible. The
+page remembers every character it loses, with the cell it stood in, and prints them
+back three a second, each fading in over four tenths of a second; the memory is
+capped at nine hundred characters, so an afternoon of this costs a fixed amount of
+memory rather than a growing one. Without the mending the mode could not afford a
+cat that wrecked anything, which is what it used to be: the damage had to be kept
+rare to keep the page a page, and the result was a cat sauntering over a document
+that never changed. The rate is deliberately near the rate she destroys at. Much
+faster and the damage is never seen; much slower and the page slowly turns into
+gaps.
+
+The furniture sheds, too. A prop is drawn in characters like everything else, and a
+body that arrives at one takes a card or two out of it and throws them, so a table
+loses its middle instead of sitting there being hit.
 
 What follows a run is a wash. The weights that pick her next mood are read off the
 mood she is in, and a cat that has just crossed the page at a gallop is a cat with
-no play left in it: sitting, grooming and cleaning go from one or two to nine and
-twelve, and another run is worth nothing at all. That is the whole of the
+no play left in it: sitting, grooming and cleaning go from one or two to eight and
+ten, and another run is worth nothing at all. That is the whole of the
 characterisation -- there is no state machine and no script, only a table of what
 each thing is worth right now -- and it is why the mode reads as an animal rather
 than as a generator after a few minutes.

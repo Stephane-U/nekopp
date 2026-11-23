@@ -10183,3 +10183,115 @@ stills are in `/tmp/pg` and are not committed.
 -- on why a run aims at its own level and what a rake is not, and on why a wash
 follows a gallop. `python3 docs/build-pdf.py` then `--check`: up to date, 317,246
 bytes, 74 pages A4, 112 bookmarks -- one page more than the pass before.
+
+## Eighty-third pass: a page that mends itself
+
+### Why the fun was throttled
+
+The complaint was that the cat was boring: not enough activity, not enough mayhem.
+Measured, it was true and it was the mode's own fault. On seed 24301 over five
+minutes the old build took 52 characters off the page in 18 dashes, 14% of frames
+at a gallop. That is not a tuning accident, it is the shape of the design: the page
+could not be damaged much because nothing ever put it back, so the animal had to be
+kept too calm to damage it. Every fix in this pass follows from removing that
+constraint -- the page prints back what it loses, and only then can the cat be let
+off the lead.
+
+### Two bugs in where a run goes
+
+The dash was running along the rug. A rake refuses characters under 0.9 alpha,
+because the page's text is printed at 1 and its scenery is not, and the rug is
+drawn in characters at 0.3 -- so a run along the floor took nothing at all. It
+looked fine in the trace and did nothing in the stills: 84% of rakes landed on a
+row that could not be taken. `run_target` had asked the surface lookup whether the
+point it was aiming at was at her own level, which on the floor is trivially true
+for every x on the page. Both fast moods now ask `floor_spring` first: standing on
+the rug, they climb onto the nearest line over their heads before they go anywhere,
+and `lap_target` runs along her own piece of a line rather than a point on another
+piece at the same height, which she would run at and never reach.
+
+The second bug was self-inflicted and only showed up once the swathe got wider. The
+rake is reported at `pos[1] - 0.5`, the row the glyphs she is standing on are
+printed in, and a swathe of 1.1 cells either side reached a quarter of a cell past
+her centre: she took the glyphs under her own paws, the shelf under her went, and
+she fell mid-run. Half the runs ended on the rug for that reason. The rake now
+happens a character and a half behind her and reaches nearly three characters
+wide, so the furrow ends under her tail; one rake every 1.5 cells overlaps the
+last, and the line stays a ledge until she has left it.
+
+### The mending
+
+`Page` keeps `missing`, the characters it has lost with the cell each stood in, and
+`mending`, the ones on their way back. `mend` is called in the same fixed-step loop
+as everything else: three characters a second are taken out of the memory at random
+and printed at nothing, and each fades in over four tenths of a second; when it is
+whole it rejoins the text and the ledges are laid out again. Random rather than in
+order, so a furrow fills in as patches and not as a zipper. The memory is capped at
+900 characters, so an afternoon costs a fixed amount; past the cap the oldest loss
+is forgotten and the page ends up with the lines the cat has not been at lately.
+
+The rate is the whole balance and it is deliberately near the destruction rate. At
+3 a second the page is never quite empty and never quite whole: on seed 0x5EED over
+five minutes the least it ever held was 586 of 645 characters. Faster and the
+damage is never seen -- which is what the old build looked like -- slower and a
+long session leaves a page of gaps with a cat walking about in it.
+
+### Both ends of a run
+
+A run used to end with a paw coming down on one word. Now the frame it starts and
+the frame it ends are both `blast`: everything within 2.8 cells of her paws comes
+off at once, each run of characters thrown along the line from her to where it
+stood, so the middle of the hole is empty and the edges look like a burr. It fires
+on the change of `raking`, which is either fast mood, so a lap gets the same two
+ends as a dash. On one end the blast lands in a furrow she has just emptied and
+takes nothing; on the other it lands in text. Fourteen frames in 240 seconds lose
+eight characters or more, the biggest 26 -- against a rake's two or three, which is
+how the test tells them apart.
+
+Furniture sheds the same way: `chip` pops one to three cards off a prop within
+reach and throws them up and away from the hit, so a table that a body arrives at
+loses its middle instead of sitting there being hit.
+
+### More of everything, and the numbers
+
+The zoomies became a run rather than a stroll: `ZOOM` at 1.7 a run, raking and
+streaking like a dash, three to five and a half seconds long, worth 8 rather than
+3 while she has energy. A dash with more than 1.2 seconds left on its clock takes
+another leg straight on instead of stopping where it arrived, and one leg in three
+is the line over her head, which is how a run up the page happens at all. The rest
+of it is the table: dash 7 to 12, lap 3 to 8, the bar for resting 0.6 to 0.75, sits
+and washes 2.4 to 3.6 seconds down to 1.4 to 3.6, and a dash drains 0.2 of her rest
+a second rather than 0.14.
+
+Six seeds, three minutes each: 16 to 29 runs (one every seven seconds), 26 to 53%
+of frames raking -- 40% on average, against 14% at a gallop before -- and 180 to 680
+characters lost and printed back, against 52 lost and none returned.
+
+### Verification
+
+`cargo test --offline --all`: 2182 tests (1087 in `nn-app`, 995 in `nn-core`, 100 in
+`nn-mcp`), 0 failed. Nine are new. In `scene.rs`: `the_page_prints_back_what_a_run_took`
+(a rake, then the page at its own rate, ending with the line whole and the ghosts
+gone), `a_blast_takes_a_radius_where_a_paw_takes_a_word` (the same page hit both
+ways, and nothing left standing in the hole), `the_furniture_sheds_what_it_is_made_of_when_it_is_hit_hard`
+and `the_page_remembers_only_so_much_of_what_it_lost` (the cap, exactly). In
+`kitten.rs`: `a_lap_is_a_run_that_rakes_the_text`, `a_dash_with_time_left_on_its_clock_runs_another_leg`
+and `a_run_from_the_rug_climbs_before_it_goes`. In `playground/mod.rs`:
+`a_page_under_a_cat_that_never_stops_is_never_emptied` (five minutes, asserted
+every frame) and `the_end_of_a_run_blasts_a_hole_in_the_page` (a frame that loses
+eight characters, which no rake can do). `cargo clippy --offline --all-targets`: 0
+warnings. `cargo fmt` was not run.
+
+Frames were rendered at 1280 by 800 on seeds 24301 and 123456 and looked at, in
+strips of nine at half a second: a rainbow through the air, the cat landing with a
+hole behind her, `static int laps(int n) { retu   * 1; }` with its middle gone,
+loose words and specks of dust and confetti all over the bottom of the page, and
+the comment line reading `# three is enough to be goin  o  w th`. The mending is
+not visible in a still, which is why it has a test rather than a picture. Stills
+are in `/tmp/pg` and are not committed.
+
+`docs/nekopp-features.md` gained three rows in the Playground table -- the lap, the
+blast, the mending -- and four paragraphs: the two ends of a run, the zoomies,
+why the page prints itself back, and furniture that sheds.
+`python3 docs/build-pdf.py` then `--check`: up to date, 319,943 bytes, 75 pages A4,
+112 bookmarks.
