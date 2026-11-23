@@ -10920,3 +10920,71 @@ said `api.json is there and ignored; api.yaml is the file in use`; a broken file
 exited 1 with the message above. `cargo test --offline`: 2,257 tests, 0 failed.
 `cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not run.
 `python3 docs/build-pdf.py` then `--check`: up to date, 349,655 bytes, 79 pages A4.
+
+## Ninety-first pass: the notice on every door
+
+The licence was already the first of the Free Software Foundation's three steps
+and only that one. `LICENSE` holds the unmodified GPLv3 -- 674 lines, 35,149
+bytes, identical to the copy Debian ships in `/usr/share/common-licenses/GPL-3`
+-- and `Cargo.toml` says `GPL-3.0-only`. Missing were the other two: no source
+file carried a header, and nothing in the program said what the terms were.
+
+A hundred and twenty Rust files and seven scripts gained the copyright line and
+the permission notice, thirteen lines each, placed above the module doc rather
+than after it. That is legal -- a `//` comment is trivia, and `//!` may follow it
+-- and it is what the Foundation asks for, which is the whole reason. A copied
+file should carry its own terms; an SPDX tag names a licence without stating it,
+and a file that travels out of the tree with `GPL-3.0-only` on it tells a reader
+nothing about the warranty. The wording says "version 3 of the License", not "or
+later", because that is what `Cargo.toml`, `debian/copyright` and the reference
+all say, and a licence that drifts from the file that declares it is worse than
+either choice. The wrap is 79 columns: narrow enough to read as a header and not
+as code, wide enough that the three yes/no questions of the notice fit.
+
+Not every file. XML and JSON fixtures are test data; the PNGs, the icon and the
+font are assets, and the font is already accounted for under the SIL Open Font
+License. The markdown is prose that `LICENSE` covers, and a licence block at the
+top of a document is noise in the rendered page. The four shell scripts, the
+Python builder and `debian/rules` keep their shebang on line one -- a header
+above `#!/bin/sh` is a script that does not run -- and get the notice underneath,
+which is the one shape the sweep has to know about.
+
+The third step is the interactive one, and a window has no terminal to print in.
+So the About box now carries the copyright, the licence by name and version, the
+sentence that there is no warranty, and the line that points at the terms; the
+`--help` text ends with the same four sentences, because a user who only ever
+runs the command line never opens a window; and `npp-mcp`, which has no banner of
+its own, prints the notice on stderr beside the status line its client ignores.
+The Help menu gained `Neko++ License (GPLv3)` between two rules -- the GNU
+project's page for the licence, next to the four pages that are about this
+project but not among them -- and `Action::License` routes it through the same
+`open_page` the other links use, so there is no second way to open a browser.
+
+That row found the test that was already there for it. The menu labels are
+translated in twenty-three bundled languages, and the one that says every
+bundled language translates every menu label failed the moment the row existed: a
+menu bar that says "Fichier" and "Neko++ License" in the same dropdown is the bug
+that test exists to catch. The fix is twenty-three rows in the localisation files, in the
+alphabetical place `Neko++ Issues` and `Neko++ Online User Manual` leave for it,
+and the test proves them rather than a reader checking one file of each script.
+
+The packaging follows the same three steps. `debian/copyright` names the holder
+rather than "the Neko++ authors"; `debian/rules` installs `LICENSE` into
+`/usr/share/doc/npp/` where the copyright file already points; the AppImage puts
+it in `usr/share/licenses/npp/`, which is where an appimage reader looks; and the
+manpage gained a LICENCE section and an AUTHOR who is a person with an address
+instead of "The Neko++ authors".
+
+Verified end to end, not only in tests. This machine has no pointer injection, so
+the row was clicked through the accessibility tree instead: a `python3` client on
+the AT-SPI bus found the Help menu, read its eight rows in order, ran the row's
+`click` action, and a stub `xdg-open` first on `PATH` recorded
+`https://www.gnu.org/licenses/gpl-3.0.html`. The same route opened
+`About Neko++`, whose screenshot shows the copyright, the licence by name and
+version, the sentence with no warranty in it, the line that points at the terms,
+and the LinkedIn address in the theme's link colour. `npp --help` ends with the
+notice and `npp-mcp` prints it on stderr beside its status line. `cargo test
+--offline`: 2,260 tests, 0 failed -- three of them new, for the About text, the
+licence URL and the row between its two rules. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run. `python3
+docs/build-pdf.py` then `--check`: up to date, 351,974 bytes, 79 pages A4.

@@ -1,3 +1,18 @@
+// Neko++ -- a GPU-rendered text editor.
+// Copyright (C) 2026 Stéphane Urdy
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, version 3 of the License.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Neko++ — a GPU-rendered Notepad++ workalike.
 //!
 //! The program is `npp` and the product is Neko++. The crate is `nn-app`: `nn`
@@ -6581,6 +6596,7 @@ impl State {
             Action::ProjectPage => self.open_page(nn_app::links::ISSUES),
             Action::OnlineManual => self.open_page(nn_app::links::MANUAL),
             Action::Forum => self.open_page(nn_app::links::community()),
+            Action::License => self.open_page(nn_app::links::LICENCE),
             Action::ReadOnly => self.toggle_read_only(),
             Action::ShowWhitespace => {
                 let on = !self.view.show_whitespace();

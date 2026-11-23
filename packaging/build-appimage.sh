@@ -1,4 +1,19 @@
 #!/usr/bin/env bash
+# Neko++ -- a GPU-rendered text editor.
+# Copyright (C) 2026 Stéphane Urdy
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+
 # Builds a self-contained AppImage.
 #
 # An AppImage is a squashfs image with a fixed layout: `AppRun` at the root, the
@@ -26,7 +41,9 @@ cargo build --release --manifest-path "$root/Cargo.toml" --bin npp
 
 echo "==> assembling AppDir"
 rm -rf "$appdir"
-mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" \
+    "$appdir/usr/share/icons/hicolor/256x256/apps" \
+    "$appdir/usr/share/licenses/npp"
 install -m 755 "$root/target/release/npp" "$appdir/usr/bin/npp"
 install -m 755 "$here/AppRun" "$appdir/AppRun"
 install -m 644 "$here/npp.desktop" "$appdir/npp.desktop"
@@ -34,6 +51,7 @@ install -m 644 "$here/npp.desktop" "$appdir/usr/share/applications/npp.desktop"
 install -m 644 "$here/npp-256.png" "$appdir/npp.png"
 install -m 644 "$here/npp-256.png" \
     "$appdir/usr/share/icons/hicolor/256x256/apps/npp.png"
+install -m 644 "$root/LICENSE" "$appdir/usr/share/licenses/npp/LICENSE"
 ln -sf npp.png "$appdir/.DirIcon"
 
 echo "==> fetching appimagetool"

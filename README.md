@@ -102,6 +102,12 @@ so a harness can sort, dedupe, re-indent or convert a file without a display.
 
 ## Licence
 
-GNU General Public License, version 3: see `LICENSE`. No code from Notepad++ or
-Scintilla is included; the file formats are read and written from their
-descriptions, and the plugins are WebAssembly modules rather than DLLs.
+GNU General Public License, version 3, and not "or later": the whole text is
+`LICENSE` at the top of the tree, `Cargo.toml` says `GPL-3.0-only`, and every
+source file opens with the copyright line and the permission notice. The editor
+shows the same notice in Help > About, and Help > Neko++ License opens the terms.
+
+No code from Notepad++ or Scintilla is included; the file formats are read and
+written from their descriptions, and the plugins are WebAssembly modules rather
+than DLLs. The Korean font is the one exception to the licence above, and it is
+under the SIL Open Font License, kept in `crates/nn-app/assets/OFL.txt`.

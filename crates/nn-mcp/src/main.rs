@@ -1,3 +1,18 @@
+// Neko++ -- a GPU-rendered text editor.
+// Copyright (C) 2026 Stéphane Urdy
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, version 3 of the License.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! `npp-mcp`: the Neko++ feature reference as a Model Context Protocol server.
 //!
 //! Started with no arguments. It reads JSON-RPC 2.0 from stdin, one object per
@@ -19,6 +34,13 @@ fn main() {
     let sections = server.document().sections.len();
     let shortcuts = server.inventory().shortcuts().len();
     eprintln!("{SERVER_NAME} {SERVER_VERSION}: {sections} sections, {shortcuts} shortcuts, {enabled} of {installed} plugins enabled, one JSON object per line on stdio");
+    // The licence's notice for a program that prints no banner of its own: a
+    // JSON-RPC server on a pipe has nowhere to put a copyright except stderr,
+    // which is exactly where the line above goes.
+    eprintln!(
+        "Copyright (C) 2026 Stéphane Urdy. GNU General Public License, version 3: \
+         there is ABSOLUTELY NO WARRANTY. The terms are in LICENSE."
+    );
 
     let stdin = io::stdin();
     let stdout = io::stdout();

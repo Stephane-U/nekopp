@@ -1,3 +1,18 @@
+// Neko++ -- a GPU-rendered text editor.
+// Copyright (C) 2026 Stéphane Urdy
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, version 3 of the License.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! MD5, SHA-1, SHA-256 and SHA-512, for the Tools menu.
 //!
 //! Written out rather than pulled from a crate because the four are the only

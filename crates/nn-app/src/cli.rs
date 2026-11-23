@@ -1,3 +1,18 @@
+// Neko++ -- a GPU-rendered text editor.
+// Copyright (C) 2026 Stéphane Urdy
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, version 3 of the License.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! The command line.
 //!
 //! Notepad++ takes a file and a handful of switches; a Linux editor is also
@@ -126,6 +141,12 @@ pub fn usage() -> String {
             text.push_str(&format!("  -{short}, --{long:<14}  {help}\n"));
         }
     }
+    text.push_str(
+        "\nNeko++ is free software: you can redistribute it and/or modify it under\n\
+         the terms of the GNU General Public License, version 3. There is\n\
+         ABSOLUTELY NO WARRANTY. Copyright (C) 2026 Stéphane Urdy. The terms are\n\
+         in LICENSE, or at <https://www.gnu.org/licenses/gpl-3.0.html>.\n",
+    );
     text
 }
 

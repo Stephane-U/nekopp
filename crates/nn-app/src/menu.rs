@@ -1,3 +1,18 @@
+// Neko++ -- a GPU-rendered text editor.
+// Copyright (C) 2026 Stéphane Urdy
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, version 3 of the License.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! The menu bar.
 //!
 //! Notepad++ is a menu-driven editor, so the menu is not decoration: it is the
@@ -593,6 +608,8 @@ pub enum Action {
     ProjectPage,
     OnlineManual,
     Forum,
+    /// Open the terms the source is under.
+    License,
     /// Print the build and environment details.
     DebugInfo,
     /// Make the active document read-only, or every document.
@@ -939,6 +956,7 @@ impl Action {
             Action::ProjectPage => "project_page",
             Action::OnlineManual => "online_manual",
             Action::Forum => "forum",
+            Action::License => "license",
             Action::DebugInfo => "debug_info",
             Action::Submenu => "submenu",
         }
@@ -1274,6 +1292,7 @@ impl Action {
             "project_page" => Action::ProjectPage,
             "online_manual" => Action::OnlineManual,
             "forum" => Action::Forum,
+            "license" => Action::License,
             "debug_info" => Action::DebugInfo,
             other => {
                 if let Some(key) = other.strip_prefix("encoding_set_") {
@@ -2256,6 +2275,8 @@ fn help_items() -> Vec<Item> {
         Item::new("Neko++ Issues", Action::ProjectPage),
         Item::new("Neko++ Online User Manual", Action::OnlineManual),
         Item::new("Neko++ Community (LinkedIn)", Action::Forum),
+        Item::separator(),
+        Item::new("Neko++ License (GPLv3)", Action::License),
         Item::separator(),
         Item::new("Debug Info...", Action::DebugInfo),
         Item::new("About Neko++", Action::About),
@@ -5227,5 +5248,25 @@ mod tests {
         prose.sort_unstable();
         prose.dedup();
         assert!(prose.len() > 350, "{} prose labels", prose.len());
+    }
+
+    #[test]
+    fn the_help_menu_opens_the_licence_between_two_rules() {
+        // The terms are not a page about this project, so the row is a section
+        // of its own: a rule above it and a rule below it, and the page rows
+        // stay where they were.
+        let bar = bar();
+        let help = bar.menus.last().expect("no menus");
+        let index = help
+            .items
+            .iter()
+            .position(|item| item.action == Action::License)
+            .expect("the Help menu has no licence row");
+        assert_eq!(help.items[index].label, "Neko++ License (GPLv3)");
+        assert!(help.items[index - 1].separator, "no rule above the licence");
+        assert!(help.items[index + 1].separator, "no rule below the licence");
+        // It is a link, not a command: nothing to bind, and no chord of its own.
+        assert!(!Action::BINDABLE.contains(&Action::License));
+        assert!(help.items[index].shortcut.is_empty());
     }
 }

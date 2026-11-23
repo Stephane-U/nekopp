@@ -1,4 +1,19 @@
 #!/usr/bin/make -f
+# Neko++ -- a GPU-rendered text editor.
+# Copyright (C) 2026 Stéphane Urdy
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+
 # The build is cargo's, not a Makefile's, and it has to be offline: the machine
 # this is built on has no network. Everything debhelper would otherwise guess is
 # therefore spelled out, which also means the package cannot silently start
@@ -18,6 +33,7 @@ override_dh_auto_test:
 
 override_dh_auto_install:
 	install -D -m 755 target/release/npp debian/npp/usr/bin/npp
+	install -D -m 644 LICENSE debian/npp/usr/share/doc/npp/LICENSE
 	install -D -m 644 packaging/npp.desktop \
 		debian/npp/usr/share/applications/npp.desktop
 	install -D -m 644 packaging/npp-128.png \

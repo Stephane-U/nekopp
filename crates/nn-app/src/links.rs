@@ -1,3 +1,18 @@
+// Neko++ -- a GPU-rendered text editor.
+// Copyright (C) 2026 Stéphane Urdy
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, version 3 of the License.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Where the Help menu goes.
 //!
 //! The addresses live here rather than at the four `open_page` calls in
@@ -18,6 +33,10 @@ pub const ISSUES: &str = "https://github.com/Stephane-U/nekopp/issues";
 pub const MANUAL: &str =
     "https://github.com/Stephane-U/nekopp/blob/main/docs/nekopp-features.md";
 
+/// The licence: the GNU project's own page for the GPLv3, which is the text in
+/// `LICENSE` and the one an offline copy cannot show.
+pub const LICENCE: &str = "https://www.gnu.org/licenses/gpl-3.0.html";
+
 /// The community row: where the author can be reached.
 pub fn community() -> &'static str {
     crate::about::link_url()
@@ -36,6 +55,15 @@ mod tests {
             );
         }
         assert!(community().starts_with("https://"), "{}", community());
+        assert!(LICENCE.starts_with("https://"), "{LICENCE}");
+    }
+
+    #[test]
+    fn the_licence_row_opens_the_gpl() {
+        // The source tree's `LICENSE` is the same document, but a window cannot
+        // open a file at a path it does not know, and a link that pointed at a
+        // Notepad++ page would be a copy of somebody else's terms.
+        assert_eq!(LICENCE, "https://www.gnu.org/licenses/gpl-3.0.html");
     }
 
     #[test]

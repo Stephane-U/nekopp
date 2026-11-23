@@ -1,3 +1,18 @@
+// Neko++ -- a GPU-rendered text editor.
+// Copyright (C) 2026 Stéphane Urdy
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, version 3 of the License.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! The About box.
 //!
 //! Notepad++ puts its About text in a Win32 dialog. There is no dialog toolkit
@@ -9,6 +24,11 @@
 //! values. An About box is read top to bottom and never interacted with, so the
 //! only structure worth encoding is the order, and a `Vec<String>` says that
 //! more directly than a tree of widgets would.
+//!
+//! The box also carries the notice the licence asks an interactive program to
+//! show. A window has no terminal to print a copyright and a warranty
+//! disclaimer in, so this is where they are read, and the Help menu's licence
+//! row is where the terms themselves are one click away.
 //!
 //! The one exception is the LinkedIn address, which is a link: it is drawn in
 //! the theme's link colour with a rule under it, and a click on it opens the
@@ -38,6 +58,12 @@ const BUTTON_HEIGHT: f32 = 26.0;
 const MIN_WIDTH: f32 = 380.0;
 /// The label on the button.
 const BUTTON_LABEL: &str = "Close";
+/// The copyright line, which names the holder rather than the author: the two
+/// are the same person here, and the licence speaks of a holder.
+const COPYRIGHT: &str = "Copyright (C) 2026 Stéphane Urdy";
+/// The licence, in the words the About box needs: version, not "or later",
+/// because that is what `Cargo.toml` and every file's header say.
+const LICENCE: &str = "GNU General Public License, version 3";
 /// What the link line says before the address.
 const LINK_PREFIX: &str = "LinkedIn: ";
 /// The address the link opens.
@@ -62,7 +88,13 @@ pub fn lines() -> Vec<String> {
         String::new(),
         "A GPU-rendered text editor".to_string(),
         String::new(),
-        "Author: Stéphane Urdy".to_string(),
+        COPYRIGHT.to_string(),
+        LICENCE.to_string(),
+        String::new(),
+        "This program comes with ABSOLUTELY NO WARRANTY.".to_string(),
+        "Free software: you are welcome to redistribute it".to_string(),
+        "under certain conditions; Help > Neko++ License has the terms.".to_string(),
+        String::new(),
         format!("{LINK_PREFIX}{LINK_URL}"),
     ]
 }
@@ -453,17 +485,29 @@ mod tests {
     }
 
     #[test]
-    fn opening_shows_the_author_and_the_linkedin_address() {
+    fn opening_shows_the_copyright_and_the_linkedin_address() {
         let mut about = about();
         about.open();
         assert!(about.is_open());
         let text = about.lines().join("\n");
         assert!(text.contains("Neko++"), "{text}");
-        assert!(text.contains("Author: Stéphane Urdy"), "{text}");
+        assert!(text.contains("Copyright (C) 2026 Stéphane Urdy"), "{text}");
         assert!(
             text.contains("https://fr.linkedin.com/in/stephane-urdy-05b2729"),
             "{text}"
         );
+    }
+
+    #[test]
+    fn the_box_carries_the_warranty_disclaimer_and_the_licence() {
+        // The licence asks an interactive program to show where the warranty
+        // ends and the terms are; this box is the only place a window has.
+        let mut about = about();
+        about.open();
+        let text = about.lines().join("\n");
+        assert!(text.contains("GNU General Public License, version 3"), "{text}");
+        assert!(text.contains("ABSOLUTELY NO WARRANTY"), "{text}");
+        assert!(text.contains("Help > Neko++ License"), "{text}");
     }
 
     #[test]

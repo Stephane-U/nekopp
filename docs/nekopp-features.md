@@ -1146,6 +1146,14 @@ Until this release those rows went to Notepad++'s home page, its repository, its
 user manual and its forum, which were the closest thing to documentation for
 these features while this project had no pages of its own.
 
+"Neko++ License (GPLv3)" opens the GNU project's page for the licence the source
+is under. It sits below a separator of its own because it is not a page about this
+project: it is the terms, and a user checking them is asking a different question
+from a user looking for the issue tracker. The complete text also travels with the
+program -- in `LICENSE` in the source tree, in `/usr/share/doc/npp/` in the
+package, and in the AppImage -- because a link needs a network and a licence
+should not.
+
 "Debug Info..." reports the renderer, the adapter, the font system, the
 configuration paths and the file list, which is what a bug report needs.
 "About Neko++" is the box described in "About and Credits".
@@ -1155,6 +1163,7 @@ configuration paths and the file list, which is what a bug report needs.
 - Neko++ Issues
 - Neko++ Online User Manual
 - Neko++ Community (LinkedIn)
+- Neko++ License (GPLv3)
 - Debug Info...
 - About Neko++
 
@@ -3136,10 +3145,18 @@ tags with quoted attributes).
 The Korean font is NanumGothic, subset and renamed, under the SIL Open Font
 License 1.1; the licence is kept beside the font in `assets/OFL.txt`.
 
-The source is under the GNU General Public License version 3, in `LICENSE`; it is
-a workalike written from scratch and contains no code from Notepad++ or Scintilla.
+The source is under the GNU General Public License version 3, and the terms are
+applied the way the Free Software Foundation describes: the unmodified text is
+`LICENSE` at the top of the tree, and every source file in `crates/`, `plugins/`,
+`packaging/`, `debian/` and `docs/` opens with the copyright line and the
+permission notice, in the comment syntax of its language. The version is 3, not
+"or later", which is what `license = "GPL-3.0-only"` in `Cargo.toml` says and what
+`debian/copyright` says, so the three cannot drift apart. It is a workalike
+written from scratch and contains no code from Notepad++ or Scintilla.
 
-The About box names the version, the renderer, the adapter, the font system and
-the configuration paths, because those are the five facts a bug report needs. Its
-one interactive element is the LinkedIn address, drawn in the theme's link colour
-and opened with the desktop's handler.
+The About box carries the notice an interactive program is asked to show: the
+copyright, the licence by name and version, and the sentence that there is no
+warranty, in the box rather than in a terminal a window does not have. It also
+names the version. Its one interactive element is the LinkedIn address, drawn in
+the theme's link colour and opened with the desktop's handler; the licence itself
+is a row in the Help menu, one click away from the paragraph that explains it.
