@@ -10289,9 +10289,38 @@ fn main() {
     // request that arrives while the frame is being drawn waits in the queue
     // instead of being refused.
     let settings = nn_app::settings::Settings::load();
-    if args.rest || settings.rest_enabled {
-        let port = args.rest_port.unwrap_or(settings.rest_port);
-        let token = std::env::var("NPP_REST_TOKEN").ok().filter(|t| !t.is_empty());
+    // The API's configuration file, when there is one: what a harness or a user
+    // writes once instead of wrapping the command line. A file that exists and
+    // does not load stops the launch rather than starting something other than
+    // what it says -- a typo in `token` must not become a listener without one.
+    let api_file = match nn_app::api_config::load() {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            eprintln!("npp: {error}");
+            std::process::exit(1);
+        }
+    };
+    if let Some(loaded) = &api_file {
+        if let Some(warning) = &loaded.warning {
+            eprintln!("npp: {warning}");
+        }
+        if let Some(ignored) = &loaded.ignored {
+            eprintln!(
+                "npp: {} is there and ignored; {} is the file in use",
+                nn_app::api_config::describe(ignored),
+                nn_app::api_config::describe(&loaded.path)
+            );
+        }
+    }
+    let api = nn_app::api_config::resolve(
+        api_file.as_ref().map(|loaded| &loaded.config),
+        args.rest,
+        args.rest_port,
+        &settings,
+        std::env::var("NPP_REST_TOKEN").ok(),
+    );
+    if api.enabled {
+        let port = api.port;
         let dispatch_proxy = proxy.clone();
         let dispatch = move |call| {
             let (sender, answer) = std::sync::mpsc::channel();
@@ -10300,15 +10329,21 @@ fn main() {
                 .ok()?;
             answer.recv_timeout(nn_app::rest::ANSWER_TIMEOUT).ok()
         };
-        match nn_app::rest::serve(port, token, dispatch) {
-            Ok(address) => eprintln!("npp: REST on http://{address}/ (loopback only)"),
+        let from = api_file
+            .as_ref()
+            .map(|loaded| format!(", {}", nn_app::api_config::describe(&loaded.path)))
+            .unwrap_or_default();
+        match nn_app::rest::serve(port, api.policy.clone(), dispatch) {
+            Ok(address) => {
+                eprintln!("npp: REST on http://{address}/ (loopback only{from})")
+            }
             Err(error) if args.rest => {
                 // Asked for on the command line, so a silent fallback would be
                 // the editor pretending to have done something it did not.
                 eprintln!("npp: cannot serve REST on 127.0.0.1:{port}: {error}");
                 std::process::exit(1);
             }
-            Err(error) => eprintln!("npp: REST from settings not started: {error}"),
+            Err(error) => eprintln!("npp: REST not started: {error}"),
         }
     }
     let mut app = App {

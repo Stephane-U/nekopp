@@ -10859,3 +10859,64 @@ that is not UTF-8 and for `whole_document` with `range`. `cargo test --offline`:
 2,235 tests, 0 failed. `cargo clippy --offline --all-targets`: 0 warnings.
 `cargo fmt` was not run. `python3 docs/build-pdf.py` then `--check`: up to date,
 342,134 bytes, 78 pages A4.
+
+## Ninetieth pass: a file that says how the API opens
+
+The REST face was switched on by a flag or by `settings.txt`, and both are awkward
+for the machine that most wants it. A harness launches the editor a hundred times a
+day and cannot put `--rest` on every launch of a couple of hundred paths; a monitor
+wants the API read-only, and that is not a preference the user should have to go
+and edit. So the listener now reads its own file: `api.yaml`, or `api.json`, in the
+configuration directory.
+
+Two formats, because two readers were already here and a third was not.
+`serde_json` is in the tree for the session bus and the MCP pipe, so JSON costs
+nothing; no YAML crate is available offline, so the YAML reader is a hundred and
+fifty lines that accept the subset a configuration needs -- `key: value`, one level
+of nesting, `#` comments outside quotes, quoted or bare scalars -- and refuse the
+rest with the line number: a tab, a list, a second nesting level, a key with no
+value. That is the honest trade. A configuration file is not a document, and a
+reader that refuses what it does not understand is better than a dependency that is
+not there.
+
+The two readers meet in the middle. Both flatten to one map of dotted keys --
+`rest.port`, `port` -- and one `Config` is built from it, so `rest: {port: 8085}`
+and a bare `port: 8085` differ only in spelling, and the nested spelling wins when
+a file carries both. The flattening is the line where the format stops mattering,
+which is why the twenty tests are mostly about keys and only a few about YAML.
+
+Precedence is by specificity. `--rest=PORT` beats the file, the file beats
+`settings.txt`, and `NPP_REST_TOKEN` beats the file's `token`, because a secret
+belongs in the environment of a launch rather than on disk. `read_only` comes from
+the file alone: it is not a thing to say once on a command line, it is the standing
+description of what that listener is for.
+
+A file that exists and does not load is fatal, `eprintln!` and `exit(1)`, and that
+is the pass's one real decision. Everywhere else in the program a bad input
+degrades and the editor carries on. Here a `port` typo that silently fell back to
+8085 would open a listener where nobody looked, and a `token` typo that silently
+fell back to no token would open one that authenticates nobody. Configuration is
+the one place where guessing is a vulnerability, so a typo stops the launch and
+says `~/.config/npp/api.yaml: rest.port takes a port between 1 and 65535, not
+"not-a-port"`. A message that wraps is still one message.
+
+A token in a file whose mode bits reach past the owner is still served, and the
+startup line adds a `chmod 600` suggestion. Refusing would break the setup of
+somebody who knows what the file's permissions are; silence would let a secret sit
+in a file other accounts can read. One sentence, and only when it is true.
+
+`read_only: true` is enforced after routing rather than inside a hundred handlers.
+`rest::mutating(&Call)` names the three calls that change something --
+`document.set`, `document.save`, `command.run` -- and `handle` answers them `403`
+with the code `read_only` before the dispatch, which leaves `route` pure and puts
+the policy in one place a reviewer reads in a glance.
+
+Verified against the running binary with `curl`, not only in tests: a file and no
+flag started a listener on 8090, 401 without the bearer and 200 with it; mode 644
+produced the warning and `chmod 600` silenced it; `read_only: true` answered 403
+`read_only` to a `PUT` and 200 to a `GET`; `--rest=8091` overrode the file's port;
+an `api.json` alone worked and named itself; both files present served 8093 and
+said `api.json is there and ignored; api.yaml is the file in use`; a broken file
+exited 1 with the message above. `cargo test --offline`: 2,257 tests, 0 failed.
+`cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not run.
+`python3 docs/build-pdf.py` then `--check`: up to date, 349,655 bytes, 79 pages A4.

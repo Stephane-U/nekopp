@@ -156,6 +156,19 @@ impl Failure {
         }
     }
 
+    /// A write, refused because the listener was started read-only.
+    pub fn read_only() -> Self {
+        Self {
+            status: 403,
+            code: "read_only",
+            message: "this listener is read-only: its configuration file says \
+                      `read_only: true`, so document.set, document.save and command.run \
+                      are refused"
+                .to_string(),
+            allow: None,
+        }
+    }
+
     /// The body this refusal is: the same `error` object `--call` answers with.
     pub fn value(&self) -> Value {
         api::Error {
@@ -164,6 +177,20 @@ impl Failure {
         }
         .value()
     }
+}
+
+/// What the listener is allowed to do, from `api.yaml`.
+///
+/// The token and read-only-ness travel together because they are the two things a
+/// configuration file decides about a request, and because passing them as two
+/// arguments invites a call site that gets the order wrong and silently disables
+/// the check.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Policy {
+    /// The bearer token a request must carry, if the file set one.
+    pub token: Option<String>,
+    /// Whether the API may write.
+    pub read_only: bool,
 }
 
 /// One route, once it has been resolved.
@@ -410,6 +437,19 @@ pub fn index(version: &str) -> Value {
     })
 }
 
+/// Whether a call changes something.
+///
+/// The three that do are the three a read-only listener refuses: everything else
+/// reads a document, a status or the help text. Kept as a function beside the
+/// check so the list is stated once and a new mutating method cannot be added
+/// without this going red.
+pub fn mutating(call: &Call) -> bool {
+    matches!(
+        call,
+        Call::DocumentSet { .. } | Call::DocumentSave { .. } | Call::Command { .. }
+    )
+}
+
 /// The status a call's answer belongs on.
 pub fn status_of(answer: &Value) -> u16 {
     match answer
@@ -472,14 +512,14 @@ fn reason(status: u16) -> &'static str {
 /// The listener returns immediately: the thread it starts owns the socket for the
 /// life of the process. Port 0 means "any port", and the address that was actually
 /// bound is the answer, which is what a test uses and what the caller prints.
-pub fn serve<F>(port: u16, token: Option<String>, dispatch: F) -> io::Result<SocketAddr>
+pub fn serve<F>(port: u16, policy: Policy, dispatch: F) -> io::Result<SocketAddr>
 where
     F: Fn(Call) -> Option<Value> + Send + Sync + 'static,
 {
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))?;
     let address = listener.local_addr()?;
     let dispatch = Arc::new(dispatch);
-    let token = Arc::new(token);
+    let policy = Arc::new(policy);
     let live = Arc::new(AtomicUsize::new(0));
     std::thread::Builder::new()
         .name("npp-rest".to_string())
@@ -496,12 +536,12 @@ where
                 }
                 live.fetch_add(1, Ordering::Relaxed);
                 let dispatch = Arc::clone(&dispatch);
-                let token = Arc::clone(&token);
+                let policy = Arc::clone(&policy);
                 let counter = Arc::clone(&live);
                 let spawned = std::thread::Builder::new()
                     .name("npp-rest-request".to_string())
                     .spawn(move || {
-                        let _ = handle(stream, token.as_deref(), dispatch.as_ref());
+                        let _ = handle(stream, &policy, dispatch.as_ref());
                         counter.fetch_sub(1, Ordering::Relaxed);
                     });
                 if spawned.is_err() {
@@ -513,7 +553,7 @@ where
 }
 
 /// Reads one request, answers it, and closes.
-fn handle<F>(mut stream: TcpStream, token: Option<&str>, dispatch: &F) -> io::Result<()>
+fn handle<F>(mut stream: TcpStream, policy: &Policy, dispatch: &F) -> io::Result<()>
 where
     F: Fn(Call) -> Option<Value>,
 {
@@ -530,7 +570,7 @@ where
         if head.origin {
             return Err(Failure::browser());
         }
-        if let Some(expected) = token {
+        if let Some(expected) = policy.token.as_deref() {
             let offered = head
                 .authorization
                 .as_deref()
@@ -561,6 +601,12 @@ where
     }) {
         Ok(route) => match route {
             Route::Index => response(200, None, &index(env!("CARGO_PKG_VERSION"))),
+            // The read-only check sits after routing rather than inside it: the
+            // route table says what a request means, this says whether the file
+            // allows it, and a 403 here is the answer to the second question.
+            Route::Call(call) if policy.read_only && mutating(&call) => {
+                response(403, None, &Failure::read_only().value())
+            }
             Route::Call(call) => match dispatch(call) {
                 Some(answer) => {
                     let status = status_of(&answer);
@@ -994,7 +1040,7 @@ mod tests {
 
     #[test]
     fn a_request_is_answered_over_a_socket() {
-        let address = serve(0, None, canned).unwrap();
+        let address = serve(0, Policy::default(), canned).unwrap();
         let answer = ask(address, "GET /status HTTP/1.1\r\nHost: localhost\r\n\r\n");
         assert!(answer.starts_with("HTTP/1.1 200 OK\r\n"), "{answer}");
         assert!(answer.ends_with(r#"{"ok":true,"version":"0.3.0"}"#), "{answer}");
@@ -1002,7 +1048,7 @@ mod tests {
 
     #[test]
     fn the_index_is_served_without_a_window() {
-        let address = serve(0, None, canned).unwrap();
+        let address = serve(0, Policy::default(), canned).unwrap();
         let answer = ask(address, "GET / HTTP/1.1\r\n\r\n");
         assert!(answer.starts_with("HTTP/1.1 200 OK\r\n"));
         assert!(answer.contains("/document/save"), "{answer}");
@@ -1010,7 +1056,7 @@ mod tests {
 
     #[test]
     fn a_body_split_over_two_writes_is_read_whole() {
-        let address = serve(0, None, canned).unwrap();
+        let address = serve(0, Policy::default(), canned).unwrap();
         let mut stream = TcpStream::connect(address).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(5)))
@@ -1026,7 +1072,7 @@ mod tests {
 
     #[test]
     fn a_browser_origin_is_refused() {
-        let address = serve(0, None, canned).unwrap();
+        let address = serve(0, Policy::default(), canned).unwrap();
         let answer = ask(
             address,
             "GET /status HTTP/1.1\r\nOrigin: http://evil.example\r\n\r\n",
@@ -1037,7 +1083,7 @@ mod tests {
 
     #[test]
     fn a_token_is_required_when_one_was_given() {
-        let address = serve(0, Some("s3cret".to_string()), canned).unwrap();
+        let address = serve(0, Policy { token: Some("s3cret".to_string()), ..Policy::default() }, canned).unwrap();
         let refused = ask(address, "GET /status HTTP/1.1\r\n\r\n");
         assert!(refused.starts_with("HTTP/1.1 401 Unauthorized\r\n"), "{refused}");
         let allowed = ask(
@@ -1049,14 +1095,57 @@ mod tests {
 
     #[test]
     fn a_window_that_does_not_answer_is_a_503() {
-        let address = serve(0, None, |_call| None).unwrap();
+        let address = serve(0, Policy::default(), |_call| None).unwrap();
         let answer = ask(address, "GET /status HTTP/1.1\r\n\r\n");
         assert!(answer.starts_with("HTTP/1.1 503 Service Unavailable\r\n"), "{answer}");
     }
 
     #[test]
+    fn a_read_only_listener_refuses_a_write_and_answers_a_read() {
+        let policy = Policy {
+            read_only: true,
+            ..Policy::default()
+        };
+        let address = serve(0, policy, canned).unwrap();
+        let refused = ask(address, "PUT /document HTTP/1.1\r\nContent-Length: 2\r\n\r\nhi");
+        assert!(refused.starts_with("HTTP/1.1 403 Forbidden\r\n"), "{refused}");
+        assert!(refused.contains("\"code\":\"read_only\""), "{refused}");
+        let allowed = ask(address, "GET /documents HTTP/1.1\r\n\r\n");
+        assert!(allowed.starts_with("HTTP/1.1 200 OK\r\n"), "{allowed}");
+    }
+
+    #[test]
+    fn the_three_writing_calls_are_the_ones_read_only_names() {
+        assert!(mutating(&Call::DocumentSet {
+            which: api::Which::Active,
+            text: "x".into(),
+            range: None,
+        }));
+        assert!(mutating(&Call::DocumentSave {
+            which: api::Which::Active
+        }));
+        assert!(mutating(&Call::Command {
+            name: "sort_asc".into(),
+            text: false,
+            range: None,
+            whole: true,
+        }));
+        for call in [
+            Call::Status,
+            Call::Help,
+            Call::DocumentList,
+            Call::DocumentGet {
+                which: api::Which::Active,
+                range: None,
+            },
+        ] {
+            assert!(!mutating(&call), "{call:?}");
+        }
+    }
+
+    #[test]
     fn the_wrong_method_over_a_socket_is_a_405_with_an_allow_header() {
-        let address = serve(0, None, canned).unwrap();
+        let address = serve(0, Policy::default(), canned).unwrap();
         let answer = ask(address, "DELETE /document HTTP/1.1\r\n\r\n");
         assert!(answer.starts_with("HTTP/1.1 405 Method Not Allowed\r\n"), "{answer}");
         assert!(answer.contains("allow: GET, PUT\r\n"), "{answer}");

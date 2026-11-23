@@ -6,6 +6,7 @@
 
 pub mod a11y;
 pub mod api;
+pub mod api_config;
 pub mod about;
 pub mod browser;
 pub mod changelog;

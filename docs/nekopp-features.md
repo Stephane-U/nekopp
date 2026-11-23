@@ -182,6 +182,7 @@ Configuration lives where the platform says it should:
 | File | Contents |
 |---|---|
 | `settings.txt` | every preference, the keymap, the Run menu, the print setup |
+| `api.yaml` | what the REST listener serves, as described under "Over HTTP" |
 | `session.txt` | the recent file list, the open tabs, their carets and colours |
 | `plugins/` | one `.wasm` file per plugin |
 | `backup/` | timestamped copies, when verbose backups are on |
@@ -2661,12 +2662,60 @@ not there, `405` with an `Allow` header for the wrong verb, `500` for a call tha
 failed, `503` when no window answered in 5 s. The body is always the `error`
 object `--call` answers with, so a client parses one thing.
 
+`--rest` is the switch for one launch. The listener can also be described in
+`api.yaml` or `api.json` in the configuration directory, which is what a machine
+that runs a harness wants: the file is written once and every launch of the editor
+serves the API without a wrapper script.
+
+```yaml
+# ~/.config/npp/api.yaml
+rest:
+  enabled: true
+  port: 8085
+  token: "a long random string"
+  read_only: false
+```
+
+```json
+{"rest": {"enabled": true, "port": 8085, "read_only": true}}
+```
+
+| Key | Values | Default |
+|---|---|---|
+| `enabled` | `true`, `false` | off unless `--rest` says otherwise |
+| `port` | 1 to 65535 | the `rest_port` setting, then 8085 |
+| `token` | a string; empty means no check | none |
+| `read_only` | `true`, `false` | `false` |
+
+The keys may sit inside a `rest:` section or at the top of a file that holds
+nothing else, and the nested spelling wins when a file has both. YAML is read as
+the subset a configuration needs -- `key: value`, one level of nesting, `#`
+comments, quoted or bare values -- and a list or a second level is refused with the
+line number rather than half-read; JSON is read as JSON, nesting and all. The two
+file names are looked for in that order, so `api.yaml` wins and the ignored
+`api.json` is named on stderr rather than silently skipped.
+
+What beats what is specificity. `--rest=PORT` wins over the file, the file wins
+over `settings.txt`, and `NPP_REST_TOKEN` wins over the file for the token, because
+a secret is better in the environment than on disk. A configuration file that
+exists and does not load stops the launch with the file name, the line and the
+reason: a typo in `port` must not turn into a listener somewhere unexpected, and a
+typo in `token` must never turn into a listener with no token at all. A token in a
+file other users can read is served, and warned about on the same startup line.
+
+`read_only: true` turns the API into a reader: `document.set`, `document.save` and
+`command.run` answer `403` with the code `read_only`, and everything that only
+reads keeps working. It is the setting for a dashboard or a monitor that should be
+able to see the editor's state without being able to change it.
+
 The listener is loopback and nothing else. A request that carries an `Origin`
 header is refused with `403`, because no shell tool sends one and every browser
 does: that single rule is what stops a page on another site from replacing the
 text in an open window and saving it. `NPP_REST_TOKEN` in the environment of the
-launch adds a bearer check (`Authorization: Bearer <token>`) for a machine other
-users can log in to, and it never goes into a settings file. Eight requests may be
+launch adds a bearer check (`Authorization: Bearer <token>`), and so does `token`
+in the configuration file for the case where the file is the only thing that can
+carry it. Neither goes into `settings.txt`: that file is a record of preferences
+and a secret is not a preference. Eight requests may be
 in flight at once and a body may be 32 MiB; past either, the answer is `413` or
 `503` rather than a thread or an allocation per connection.
 
