@@ -102,6 +102,16 @@ const KNOCK: [f32; 2] = [2.2, 1.1];
 /// route, not that the route is deleted.
 const RAKE: [f32; 2] = [1.35, 0.8];
 const RAKE_WORDS: usize = 3;
+/// How wide the swathe a climbing cat takes out of the line it is leaving is, in
+/// cells, and how many whole words come away with it.
+///
+/// Shallower than a rake, and that is the whole of it: a claw is fired on every bound
+/// up the page, from the line under her back paws, and the one thing it must not touch
+/// is the line she is going to land on. Half a line of height is exactly the row she
+/// has left and nothing else, so an ascent leaves a furrow and still has somewhere to
+/// put its feet down.
+const CLAW: [f32; 2] = [1.5, 0.5];
+const CLAW_WORDS: usize = 2;
 /// How many characters the page reprints per second.
 ///
 /// This is the number that lets the cat be as destructive as it likes. The page is
@@ -111,6 +121,16 @@ const RAKE_WORDS: usize = 3;
 /// two rates are close on purpose. Much faster and the damage is never seen; much
 /// slower and a long afternoon leaves a page of gaps with a cat walking about in it.
 const HEAL_RATE: f32 = 3.0;
+/// How much faster than that the page prints when it is in pieces, as a multiple.
+///
+/// One rate cannot serve both ends of this. A run's furrow has to stay on the page for
+/// a few seconds or the damage was never seen, which is [`HEAL_RATE`]; a page that has
+/// half its characters in the air has to print them back faster than the cat can take
+/// them or it ends its five minutes as gaps with a cat walking about in them. So the
+/// rate is the first number plus this much of it, in proportion to how much of the page
+/// is missing: barely damaged, a page heals at a reader's pace, and a wrecked one at
+/// seven times that.
+const HEAL_PANIC: f32 = 6.0;
 /// How fast a character that is being printed again fades in, in alpha per second.
 ///
 /// Not instant: a page that blinked characters back into place would read as a page
@@ -118,7 +138,11 @@ const HEAL_RATE: f32 = 3.0;
 /// short enough not to be waited for.
 const HEAL_FADE: f32 = 2.5;
 /// The most characters the page will hold in its memory of what it has lost.
-const MAX_MISSING: usize = 900;
+///
+/// A whole page, near enough: the two ends of a run and a climb's claws together can
+/// put more into the air than an editor window holds characters, and a card forgotten
+/// here is a card the page can never print again.
+const MAX_MISSING: usize = 2400;
 /// Two runs of glyphs with a gap no wider than this are one shelf, so a line with
 /// a space in it is a line to stand on rather than two.
 const SHELF_GAP: f32 = 2.6;
@@ -592,6 +616,60 @@ impl Page {
         taken
     }
 
+    /// A cat going up the page: the claws are in the line it is leaving.
+    ///
+    /// A climb is not a run and it is not a swing. A paw takes one word and stops; a
+    /// body at a run ploughs a furrow along a line; a cat scaling a page of text digs
+    /// in where its back paws are and hauls itself up, and what comes away falls. So
+    /// this is the rake's shape and a line's worth less of it: one row, two words, and
+    /// thrown down and outwards rather than along the way she is going, because the way
+    /// she is going is up and nothing falls upwards.
+    ///
+    /// Returns how many characters came away.
+    pub fn claw(&mut self, at: [f32; 3], rng: &mut Rng) -> usize {
+        let mut lifted: Vec<Card> = Vec::new();
+        self.text.retain(|card| {
+            let near = card.alpha >= 0.9
+                && card.pos[0] > GUTTER as f32 * GLYPH_WIDTH
+                && (card.pos[0] - at[0]).abs() <= CLAW[0]
+                && (card.pos[1] - at[1]).abs() <= CLAW[1];
+            if near {
+                lifted.push(*card);
+            }
+            !near
+        });
+        if lifted.is_empty() {
+            return 0;
+        }
+        self.lost(&lifted);
+        for run in runs(&lifted).into_iter().take(CLAW_WORDS) {
+            let first = run[0].pos[0];
+            let last = run[run.len() - 1].pos[0];
+            let middle = (first + last) * 0.5;
+            self.tokens.push(Token {
+                text: run.iter().map(|card| card.ch).collect(),
+                styles: run.iter().map(|card| card.style).collect(),
+                pos: [middle, run[0].pos[1], 0.35],
+                // Away from her on both axes, and never upwards: the page is above
+                // her and the line she took is where she has just been standing.
+                vel: [
+                    (middle - at[0]).signum() * rng.range(0.6, 2.2),
+                    rng.range(-3.2, -1.2),
+                ],
+                roll: rng.range(-0.7, 0.7),
+                pitch: 0.0,
+                spin: rng.range(-6.0, 6.0),
+                rest: false,
+            });
+        }
+        while self.tokens.len() > MAX_TOKENS {
+            self.tokens.remove(0);
+        }
+        let taken = lifted.len();
+        self.refresh_shelves();
+        taken
+    }
+
     /// Everything within `reach` comes off the page at once, thrown away from `at`.
     ///
     /// This is what the end of a run does, where a paw would only take a word. A cat
@@ -731,7 +809,9 @@ impl Page {
         if self.missing.is_empty() {
             self.heal_clock = 0.0;
         } else {
-            self.heal_clock += dt * HEAL_RATE;
+            let whole = (self.text.len() + self.missing.len()).max(1) as f32;
+            let gone = self.missing.len() as f32 / whole;
+            self.heal_clock += dt * HEAL_RATE * (1.0 + HEAL_PANIC * gone);
             while self.heal_clock >= 1.0 && !self.missing.is_empty() {
                 self.heal_clock -= 1.0;
                 let index = rng.below(self.missing.len());
@@ -1700,6 +1780,45 @@ mod tests {
         };
         assert!(near(&blasted) == 0, "{} characters stayed in the hole", near(&blasted));
         assert!(near(&struck) > 0, "a paw took the whole radius too");
+    }
+
+    #[test]
+    fn a_claw_takes_the_line_she_has_left_and_nothing_over_her_head() {
+        // A climbing cat digs in where its back paws are: the row it has just left,
+        // and nothing above it. The line she is going to has to still be there, or the
+        // climb has nowhere to land, and that is what the height of the swathe buys.
+        let page = page();
+        let (shelf, _) = inked(&page);
+        let x = (shelf.span[0] + shelf.span[1]) * 0.5;
+        let at = [x, shelf.y - 0.5, 0.0];
+        let mut climbed = page.clone();
+        let loose = climbed.tokens.len();
+        let taken = climbed.claw(at, &mut Rng::new(0xC1A3));
+        assert!(taken > 0, "the claws took nothing");
+        let in_a_line = |page: &Page, y: f32| {
+            page.text
+                .iter()
+                .filter(|card| {
+                    (card.pos[0] - x).abs() <= CLAW[0] && (card.pos[1] - y).abs() <= CLAW[1]
+                })
+                .count()
+        };
+        assert_eq!(in_a_line(&climbed, at[1]), 0, "the row she left kept its characters");
+        let over = |page: &Page| {
+            page.text
+                .iter()
+                .filter(|card| card.pos[1] > at[1] + CLAW[1])
+                .count()
+        };
+        assert_eq!(over(&climbed), over(&page), "the claws reached over her head");
+        // What comes off falls: the page is above her, so nothing on it goes up.
+        let shed = &climbed.tokens[loose..];
+        assert!(!shed.is_empty(), "nothing was thrown");
+        assert!(
+            shed.iter().all(|token| token.vel[1] < 0.0),
+            "{:?}",
+            shed.iter().map(|token| token.vel).collect::<Vec<_>>()
+        );
     }
 
     #[test]

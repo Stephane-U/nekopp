@@ -10295,3 +10295,118 @@ blast, the mending -- and four paragraphs: the two ends of a run, the zoomies,
 why the page prints itself back, and furniture that sheds.
 `python3 docs/build-pdf.py` then `--check`: up to date, 319,943 bytes, 75 pages A4,
 112 bookmarks.
+
+## Eighty-fourth pass: a cat that goes up the page
+
+The last pass made the cat destructive in a straight line. A page of text is not a
+straight line, it is a cliff -- a hundred and twenty columns of it stacked forty rows
+high -- and nothing in the animal went up it. `Mood::Perch` still exists and still
+takes the nearest ledge above and sits on it, which is one line, once, and reads as a
+cat getting on to something; a cat going up a page is a different thing that this
+build did not have.
+
+### The ascent
+
+`Mood::Climb` is a run of bounds rather than one. Each is aimed by `foothold_above`,
+which is the highest thing one bound can reach: six lines of rise and three of lean,
+from the lines of code and the flat tops of the furniture alike, because to a climbing
+cat a table and a line are the same job. Highest and not nearest, because a cat that
+took the next line up would take thirty bounds to cross the page upwards and stop at
+every one; the two rows at the top are excluded, because that is where its ears go and
+a foothold there would have it clamped off the ledge it landed on.
+
+The landing point is offset a character or two along the foothold, clamped inside it
+and away from its last character, so an ascent zigzags up the page instead of rising
+in a column: a cat on a lift is not a cat climbing. Nothing about the mood runs on a
+clock -- the clock is refreshed at every foothold -- so what ends it is the page
+running out, which is the answer to the question the mode is asked. `topped` is
+reported once, on the frame the picker finds nothing, and the page answers with two
+rings, a puff of dust, two dozen pieces of confetti and a card off anything in reach.
+
+It is worth 12 in the mood table, which is what a dash is worth: on a full page with
+energy left, going up is as likely as running, and a climb is the bigger event of the
+two.
+
+### The claws
+
+A climb damages the page with its back paws, so `Page::claw` is the rake's shape and
+half its height: one row, two words, thrown down and outwards. Half a line of height
+is the whole of the design -- the claw is fired from the row she has left, and the row
+she is landing on has to survive, or the ascent has nowhere to put its feet. `kitten`
+fires one every 0.9 of a line she rises, from `step_leap`, guarded to stay a line below
+the foothold she is going to, so a bound of five lines pulls five times and a furrow
+twenty rows long is what a climb leaves behind. Furniture in reach of the same claws is
+shaken and sheds a card or two.
+
+### What two measurements caught
+
+The first was a foothold 0.5 of a line up. `foothold_above` accepted anything more than
+half a line over her head while the leap itself needs 0.6, so a table top 0.55 above a
+line she was standing on was a target she would stand under for ever, waiting for a jump
+that never came. The floor of the picker is 0.75 now, above the leap's own threshold.
+
+The second was worse and is why the climb's reach is one bound. A foothold can be over
+the next column and not over hers -- a page of code is ragged -- and the first version
+walked the difference before jumping. What that produced was a cat walking to the end of
+her own line, falling to the floor eight lines below the foothold, walking the rest of
+the way along the rug, and then standing under a target that was out of reach from
+there: four of six seeds had her falling mid-climb and finishing at half the height. The
+fix is to keep `REACH` at three cells and let the ascent end where the page does -- "the
+page above her column has run out" is an honest reason to stop, and the next climb starts
+from wherever she comes down.
+
+### The mending had to keep up
+
+A climb takes three to five times what a run does, and the page was still printing at a
+flat three characters a second with a memory capped at 900. On the largest page in the
+seed set it ended its five minutes at 57% of its characters, which is a cat walking about
+in gaps. The rate is now proportional to the damage -- three a second plus six times that
+in proportion to how much of the page is missing, so seven times at a page with nothing
+left -- and the cap is 2400, near enough a whole page. A run's furrow still sits in front
+of a reader for the few seconds it takes to read as damage, and a wrecked page catches up
+with itself.
+
+### The numbers
+
+Six seeds, five minutes each: 8 to 16 climbs (one every 19 to 37 seconds), 7 to 13 of
+them reaching the highest place a cat may stand, 38 to 48 landings, and 970 to 1805
+characters taken off the page and printed back. The page ends at 78 to 95% of the
+characters it started with, and the worst frame in the set is 79%. Before the rate change
+the same seeds ended between 57 and 95%.
+
+A climb is two to four bounds of four and a half to five and a half lines, six to nine
+seconds of the cat's time, and about 3% of the frames of a five-minute page -- the same
+order as a dash, which is what makes it something a reader sees rather than a feature
+they have to go looking for.
+
+### Verification
+
+`cargo test --offline --all`: 2187 tests (1087 in `nn-app`, 1000 in `nn-core`, 100 in
+`nn-mcp`), 0 failed. Five are new. In `scene.rs`,
+`a_claw_takes_the_line_she_has_left_and_nothing_over_her_head` -- the row is emptied, no
+character above the swathe is touched, and everything thrown is falling. In `kitten.rs`,
+`a_climb_aims_at_the_highest_foothold_one_bound_can_reach` (nothing standable within
+reach is left behind), `a_climb_ends_where_the_page_does_and_nowhere_else` (the mood only
+ends with the picker empty), and `the_claws_of_a_climb_are_in_the_line_it_has_left`
+(every reported claw under her feet and clear of the foothold). In `playground/mod.rs`,
+`a_climb_goes_up_the_page_and_takes_it_apart`. `left_alone_it_finds_something_to_do_on_the_page`
+now asks for a climb and for a claw among the things a minute of the page contains.
+`cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not run.
+
+The page was then dumped as text and read at the four seconds of a real ascent -- seed
+24301, the first climb, 92.74, 93.63, 94.55 and 95.01 seconds -- and the four dumps
+diffed against each other. It is the check the numbers cannot make. At 92.74 she stands
+at line 24 of 40, at 93.63 at line 28, at 94.55 at line 32, and at 95.01 her body covers
+lines 35 to 38 with the ceiling at 37.6, so the ascent ends where the page does. What the
+rows do in between is the design: at 93.63 the two rows under her paws have lost `pi` and
+`ur(e` out of the middle of `pit"ur"`, at 95.01 line 31 reads `e   (ef,ims3:` where it
+began as `efur(ef,ims3:` -- a claw takes the row she has left, not the one she is aiming
+at, and it takes it only in the five columns she came up through, the rest of the
+sentence still there. Nothing above her head is ever touched. The dumps are in
+`/tmp/pg/climb-map.txt` and are not committed.
+
+`docs/nekopp-features.md` gained three rows in the Playground table -- the climb, the
+claws, the top -- and the mending row rewritten for the new rate, plus two paragraphs:
+what an ascent is, and why a claw goes in the row she has left. The kitten row now lists
+going up the page. `python3 docs/build-pdf.py` then `--check`: up to date, 322,208 bytes,
+75 pages A4, 112 bookmarks.

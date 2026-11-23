@@ -1795,14 +1795,17 @@ smaller window with fewer of both, and looks the same on any display.
 | The page | A gutter of line numbers, rows of code, the bottom five rows a rug of scattered punctuation, and a corner label on a line kept clear for it |
 | The ledges | Every intact row of code is a shelf a paw can stand on, and the floor runs under the rug at the bottom of the page, so falling always ends somewhere |
 | The furniture | Two to four pieces drawn in characters -- a table, a plant, a lamp, a shelf, a framed picture -- each standing in its own cleared box in the lower half of the page, and swaying when a paw hits it |
-| The kitten | Walks, sits, crouches, gathers herself and springs onto a line of code, bats a token, swats the furniture, climbs a table or a shelf and perches on its top edge, chases dust, runs laps, washes a paw, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
+| The kitten | Walks, sits, crouches, gathers herself and springs onto a line of code, bats a token, swats the furniture, climbs a table or a shelf and perches on its top edge, goes up the page a foothold at a time, chases dust, runs laps, washes a paw, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
 | The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
 | The dust | Specks that wander on their own; one within reach of a paw is thrown in a short arc and fades where it lands |
 | The light | A jump leaves a band of colour along the arc she flew, a small halo travels with her, a landing puts a ring on the paper with a burst of confetti, and every fourth piece of trail is a star |
 | The run | Now and then she picks the far end of the ledge she is standing on and crosses it at twice her running speed, taking the characters in her way and dragging a streak of light along the line as it comes apart; a run with time left on its clock takes another leg, and one leg in three is the line over her head |
 | The lap | Her other fast mood: the whole page is the target and the speed is between a run and a dash, raking and streaking exactly as a dash does, turning onto a new line whenever it reaches the end of the one it is on |
 | The blast | A run has two ends and both of them hit: pushing off and stopping from that speed take everything within a radius of her paws at once, each run of characters thrown away from her |
-| The mending | Everything a paw, a run or a landing takes is remembered and printed back at three characters a second, each one fading in over four tenths of a second, so the page is taken apart and put back rather than emptied |
+| The climb | She takes the highest foothold one bound can reach -- a line of code or the top of a table, whichever is higher, up to six lines and three across -- and takes another from there, for as long as there is anything over her head, so the ascent zigzags up the page and stops only where the page does |
+| The claws | A climb digs in where it leaves: every nine tenths of a line she rises takes a swathe two words wide out of the row her back paws are in, thrown down and outwards, and the furniture in reach sheds what it is made of |
+| The top | Reaching the highest place a cat may stand -- two lines short of the top of the page, which is where its ears go -- puts a double ring, a puff of dust and two dozen pieces of confetti on the paper |
+| The mending | Everything a paw, a run, a claw or a landing takes is remembered and printed back, three characters a second while the page is barely damaged and up to seven times that when much of it is in the air, each one fading in over four tenths of a second, so the page is taken apart and put back rather than emptied |
 | Sleep | Three minutes with no input and it curls up where it stands, and `z` floats up off her head |
 | Sparkles | Washing and stretching raise a `*` or two off the muzzle, for a second or so |
 | Dimming | Four minutes and the page starts to dim, the way a screensaver does |
@@ -1859,16 +1862,46 @@ line and not on the rug, because the floor of the room is a rug of punctuation a
 third of the opacity -- scenery and not text -- so a run that started there would
 take nothing at all; standing on it, they go up first.
 
+A climb is the one thing on the page that is only up. It is a run of bounds rather
+than one, and each is aimed at the highest foothold a single bound can reach -- six
+lines, and as much as three across, because the line above her may end before her
+column and a climb that only took what was exactly overhead would stop a third of
+the way up. Landing on it costs nothing but a ring and a puff: what a climb does to
+the page it does with its claws. The foothold is not gone over twice, so an ascent
+reaches the top of the page in six or seven bounds and takes about eight seconds
+over it, and the place she lands is offset a couple of characters along from where
+she stood, which is the difference between a cat going up the page and a cat on a
+lift. Where the page above her column runs out, the ascent has run out with it; the
+next one starts from wherever she comes down. Two rows at the top are above the
+highest place a cat may stand, because that is where its ears go, so the top of a
+climb is a cat with its head against the edge of the page and nothing left to take
+except the light. It is worth as much as a run in the table that picks her moods,
+which is what makes it something a reader sees every minute rather than once.
+
+The claws are the other half of a climb, and they are not a rake and not a swing. A
+claw goes where her back paws are -- in the row she has just left -- because the row
+she is going to has to still be there, and a cat that clawed the line it was landing
+on would have nothing to land on. So the swathe is half a line of height and the
+damage is behind her as well as below: every nine tenths of a line she rises pulls
+once more, which is what turns four or five bounds into a furrow of missing
+characters twenty rows long, with the words falling rather than flying, because the
+page is above her and nothing falls up. Furniture in reach of the same claws is
+shaken and sheds a card or two. What is left of the page after a climb is a vertical
+scar with a cat sitting at the top of it, which the mending then takes half a minute
+over.
+
 The furrow is not permanent, and that is what makes the rest of it possible. The
 page remembers every character it loses, with the cell it stood in, and prints them
 back three a second, each fading in over four tenths of a second; the memory is
-capped at nine hundred characters, so an afternoon of this costs a fixed amount of
-memory rather than a growing one. Without the mending the mode could not afford a
-cat that wrecked anything, which is what it used to be: the damage had to be kept
-rare to keep the page a page, and the result was a cat sauntering over a document
-that never changed. The rate is deliberately near the rate she destroys at. Much
-faster and the damage is never seen; much slower and the page slowly turns into
-gaps.
+capped at two and a half thousand characters, near enough a whole page, so an
+afternoon of this costs a fixed amount of memory rather than a growing one. Without
+the mending the mode could not afford a cat that wrecked anything, which is what it
+used to be: the damage had to be kept rare to keep the page a page, and the result
+was a cat sauntering over a document that never changed. The rate is deliberately
+near the rate she destroys at. Much faster and the damage is never seen; much slower
+and the page slowly turns into gaps -- and one rate cannot serve both a run's furrow
+and an ascent's, so the page prints faster the emptier it is, seven times its base
+rate at a page with nothing left.
 
 The furniture sheds, too. A prop is drawn in characters like everything else, and a
 body that arrives at one takes a card or two out of it and throws them, so a table

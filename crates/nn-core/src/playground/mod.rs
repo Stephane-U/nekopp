@@ -357,6 +357,39 @@ impl Playground {
                 }
             }
         }
+        // A cat going up the page takes the page with it. The claws are in the line it
+        // is leaving -- the one she is going to has to stay, or the climb has nowhere to
+        // land -- and what is in that line comes away, a word at a time, falling. The
+        // furniture does not survive a wall of them either.
+        if let Some(at) = self.kitten.claw {
+            if self.page.claw(at, &mut self.rng) > 0 {
+                self.page.dust(at, self.trail_hue, 0.3, &mut self.rng);
+                self.page
+                    .dust(at, (self.trail_hue + 0.5) % 1.0, 0.22, &mut self.rng);
+                if self.rng.below(2) == 0 {
+                    self.page.confetti(at, self.trail_hue, 4, 3.0, &mut self.rng);
+                }
+            }
+            if self.page.bump(at, 2.4, 1.9) {
+                let shed = self.page.chip(at, 2.4, &mut self.rng);
+                self.page.ring(at, (self.trail_hue + 0.5) % 1.0, 0.55);
+                self.page
+                    .confetti(at, self.trail_hue, 8 + shed * 2, 4.6, &mut self.rng);
+            }
+        }
+        // The top of the page is the end of a climb: she has got as high as there is to
+        // go, and it is worth a beat of the page's own light. Nothing is taken from the
+        // line she is standing on -- the only ledge left up here is the one holding her.
+        if self.kitten.topped {
+            let feet = [self.kitten.pos[0], self.kitten.pos[1] - 0.5, 0.0];
+            self.page.ring(feet, self.trail_hue, 0.8);
+            self.page
+                .ring(feet, (self.trail_hue + 0.5) % 1.0, 0.55);
+            self.page.puff(feet, 10, &mut self.rng);
+            self.page
+                .confetti(feet, (self.trail_hue + 0.5) % 1.0, 24, 6.5, &mut self.rng);
+            self.page.chip(feet, 4.0, &mut self.rng);
+        }
         match self.kitten.effect {
             Some(Effect::Zzz) => {
                 let at = self.kitten.crown();
@@ -948,6 +981,33 @@ mod tests {
             }
         }
         assert!(holes > 0, "no run ever ended in a hole, biggest loss {biggest}");
+    }
+
+    #[test]
+    fn a_climb_goes_up_the_page_and_takes_it_apart() {
+        // Through the whole simulation rather than the animal on its own, because the
+        // claws are the page's business. What an ascent should leave behind is a cat
+        // near the top of the page and a furrow of characters missing on the way up it.
+        let mut playground = open();
+        let input = Input::default();
+        let rows = playground.page().rows as f32;
+        let mut highest = 0.0f32;
+        let mut clawed = 0;
+        let mut chars = playground.page().text.len();
+        for _ in 0..(120 * 120) {
+            playground.step(1.0 / 120.0, &input);
+            highest = highest.max(playground.kitten().pos[1]);
+            let now = playground.page().text.len();
+            if playground.kitten().mood == Mood::Climb {
+                clawed += chars.saturating_sub(now);
+            }
+            chars = now;
+        }
+        assert!(
+            highest > rows * 0.6,
+            "she got to {highest} of a page {rows} lines high"
+        );
+        assert!(clawed > 10, "{clawed} characters came off the page as she climbed");
     }
 
     #[test]

@@ -70,6 +70,21 @@ const RAKE_EVERY: f32 = 1.5;
 /// four should leave the ground with the same hurry, and it is the arc that is
 /// scaled to the height instead.
 const LEAP_TIME: f32 = 0.42;
+/// How far she has to rise between one pull of the claws and the next, in cells.
+///
+/// Smaller than a line, so that every row she passes is dug into and the furrow of an
+/// ascent is a line of damage rather than a row of bites: a bound of five lines pulls
+/// five times on the way up.
+const CLAW_EVERY: f32 = 0.9;
+/// How far to the side of her a foothold can be and still be one bound away, in cells.
+///
+/// A page of code is ragged: the line above her may end before her column, and a climb
+/// that only took what was exactly overhead would stop a third of the way up. So a
+/// foothold may lean, by most of a bound across the page. What it may not do is be
+/// further over than that, because the rest of the way would be a walk along her own line
+/// and then it is not a climb any more. Where the page above her column runs out, the
+/// ascent has run out with it.
+const REACH: f32 = 3.0;
 
 /// What the kitten is doing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,6 +113,14 @@ pub enum Mood {
     Perch,
     /// A lap of the page at a speed nobody asked for.
     Zoomies,
+    /// Going up: the next foothold above, and then the one above that, to the top
+    /// of the page.
+    ///
+    /// Not a jump, which is one bound at a thing; a climb is a run of bounds with
+    /// another one already chosen at the end of each, and what ends it is there being
+    /// nothing left over her head. It takes the line it leaves with it as it goes,
+    /// because her claws have to go somewhere.
+    Climb,
     /// After something: flat out, in a straight line, taking what is in the way.
     ///
     /// Different from `Chase` in that she is not after a speck that is already
@@ -123,6 +146,7 @@ impl Mood {
             Mood::Chase => "chase",
             Mood::Perch => "perch",
             Mood::Zoomies => "zoomies",
+            Mood::Climb => "climb",
             Mood::Dash => "dash",
         }
     }
@@ -252,6 +276,18 @@ pub struct Kitten {
     pub rake: Option<[f32; 3]>,
     /// How far she has come since the last rake, in characters.
     dash_flown: f32,
+    /// Where her claws are in the page this frame, if she is going up it.
+    ///
+    /// A climb damages the line it is leaving rather than the place it is going, so
+    /// what a climb reports is the row her back paws are in, not a target.
+    pub claw: Option<[f32; 3]>,
+    /// How far she has risen since the last pull of the claws, in cells.
+    claw_climbed: f32,
+    /// Whether she got as high as the page goes this frame, so the page can say so.
+    pub topped: bool,
+    /// Whether this climb has already said it, so the top is an event and not a
+    /// state a mood sits in for a second and a half.
+    topped_said: bool,
 }
 
 impl Default for Kitten {
@@ -298,6 +334,10 @@ impl Kitten {
             effect: None,
             rake: None,
             dash_flown: 0.0,
+            claw: None,
+            claw_climbed: 0.0,
+            topped: false,
+            topped_said: false,
         }
     }
 
@@ -382,6 +422,8 @@ impl Kitten {
         self.landed = false;
         self.effect = None;
         self.rake = None;
+        self.claw = None;
+        self.topped = false;
         self.wash += dt
             * if matches!(self.mood, Mood::Clean | Mood::Groom) {
                 1.0
@@ -436,7 +478,12 @@ impl Kitten {
         // a cat is not rested and restless at once.
         let change = match self.mood {
             Mood::Sit | Mood::Groom | Mood::Sleep => 0.05,
-            Mood::Swat | Mood::Chase | Mood::Zoomies | Mood::Pounce | Mood::Bat => -0.11,
+            Mood::Swat
+            | Mood::Chase
+            | Mood::Zoomies
+            | Mood::Pounce
+            | Mood::Bat
+            | Mood::Climb => -0.11,
             // A dash is the most tiring thing she does, which is what makes the
             // wash afterwards land: a cat that has just crossed the page at a
             // gallop does not start another one.
@@ -536,6 +583,39 @@ impl Kitten {
             // A leg that was never reached still ends in a landing: the run is over
             // when the clock is, and a cat that stops at a gallop puts a paw down.
             Mood::Dash if self.timer < 0.5 && !self.struck && !self.airborne => self.arm(),
+            // A climb is not one bound but the run of them: she is on her way to a
+            // foothold, and the clock does not run out while she is between two of
+            // them. A place she cannot get to -- because the claws took it as she came
+            // -- is given up on by the patience, the same as anything else.
+            Mood::Climb if !self.arrived => {
+                if self.airborne {
+                    self.timer = self.timer.max(1.6);
+                } else if reach > 1.0 && self.patience > 0.0 {
+                    self.patience -= dt;
+                    self.timer = self.timer.max(1.6);
+                }
+            }
+            // Her paws are down again, and the next foothold is the one above this
+            // one. When there is none, she is as high as the page goes.
+            Mood::Climb => match self.ascent(senses) {
+                Some(next) => {
+                    self.target = next;
+                    self.arrived = false;
+                    self.patience = 20.0;
+                    self.timer = self.timer.max(1.6);
+                }
+                None => {
+                    // A beat at the top rather than the rest of the clock: what is
+                    // worth seeing is that she got there.
+                    if self.timer > 1.2 {
+                        self.timer = 1.2;
+                    }
+                    if !self.topped_said {
+                        self.topped_said = true;
+                        self.topped = true;
+                    }
+                }
+            },
             Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase if !self.arrived => {
                 if self.airborne {
                     // She is committed: the clock stops until she is down, and what
@@ -584,10 +664,13 @@ impl Kitten {
     /// the generator: what a cat wants after a dash is a fact about the cat, and a
     /// test should be able to ask about it rather than sample a distribution and
     /// hope.
-    fn weights(&self, senses: &Senses<'_>) -> [(Mood, usize); 10] {
+    fn weights(&self, senses: &Senses<'_>) -> [(Mood, usize); 11] {
         let props = !senses.props.is_empty();
         let motes = !senses.motes.is_empty();
         let tokens = !senses.tokens.is_empty();
+        // Anything over her head at all, which is what a climb is for: on a page
+        // with nothing above the cat there is nothing to go up.
+        let above = foothold_above(senses, self.pos).is_some();
         // Tired enough to sit down. It was lower, and what it cost was a cat that
         // sat through the interesting half of the page: a playground earns its name
         // from what she does when she is not tired, so the bar for resting is high
@@ -604,7 +687,7 @@ impl Kitten {
         let on_a_perch = nearest_perch(senses.props, self.pos, f32::MAX)
             .map(|prop| (self.pos[1] - prop.top()).abs() < 1.2)
             .unwrap_or(false);
-        let mut weights: [(Mood, usize); 10] = [
+        let mut weights: [(Mood, usize); 11] = [
             (Mood::Wander, if idle { 5 } else { 3 }),
             (Mood::Sit, if spent { 8 } else if idle { 5 } else { 1 }),
             (Mood::Groom, if spent { 8 } else if idle { 2 } else { 1 }),
@@ -619,6 +702,11 @@ impl Kitten {
             // along the way. It used to be the quiet option among the running moods
             // and it read as a cat walking fast for no reason.
             (Mood::Zoomies, if idle { 1 } else { 8 }),
+            // Going up. A page of text is a cliff -- a hundred and twenty columns of
+            // it stacked to the top edge -- and a cat that can climb it and take it
+            // apart on the way is the whole of what this mode is for. Tired, she would
+            // rather not, which is why the weight falls with the rest of her.
+            (Mood::Climb, usize::from(above) * if idle { 3 } else { 12 }),
             (Mood::Bat, usize::from(tokens) * 3),
             // A dash is worth what there is to run past, because crossing an empty
             // margin takes her nowhere in particular. It is the most likely thing
@@ -675,7 +763,10 @@ impl Kitten {
         let (left, right, bottom, top) = room_to_walk(senses.page[0], senses.page[1]);
         self.mood = mood;
         self.arrived = false;
-        self.patience = if matches!(mood, Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase) {
+        self.patience = if matches!(
+            mood,
+            Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase | Mood::Climb
+        ) {
             10.0
         } else {
             0.0
@@ -690,14 +781,21 @@ impl Kitten {
             Mood::Chase => 3.0 + senses.rng.range(0.0, 2.5),
             // Long enough to cross the page and come back, which is what a lap is.
             Mood::Zoomies => 3.0 + senses.rng.range(0.0, 2.4),
+            // Only a floor: the clock is refreshed at every foothold, so what ends a
+            // climb is the page running out and not this.
+            Mood::Climb => 5.0 + senses.rng.range(0.0, 3.0),
             Mood::Dash => 2.2 + senses.rng.range(0.0, 1.4),
             Mood::Follow | Mood::Pounce | Mood::Sleep => 1.2,
         };
         self.dwell = self.timer;
         self.struck = false;
         self.aim = None;
+        self.topped_said = false;
         // A mood that goes nowhere has already arrived.
-        self.arrived = !matches!(mood, Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase);
+        self.arrived = !matches!(
+            mood,
+            Mood::Bat | Mood::Swat | Mood::Perch | Mood::Chase | Mood::Climb
+        );
         match mood {
             // Somewhere else on the page: a cat that walked to a point and stayed
             // there would be a cat on a short leash.
@@ -751,6 +849,12 @@ impl Kitten {
             Mood::Dash => {
                 self.target = self.run_target(senses);
             }
+            Mood::Climb => match self.ascent(senses) {
+                Some(at) => self.target = at,
+                // Nothing over her head after all: a cat with no cliff to climb
+                // walks instead of gathering itself under the sky.
+                None => self.mood = Mood::Wander,
+            },
             _ => {}
         }
         self.target[0] = self.target[0].clamp(left, right);
@@ -917,6 +1021,29 @@ impl Kitten {
         best
     }
 
+    /// The next foothold of a climb: the highest one bound can reach, with a place on
+    /// it to land that is not where she is standing.
+    ///
+    /// Highest and not nearest, because the point of a climb is height: the page is a
+    /// cliff of lines and a cat that took the next one up would take thirty bounds to
+    /// cross it and would stop at every one. The sideways offset is what keeps the
+    /// ascent from being a lift -- she leaves the line she is on at an angle and lands a
+    /// couple of cells along the one above it, so what a reader sees is a cat zigzagging
+    /// up the page rather than a cat on a rope.
+    fn ascent(&mut self, senses: &mut Senses<'_>) -> Option<[f32; 3]> {
+        let [lo, hi, y] = foothold_above(senses, self.pos)?;
+        let way = if senses.rng.below(2) == 0 { -1.0 } else { 1.0 };
+        let step = senses.rng.range(1.0, 2.2) * way;
+        // Not the last character of the ledge, if there is a choice: a cat that lands
+        // on the very end of a line is a cat one step from the end of it.
+        let (lo, hi) = if hi - lo > 2.4 {
+            (lo + 1.2, hi - 1.2)
+        } else {
+            (lo, hi)
+        };
+        Some([(self.pos[0] + step).clamp(lo, hi), y, 0.0])
+    }
+
     /// A point on a ledge, a few cells away: a cat crosses the text along the
     /// lines, and steps off the end of one into the line below.
     ///
@@ -989,6 +1116,7 @@ impl Kitten {
             | Mood::Chase
             | Mood::Perch
             | Mood::Zoomies
+            | Mood::Climb
             | Mood::Dash => self.target,
             // Sitting, grooming and washing: stay put.
             _ => self.pos,
@@ -1001,6 +1129,18 @@ impl Kitten {
         if goal[1] < self.pos[1] - 1.2 && (goal[0] - self.pos[0]).abs() < 1.2 {
             if let Some(edge) = ledge_end(senses, self.pos) {
                 goal = [edge, self.pos[1], 0.0];
+            }
+        }
+        // A foothold the claws have already taken is not a foothold: a climb re-aims
+        // at whatever is over her head now, instead of gathering itself under a hole
+        // and spending its patience there.
+        if self.mood == Mood::Climb
+            && !self.airborne
+            && senses.surface(goal[0], goal[1] + 0.05) < goal[1] - 0.05
+        {
+            if let Some(next) = self.ascent(senses) {
+                self.target = next;
+                goal = next;
             }
         }
         let dx = goal[0] - self.pos[0];
@@ -1027,7 +1167,12 @@ impl Kitten {
             Mood::Chase => WALK * 1.6,
             Mood::Follow if across > 3.0 => RUN,
             Mood::Swat | Mood::Perch if across > 5.0 => RUN,
-            Mood::Follow | Mood::Wander | Mood::Bat | Mood::Swat | Mood::Perch => WALK,
+            // A climb walks and bounds: the sideways part is a step and a half, and
+            // the way up is the jump's business. There is no such thing as a cat that
+            // runs up a wall.
+            Mood::Follow | Mood::Wander | Mood::Bat | Mood::Swat | Mood::Perch | Mood::Climb => {
+                WALK
+            }
             _ => 0.0,
         };
         // Arriving is not the end of a walk: a cat that stops dead where it was
@@ -1048,7 +1193,16 @@ impl Kitten {
         // word in the air are the exception: those are caught on the way up.
         let holds = senses.surface(goal[0], goal[1] + 0.05) >= goal[1] - 0.05;
         let overhead = matches!(self.mood, Mood::Bat | Mood::Chase | Mood::Dash);
-        if dy > 0.6 && dy <= CLIMB && dx.abs() < 2.4 && (holds || overhead) && self.mood != Mood::Sleep {
+        // A climb is allowed the whole of its reach: its foothold is picked for height
+        // and can lean most of a bound across the page, and a cat that walked that
+        // difference would be a cat walking off the end of a line.
+        let bound = if self.mood == Mood::Climb { REACH } else { 2.4 };
+        if dy > 0.6
+            && dy <= CLIMB
+            && dx.abs() < bound
+            && (holds || overhead)
+            && self.mood != Mood::Sleep
+        {
             if self.next_leap > 0.0 {
                 // Gathering herself under it: the crouch before the spring is
                 // most of what tells a reader that a jump is being aimed.
@@ -1149,6 +1303,9 @@ impl Kitten {
     /// the jump, so the shadow can be dropped to the page while she is in the air.
     fn leap(&mut self, to: [f32; 3]) {
         self.airborne = true;
+        // A climb digs in as it leaves: without this the claws of a one-line bound
+        // would never come due, because she cannot rise a line and a half.
+        self.claw_climbed = CLAW_EVERY;
         self.jump = 0.0;
         self.jump_from = self.pos;
         self.jump_to = to;
@@ -1163,6 +1320,7 @@ impl Kitten {
     /// of it in one bound, and what the reader sees is the bound, not a parabola
     /// scaled to the furniture.
     fn step_leap(&mut self, dt: f32) {
+        let was = self.pos[1];
         let rise = (self.jump_to[1] - self.jump_from[1]).max(0.0);
         self.jump = (self.jump + dt / (LEAP_TIME + rise * 0.05)).min(1.0);
         let t = self.jump;
@@ -1175,6 +1333,21 @@ impl Kitten {
             } else {
                 -std::f32::consts::FRAC_PI_2
             };
+        }
+        // The claws, while she is between two footholds. They are in the line her
+        // back paws have just left and never in the one she is going to: a cat that
+        // took the row it was landing on would have nothing to land on, which is the
+        // one thing an ascent cannot afford.
+        if self.mood == Mood::Climb {
+            self.claw_climbed += (self.pos[1] - was).max(0.0);
+            if self.claw_climbed >= CLAW_EVERY && self.pos[1] < self.jump_to[1] - 0.75 {
+                self.claw_climbed -= CLAW_EVERY;
+                // Half a line under her feet, because the characters of a row sit in
+                // the middle of the cell the line's top edge bounds.
+                self.claw = Some([self.pos[0], self.pos[1] - 0.5, 0.0]);
+            }
+        } else {
+            self.claw_climbed = 0.0;
         }
         if t >= 1.0 {
             self.airborne = false;
@@ -1800,6 +1973,55 @@ fn nearest_shelf_above(shelves: &[Shelf], at: [f32; 3]) -> Option<&Shelf> {
 /// as a jump rather than as a cat being lifted up the page.
 const CLIMB: f32 = 6.0;
 
+/// The highest thing over her head that one bound can reach, as the stretch of it she
+/// could stand on and how high it is: left edge, right edge, top.
+///
+/// A line of code and the top of a table are the same thing to a climbing cat, so both
+/// are asked. What is not a foothold is anything above the highest place a cat may
+/// stand -- the top two rows of the page are where its ears go, not its paws -- or
+/// anything further to the side than [`REACH`], which is a walk and then a jump and not
+/// a climb.
+fn foothold_above(senses: &Senses<'_>, at: [f32; 3]) -> Option<[f32; 3]> {
+    let (left, right, _bottom, top) = room_to_walk(senses.page[0], senses.page[1]);
+    let mut places: Vec<[f32; 3]> = Vec::with_capacity(senses.shelves.len() + senses.props.len());
+    for shelf in senses.shelves {
+        places.push([shelf.span[0], shelf.span[1], shelf.y]);
+    }
+    for prop in senses.props.iter().filter(|prop| prop.kind.is_perch()) {
+        let half = prop.size[0] * GLYPH_WIDTH * 0.5;
+        places.push([prop.pos[0] - half, prop.pos[0] + half, prop.top()]);
+    }
+    let climbable: Vec<[f32; 3]> = places
+        .into_iter()
+        .map(|place| [place[0].max(left), place[1].min(right), place[2]])
+        .filter(|place| place[1] - place[0] >= 1.2)
+        .filter(|place| {
+            // Above the height a leap is even attempted at, and no higher than one can
+            // go: a foothold in between the two would leave her standing under it
+            // waiting for a jump that never comes.
+            place[2] - at[1] >= 0.75 && place[2] - at[1] <= CLIMB && place[2] <= top + 0.05
+        })
+        .collect();
+    highest_foothold(
+        climbable
+            .into_iter()
+            .filter(|place| (at[0].clamp(place[0], place[1]) - at[0]).abs() <= REACH),
+        at,
+    )
+}
+
+/// The highest of a set of footholds, and the nearest across the page when two of them
+/// are at the same height.
+fn highest_foothold(places: impl Iterator<Item = [f32; 3]>, at: [f32; 3]) -> Option<[f32; 3]> {
+    places.max_by(|a, b| {
+        a[2].total_cmp(&b[2]).then(
+            (at[0].clamp(b[0], b[1]) - at[0])
+                .abs()
+                .total_cmp(&(at[0].clamp(a[0], a[1]) - at[0]).abs()),
+        )
+    })
+}
+
 /// The nearest piece of furniture that can be climbed onto, no higher than
 /// `highest` and no lower than her own paws.
 fn nearest_perch(props: &[Prop], at: [f32; 3], highest: f32) -> Option<&Prop> {
@@ -2111,6 +2333,7 @@ mod tests {
         dust_thrown: bool,
         jumped: bool,
         knocked: bool,
+        clawed: bool,
         washed: bool,
     }
 
@@ -2129,6 +2352,11 @@ mod tests {
                 page.strike(kitten.paw(), rng);
             } else if kitten.landed {
                 page.land(kitten.paw(), rng);
+            }
+            // And a climb takes the line it is leaving, which is the page's business
+            // rather than the animal's.
+            if let Some(at) = kitten.claw {
+                show.clawed |= page.claw(at, rng) > 0;
             }
             show.washed |= kitten.effect == Some(Effect::Lick);
             match kitten.effect {
@@ -2226,7 +2454,7 @@ mod tests {
         let mut rng = Rng::new(0xCA7);
         let mut kitten = Kitten::new(40.0, 20.0);
         let show = live_for(&mut page, &mut kitten, &mut rng, 180.0);
-        for mood in ["swat", "perch", "chase", "zoomies"] {
+        for mood in ["swat", "perch", "chase", "zoomies", "climb"] {
             assert!(
                 show.moods.get(mood).copied().unwrap_or(0) > 0,
                 "never {mood}: {:?}",
@@ -2238,6 +2466,7 @@ mod tests {
         assert!(show.dust_thrown, "no dust was ever thrown");
         assert!(show.jumped, "she never left the floor");
         assert!(show.knocked, "the page lost nothing to her");
+        assert!(show.clawed, "she climbed the page without a claw in it");
         assert!(show.washed, "she never washed her face");
     }
 
@@ -2587,6 +2816,108 @@ mod tests {
         let mut senses = senses_on(&mut rng, &page, None, 1.0);
         kitten.start(Mood::Zoomies, &mut senses);
         assert!(kitten.target[1] > page.floor() + 0.6, "{:?}", kitten.target);
+    }
+
+    #[test]
+    fn a_climb_aims_at_the_highest_foothold_one_bound_can_reach() {
+        // A cat that took the next line up would take thirty bounds to cross the page
+        // upwards and stop at every one of them. A climb is a height, not a hop: what
+        // it goes for is the top of what it can reach.
+        let page = page();
+        let mut rng = Rng::new(0x41C);
+        let mut kitten = Kitten::new(page.width() * 0.5, page.floor());
+        let mut senses = senses_on(&mut rng, &page, None, 0.0);
+        kitten.start(Mood::Climb, &mut senses);
+        assert_eq!(kitten.mood, Mood::Climb);
+        let aim = kitten.target;
+        let rise = aim[1] - kitten.pos[1];
+        assert!(rise > 0.6 && rise <= CLIMB, "{aim:?} is {rise} above her");
+        // Nothing standable that one bound could have reached is above the place she
+        // picked: not a line, and not the top of the furniture either.
+        let mut above: Vec<[f32; 2]> = page
+            .shelves
+            .iter()
+            .map(|shelf| [shelf.nearest_point(kitten.pos[0]), shelf.y])
+            .collect();
+        for prop in page.props.iter().filter(|prop| prop.kind.is_perch()) {
+            above.push([prop.pos[0], prop.top()]);
+        }
+        for [x, y] in above {
+            let rise = y - kitten.pos[1];
+            let near = (x - kitten.pos[0]).abs() <= REACH;
+            assert!(
+                !(rise > 0.75 && rise <= CLIMB && near && y > aim[1] + 0.05),
+                "she left [{x}, {y}] behind for {aim:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_climb_ends_where_the_page_does_and_nowhere_else() {
+        // The one thing an ascent must not do is give up with something still over its
+        // head: she takes a foothold and then the one above it, and what ends the mood
+        // is the page running out. A page of code is ragged, so where that happens
+        // depends on the column she is in and not on the seed.
+        let page = page();
+        let mut rng = Rng::new(0x41D);
+        let mut kitten = Kitten::new(page.width() * 0.5, page.floor());
+        {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.start(Mood::Climb, &mut senses);
+        }
+        let start = kitten.pos[1];
+        let mut bounds = 0;
+        let mut was_air = false;
+        let mut highest = start;
+        for _ in 0..(120 * 30) {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+            bounds += usize::from(kitten.airborne && !was_air);
+            was_air = kitten.airborne;
+            highest = highest.max(kitten.pos[1]);
+            if kitten.mood != Mood::Climb {
+                let senses = senses_on(&mut rng, &page, None, 0.0);
+                assert!(
+                    foothold_above(&senses, kitten.pos).is_none(),
+                    "she gave up at {:?} with a foothold still over her",
+                    kitten.pos
+                );
+                break;
+            }
+        }
+        assert!(bounds >= 1, "she never left the ground");
+        assert!(highest > start + 1.0, "{} then {highest}", start);
+    }
+
+    #[test]
+    fn the_claws_of_a_climb_are_in_the_line_it_has_left() {
+        // The row she is going to has to still be there, or the climb has nowhere to
+        // put its paws. The claws are fired from under her back paws, which is a line
+        // below her feet, and never from the row she is on her way to.
+        let page = page();
+        let mut rng = Rng::new(0x41E);
+        let mut kitten = Kitten::new(page.width() * 0.5, page.floor());
+        {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.start(Mood::Climb, &mut senses);
+        }
+        let mut claws = 0;
+        for _ in 0..(120 * 12) {
+            let mut senses = senses_on(&mut rng, &page, None, 0.0);
+            kitten.think(1.0 / 120.0, &mut senses);
+            let Some(at) = kitten.claw else {
+                continue;
+            };
+            assert_eq!(kitten.mood, Mood::Climb, "claws outside a climb");
+            claws += 1;
+            assert_eq!(kitten.mood, Mood::Climb);
+            assert!(at[1] < kitten.pos[1], "{at:?} is not under her feet");
+            assert!(
+                at[1] < kitten.jump_to[1] - 0.5,
+                "{at:?} is the row she is landing on"
+            );
+        }
+        assert!(claws >= 4, "{claws} claws in an ascent");
     }
 
     #[test]
