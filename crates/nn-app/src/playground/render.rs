@@ -19,7 +19,7 @@
 
 use wgpu::util::DeviceExt;
 
-use nn_core::playground::{CardKind, Frame};
+use nn_core::playground::{CardKind, Frame, GlowKind};
 
 use crate::palette::Palette;
 use crate::theme::Theme;
@@ -55,13 +55,15 @@ const LIGHT: [f32; 3] = [0.38, -0.86, 0.34];
 const MAX_GLYPHS: usize = 4096;
 const MAX_BOXES: usize = 1024;
 const MAX_DOTS: usize = 512;
+const MAX_GLOWS: usize = 1024;
 
 const SHADER: &str = r#"
 struct Globals {
     view_proj: mat4x4<f32>,
     eye: vec4<f32>,
     light: vec4<f32>,
-    /// The screensaver's dimming in `x`; the rest is padding.
+    /// The screensaver's dimming in `x`, and the mode's own clock in `y`, which the
+    /// rainbow drifts with.
     dim: vec4<f32>,
     tint: vec4<f32>,
 };
@@ -149,6 +151,62 @@ fn fs_dot(in: VsOut) -> @location(0) vec4<f32> {
         discard;
     }
     return vec4<f32>(dimmed(in.color.rgb), alpha);
+}
+
+/// Hue to colour: one turn of the wheel, red at zero.
+///
+/// The simulation sends a number and knows nothing about colour; every rainbow in
+/// the mode comes out of this function, which is why a trail turns smoothly rather
+/// than stepping between a palette of six.
+fn rainbow(hue: f32) -> vec3<f32> {
+    let h = fract(hue) * 6.0;
+    let r = clamp(abs(h - 3.0) - 1.0, 0.0, 1.0);
+    let g = clamp(2.0 - abs(h - 2.0), 0.0, 1.0);
+    let b = clamp(2.0 - abs(h - 4.0), 0.0, 1.0);
+    return vec3<f32>(r, g, b);
+}
+
+/// A glowing thing, added to whatever is under it.
+///
+/// `color` carries the whole of it: `x` the hue, `y` the alpha, `z` which shape,
+/// `w` a fixed seed per spark. Additive, so there is no order to get wrong and
+/// overlapping sparks are brighter than one -- which is what makes a trail read as
+/// light rather than as a row of pasted sprites.
+///
+/// The hue drifts with the clock and with distance from the middle, so a trail
+/// shimmers as it fades and no two sparks are exactly one colour.
+@fragment
+fn fs_glow(in: VsOut) -> @location(0) vec4<f32> {
+    let p = in.local * 2.0 - 1.0;
+    let d = length(p);
+    let kind = in.color.z;
+    let hue = in.color.x + globals.dim.y * 0.12 + d * 0.10;
+    var amount = 0.0;
+    if (kind < 0.5) {
+        // A ball of light with a hot middle: a piece of a trail, or confetti.
+        let core = clamp(1.0 - d, 0.0, 1.0);
+        amount = core * core * (1.35 - 0.35 * d);
+    } else if (kind < 1.5) {
+        // A ring on the paper: the wave of a landing, thin at the edge and thick
+        // where it is brightest.
+        let edge = abs(d - 0.82);
+        amount = (1.0 - smoothstep(0.0, 0.22, edge)) * (1.0 - 0.25 * d);
+    } else {
+        // A star: six rays through a hot middle, turned by the spark's own roll.
+        let a = atan2(p.y, p.x) + in.color.w * 6.2831855;
+        let rays = pow(abs(cos(a * 3.0)), 12.0);
+        let core = clamp(1.2 - d * 1.4, 0.0, 1.0);
+        amount = core * core + rays * 0.7 * core;
+    }
+    if (amount < 0.004) {
+        discard;
+    }
+    // Premultiplied: the pipeline adds `src` to `dst`, so the alpha channel carries
+    // nothing and a glow never dims what is under it. It fades with the page, but
+    // only a third as far: light outlasts the text it was thrown over, which is what
+    // makes a page left alone look like a page with something still moving on it.
+    let dark = 1.0 - 0.35 * globals.dim.x;
+    return vec4<f32>(rainbow(hue) * amount * in.color.y * dark, 0.0);
 }
 "#;
 
@@ -274,11 +332,13 @@ pub struct Scene {
     glyph_pipeline: wgpu::RenderPipeline,
     box_pipeline: wgpu::RenderPipeline,
     dot_pipeline: wgpu::RenderPipeline,
+    glow_pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     globals: wgpu::Buffer,
     glyphs: Batch3d,
     boxes: Batch3d,
     dots: Batch3d,
+    glows: Batch3d,
     quad: Batch,
     cube: Batch,
     /// The texture coordinates of every atlas cell, by character.
@@ -478,7 +538,11 @@ impl Scene {
             })
         };
 
-        let pipeline = |label: &str, entry: &str, cull: Option<wgpu::Face>, depth: bool| {
+        let pipeline = |label: &str,
+                        entry: &str,
+                        cull: Option<wgpu::Face>,
+                        depth: bool,
+                        blend: wgpu::BlendState| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
                 layout: Some(&pipeline_layout),
@@ -494,7 +558,7 @@ impl Scene {
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        blend: Some(blend),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
@@ -509,9 +573,45 @@ impl Scene {
             })
         };
 
-        let box_pipeline = pipeline("playground boxes", "fs_box", Some(wgpu::Face::Back), true);
-        let glyph_pipeline = pipeline("playground glyphs", "fs_glyph", None, true);
-        let dot_pipeline = pipeline("playground dots", "fs_dot", None, false);
+        // Light adds: a spark brightens the page and never draws a dark edge over
+        // it, which is the difference between a glow and a sticker.
+        let additive = wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+        };
+
+        let box_pipeline = pipeline(
+            "playground boxes",
+            "fs_box",
+            Some(wgpu::Face::Back),
+            true,
+            wgpu::BlendState::ALPHA_BLENDING,
+        );
+        let glyph_pipeline = pipeline(
+            "playground glyphs",
+            "fs_glyph",
+            None,
+            true,
+            wgpu::BlendState::ALPHA_BLENDING,
+        );
+        let dot_pipeline = pipeline(
+            "playground dots",
+            "fs_dot",
+            None,
+            false,
+            wgpu::BlendState::ALPHA_BLENDING,
+        );
+        // The sparks are drawn last, over the page and over the cat: light in front
+        // of what it is shining on is what makes a trail read as in the air.
+        let glow_pipeline = pipeline("playground glows", "fs_glow", None, false, additive);
 
         let uvs = (FIRST..=LAST)
             .filter_map(char::from_u32)
@@ -524,11 +624,13 @@ impl Scene {
             glyph_pipeline,
             box_pipeline,
             dot_pipeline,
+            glow_pipeline,
             bind_group,
             globals,
             glyphs: Batch3d::new(device, MAX_GLYPHS, "playground glyph instances"),
             boxes: Batch3d::new(device, MAX_BOXES, "playground box instances"),
             dots: Batch3d::new(device, MAX_DOTS, "playground dot instances"),
+            glows: Batch3d::new(device, MAX_GLOWS, "playground glow instances"),
             quad: Batch::new(device, &Mesh::quad(), "playground quad"),
             cube: Batch::new(
                 device,
@@ -585,6 +687,7 @@ impl Scene {
         self.glyphs.begin();
         self.boxes.begin();
         self.dots.begin();
+        self.glows.begin();
 
         let camera = frame.camera;
         // The page is flat and the camera looks straight at it, so the picture is
@@ -648,6 +751,32 @@ impl Scene {
             }
         }
 
+        // The page's light: a trail behind a jump, a ring where she lands, the
+        // confetti of a paw. One instance each, coloured by hue, added to whatever
+        // they land on.
+        for glow in &frame.glows {
+            if glow.alpha <= 0.01 {
+                continue;
+            }
+            let kind = match glow.kind {
+                GlowKind::Blob => 0.0,
+                GlowKind::Ring => 1.0,
+                GlowKind::Star => 2.0,
+            };
+            self.glows.instances.push(Instance {
+                model: xform::card(
+                    glow.pos,
+                    0.0,
+                    0.0,
+                    glow.roll,
+                    glow.size * 2.0,
+                    glow.size * 2.0,
+                ),
+                color: [glow.hue, glow.alpha, kind, glow.seed],
+                uv: [0.0, 0.0, 1.0, 1.0],
+            });
+        }
+
         for block in &frame.blocks {
             let colour = super::shade_colour(block.shade, theme).to_linear();
             self.boxes.instances.push(Instance::new(
@@ -679,12 +808,16 @@ impl Scene {
         self.boxes
             .upload(device, queue, "playground box instances");
         self.dots.upload(device, queue, "playground dot instances");
+        self.glows
+            .upload(device, queue, "playground glow instances");
 
         let globals = Globals {
             view_proj,
             eye: [eye[0], eye[1], eye[2], 1.0],
             light: [LIGHT[0], LIGHT[1], LIGHT[2], 0.0],
-            dim: [frame.dim, 0.0, 0.0, 0.0],
+            // The clock rides in `dim.y`: the rainbow drifts with it, so a still
+            // frame at the same time is the same picture.
+            dim: [frame.dim, frame.time, 0.0, 0.0],
             tint: [
                 theme.background.to_linear()[0],
                 theme.background.to_linear()[1],
@@ -710,6 +843,9 @@ impl Scene {
             .draw(pass, &self.quad, &self.dot_pipeline, &self.bind_group);
         self.glyphs
             .draw(pass, &self.quad, &self.glyph_pipeline, &self.bind_group);
+        // Light last, over everything: it is in front of the page it falls on.
+        self.glows
+            .draw(pass, &self.quad, &self.glow_pipeline, &self.bind_group);
     }
 }
 

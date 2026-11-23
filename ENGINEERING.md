@@ -9980,3 +9980,111 @@ place and on a landing not being a swing; the old claim that the words drift wit
 no gravity pulling them anywhere is gone. `python3 docs/build-pdf.py` then
 `--check`: up to date, 314,273 bytes, 73 pages A4, 112 bookmarks -- the same 73
 pages and 112 bookmarks, 1,965 bytes heavier than the pass before.
+
+## Eighty-first pass: light on the page
+
+"also where are my shader effects ? I want to see things like a rainbow trail of
+colors when the cat jumps. particules, make it visually amusing and entertaining".
+The eightieth pass gave the page weight; what it did not give it was a way of
+saying that something happened quickly. One line of code looks like the next and a
+jump leaves nothing behind, so the reader's eye has no reason to follow her. The
+answer is light: a band of colour along the arc she flew, a ring where she lands,
+confetti where a paw takes something.
+
+### The light belongs to the simulation
+
+The obvious place for a spark is the renderer -- it is the thing that draws, and a
+particle is a drawing. It is the wrong place. A renderer that owns state makes the
+mode's look depend on the frame rate and on how many frames a reader happened to
+skip, and it makes the effect untestable without a window. So `spark.rs` is in
+`nn-core` and owns all of it: `Spark` is a position, a velocity, a hue, a size, how
+fast it grows, its age and its life, and `alpha()` is the whole of its shape in
+time -- in fast, out over its life squared. `Page::step_sparks` steps them in the
+same fixed loop as the tokens, `Page::glows` hands the renderer a `Glow` per spark,
+and the renderer holds no state at all before the first draw. The tests that came
+with it -- a ring widening as it fades, confetti fanning out across the wheel, a
+spark gone when its second is up, the page never holding more than its share
+(`MAX_SPARKS`, 512, oldest dropped first) -- need no GPU, and a frame at a given
+time is the frame the run produced.
+
+The simulation does not know what colour anything is. A spark carries a `hue`, a
+number from 0 to 1, and the shader's `rainbow(hue)` turns it into one. That is what
+makes a trail a rainbow instead of a palette: the hue steps a ninth of a turn per
+piece, so the band runs through the wheel in the order a rainbow has it, and one
+shader covers every effect -- blob, ring, star -- with the shape chosen by the
+`z` channel of the instance colour and the seed in `w` turning a star's rays.
+
+Light adds. The glow pipeline is `One`/`One` with no depth write, drawn last, so
+overlapping sparks are brighter than one and there is no order to get wrong -- and
+so three pieces of three hues in the same place are white. That single fact drove
+the tuning: the hue step is small and the pieces are laid apart, because a trail
+that cycles the wheel every two cells mixes itself to grey.
+
+### Two bugs the frames found
+
+The first was invisible in the code and obvious on screen: the glow instance buffer
+was filled but never uploaded. `self.dots.upload(...)` and the glow upload sat on
+different lines of the same block, an edit matched only one of them, and the draw
+read whatever the buffer held -- identity matrices, so a field of white squares. A
+grep for `upload(` found it in a minute; what it cost was the hour before that,
+looking at the shader.
+
+The second was mine and geometric: `smoothstep(0.26, 0.0, edge)` has its edges
+reversed. `smoothstep` with `edge0 > edge1` is undefined in the spec and in
+practice clamps to something that is 1 everywhere inside the ring's radius, so a
+ring drew as a disc. `(1.0 - smoothstep(0.0, 0.22, edge)) * (1.0 - 0.25 * d)` with
+`edge = abs(d - 0.82)` is a ring: thin at the rim, brightest where it is thickest.
+
+### A trail is laid by distance
+
+The first working trail was emitted every twenty-two thousandths of a second and
+looked like a smear. The reason took a while, because the frames I was reading were
+the wrong frames: the bench stepped the page at 0.05 s per step while the mode on
+screen runs at a frame of its own, and a coarse step is a different run of the same
+seed: one jump in the first twenty seconds where the fine step has three in the
+first half-minute, and a completely different cat. The bench now steps at 120 a second, which is what the app does, and
+`playground_time=9.45` means the frame a reader would have seen.
+
+With honest frames the shape of the problem was clear. A temporal rule breaks at
+both ends: a piece every few hundredths of a second piles up into a white column
+when she pounces in place, and thins into a dotted line when she falls off a ledge
+at ten cells a second. What a trail is, is a line in space, so the clock counts
+cells instead of seconds -- `TRAIL_STEP` of 0.42 between pieces, measured from her
+middle last frame to her middle this frame, so a walk, a pounce and a fall all lay
+their light the same way. Each piece is left with the negative of her own velocity,
+so it streams out behind her rather than gathering under her, and every fourth one
+is a star so the band has something in it that turns. A test pins the property
+rather than the numbers: the same seed watched at 120 and at 30 frames a second
+puts the same band in the air (thirteen pieces and eleven).
+
+The rest is numbers chosen from frames: a ring grows to three and a half cells and
+fades in half a second; confetti is bright and small and falls at a fifth of the
+page's gravity (an eighth of it); the halo that follows her is dim, because it is there to say she is
+lit, not to cover the colours she has left behind. The glow also keeps more of its
+brightness than the text when the page dims -- light outlasts the words it was
+thrown over, which is what makes a page left alone still look alive.
+
+### Verification
+
+`cargo test --offline --all`: 2169 tests (1087 in `nn-app`, 982 in `nn-core`, 100
+in `nn-mcp`), 0 failed. Six are new: in `scene.rs`
+`a_ring_on_the_paper_widens_as_it_fades`, `confetti_fans_out_across_the_wheel`,
+`a_spark_is_gone_when_its_second_is_up` and
+`the_page_never_holds_more_than_its_share_of_light`; in `playground/mod.rs`
+`a_jump_leaves_a_rainbow_behind_it` (a hundred and twenty seconds of one seed, and
+at least four of the six buckets of the wheel show up along her trails) and
+`the_trail_lies_along_the_path_and_not_along_the_clock`. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run.
+
+Frames were rendered on seed 24301 at 1280 by 800 and looked at: 9.45 seconds,
+mid-fall off a ledge, a magenta head coming off her crown through blue, cyan,
+green, yellow and back to magenta at the tail with a star in it; 9.30 and 26.40
+(the same band, shorter, because the fall has only started); 4.70, a pounce in
+place, where the trail is three cells of colour rather than a smudge. The stills are
+in `/tmp/pg` and are not committed.
+
+`docs/nekopp-features.md` gained a light row in the Playground table and a paragraph
+on why the light belongs to the page and not to the drawing. `python3
+docs/build-pdf.py` then `--check`: up to date, 315,130 bytes, 73 pages A4, 112
+bookmarks -- the same 73 pages and 112 bookmarks, 857 bytes heavier than the pass
+before.

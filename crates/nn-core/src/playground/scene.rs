@@ -35,6 +35,7 @@
 use std::collections::BTreeMap;
 
 use super::corpus::Flavour;
+use super::spark::{Glow, Spark, MAX_SPARKS};
 use super::{Card, CardKind, Rng};
 
 /// How wide one glyph card is, in line heights.
@@ -241,6 +242,8 @@ pub struct Page {
     pub motes: Vec<Mote>,
     /// Glyphs the kitten raises for a moment: Zzz, sparkles.
     pub floating: Vec<Floating>,
+    /// The page's light: a jump's trail, a landing's ring, a paw's confetti.
+    pub sparks: Vec<Spark>,
 }
 
 impl Page {
@@ -354,6 +357,7 @@ impl Page {
             tokens,
             motes,
             floating: Vec::new(),
+            sparks: Vec::new(),
         }
     }
 
@@ -554,6 +558,64 @@ impl Page {
             glyph.vel[1] *= (1.0 - 0.5 * dt).max(0.0);
         }
         self.floating.retain(|glyph| glyph.age < glyph.life);
+    }
+
+    /// A piece of a jump's trail: a soft blob of one hue where the cat was, drifting
+    /// at `vel`.
+    pub fn ribbon(&mut self, at: [f32; 3], vel: [f32; 3], hue: f32, size: f32) {
+        self.push_spark(Spark::ribbon(at, vel, hue, size));
+    }
+
+    /// The light that travels with her while she is in the air.
+    ///
+    /// Its life is a tenth of a second and it is pushed again every frame, so what
+    /// is drawn is one blob that follows her rather than a string of them.
+    pub fn aura(&mut self, at: [f32; 3], hue: f32, size: f32) {
+        self.push_spark(Spark::aura(at, hue, size));
+    }
+
+    /// A star in among the trail, turning as it dies.
+    pub fn twinkle(&mut self, at: [f32; 3], hue: f32, size: f32) {
+        self.push_spark(Spark::twinkle(at, hue, size));
+    }
+
+    /// A ring on the paper, widening as it fades.
+    pub fn ring(&mut self, at: [f32; 3], hue: f32, size: f32) {
+        self.push_spark(Spark::ring(at, hue, size));
+    }
+
+    /// Confetti: `count` sparks thrown from `at`, their hues fanned out from `hue`
+    /// across most of the wheel, so one burst is already a rainbow.
+    pub fn confetti(&mut self, at: [f32; 3], hue: f32, count: usize, speed: f32, rng: &mut Rng) {
+        for index in 0..count {
+            let fan = index as f32 / (count.max(1) as f32 - 1.0).max(1.0);
+            let hue = (hue + fan * 0.9) % 1.0;
+            self.push_spark(Spark::confetti(at, hue, speed, rng));
+        }
+    }
+
+    /// Moves the light: it flies, it is pulled down, it grows, and its clock runs
+    /// out. A spark is gone the frame its life ends, which is what keeps the mode
+    /// from turning into a haze.
+    pub fn step_sparks(&mut self, dt: f32) {
+        for spark in &mut self.sparks {
+            spark.step(dt);
+        }
+        self.sparks.retain(|spark| spark.age < spark.life);
+    }
+
+    /// What one frame draws, `fade` being how much of the page is on screen.
+    pub fn glows(&self, fade: f32) -> Vec<Glow> {
+        self.sparks.iter().map(|spark| spark.glow(fade)).collect()
+    }
+
+    fn push_spark(&mut self, spark: Spark) {
+        // The oldest goes rather than the newest, so a burst always shows: a page
+        // that dropped its newest sparks would drop the paw that threw them.
+        while self.sparks.len() >= MAX_SPARKS {
+            self.sparks.remove(0);
+        }
+        self.sparks.push(spark);
     }
 
     /// Pushes a token near `at` away from the kitten, and the dust with it.
@@ -1074,9 +1136,77 @@ fn loose_tokens(rng: &mut Rng, flavour: Flavour, columns: u32, rows: u32) -> Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::playground::GlowKind;
 
     fn page() -> Page {
         Page::new(Flavour::Rust, 0x5EED, 0, 120, 40)
+    }
+
+    #[test]
+    fn a_ring_on_the_paper_widens_as_it_fades() {
+        let mut page = page();
+        page.ring([10.0, 5.0, 0.5], 0.3, 0.4);
+        let first = page.glows(1.0);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].kind, GlowKind::Ring);
+        for _ in 0..36 {
+            page.step_sparks(1.0 / 120.0);
+        }
+        let later = page.glows(1.0);
+        assert_eq!(later.len(), 1);
+        assert!(
+            later[0].size > first[0].size + 0.3,
+            "{} then {}",
+            first[0].size,
+            later[0].size
+        );
+        // Bright while it is small, gone by the time it is wide: the ring arrives
+        // over a few frames, so compare a tenth of a second with a third.
+        page.ring([10.0, 5.0, 0.5], 0.3, 0.4);
+        for _ in 0..12 {
+            page.step_sparks(1.0 / 120.0);
+        }
+        let fresh = page.glows(1.0);
+        let bright = fresh.last().expect("the ring just pushed").alpha;
+        assert!(later[0].alpha < bright, "a ring dims as it widens");
+    }
+
+    #[test]
+    fn confetti_fans_out_across_the_wheel() {
+        let mut page = page();
+        let mut rng = Rng::new(7);
+        page.confetti([10.0, 10.0, 0.5], 0.2, 12, 5.0, &mut rng);
+        let glows = page.glows(1.0);
+        assert_eq!(glows.len(), 12);
+        let low = glows.iter().fold(f32::MAX, |m, g| m.min(g.hue));
+        let high = glows.iter().fold(f32::MIN, |m, g| m.max(g.hue));
+        assert!(high - low > 0.6, "{low} to {high}");
+        // Thrown, not dropped: some of them are going up.
+        assert!(page.sparks.iter().any(|spark| spark.vel[1] > 1.0));
+    }
+
+    #[test]
+    fn a_spark_is_gone_when_its_second_is_up() {
+        let mut page = page();
+        let mut rng = Rng::new(11);
+        page.confetti([10.0, 10.0, 0.5], 0.5, 8, 4.0, &mut rng);
+        page.ribbon([10.0, 10.0, 0.5], [0.0; 3], 0.1, 0.5);
+        page.aura([10.0, 10.0, 0.5], 0.2, 2.0);
+        assert_eq!(page.glows(1.0).len(), 10);
+        for _ in 0..(2.0 / (1.0 / 120.0)) as usize {
+            page.step_sparks(1.0 / 120.0);
+        }
+        assert!(page.glows(1.0).is_empty(), "{} left", page.sparks.len());
+    }
+
+    #[test]
+    fn the_page_never_holds_more_than_its_share_of_light() {
+        let mut page = page();
+        let mut rng = Rng::new(3);
+        for _ in 0..(MAX_SPARKS * 3) {
+            page.confetti([10.0, 10.0, 0.5], 0.5, 1, 4.0, &mut rng);
+        }
+        assert_eq!(page.sparks.len(), MAX_SPARKS);
     }
 
     #[test]

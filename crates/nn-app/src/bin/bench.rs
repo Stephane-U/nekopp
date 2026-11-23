@@ -296,9 +296,13 @@ fn main() {
         if flags.playground {
             playground.enter(flags.playground_seed, now);
             playground.resize(width, height);
-            let steps = (flags.playground_time / 0.05).round() as usize;
+            // Stepped at the same rate the mode runs at on screen, so a dump at
+            // `playground_time=9.4` is the frame the reader would see and not a
+            // coarser run of the same seed.
+            const STEP: f32 = 1.0 / 120.0;
+            let steps = (flags.playground_time / STEP).round() as usize;
             for _ in 0..steps {
-                playground.step(0.05);
+                playground.step(STEP);
             }
         }
         playground

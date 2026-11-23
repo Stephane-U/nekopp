@@ -1798,6 +1798,7 @@ smaller window with fewer of both, and looks the same on any display.
 | The kitten | Walks, sits, crouches, gathers herself and springs onto a line of code, bats a token, swats the furniture, climbs a table or a shelf and perches on its top edge, chases dust, runs laps, washes a paw, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
 | The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
 | The dust | Specks that wander on their own; one within reach of a paw is thrown in a short arc and fades where it lands |
+| The light | A jump leaves a band of colour along the arc she flew, a small halo travels with her, a landing puts a ring on the paper with a burst of confetti, and every fourth piece of trail is a star |
 | Sleep | Three minutes with no input and it curls up where it stands, and `z` floats up off her head |
 | Sparkles | Washing and stretching raise a `*` or two off the muzzle, for a second or so |
 | Dimming | Four minutes and the page starts to dim, the way a screensaver does |
@@ -1822,6 +1823,19 @@ bug, not a joke. A bound reaches six lines, and because the arc is fixed while t
 height is not, a short hop and a long leap look the same going up and very
 different coming down. She crouches first, the way a cat does, and holds it for a
 third of a second before she springs.
+
+The light belongs to the page and not to the drawing, which is what makes it
+checkable. The simulation owns every spark: where a piece of trail goes, how long
+it lives, how far around the colour wheel it sits. It knows nothing about colour
+-- a hue is a number, and one additive pass in the renderer turns that number into
+a rainbow -- and because nothing in it reads the clock, a frame at a given time is
+reproducible, so a test can count the pieces along a jump without a window. The
+trail is laid every part of a cell she flies rather than every few hundredths of a
+second: a rule about time piles the light into a white column when she pounces in
+place and thins it into a dotted line when she falls off a ledge, while a rule
+about distance puts the same band along the same flight at any frame rate. Slow
+steps around the wheel are the other half of it: light adds, three pieces of three
+hues in one place are white, so a jump turns the wheel once and no more.
 
 The kitten is a few dozen boxes and no skeleton: a body, a head, two ears, four
 legs with cream socks, a muzzle, a chin, a nose, two eyes and a tail on a bow
