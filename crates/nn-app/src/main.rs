@@ -6561,14 +6561,10 @@ impl State {
             Action::SortWindows(sort) => self.sort_windows(sort),
             Action::CommandLineArgs => self.command_line_args(),
             Action::DebugInfo => self.debug_info(),
-            Action::HomePage => self.open_page("https://notepad-plus-plus.org/"),
-            Action::ProjectPage => {
-                self.open_page("https://github.com/notepad-plus-plus/notepad-plus-plus")
-            }
-            Action::OnlineManual => {
-                self.open_page("https://npp-user-manual.org/")
-            }
-            Action::Forum => self.open_page("https://community.notepad-plus-plus.org/"),
+            Action::HomePage => self.open_page(nn_app::links::HOME),
+            Action::ProjectPage => self.open_page(nn_app::links::ISSUES),
+            Action::OnlineManual => self.open_page(nn_app::links::MANUAL),
+            Action::Forum => self.open_page(nn_app::links::community()),
             Action::ReadOnly => self.toggle_read_only(),
             Action::ShowWhitespace => {
                 let on = !self.view.show_whitespace();

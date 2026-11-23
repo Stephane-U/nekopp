@@ -266,9 +266,9 @@
                 <Item id="Multi-select Next" name="Adicionar o seguinte à multisseleção"/>
                 <Item id="Name A to Z" name="Nome de A a Z"/>
                 <Item id="Name Z to A" name="Nome de Z a A"/>
-                <Item id="Neko++ Community (Forum)" name="Comunidade Neko++ (fórum)"/>
+                <Item id="Neko++ Community (LinkedIn)" name="Comunidade Neko++ (LinkedIn)"/>
                 <Item id="Neko++ Online User Manual" name="Manual do utilizador online do Neko++"/>
-                <Item id="Neko++ Project Page" name="Página do projeto Neko++"/>
+                <Item id="Neko++ Issues" name="Problemas Neko++"/>
                 <Item id="Next Search Result" name="Resultado de pesquisa seguinte"/>
                 <Item id="North European" name="Europa do Norte"/>
                 <Item id="Notepad++ User Defined Languages Collection" name="Coleção de linguagens definidas pelo utilizador do Notepad++"/>

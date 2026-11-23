@@ -1112,12 +1112,17 @@ Window" switches to the document that was active before this one.
 "Command Line Arguments..." opens this build's own usage text, so the switches
 are discoverable from inside the program.
 
-The four link rows are labelled "Neko++ ..." because this program is Neko++, and
-a Help menu that names a different product reads as a leftover. Their
-destinations are still Notepad++'s pages: they are the closest thing to
-documentation for the features implemented here, and the addresses are the
-owner's to change. The label and the destination disagreeing is a known,
-deliberate state.
+The four link rows open this project's own pages on GitHub, so a label and a
+destination no longer disagree. "Neko++ Home" opens the repository, whose README
+says what the editor is and how to build it. "Neko++ Issues" opens its issue
+tracker, which is where a bug report or a question goes. "Neko++ Online User
+Manual" opens the reference document itself, rendered from the same markdown the
+PDF is built from. "Neko++ Community (LinkedIn)" opens the author's LinkedIn
+profile, the same address the About box carries.
+
+Until this release those rows went to Notepad++'s home page, its repository, its
+user manual and its forum, which were the closest thing to documentation for
+these features while this project had no pages of its own.
 
 "Debug Info..." reports the renderer, the adapter, the font system, the
 configuration paths and the file list, which is what a bug report needs.
@@ -1125,9 +1130,9 @@ configuration paths and the file list, which is what a bug report needs.
 
 - Command Line Arguments...
 - Neko++ Home
-- Neko++ Project Page
+- Neko++ Issues
 - Neko++ Online User Manual
-- Neko++ Community (Forum)
+- Neko++ Community (LinkedIn)
 - Debug Info...
 - About Neko++
 

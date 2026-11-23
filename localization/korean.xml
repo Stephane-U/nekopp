@@ -266,9 +266,9 @@
                 <Item id="Multi-select Next" name="다음 다중 선택"/>
                 <Item id="Name A to Z" name="이름 A→Z"/>
                 <Item id="Name Z to A" name="이름 Z→A"/>
-                <Item id="Neko++ Community (Forum)" name="Neko++ 커뮤니티 (포럼)"/>
+                <Item id="Neko++ Community (LinkedIn)" name="Neko++ 커뮤니티 (LinkedIn)"/>
                 <Item id="Neko++ Online User Manual" name="Neko++ 온라인 사용자 설명서"/>
-                <Item id="Neko++ Project Page" name="Neko++ 프로젝트 페이지"/>
+                <Item id="Neko++ Issues" name="Neko++ 문제"/>
                 <Item id="Next Search Result" name="다음 검색 결과"/>
                 <Item id="North European" name="북유럽어"/>
                 <Item id="Notepad++ User Defined Languages Collection" name="Notepad++ 사용자 정의 언어 모음"/>

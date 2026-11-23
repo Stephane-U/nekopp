@@ -10732,3 +10732,27 @@ reference has grown six sections and one shortcut since it was written. `cargo t
 2,195 tests, 0 failed. `cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not
 run. The plugin workspace keeps its own 0.1.0 -- different target, versioned separately,
 interface unchanged.
+
+## The links point at this project
+
+The four Help rows opened Notepad++'s pages -- its home page, its repository, its user manual and
+its forum -- because until this release there was nothing of this project's to open. The snapshot
+published as `Stephane-U/nekopp` changes that, so the rows now name what they open: the
+repository, its issue tracker, the reference rendered from `docs/nekopp-features.md`, and the
+author's LinkedIn profile for the community row.
+
+The addresses moved into `links.rs`, a module whose whole content is four strings and three
+tests, because a link is the one thing in the program a window cannot show you is wrong: it opens
+a browser, or it does not. The tests ask that every page is `https` on
+`github.com/Stephane-U/nekopp`, that the manual is the file the PDF is built from on `main`, and
+that the community row is the About box's string rather than a second copy of it that can drift.
+`Action::Forum` and its `forum` identifier did not change: the row is a link, not a concept, and
+a keymap or settings file written before the move still names it.
+
+That fixed a state the document had described in two places as deliberate: the labels said
+`Neko++ ...` and the destinations were Notepad++'s, which the pass that added the menu called a
+known disagreement. Both passages now say what each row opens, the row list follows, and `grep`
+finds no `notepad-plus-plus.org`, `npp-user-manual.org` or `community.notepad-plus-plus.org` left
+in the source. Two labels changed with the destinations -- `Neko++ Project Page` to `Neko++
+Issues`, `Neko++ Community (Forum)` to `(LinkedIn)` -- so the menu does not promise a forum it
+does not have.

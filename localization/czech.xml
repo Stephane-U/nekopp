@@ -266,9 +266,9 @@
                 <Item id="Multi-select Next" name="Vybrat další vícenásobně"/>
                 <Item id="Name A to Z" name="Název od A do Z"/>
                 <Item id="Name Z to A" name="Název od Z do A"/>
-                <Item id="Neko++ Community (Forum)" name="Komunita Neko++ (fórum)"/>
+                <Item id="Neko++ Community (LinkedIn)" name="Komunita Neko++ (LinkedIn)"/>
                 <Item id="Neko++ Online User Manual" name="Uživatelská příručka Neko++ online"/>
-                <Item id="Neko++ Project Page" name="Stránka projektu Neko++"/>
+                <Item id="Neko++ Issues" name="Problémy Neko++"/>
                 <Item id="Next Search Result" name="Další výsledek hledání"/>
                 <Item id="North European" name="Severoevropské"/>
                 <Item id="Notepad++ User Defined Languages Collection" name="Sbírka uživatelsky definovaných jazyků Notepad++"/>

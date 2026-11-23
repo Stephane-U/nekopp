@@ -27,6 +27,7 @@ pub mod iconrender;
 pub mod icons;
 pub mod keymap;
 pub mod layout;
+pub mod links;
 pub mod menu;
 pub mod minimap;
 pub mod nppimport;

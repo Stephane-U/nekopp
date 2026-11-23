@@ -2242,21 +2242,20 @@ fn window_items() -> Vec<Item> {
 /// The updater rows are absent: this build has no updater, and a row that opened
 /// a browser at a download page would be a promise the program cannot keep.
 ///
-/// The four link rows are labelled `Neko++ ...` because this program is Neko++,
-/// and a Help menu that names a different product reads as a leftover. The
-/// destinations are still Notepad++'s pages: they are the closest thing to
-/// documentation for the features implemented here, and the addresses are the
-/// owner's to change. The label and the destination disagreeing is a known,
-/// deliberate state, not an oversight -- when the links move, only the
-/// `Action::HomePage` and friends need to change, not these rows.
+/// The four link rows name what they open. Until this release they were labelled
+/// `Neko++ ...` and went to Notepad++'s pages, which was the closest thing to
+/// documentation this program had; now that the project has pages of its own,
+/// the label and the destination agree. The addresses are in [`crate::links`],
+/// and the rows are still `Action::HomePage` and friends, so a keymap or a
+/// settings file written before the move still names them.
 fn help_items() -> Vec<Item> {
     vec![
         Item::new("Command Line Arguments...", Action::CommandLineArgs),
         Item::separator(),
         Item::new("Neko++ Home", Action::HomePage),
-        Item::new("Neko++ Project Page", Action::ProjectPage),
+        Item::new("Neko++ Issues", Action::ProjectPage),
         Item::new("Neko++ Online User Manual", Action::OnlineManual),
-        Item::new("Neko++ Community (Forum)", Action::Forum),
+        Item::new("Neko++ Community (LinkedIn)", Action::Forum),
         Item::separator(),
         Item::new("Debug Info...", Action::DebugInfo),
         Item::new("About Neko++", Action::About),

@@ -266,9 +266,9 @@
                 <Item id="Multi-select Next" name="下一个多选"/>
                 <Item id="Name A to Z" name="名称 A 到 Z"/>
                 <Item id="Name Z to A" name="名称 Z 到 A"/>
-                <Item id="Neko++ Community (Forum)" name="Neko++ 社区 (论坛)"/>
+                <Item id="Neko++ Community (LinkedIn)" name="Neko++ 社区 (LinkedIn)"/>
                 <Item id="Neko++ Online User Manual" name="Neko++ 在线用户手册"/>
-                <Item id="Neko++ Project Page" name="Neko++ 项目页面"/>
+                <Item id="Neko++ Issues" name="Neko++ 问题"/>
                 <Item id="Next Search Result" name="下一个搜索结果"/>
                 <Item id="North European" name="北欧"/>
                 <Item id="Notepad++ User Defined Languages Collection" name="Notepad++ 用户自定义语言集合"/>
