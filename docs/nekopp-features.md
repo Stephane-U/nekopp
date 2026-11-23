@@ -1777,9 +1777,11 @@ furniture up the right of it -- a sofa, shelves, a table and plants of three kin
 across the text, follows the pointer, jumps from line to line, bats loose words off
 them and -- left alone -- finds things on the page to do: swats the furniture,
 climbs the wall a piece at a time, crosses the page in super jumps between the
-furniture and the code, chases dust, runs a lap, and eventually falls asleep. `Escape` gives the
+furniture and the code, chases dust, runs a lap, and eventually falls asleep; every
+three minutes the page she is standing on goes out in fireworks and is replaced by
+another one. `Escape` gives the
 window back. The document is never read and never written, so a screenshot of the
-mode cannot show anyone's work and five minutes in the page cost no undo step.
+mode cannot show anyone's work and three minutes in the page cost no undo step.
 
 The page is flat, and that is the whole idea. It is drawn with an orthographic
 camera, one cell to one cell, so a glyph lands on whole pixels and the second line
@@ -1797,7 +1799,8 @@ smaller window with fewer of both, and looks the same on any display.
 | The furniture | One or two pieces drawn in characters -- a table, a plant, a lamp, a framed picture -- each standing in its own cleared box in the lower half of the page and in the room to the left of the wall, swaying when a paw hits it |
 | The wall | Seven or eight pieces against the right edge, one above another: a sofa standing on the rug, then a shelf, a fern, a table, a topiary and two more shelves, each top four or five lines over the last, which is one bound; right-aligned with a column or two of play, and every piece of it somewhere to land |
 | The kitten | Walks, sits, crouches, gathers herself and springs onto a line of code, bats a token, swats the furniture, bounds up the wall and onto a plant, goes up the page a foothold at a time, crosses it in super jumps between the furniture and the code, chases dust, runs laps, washes a paw, blinks, flicks its tail; turns to follow the pointer, and lands the paw it aimed |
-| Wanting up | Going up is worth half again as much on the rug as at the top of the page: climbing, perching and the super jumps are weighted by how far up she already is, so the low half of the page is a place she leaves rather than a place she lives | The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
+| Wanting up | Going up is worth half again as much on the rug as at the top of the page: climbing, perching and the super jumps are weighted by how far up she already is, so the low half of the page is a place she leaves rather than a place she lives |
+| The tokens | Whole words knocked off a line by a paw, carrying the syntax colour they had where they stood; they fall, bounce once, and come to rest on the next ledge under them or on the floor, with a shadow under each |
 | The dust | Specks that wander on their own; one within reach of a paw is thrown in a short arc and fades where it lands |
 | The light | A jump leaves a band of colour along the arc she flew, a small halo travels with her, a landing puts a ring on the paper with a burst of confetti, and every fourth piece of trail is a star; a swoop lays the same light twice as wide and a whole turn of the wheel long |
 | The run | Now and then she picks the far end of the ledge she is standing on and crosses it at twice her running speed, taking the characters in her way and dragging a streak of light along the line as it comes apart; a run with time left on its clock takes another leg, and one leg in three is the line over her head |
@@ -1813,7 +1816,9 @@ smaller window with fewer of both, and looks the same on any display.
 | Sleep | Three minutes with no input and it curls up where it stands, and `z` floats up off her head |
 | Sparkles | Washing and stretching raise a `*` or two off the muzzle, for a second or so |
 | Dimming | Four minutes and the page starts to dim, the way a screensaver does |
-| Rebuild | Five minutes and the page is rebuilt from the next seed, the old one fading out over two and a half seconds |
+| Rebuild | Three minutes and the page is rebuilt from the next seed, the old one fading out over two and a half seconds while the new one goes up in fireworks |
+| The fireworks | Twenty-four shells across the width of the page on one fuse after another over three and eight tenths of a second: each goes up as a streak from the rug, comes apart eight to eighteen cells a second outwards in sixty sparks across half the colour wheel, and puts a wave of light through everything near it |
+| The volley | The shells are coloured from one end of the wheel to the other, so what crosses the page is a rainbow that goes up rather than one that is painted on; the opening burst is a single shell out of the middle of the paper, and a burst also throws twelve stars on its own edge, chips the furniture and raises a puff |
 
 A line of code is a place, not a stripe of colour. Every row the page still holds
 is a shelf: a paw can stand on it, a word knocked off it falls onto the shelf
@@ -1910,11 +1915,11 @@ A cat wants up. It is the one thing the mood table says about the animal rather 
 about the page: the moods that go up -- climbing, perching on the furniture, and the
 super jumps -- are worth more the lower she is, half again as much on the rug as at
 the top of the page, so the low half of the page is somewhere she leaves. What that
-buys is a mode that is vertical: over five minutes she spends between a third and a
-half of the frames climbing or in the air between two footholds, and the top of the
-page is reached on every seed rather than once in a while. The pointer still wins over all of
-it -- a mouse that has just moved takes her off the wall -- but a mouse that is
-already still does not, and the clock does not run out on one.
+buys is a mode that is vertical: over a page's three minutes she spends between two
+fifths and half of the frames climbing or in the air between two footholds, and the
+top of the page is reached on every seed rather than once in a while. The pointer
+still wins over all of it -- a mouse that has just moved takes her off the wall --
+but a mouse that is already still does not, and the clock does not run out on one.
 
 The wall and the code are the two halves of the page, and a swoop is the leap between
 them: up to thirty-four characters in one bound, aimed at whichever half she is not
@@ -2027,7 +2032,21 @@ of the program uses; EDI and CSV have no lexer here and are split on their
 delimiters instead. The open document is never the material. Starting the mode on
 the file the user was reading would make it look like a view of that document
 rather than a page beside it, and the page's vocabulary is meant to be a different
-language every five minutes.
+language every three minutes.
+
+The page changing is the one event in the mode that has nothing to do with the cat,
+so it is the one event allowed to be loud. A rebuild fires twenty-four shells across
+the width of the page, one every sixth of a second for three and eight tenths of a
+second: a streak up from the rug, then a burst sixty sparks wide across half the
+colour wheel, a wave of light through everything within a line and a half of it, a
+ring of twelve stars on its edge, a puff of dust and a chip out of whatever piece of
+furniture it went off beside. The colours run from one end of the wheel to the other
+across the volley, so what goes over the paper is a rainbow that goes up rather than
+one that is painted on, and the whole of it is bracketed by one shell out of the
+middle of the page at the first frame of the new one. The old page fades over two
+and a half seconds and the new one rises into its place; the display runs six or
+seven, four hundred sparks at its peak against the hundred and thirty the cat holds
+on her own, and then it is over and the page is something else.
 
 Two clocks matter and they are different. The page's clock is part of the rules:
 it decides when the page is rebuilt and when the kitten sleeps, and it advances
@@ -2062,7 +2081,7 @@ from the syntax style the lexer gave them.
 
 The mode is not in Notepad++, and it is the one place where this editor adds a
 whole subsystem rather than matching one: Notepad++ is a program somebody uses all
-day, and the alternative to five minutes of kitten is five minutes of something
+day, and the alternative to three minutes of kitten is three minutes of something
 else.
 
 ## Preferences

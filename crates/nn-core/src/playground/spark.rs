@@ -26,10 +26,12 @@ const SPARK_GRAVITY: f32 = 3.2;
 const SPARK_DRAG: f32 = 2.4;
 /// The most sparks a page holds at once.
 ///
-/// A trail and a halo together are about twenty while she is in the air; the cap
-/// is what stops a burst from a page being rebuilt twice in a frame from filling
-/// the buffer.
-pub const MAX_SPARKS: usize = 512;
+/// A cat in full flight holds a hundred or so between her trail, a ring coming off
+/// a landing and the dust she kicked up; the cap is what stops a burst from a page
+/// being rebuilt twice in a frame from filling the buffer. It went up with the
+/// fireworks: a burst is around ninety sparks and there are twenty-four shells on a
+/// fuse, several hundred of them alive at once, which is what a display looks like.
+pub const MAX_SPARKS: usize = 960;
 
 /// What a spark is drawn as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,6 +203,84 @@ impl Spark {
             spin: 0.0,
             kind: GlowKind::Ring,
             seed: 0.0,
+        }
+    }
+
+    /// A wave of light leaving a burst: a ring that widens across the page and dies
+    /// as it goes.
+    ///
+    /// Four times a landing's ring and twice as long, because this one is not
+    /// answering a paw on the paper -- it is the paper itself changing, and the wave
+    /// of that has to reach the far side of it.
+    pub fn shockwave(at: [f32; 3], hue: f32, size: f32) -> Self {
+        Self {
+            pos: at,
+            vel: [0.0; 3],
+            hue,
+            size,
+            base: 0.5,
+            grow: 26.0,
+            pull: 0.0,
+            age: 0.0,
+            life: 1.4,
+            roll: 0.0,
+            spin: 0.0,
+            kind: GlowKind::Ring,
+            seed: 0.0,
+        }
+    }
+
+    /// A piece of a rocket: the streak a shell leaves behind it as it goes up.
+    ///
+    /// It rises rather than falls -- what it is following is going up -- and it is
+    /// gone in half a second, so what a reader sees is a line of light with a shell
+    /// on the end of it rather than a column of light on the page.
+    pub fn rocket(at: [f32; 3], vel: [f32; 3], hue: f32, size: f32) -> Self {
+        Self {
+            pos: at,
+            vel,
+            hue,
+            size,
+            base: 0.85,
+            grow: 1.2,
+            pull: -1.4,
+            age: 0.0,
+            life: 0.5,
+            roll: 0.0,
+            spin: 0.0,
+            kind: GlowKind::Blob,
+            seed: 0.0,
+        }
+    }
+
+    /// One spark of a burst: thrown hard in every direction, pulled back down under
+    /// its own weight, a second and a half of life.
+    ///
+    /// Twice confetti's speed and twice its life, because a firework has to reach
+    /// across the page before it is worth looking at, and a firework of paw-sized
+    /// sparks would be a sneeze.
+    pub fn firework(at: [f32; 3], hue: f32, speed: f32, rng: &mut Rng) -> Self {
+        let angle = rng.range(0.0, std::f32::consts::TAU);
+        let out = rng.range(speed * 0.45, speed);
+        let star = rng.above() < 0.3;
+        Self {
+            pos: [
+                at[0] + rng.range(-0.3, 0.3),
+                at[1] + rng.range(-0.3, 0.3),
+                at[2],
+            ],
+            vel: [angle.cos() * out, angle.sin() * out, rng.range(-0.5, 0.5)],
+            hue,
+            size: rng.range(0.22, 0.42),
+            base: 1.0,
+            grow: 0.12,
+            pull: SPARK_GRAVITY,
+            age: 0.0,
+            life: rng.range(0.9, 1.6),
+            roll: rng.range(0.0, std::f32::consts::TAU),
+            spin: rng.range(-5.0, 5.0),
+            kind: if star { GlowKind::Star } else { GlowKind::Blob },
+            seed: rng.above() as f32,
         }
     }
 

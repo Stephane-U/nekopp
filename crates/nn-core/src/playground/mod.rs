@@ -1,10 +1,10 @@
-//! A page of code, a kitten, and five minutes of nothing to do.
+//! A page of code, a kitten, and three minutes of nothing to do.
 //!
 //! Playground mode replaces the window with a page of code and puts a kitten two
 //! and a quarter lines tall on it. The cat walks across the text, follows the
 //! pointer, bats loose characters about and eventually falls asleep; `Escape`
 //! returns to the document. It exists because an editor is a place people spend
-//! their day in, and the alternative to a five-minute kitten is a five-minute
+//! their day in, and the alternative to a three-minute kitten is a three-minute
 //! phone.
 //!
 //! This module is the whole simulation and none of the drawing: pages are laid
@@ -21,7 +21,8 @@
 //!   at any font size and on any display.
 //! - The material is a compiled-in corpus, never the open document: see
 //!   [`corpus`]. A screenshot of the playground cannot show anyone's work.
-//! - The page is rebuilt every five minutes from the next seed.
+//! - The page is rebuilt every three minutes from the next seed, in a display of
+//!   fireworks across the whole width of it.
 //! - Three minutes with no input and the kitten curls up; four and the page dims.
 //!
 //! The pieces are [`scene`] (the page and its tokens), [`kitten`] (behaviour and
@@ -44,10 +45,22 @@ pub use spark::{Glow, GlowKind, Spark};
 /// One unit: the height of a line of the editor's text.
 pub const CELL: f32 = 1.0;
 /// How long a page stands before it is rebuilt.
-pub const REBUILD_AFTER: f32 = 300.0;
+///
+/// Three minutes. Five was the length of a screensaver; a page of code is worth
+/// less of a reader's afternoon than that, and the rebuild is now the loudest thing
+/// in the mode -- a display of fireworks across the whole width of it -- which is a
+/// thing to look forward to rather than to wait out.
+pub const REBUILD_AFTER: f32 = 180.0;
 /// How long the rebuild takes, during which the old page fades out and the new
 /// one rises into place.
 pub const BLEND: f32 = 2.5;
+/// How many shells a rebuild fires, and over how many seconds it fires them.
+///
+/// A shell every sixth of a second: fast enough that the volley is a display rather
+/// than a series of events, slow enough that each burst is seen arriving. Twenty-four
+/// of them across the width of a page is one burst for every three columns of it.
+const SHELLS: usize = 24;
+const SHELL_SPAN: f32 = 3.8;
 /// After this long with no input the page starts to dim, as a screensaver does.
 pub const DIM_AFTER: f32 = 240.0;
 /// How far it dims, at most.
@@ -175,6 +188,21 @@ pub struct Frame {
     pub asleep: bool,
 }
 
+/// One firework: a shell that has not gone up yet, or one that has gone up and is
+/// waiting to burst.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Shell {
+    /// Where it left the paper, and where it comes apart, in cells.
+    from: [f32; 3],
+    at: [f32; 3],
+    /// Where its colour sits on the wheel.
+    hue: f32,
+    /// Seconds to the next thing it does: up, and then out.
+    fuse: f32,
+    /// Whether it has left the paper yet.
+    up: bool,
+}
+
 /// The mode's state: the page, the kitten, and the clock.
 #[derive(Debug, Clone)]
 pub struct Playground {
@@ -208,6 +236,8 @@ pub struct Playground {
     last_at: [f32; 2],
     /// How fast her middle is moving, in cells per second.
     vel: [f32; 2],
+    /// The shells of the rebuild's display, and the fuses on them.
+    shells: Vec<Shell>,
 }
 
 impl Playground {
@@ -241,6 +271,7 @@ impl Playground {
             seed,
             trail_hue,
             trail_clock: 0.0,
+            shells: Vec::new(),
             was_air: false,
             was_dash: false,
             was_raking: false,
@@ -456,6 +487,9 @@ impl Playground {
                 self.kitten.pos[0],
                 self.kitten.pos[1] + self.kitten.hop + 1.0,
             ];
+            // And the display. A page going out is the one thing in the mode that has
+            // nothing to do with the cat, so it is the one thing allowed to be loud.
+            self.plan_fireworks();
         }
         if self.blend < 1.0 {
             self.blend = (self.blend + dt / BLEND).min(1.0);
@@ -463,6 +497,85 @@ impl Playground {
                 self.previous = None;
             }
         }
+        // The display outlives the crossover it belongs to: it has its own clock, and
+        // that clock is the fuse on each shell.
+        if !self.shells.is_empty() {
+            self.step_fireworks(dt);
+        }
+    }
+
+    /// Sets up what a rebuild is: shells across the width of the page, each on its own
+    /// fuse and its own colour.
+    ///
+    /// Staggered over `SHELL_SPAN` seconds, so a page changing is a volley rather than
+    /// a flash. One frame of white is not a display; four seconds of the far side of
+    /// the page going off is.
+    fn plan_fireworks(&mut self) {
+        self.shells.clear();
+        let width = self.page.width();
+        let rows = self.page.rows as f32;
+        for index in 0..SHELLS {
+            // Spread across the width with a little play, so the volley is laid out by
+            // someone rather than measured by a grid.
+            let slot = (index as f32 + 0.5) / SHELLS as f32;
+            let jitter = self.rng.range(-width * 0.02, width * 0.02);
+            let x = (width * slot + jitter).clamp(2.0, width - 2.0);
+            self.shells.push(Shell {
+                from: [x, self.page.floor(), 0.0],
+                // Somewhere in the upper half, where there is room for a burst: a shell
+                // that came apart at the rug would be a firework in a cellar.
+                at: [x, rows * self.rng.range(0.45, 0.92), 0.0],
+                // Most of a turn of the wheel across the volley, so the display reads as
+                // a rainbow laid across the page from one edge to the other.
+                hue: (self.trail_hue + slot * 0.85) % 1.0,
+                fuse: slot * SHELL_SPAN + self.rng.range(0.0, 0.12),
+                up: false,
+            });
+        }
+        // The paper goes first: one wave out of the middle of it, wide enough to reach
+        // both edges while the shells are still going up.
+        self.burst([width * 0.5, rows * 0.5, 0.0], self.trail_hue);
+    }
+
+    /// Runs the display: fuses down, shells up, bursts out.
+    fn step_fireworks(&mut self, dt: f32) {
+        let mut keep: Vec<Shell> = Vec::with_capacity(self.shells.len());
+        let mut bursts: Vec<([f32; 3], f32)> = Vec::new();
+        for mut shell in std::mem::take(&mut self.shells) {
+            shell.fuse -= dt;
+            if shell.fuse > 0.0 {
+                keep.push(shell);
+            } else if shell.up {
+                bursts.push((shell.at, shell.hue));
+            } else {
+                // Up it goes: the streak is laid along the way it is going, and what is
+                // left is a fuse of a third of a second to the top of it.
+                shell.up = true;
+                shell.fuse = 0.34 + self.rng.range(0.0, 0.1);
+                self.page.rocket(shell.from, shell.at, shell.hue, &mut self.rng);
+                keep.push(shell);
+            }
+        }
+        self.shells = keep;
+        for (at, hue) in bursts {
+            self.burst(at, hue);
+        }
+    }
+
+    /// One shell coming apart: a wave of light, a burst of sparks across half the wheel,
+    /// a ring of stars, and whatever the furniture has to lose.
+    fn burst(&mut self, at: [f32; 3], hue: f32) {
+        self.page.shockwave(at, hue, 1.2);
+        self.page.firework(at, hue, 60, &mut self.rng);
+        // Stars on the outside of it, so a burst has an edge and not only a middle.
+        for index in 0..12 {
+            let angle = index as f32 / 12.0 * std::f32::consts::TAU + hue * 6.0;
+            let star = [at[0] + angle.cos() * 1.4, at[1] + angle.sin() * 1.4, 0.0];
+            self.page
+                .twinkle(star, (hue + index as f32 * 0.06) % 1.0, 0.4);
+        }
+        self.page.chip(at, 9.0, &mut self.rng);
+        self.page.puff(at, 9, &mut self.rng);
     }
 
     /// How many pieces of trail this frame owes, given how far she flew, and where
@@ -1168,7 +1281,72 @@ mod tests {
     }
 
     #[test]
-    fn the_page_is_rebuilt_every_five_minutes() {
+    fn a_rebuild_is_a_display_across_the_whole_page() {
+        for seed in [0x5EEDu64, 3, 7] {
+            let mut playground = Playground::new(seed);
+            while playground.time() < REBUILD_AFTER {
+                playground.step(1.0 / 60.0, &Input::default());
+            }
+            let mut peak = 0usize;
+            let mut at_two = 0usize;
+            // Which eighths of the colour wheel the display lights up, and how far
+            // across the paper it reaches.
+            let mut sectors = [false; 8];
+            let mut xs = (f32::MAX, f32::MIN);
+            let mut ys = (f32::MAX, f32::MIN);
+            while playground.time() < REBUILD_AFTER + 5.0 {
+                playground.step(1.0 / 60.0, &Input::default());
+                let frame = playground.frame(&Input::default());
+                peak = peak.max(frame.glows.iter().filter(|glow| glow.alpha > 0.2).count());
+                if playground.time() > REBUILD_AFTER + 2.0 && at_two == 0 {
+                    at_two = frame.glows.iter().filter(|glow| glow.alpha > 0.2).count();
+                }
+                for glow in frame.glows.iter().filter(|glow| glow.alpha > 0.4) {
+                    sectors[((glow.hue.fract() * 8.0) as usize).min(7)] = true;
+                    xs = (xs.0.min(glow.pos[0]), xs.1.max(glow.pos[0]));
+                    ys = (ys.0.min(glow.pos[1]), ys.1.max(glow.pos[1]));
+                }
+            }
+            // A cat in full flight holds about a hundred and thirty sparks; the display
+            // is several times that, which is what makes it the loudest thing in the mode.
+            assert!(peak > 300, "seed {seed}: {peak} glows at the peak");
+            // And it is a volley, not a flash: two seconds in, the paper is still lit.
+            assert!(at_two > 200, "seed {seed}: {at_two} glows two seconds in");
+            // A rainbow laid across the page, out of the rug and over the furniture.
+            let wheel = sectors.iter().filter(|lit| **lit).count();
+            assert!(wheel >= 6, "seed {seed}: {wheel} of eight hues");
+            assert!(xs.0 < 20.0 && xs.1 > 55.0, "seed {seed}: x {}..{}", xs.0, xs.1);
+            assert!(ys.0 < 12.0 && ys.1 > 26.0, "seed {seed}: y {}..{}", ys.0, ys.1);
+        }
+    }
+
+    #[test]
+    fn the_display_burns_out_in_a_few_seconds() {
+        for seed in [0x5EEDu64, 3, 7] {
+            let mut playground = Playground::new(seed);
+            let mut quiet = 0usize;
+            while playground.time() < REBUILD_AFTER - 5.0 {
+                playground.step(1.0 / 60.0, &Input::default());
+            }
+            // What the cat does on its own, over the five seconds before the rebuild.
+            while playground.time() < REBUILD_AFTER {
+                playground.step(1.0 / 60.0, &Input::default());
+                let frame = playground.frame(&Input::default());
+                quiet = quiet.max(frame.glows.iter().filter(|glow| glow.alpha > 0.2).count());
+            }
+            while playground.time() < REBUILD_AFTER + 7.0 {
+                playground.step(1.0 / 60.0, &Input::default());
+            }
+            let frame = playground.frame(&Input::default());
+            let late = frame.glows.iter().filter(|glow| glow.alpha > 0.2).count();
+            // Seven seconds on there is nothing left of the shells: back to the paper and
+            // the cat, which is where it was before they went up.
+            assert!(late <= quiet + 60, "seed {seed}: {late} left, {quiet} before");
+        }
+    }
+
+    #[test]
+    fn the_page_is_rebuilt_every_three_minutes() {
         let mut playground = open();
         let mut rebuilt = 0;
         for _ in 0..(60 * (REBUILD_AFTER as usize + 2)) {
@@ -1177,7 +1355,7 @@ mod tests {
                 rebuilt = playground.page().index as usize;
             }
         }
-        assert_eq!(rebuilt, 1, "one rebuild in five minutes");
+        assert_eq!(rebuilt, 1, "one rebuild in three minutes");
         assert!(playground.time() >= REBUILD_AFTER);
         // The label counts from one, and the material is chosen again.
         assert!(playground.page().label().ends_with("page 2"));

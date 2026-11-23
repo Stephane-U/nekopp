@@ -10599,3 +10599,114 @@ the middle of the page can reach a furniture top in one rightward leg, gaining n
 crossing, the kitten row and the introduction; the two paragraphs from the last pass are now
 three, on the drive upward, the crossing both ways, and the landing. `python3
 docs/build-pdf.py` then `--check`: up to date, 327,584 bytes, 77 pages A4.
+
+## Eighty-seventh pass: fireworks when the page goes out
+
+The last pass made the mode vertical. What it still lacked was an event: everything on the
+page is the cat doing something, and a page being replaced -- which is the one thing that
+happens to the mode rather than in it -- was a two-and-a-half-second crossfade that a reader
+would catch at the corner of an eye if they were looking. The request was for the page to
+change every three minutes in a display of fireworks over the whole of it.
+
+### Three minutes
+
+`REBUILD_AFTER` went from 300.0 to 180.0. Five minutes is the length of a screensaver and the
+page is not worth that much of anybody's afternoon: three is long enough for her to take the page
+to the ceiling and back -- the pass before last measured the top of the page reached on every
+seed inside five minutes, and it is reached inside three -- and short enough that the rebuild is
+something a reader is likely to be present for rather than something they come back to. A page
+therefore changes twenty times an hour rather than twelve.
+
+`SLEEP_AFTER` is also 180, and the two clocks are different: the sleep clock is the window's
+idle clock, the rebuild is the page's. An abandoned window therefore puts a new page up in
+fireworks in front of a cat that is already curled up on it, which is exactly the screensaver
+reading and needed no special case. The dim at four minutes is untouched -- an idle desk now
+dims on its second page rather than its first.
+
+### A volley, not a flash
+
+A rebuild is now a schedule rather than a fade. `Shell` is a private struct -- where it leaves
+the paper, where it comes apart, its hue, its fuse, and whether it has gone up -- and
+`plan_fireworks` fills `shells` with `SHELLS` of them, twenty-four, spread across the width of
+the page with a fifth of a cell of play either side so the volley looks laid out rather than
+measured. Each fuse is `slot * SHELL_SPAN` plus up to 0.12 s of jitter, `SHELL_SPAN` being
+3.8 s, so a shell leaves every sixth of a second and there is no frame where two go up
+together. Bursts break between 45% and 92% of the way up the page: a shell that came apart at
+the rug would be a firework in a cellar.
+
+Colours are the whole wheel. Each shell's hue is `trail_hue + slot * 0.85`, so the volley runs
+from one end of the colour wheel to the other across the width of the page; inside a burst
+`Page::firework` fans its sparks over half the wheel again, which gives one shell a colour with
+an edge of its neighbours on it. The opening burst is a single shell out of the middle of the
+paper at the first frame of the new page, before any fuse has even gone down.
+
+`step_fireworks` runs on the display's own clock, after the crossover, because a display
+outlives the two and a half seconds the old page takes to fade. It takes `self.shells` with
+`std::mem::take` and rebuilds it, because bursting needs `&mut self` while the shells are being
+walked; what has not come off the fuse goes back into `keep` and what has gone up goes into a
+`bursts` list that is fired afterwards, outside the borrow. A shell that reaches zero the
+first time is one going up: it leaves a `rocket` streak along the path it is about to take and
+gets a fresh fuse of 0.34 s, which is how long the streak takes to arrive.
+
+### What a burst costs
+
+`burst` is four things at once: a shockwave, sixty sparks, a ring of twelve stars on its outer
+edge and a chip out of the furniture within nine cells, which puts ninety-one new sparks on the
+page per shell and 2,275 over a display. Three spark primitives are new, in `spark.rs`.
+`Spark::shockwave` is a `Ring` of 0.5 cells growing at 26 cells a second for 1.4 s, four times a
+landing's ring and twice its life, because this wave is not answering a paw: it is the paper
+itself changing, and it has to reach the far side. `Spark::rocket` is a `Blob` of 0.85 cells with
+a downward pull of -1.4, so the streak rises rather than falls -- what it is following is going
+up. `Spark::firework` is the burst itself, thrown at 8 to 18 cells a second, alive for 0.9 to 1.6
+s at 0.22 to 0.42 cells, three in ten of them stars.
+
+`MAX_SPARKS` went from 512 to 960 against the renderer's `MAX_GLOWS` of 1,024. An intermediate
+version of this pass was sixteen shells over 4.2 s at forty-four sparks a burst, and it peaked
+at 171 to 240 glows against a baseline of 106 to 133 for the cat's own traffic over six seeds:
+a large jump and not a display, because an explosion in the same traffic class as a jump reads
+as a lot of jumping. Twenty-four shells over 3.8 s at sixty sparks gave 358 to 454. It does not
+fill the buffer, so the cat still gets half of it, which matters: she is on the page and she
+does not stop for the fireworks.
+
+Measured over six seeds, at 60 frames a second for the nine seconds after a rebuild: peak 358
+to 454, reached between 3.0 and 4.1 s in; still over 250 until 4.25 to 4.55 s; back to exactly
+the pre-rebuild count by seven seconds, so nothing of a display is left when the next page has
+settled. Hues span the wheel 0.00 to 1.00 on every seed; the light reaches from 10 cells to 68
+across a page of 66, and from 2 to 43 lines on a page of 40, which is sparks flying past both
+edges of it rather than stopping at them.
+
+### What the tests caught
+
+`the_page_is_rebuilt_every_five_minutes` became `the_page_is_rebuilt_every_three_minutes`: it
+was written against `REBUILD_AFTER` and passed unchanged, which is the point of writing it that
+way, and the name and its message were the only things that had gone stale. Nothing else in the
+suite needed adapting -- `the_kitten_falls_asleep_after_three_minutes_and_the_page_dims_after
+_four` still passes because a rebuild does not touch the idle clock, and `a_rebuild_crosses_over
+_instead_of_cutting` still finds both pages drawn on the same frame.
+
+Two tests are new. `a_rebuild_is_a_display_across_the_whole_page` runs three seeds to 180 s and
+then five seconds past it, sampling every frame: the peak is over 300 glows, the page is still
+lit by more than 200 two seconds in (a volley, not a flash), at least six of eight slices of
+the colour wheel are lit, the light spans the width (under 20 cells and over 55) and the
+height (under 12 lines and over 26). `the_display_burns_out_in_a_few_seconds` measures the
+cat's own traffic over the five seconds before the rebuild, waits seven past it, and asks for
+no more than sixty glows over that baseline -- which is the real requirement of a display: it
+has to end.
+
+### Verification
+
+`cargo test --offline`: 2,195 tests (1,087 in `nn-app`, 1,008 in `nn-core`, 100 in `nn-mcp`),
+0 failed. `cargo clippy --offline --all-targets`: 0 warnings. `cargo fmt` was not run.
+`cargo build --offline --release -p nn-app -p nn-mcp`: 2m22s.
+
+`docs/nekopp-features.md` rewrote the Rebuild row and gained "The fireworks" and "The volley";
+the Playground introduction now says a page goes out in fireworks every three minutes, and a
+paragraph before "Two clocks" describes what a display is made of. The claim about how much of
+the time she spends climbing was measured over five minutes and had to be re-measured over
+three: climbing, perching and swooping are 42% to 54% of frames, so it now reads "between two
+fifths and half" rather than "between a third and a half". Four other "five minutes" in the
+file went to three, and one did not: a missing newline had glued the "Wanting up" row to "The
+tokens" and put four cells in a two-cell row, which the PDF had been rendering as a squeezed
+table. `python3 docs/build-pdf.py` then `--check`: up to date, 328,497 bytes, 77 pages A4.
+The corpus line that opens the Rust page -- "a page of code, a kitten, and five minutes of
+nothing to do" -- went to three as well, since it is the mode's own tagline.

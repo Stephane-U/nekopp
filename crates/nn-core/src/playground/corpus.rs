@@ -83,7 +83,7 @@ impl Flavour {
     pub fn lines(self) -> &'static [&'static str] {
         match self {
             Flavour::Rust => &[
-                "// playground: a page of code, a kitten, and five minutes of nothing to do",
+                "// playground: a page of code, a kitten, and three minutes of nothing to do",
                 "use std::time::{Duration, Instant};   // the nap timer, not the cat's own clock",
                 "use crate::lines::Rng;                // seeded, so a run can be repeated",
                 "",

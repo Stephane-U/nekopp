@@ -126,7 +126,7 @@ const HEAL_RATE: f32 = 3.0;
 /// One rate cannot serve both ends of this. A run's furrow has to stay on the page for
 /// a few seconds or the damage was never seen, which is [`HEAL_RATE`]; a page that has
 /// half its characters in the air has to print them back faster than the cat can take
-/// them or it ends its five minutes as gaps with a cat walking about in them. So the
+/// them or it ends its three minutes as gaps with a cat walking about in them. So the
 /// rate is the first number plus this much of it, in proportion to how much of the page
 /// is missing: barely damaged, a page heals at a reader's pace, and a wrecked one at
 /// seven times that.
@@ -905,6 +905,48 @@ impl Page {
             let hue = (hue + fan * 0.9) % 1.0;
             self.push_spark(Spark::confetti(at, hue, speed, rng));
         }
+    }
+
+    /// A shell on its way up: a streak of light from `from` to `to`, going the way a
+    /// rocket goes.
+    ///
+    /// One moving spark would not do: half a second is not long enough to watch a dot
+    /// cross thirty rows, and what makes a rocket a rocket is the streak behind it. So
+    /// the trail is laid as a line of pieces already along the path, each of them
+    /// hurrying upwards, and the burst at the far end of it arrives while they are
+    /// still fading.
+    pub fn rocket(&mut self, from: [f32; 3], to: [f32; 3], hue: f32, rng: &mut Rng) {
+        let dx = to[0] - from[0];
+        let dy = to[1] - from[1];
+        let run = dx.hypot(dy).max(0.01);
+        let speed = run / 0.45;
+        let count = (run / 2.2).clamp(4.0, 18.0) as usize;
+        for index in 0..count {
+            let along = (index as f32 + rng.range(0.0, 0.8)) / count as f32;
+            let at = [
+                from[0] + dx * along + rng.range(-0.12, 0.12),
+                from[1] + dy * along + rng.range(-0.12, 0.12),
+                0.0,
+            ];
+            let vel = [dx / run * speed, dy / run * speed, 0.0];
+            let piece = rng.range(0.28, 0.5);
+            self.push_spark(Spark::rocket(at, vel, (hue + along * 0.08) % 1.0, piece));
+        }
+    }
+
+    /// A burst: `count` sparks out of `at`, the hues fanned from `hue` across half the
+    /// wheel, so one shell is a colour with an edge of its neighbours on it.
+    pub fn firework(&mut self, at: [f32; 3], hue: f32, count: usize, rng: &mut Rng) {
+        for index in 0..count {
+            let fan = index as f32 / (count.max(1) as f32 - 1.0).max(1.0);
+            let piece = Spark::firework(at, (hue + fan * 0.5) % 1.0, 18.0, rng);
+            self.push_spark(piece);
+        }
+    }
+
+    /// A wave of light leaving a burst: a ring that widens across the page.
+    pub fn shockwave(&mut self, at: [f32; 3], hue: f32, size: f32) {
+        self.push_spark(Spark::shockwave(at, hue, size));
     }
 
     /// Moves the light: it flies, it is pulled down, it grows, and its clock runs
