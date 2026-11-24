@@ -87,6 +87,35 @@ const CLICK_SLOP: f64 = 4.0;
 /// the time it takes a human to notice a stale buffer.
 const DISK_POLL: std::time::Duration = std::time::Duration::from_millis(1000);
 
+/// How long a key that arrives right after the window regained the focus is
+/// treated as part of the window switch rather than as typing.
+///
+/// A window switcher hands back the very key that made the switch. `Alt+Tab` is
+/// a grab the window manager owns, so the client never sees the `Tab` -- until
+/// the switch commits and the grab is released, and then a `Tab` press that was
+/// already in the queue is delivered to the window that just got the focus. It
+/// physically predates the switch, so it belongs to the switch, and the editor
+/// that takes it for typing indents over the selection the user just copied.
+///
+/// The measured gap is two milliseconds -- the same instant, from the loop's
+/// point of view -- while the first key of someone who switched windows on
+/// purpose comes hundreds of milliseconds later, after their hand has moved. So
+/// a small number is enough, and a big one would eat real typing.
+const LEAKED_KEY_GRACE: std::time::Duration = std::time::Duration::from_millis(60);
+
+/// How long to wait before asking a window that reported itself occluded for a
+/// frame again.
+///
+/// Long enough that the window is back in front and the compositor has finished
+/// the switch, short enough that nobody sees the old frame first.
+const OCCLUDED_RETRY: std::time::Duration = std::time::Duration::from_millis(120);
+
+/// How many of those frames are asked for before giving up.
+///
+/// A window that really is hidden would otherwise ask eight times a second for
+/// an image it cannot have, and a window that really is in front needs one.
+const REPAINT_TRIES: u8 = 5;
+
 /// The seed the playground's first room is built from.
 ///
 /// Fixed, so the first press of the shortcut always opens the same room on the
@@ -773,6 +802,22 @@ struct State {
     unit_drag: Option<(ClickUnit, (usize, usize))>,
     /// True while the left button is held down on the minimap column.
     minimap_drag: bool,
+    /// When the loop owes the window a frame it could not draw earlier.
+    ///
+    /// A surface that reports itself occluded hands back no image, and on a
+    /// compositing desktop the report outlives the reason for it: the window is
+    /// back in front, the focus is back, and the surface still says hidden until
+    /// something makes it look again. Retrying at once would spin the loop while
+    /// the window really is hidden, and not retrying at all leaves the last
+    /// frame on screen until an unrelated event arrives -- which on an idle
+    /// window is never. A deadline is the middle: one frame, shortly after.
+    repaint_at: Option<std::time::Instant>,
+    /// How many of those frames in a row have gone by without one reaching the
+    /// screen, so a window that stays hidden stops asking.
+    repaint_tries: u8,
+    /// When the window last regained the focus, so the key that made the switch
+    /// can be told from the first key typed after it.
+    focus_at: Option<std::time::Instant>,
     /// Whether the window is borderless full screen.
     full_screen: bool,
     /// Whether the window is pinned above every other one.
@@ -1818,6 +1863,9 @@ impl State {
             modifiers: ModifiersState::empty(),
             dragging: false,
             minimap_drag: false,
+            repaint_at: None,
+            repaint_tries: 0,
+            focus_at: None,
             full_screen: false,
             always_on_top: false,
             cursor: (0.0, 0.0),
@@ -2291,12 +2339,46 @@ impl State {
         // label would appear on the next unrelated event, which on an idle
         // window is never -- the loop would sleep through the deadline.
         let tip = self.tooltip.deadline(now);
-        // The idle timeout is the fourth: a screensaver that the loop sleeps
+        // A frame owed to the window is the fourth, and the one that matters
+        // after an `Alt+Tab`: asleep, the loop would never come back to it.
+        let repaint = self.repaint_at.map(|at| at.saturating_duration_since(now));
+        // The idle timeout is the fifth: a screensaver that the loop sleeps
         // through is a screensaver that never starts.
         nn_app::soonest(
             nn_app::soonest(disk, self.autosave_in()),
-            nn_app::soonest(tip, self.screensaver_in(now)),
+            nn_app::soonest(repaint, nn_app::soonest(tip, self.screensaver_in(now))),
         )
+    }
+
+    /// Asks for a frame `after` from now, replacing any earlier promise.
+    fn repaint_in(&mut self, after: std::time::Duration) {
+        if self.repaint_tries >= REPAINT_TRIES {
+            return;
+        }
+        let at = std::time::Instant::now() + after;
+        self.repaint_at = Some(match self.repaint_at {
+            Some(when) => when.min(at),
+            None => at,
+        });
+    }
+
+    /// Requests the frame once its deadline has passed.
+    fn repaint_due(&mut self) {
+        if self
+            .repaint_at
+            .is_some_and(|at| at <= std::time::Instant::now())
+        {
+            self.repaint_at = None;
+            self.repaint_tries = self.repaint_tries.saturating_add(1);
+            self.window.request_redraw();
+        }
+    }
+
+    /// Whether the focus came back a moment ago, close enough that a key
+    /// arriving now is the one that took it away.
+    fn switched_in(&self) -> bool {
+        self.focus_at
+            .is_some_and(|at| at.elapsed() < LEAKED_KEY_GRACE)
     }
 
     /// Writes every modified buffer into the snapshot directory.
@@ -3701,10 +3783,21 @@ impl State {
                 self.window.request_redraw();
                 return;
             }
-            // Occluded is the one case that must not retry: the window is not
-            // visible, so a redraw would spin the loop for nothing. winit sends
-            // a redraw of its own when the window comes back.
-            wgpu::CurrentSurfaceTexture::Occluded => return,
+            // Occluded must not retry at once: the window is not visible, so a
+            // redraw would spin the loop for nothing. Retrying later is not the
+            // same thing, and the comment the other arms carry applies here too
+            // -- skipping a frame forever is not an option. winit's own redraw
+            // on the way back is a promise the surface does not have to keep: on
+            // a compositing desktop the answer lags the window, so the frame
+            // asked for on the way in can come back occluded as well, and then
+            // nothing asks again. The window keeps the frame it had, which is
+            // the text without the selection that was on it. One frame shortly
+            // after breaks that, and a few at most when the window really is
+            // hidden.
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                self.repaint_in(OCCLUDED_RETRY);
+                return;
+            }
             // A validation error inside the acquire. Retrying would repeat it,
             // so it is reported once and the frame is dropped.
             wgpu::CurrentSurfaceTexture::Validation => {
@@ -3774,6 +3867,10 @@ impl State {
             height,
         );
         self.gpu.queue.present(frame);
+        // A frame reached the screen, so the window is no longer behind on
+        // anything a retry was going to fix.
+        self.repaint_at = None;
+        self.repaint_tries = 0;
     }
 
     /// Runs `f`, records it in the macro, then redraws.
@@ -4871,6 +4968,14 @@ impl State {
     }
 
     fn handle_key(&mut self, event: &winit::event::KeyEvent) {
+        // A key that arrives in the same instant as the focus is the key that
+        // made the switch, handed back by the window manager once its grab is
+        // gone. Taking it for typing edits the document with a keystroke the
+        // user aimed at the window manager -- a `Tab` indents over the selection
+        // they copied, which reads as their text disappearing.
+        if self.switched_in() {
+            return;
+        }
         // The playground takes the keyboard before anything else. It is a whole
         // window rather than a layer over one, so a keystroke aimed at the room
         // must not reach the document behind it -- and Escape, which is the only
@@ -10085,6 +10190,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
         // The room's own frame timer, and the idle one that opens it.
         state.tick_playground();
+        state.repaint_due();
         match state.next_wake() {
             Some(wait) => event_loop.set_control_flow(ControlFlow::WaitUntil(
                 std::time::Instant::now() + wait,
@@ -10127,7 +10233,33 @@ impl ApplicationHandler<UserEvent> for App {
             // without the selection that was on it, or no text at all. One
             // frame on the way in is the fix and costs nothing when the focus
             // did not move.
-            WindowEvent::Focused(true) | WindowEvent::Occluded(false) => {
+            // A window on its way to the back does not get the button release
+            // that ends a drag: the compositor takes the focus and the release
+            // goes with it, or the pointer leaves for the other window first. A
+            // drag that outlives its button then acts on the next motion, and
+            // after an `Alt+Tab` the next motion is the first thing the pointer
+            // does coming back -- a text drag collapses the selection to the
+            // pointer, which reads as the selection disappearing, and a tab drag
+            // moves a tab nobody is holding. Ending them here keeps the editor's
+            // selection, and a click starts a new drag.
+            WindowEvent::Focused(false) => {
+                state.focus_at = None;
+                state.dragging = false;
+                state.minimap_drag = false;
+                state.unit_drag = None;
+                state.divider_drag = false;
+                state.tab_press = None;
+                state.tab_drag = None;
+                state.find_dialog.end_drag();
+            }
+            WindowEvent::Focused(true) => {
+                // Only a focus gain arms the leaked-key guard. An occlusion
+                // report says nothing about the keyboard, and a window that is
+                // uncovered while someone is typing must not lose a keystroke.
+                state.focus_at = Some(std::time::Instant::now());
+                state.window.request_redraw();
+            }
+            WindowEvent::Occluded(false) => {
                 state.window.request_redraw();
             }
             WindowEvent::ModifiersChanged(modifiers) => {
@@ -10239,6 +10371,10 @@ impl ApplicationHandler<UserEvent> for App {
     }
 }
 
+/// Appends one diagnostic line when `NPP_TRACE` names a file.
+///
+/// Temporary: it exists to see what the editor thinks while a window is in the
+/// background, a state no test can reach.
 fn main() {
     // Before anything reads a settings file, and before `--help` and `--version`
     // return, so a user who only ever runs `npp --version` still gets their

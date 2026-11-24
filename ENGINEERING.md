@@ -11261,3 +11261,100 @@ selection the editor still holds rather than an empty pane.
 three lines under "Rendering" that say the window is drawn on demand and draws one
 frame on the way back; `python3 docs/build-pdf.py` then `--check` reports it up to
 date: 353,641 bytes, 79 pages A4.
+## Ninety-sixth pass: the key that made the switch
+
+Reported as: select text, `Ctrl+C`, `Alt+Tab` away, paste it somewhere else,
+`Alt+Tab` back -- and the text is gone from the file.
+
+The ninety-fifth pass had given the window one frame on the way back and the
+report came again, so this pass went after it with a record instead of a theory.
+Six gestures were run first, on the live desktop, with the user's own settings
+file, their 4,1 MB JSON file and a window maximized through the window manager:
+drag-select, double-click word, `Shift+Down` from the top, `Ctrl+A`, the same
+with the pointer warped out of the window first, and the whole round trip twice,
+with `Ctrl+C` in every copying variant. All six came back with 0 differing
+pixels. Covering the window with another client for two seconds likewise
+produced no frame at all while it was covered, and the text came back correct
+without any input once it was uncovered. Nothing in a fresh window reproduced
+it, which is why the record was needed: the report only happens in an instance
+that has been alive for a while, and only its owner can make it happen.
+
+So `select_log` and `evt` wrote a line to `selection.log` in the configuration
+directory: every change to the selection with the entry point that made it, and
+every frame, present, focus change, key and button. The file was capped at four
+megabytes.
+
+What it showed, in eight lines:
+
+```text
+1795530774905 key Character("c")        copy, selection 23..33, 89 characters
+1795530775754 focus off                 Alt+Tab away
+1795530780180 focus on                  back
+1795530780182 key Named(Tab)            the Tab that made the switch
+              key len=83 sel=27..27     89 -> 83, caret 23 -> 27
+1795530795243 key len=87 sel=31..31     83 -> 87, caret 27 -> 31
+1795530831224 key len=91 sel=35..35     87 -> 91, caret 31 -> 35
+```
+
+A `Tab` press reached `handle_key` two milliseconds after `Focused(true)`, and
+the document was edited by it. The arithmetic says the rest: ten selected
+characters replaced by four, then four more on each later round trip, which is
+`Key::Named(NamedKey::Tab)`'s own arm inserting `"    "` -- and replacing the
+selection, because an insertion replaces what is selected. The user's text was
+not deleted by a stale frame or a lost selection. It was typed over.
+
+Why the key arrives at all: `Alt+Tab` is a grab the window manager owns, so the
+client never sees the `Tab` -- until the switch commits, the grab is released,
+and a `Tab` press still in the queue is delivered to the window that just got the
+focus. The key physically predates the switch. From the loop's point of view it
+arrives in the same instant.
+
+The fix is to say so:
+
+```rust
+if self.switched_in() {
+    return;
+}
+```
+
+`switched_in` is a `Focused(true)` less than `LEAKED_KEY_GRACE` ago, sixty
+milliseconds, armed by a focus gain and only by a focus gain -- an occlusion
+report says nothing about the keyboard, and a window being uncovered while
+someone types must not lose a keystroke. Sixty is enough because the leaked key
+arrives in single-digit milliseconds, and the first key of someone who switched
+windows on purpose comes hundreds of milliseconds later, after their hand has
+moved.
+
+Checked on the live desktop against the built binary: the focus is taken away and
+given back, and a `Tab` is pressed in the same breath, from one process, so the
+gap is zero. The log then read `key Named(Tab)` / `leaked key ignored` and the
+next frame still had `sel=0..89`, the whole selection the test made; a `Tab`
+pressed a second later reached the document and inserted its four spaces
+(`sel=94..94`), so the guard stops the switch and not the typing. Repeated on the
+user's own desktop, the gesture that had been losing their text four times an
+hour stopped doing it.
+
+With that confirmed, the diagnostic came out: `select_log`, `evt`,
+`select_trace` and the `trace` helper the ninety-fifth pass had left behind are
+gone, `selection.log` is not written by anything, and the same check was run
+again on the clean build -- the shot taken after the leaked `Tab` is
+pixel-identical to the one taken before it (`compare -metric AE` reports 0), the
+next `Tab` changes 206,549 pixels, and no log file appears.
+
+The same pass closed one unrelated hole. `render` retried `Outdated`, `Timeout`
+and `Lost` -- each arm carrying the note that skipping a frame forever is
+indistinguishable from a frozen window -- but `Occluded` returned without a
+retry, on the assumption that winit sends a redraw when the window comes back.
+The surface does not have to agree: the answer lags the window on a compositing
+desktop, so the frame asked for on the way in can come back occluded as well and
+nothing asks again. That arm now asks 120 ms later, at most five times in a row,
+and any frame that reaches the screen clears the promise. `repaint_at` is a
+fifth timer in `next_wake`, so the loop wakes for it instead of sleeping through
+the deadline. No run of mine produced an occluded acquire, so this is a hole
+closed and not a diagnosis; it is kept because the retry rule the other arms
+follow is the right one.
+
+`cargo test --offline`: 2,274 tests, 0 failed. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run. No feature reference change:
+a keystroke swallowed by the window switch is not a feature, so
+`docs/build-pdf.py` was not run.
