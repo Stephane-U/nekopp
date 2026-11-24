@@ -10120,6 +10120,16 @@ impl ApplicationHandler<UserEvent> for App {
                 state.resize(size.width, size.height);
                 state.window.request_redraw();
             }
+            // The window is drawn on demand, so nothing is presented between
+            // events: a window that comes back to the front, or regains the
+            // focus, is showing whatever frame the compositor still holds, and
+            // after a driver round-trip that can be an older one -- text
+            // without the selection that was on it, or no text at all. One
+            // frame on the way in is the fix and costs nothing when the focus
+            // did not move.
+            WindowEvent::Focused(true) | WindowEvent::Occluded(false) => {
+                state.window.request_redraw();
+            }
             WindowEvent::ModifiersChanged(modifiers) => {
                 state.modifiers = modifiers.state();
             }

@@ -75,6 +75,10 @@ the screen, not the length of the longest line in the file. A line indented with
 tabs, or holding characters wider than a column, is laid out from its start and
 cut at the right edge instead, because neither can be placed by counting columns.
 
+The window is drawn on demand rather than on a clock. Coming back to the front,
+or regaining the focus after another application had it, draws one frame, so the
+pane shows the editor as it is rather than as the compositor remembered it.
+
 The GPU is the primary path, not the only one. `npp --software` selects the
 software rasteriser for machines with no usable adapter, remote sessions and
 containers; both backends draw the same scene.

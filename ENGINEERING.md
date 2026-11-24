@@ -11218,3 +11218,46 @@ and let a dump set `scroll_x`, was reverted; `git diff` on that file is empty. T
 feature reference gained a paragraph under "Rendering" that states the bound as a
 promise, including the tab exception, and `python3 docs/build-pdf.py` then `--check`
 reports it up to date: 353,459 bytes, 79 pages A4.
+
+## Ninety-fifth pass: a frame when the window comes back
+
+Reported as: copy a selection with `Ctrl+C`, `Alt+Tab` to another application, come
+back, and the text is not there. Not normal, and not a copy problem -- the
+clipboard is fine, `Action::Copy` only reads the document and writes to arboard,
+and nothing in that path touches the view.
+
+What it was: the window is drawn on demand. `render` runs on `RedrawRequested`,
+and a redraw is asked for by the events that change the picture -- a resize, a
+key, a click, the wheel, a dropped file -- and by the surface recovering from
+`Outdated`, `Timeout` or `Lost`. `WindowEvent::Focused` was not handled at all, and
+neither was `Occluded`, so a window coming back to the front drew nothing and kept
+whatever frame the compositor still held. Under a compositing desktop that frame
+can be an older one, from before the selection was made or before the text was
+shaped, which is exactly the report: the pane shows a picture of a state the
+editor is no longer in.
+
+So a focus gain and a return from occlusion now ask for one frame each:
+
+```rust
+WindowEvent::Focused(true) | WindowEvent::Occluded(false) => {
+    state.window.request_redraw();
+}
+```
+
+`Focused(false)` is ignored on purpose -- a window losing the focus is not worth
+drawing, and drawing it would put work on the way out of every `Alt+Tab`.
+
+Checked on an isolated Xvfb display, never on the desktop: a 500 KB source file,
+`--software`, a click, `Ctrl+A`, `Ctrl+C`, the focus sent to the root window and
+back. Before the change the sequence produced no frame at all after the copy --
+the picture could not change, whatever had happened to it in the meantime. With a
+temporary frame counter in `render`, the focus gain prints one `refocus` and the
+frames that follow; the shot taken after the round trip is pixel-identical to the
+one taken before it (`compare -metric AE` reports 0), so the redraw draws the
+selection the editor still holds rather than an empty pane.
+
+`cargo test --offline`: 2,274 tests, 0 failed. `cargo clippy --offline
+--all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference gained
+three lines under "Rendering" that say the window is drawn on demand and draws one
+frame on the way back; `python3 docs/build-pdf.py` then `--check` reports it up to
+date: 353,641 bytes, 79 pages A4.
