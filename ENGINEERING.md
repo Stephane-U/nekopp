@@ -11358,3 +11358,25 @@ follow is the right one.
 --all-targets`: 0 warnings. `cargo fmt` was not run. No feature reference change:
 a keystroke swallowed by the window switch is not a feature, so
 `docs/build-pdf.py` was not run.
+
+## The version at 0.3.1
+
+A patch number, and the first release since 0.3.0: five commits, three of them
+one bug. The version is still declared once, in `[workspace.package]`, and
+`npp --version`, the About window, the single-instance bus property and the MCP
+server's `serverInfo` all read it from there, so changing the line and rebuilding
+moved all four.
+
+By hand, as before: a debian changelog entry above 0.3.0, which is what
+`dpkg-parsechangelog -S Version` hands the package build; the man page's header;
+and the MCP README's transcript, which carries what the binary prints. The
+reference's title line reads the manifest, so `python3 docs/build-pdf.py` was all
+the PDF needed -- 353,643 bytes, and `--check` reports it up to date.
+
+Verified: `npp --version` prints `Neko++ 0.3.1`; `npp-mcp` prints `npp-mcp 0.3.1:
+111 sections, 74 shortcuts, 1 of 5 plugins enabled` and answers `initialize` with
+`"version":"0.3.1"`; the section and shortcut counts did not move, because no
+feature was added. `cargo test --offline`: 2,274 tests, 0 failed. `cargo clippy
+--offline --all-targets`: 0 warnings. `cargo fmt` was not run. The plugin
+workspace keeps its own 0.1.0: different target, versioned separately, interface
+unchanged.

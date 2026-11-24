@@ -1,3 +1,16 @@
+npp (0.3.1) unstable; urgency=medium
+
+  * Keep a selection across Alt+Tab: the keystroke that made the window switch
+    was delivered to the window after it got the focus back, and a Tab pressed
+    it over the selection -- four spaces where the copied text had been.
+  * Draw one frame when the window comes back to the front or regains the focus,
+    and ask again 120 ms later when the surface reports itself occluded, so a
+    window cannot keep a frame the editor has moved on from.
+  * Draw a long line only as far as the pane shows, instead of shaping the rest
+    of a line nobody can see.
+
+ -- Neko++ maintainers <npp@example.invalid>  Tue, 24 Nov 2026 16:13:53 +0100
+
 npp (0.3.0) unstable; urgency=medium
 
   * Finish the find bar: Notepad++'s search options on three rows, the dialog's
