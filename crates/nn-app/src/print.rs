@@ -134,7 +134,6 @@ pub struct PrintPreview {
     controls: Vec<Buffer>,
     controls_shaped: Vec<String>,
     family: Family<'static>,
-    line_height: f32,
     viewport: (f32, f32),
 }
 
@@ -166,7 +165,6 @@ impl PrintPreview {
                 .collect(),
             controls_shaped: vec![String::new(); Control::ALL.len()],
             family,
-            line_height: metrics.line_height,
             viewport: (0.0, 0.0),
         }
     }
@@ -187,6 +185,15 @@ impl PrintPreview {
         for control in &mut self.controls {
             control.set_metrics(metrics);
         }
+    }
+
+    /// The line height the widget was built with.
+    ///
+    /// Read from the metrics rather than kept beside them: a second copy is what
+    /// left the rows and their highlight at the size the window opened at while
+    /// the text around them grew.
+    fn line_height(&self) -> f32 {
+        self.metrics.line_height
     }
 
     /// Opens the preview on a document.
@@ -566,7 +573,7 @@ impl PrintPreview {
             areas.push(TextArea {
                 buffer,
                 left: button_left + self.ui_char_width,
-                top: button_top + (BAR - self.line_height) / 2.0,
+                top: button_top + (BAR - self.line_height()) / 2.0,
                 scale: 1.0,
                 bounds: window,
                 default_color: theme.bar_label.to_cosmic(),

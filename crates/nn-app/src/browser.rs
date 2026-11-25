@@ -117,7 +117,6 @@ pub struct Browser {
     /// be told from the size already in hand.
     metrics: Metrics,
     char_width: f32,
-    line_height: f32,
     /// Window size, so the dialog can centre itself.
     viewport: (f32, f32),
 }
@@ -148,7 +147,6 @@ impl Browser {
             family,
             metrics,
             char_width,
-            line_height: metrics.line_height,
             viewport: (0.0, 0.0),
         }
     }
@@ -169,6 +167,15 @@ impl Browser {
         self.path.set_metrics(metrics);
         self.body.set_metrics(metrics);
         self.hint.set_metrics(metrics);
+    }
+
+    /// The line height the widget was built with.
+    ///
+    /// Read from the metrics rather than kept beside them: a second copy is what
+    /// left the rows and their highlight at the size the window opened at while
+    /// the text around them grew.
+    fn line_height(&self) -> f32 {
+        self.metrics.line_height
     }
 
     /// Opens the browser on `dir`, or on the nearest directory above it.
@@ -572,7 +579,7 @@ impl Browser {
     /// below — the same arithmetic the shortcut editor uses, so the two dialogs
     /// sit at the same rhythm.
     pub fn height(&self) -> f32 {
-        PADDING * 2.0 + (self.visible_rows() as f32 + 5.0) * self.line_height
+        PADDING * 2.0 + (self.visible_rows() as f32 + 5.0) * self.line_height()
     }
 
     /// The top-left corner, centred in the window.
@@ -585,7 +592,7 @@ impl Browser {
 
     /// The y pixel where the first row starts.
     fn rows_top(&self) -> f32 {
-        self.origin().1 + PADDING + self.line_height * 3.0
+        self.origin().1 + PADDING + self.line_height() * 3.0
     }
 
     /// The x pixel where the filter field begins.
@@ -606,7 +613,7 @@ impl Browser {
         if y < rows_top || y > top + self.height() {
             return None;
         }
-        let row = ((y - rows_top) / self.line_height) as usize;
+        let row = ((y - rows_top) / self.line_height()) as usize;
         if row >= self.visible_rows() {
             return None;
         }
@@ -714,18 +721,18 @@ impl Browser {
             if *index < self.scroll || *index >= self.scroll + self.visible_rows() {
                 continue;
             }
-            let row_top = self.rows_top() + (*index - self.scroll) as f32 * self.line_height;
+            let row_top = self.rows_top() + (*index - self.scroll) as f32 * self.line_height();
             quads.push(
                 left + 1.0,
                 row_top,
                 width - 2.0,
-                self.line_height,
+                self.line_height(),
                 theme.selection.to_linear(),
             );
         }
 
         let row = (self.selected - self.scroll) as f32;
-        let row_top = self.rows_top() + row * self.line_height;
+        let row_top = self.rows_top() + row * self.line_height();
         // The cursor keeps its own band only when it is not on a marked row:
         // a band drawn over a mark would hide the mark, and every row the dialog
         // is about to open has to keep showing as chosen.
@@ -734,7 +741,7 @@ impl Browser {
                 left + 1.0,
                 row_top,
                 width - 2.0,
-                self.line_height,
+                self.line_height(),
                 theme.menu_hover.to_linear(),
             );
         }
@@ -744,16 +751,16 @@ impl Browser {
             left + 1.0,
             row_top,
             2.0,
-            self.line_height,
+            self.line_height(),
             theme.caret.to_linear(),
         );
 
         let caret_x = self.filter_left() + self.filter.caret() as f32 * self.char_width;
         quads.push(
             caret_x,
-            top + PADDING + self.line_height * 2.0,
+            top + PADDING + self.line_height() * 2.0,
             2.0,
-            self.line_height,
+            self.line_height(),
             theme.caret.to_linear(),
         );
     }
@@ -783,7 +790,7 @@ impl Browser {
             TextArea {
                 buffer: &self.path,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height,
+                top: top + PADDING + self.line_height(),
                 scale: 1.0,
                 bounds,
                 default_color: theme.bar_label.to_cosmic(),
@@ -792,7 +799,7 @@ impl Browser {
             TextArea {
                 buffer: &self.body,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height * 3.0,
+                top: top + PADDING + self.line_height() * 3.0,
                 scale: 1.0,
                 bounds,
                 default_color: theme.foreground.to_cosmic(),
@@ -801,7 +808,7 @@ impl Browser {
             TextArea {
                 buffer: &self.hint,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height * (self.visible_rows() as f32 + 3.0),
+                top: top + PADDING + self.line_height() * (self.visible_rows() as f32 + 3.0),
                 scale: 1.0,
                 bounds,
                 default_color: theme.bar_label.to_cosmic(),
@@ -829,7 +836,7 @@ impl Browser {
             TextArea {
                 buffer: &self.label,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height * 2.0,
+                top: top + PADDING + self.line_height() * 2.0,
                 scale: 1.0,
                 bounds,
                 default_color: theme.bar_label.to_cosmic(),
@@ -838,7 +845,7 @@ impl Browser {
             TextArea {
                 buffer: self.filter.buffer(),
                 left: self.filter_left(),
-                top: top + PADDING + self.line_height * 2.0,
+                top: top + PADDING + self.line_height() * 2.0,
                 scale: 1.0,
                 bounds,
                 default_color: theme.foreground.to_cosmic(),
@@ -1380,7 +1387,7 @@ mod tests {
         let rows_top = browser.rows_top();
         assert_eq!(browser.row_at(left + 20.0, rows_top + 5.0), Some(0));
         assert_eq!(
-            browser.row_at(left + 20.0, rows_top + browser.line_height + 5.0),
+            browser.row_at(left + 20.0, rows_top + browser.line_height() + 5.0),
             Some(1)
         );
         assert_eq!(browser.row_at(left - 5.0, rows_top + 5.0), None);
@@ -1393,7 +1400,7 @@ mod tests {
         browser.open(&dir);
         browser.set_viewport(1000.0, 800.0);
         let (left, _) = browser.origin();
-        let y = browser.rows_top() + browser.visible_rows() as f32 * browser.line_height + 5.0;
+        let y = browser.rows_top() + browser.visible_rows() as f32 * browser.line_height() + 5.0;
         assert_eq!(browser.row_at(left + 20.0, y), None);
     }
 

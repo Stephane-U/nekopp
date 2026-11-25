@@ -255,7 +255,6 @@ pub struct StyleConfigurator {
     /// be told from the size already in hand.
     metrics: Metrics,
     char_width: f32,
-    line_height: f32,
     /// Window size, so the dialog can centre itself.
     viewport: (f32, f32),
 }
@@ -274,7 +273,6 @@ impl StyleConfigurator {
             family,
             metrics,
             char_width,
-            line_height: metrics.line_height,
             viewport: (0.0, 0.0),
         }
     }
@@ -292,6 +290,15 @@ impl StyleConfigurator {
         self.metrics = metrics;
         self.title.set_metrics(metrics);
         self.body.set_metrics(metrics);
+    }
+
+    /// The line height the widget was built with.
+    ///
+    /// Read from the metrics rather than kept beside them: a second copy is what
+    /// left the rows and their highlight at the size the window opened at while
+    /// the text around them grew.
+    fn line_height(&self) -> f32 {
+        self.metrics.line_height
     }
 
     /// Opens the dialog on a copy of `theme`.
@@ -386,7 +393,7 @@ impl StyleConfigurator {
 
     /// The height the dialog occupies.
     pub fn height(&self) -> f32 {
-        PADDING * 2.0 + (Slot::ALL.len() as f32 + 4.0) * self.line_height
+        PADDING * 2.0 + (Slot::ALL.len() as f32 + 4.0) * self.line_height()
     }
 
     /// The top-left corner, centred in the window.
@@ -406,11 +413,11 @@ impl StyleConfigurator {
         if x < left || x > left + self.width() {
             return None;
         }
-        let rows_top = top + PADDING + self.line_height * 2.0;
+        let rows_top = top + PADDING + self.line_height() * 2.0;
         if y < rows_top {
             return None;
         }
-        let row = ((y - rows_top) / self.line_height) as usize;
+        let row = ((y - rows_top) / self.line_height()) as usize;
         (row < Slot::ALL.len()).then_some(row)
     }
 
@@ -473,12 +480,12 @@ impl StyleConfigurator {
         quads.push(left, top, 1.0, height, border);
         quads.push(left + width - 1.0, top, 1.0, height, border);
 
-        let rows_top = top + PADDING + self.line_height * 2.0;
+        let rows_top = top + PADDING + self.line_height() * 2.0;
         quads.push(
             left + 1.0,
-            rows_top + self.selected as f32 * self.line_height,
+            rows_top + self.selected as f32 * self.line_height(),
             width - 2.0,
-            self.line_height,
+            self.line_height(),
             theme.menu_hover.to_linear(),
         );
 
@@ -486,12 +493,12 @@ impl StyleConfigurator {
         // you copy; the swatch is what you read.
         let swatch_left = left + PADDING + SWATCH_COLUMN as f32 * self.char_width();
         for (index, slot) in Slot::ALL.iter().enumerate() {
-            let y = rows_top + index as f32 * self.line_height + 3.0;
+            let y = rows_top + index as f32 * self.line_height() + 3.0;
             quads.push(
                 swatch_left,
                 y,
                 SWATCH_WIDTH,
-                self.line_height - 6.0,
+                self.line_height() - 6.0,
                 slot.get(&self.theme).to_linear(),
             );
         }
@@ -522,7 +529,7 @@ impl StyleConfigurator {
             TextArea {
                 buffer: &self.body,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height * 2.0,
+                top: top + PADDING + self.line_height() * 2.0,
                 scale: 1.0,
                 bounds,
                 default_color: theme.foreground.to_cosmic(),
@@ -689,9 +696,9 @@ mod tests {
         d.open(Theme::DARK);
         d.set_viewport(1000.0, 800.0);
         let (left, top) = d.origin();
-        let rows_top = top + PADDING + d.line_height * 2.0;
+        let rows_top = top + PADDING + d.line_height() * 2.0;
         assert_eq!(d.row_at(left + 20.0, rows_top + 5.0), Some(0));
-        assert_eq!(d.row_at(left + 20.0, rows_top + d.line_height + 5.0), Some(1));
+        assert_eq!(d.row_at(left + 20.0, rows_top + d.line_height() + 5.0), Some(1));
         assert_eq!(d.row_at(left + 20.0, rows_top - 5.0), None);
     }
 

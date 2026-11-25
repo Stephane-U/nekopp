@@ -97,7 +97,6 @@ pub struct PluginList {
     /// be told from the size already in hand.
     metrics: Metrics,
     char_width: f32,
-    line_height: f32,
     /// Window size, so the dialog can centre itself and know how many rows fit.
     viewport: (f32, f32),
 }
@@ -118,7 +117,6 @@ impl PluginList {
             family,
             metrics,
             char_width,
-            line_height: metrics.line_height,
             viewport: (0.0, 0.0),
         }
     }
@@ -136,6 +134,15 @@ impl PluginList {
         self.metrics = metrics;
         self.title.set_metrics(metrics);
         self.body.set_metrics(metrics);
+    }
+
+    /// The line height the widget was built with.
+    ///
+    /// Read from the metrics rather than kept beside them: a second copy is what
+    /// left the rows and their highlight at the size the window opened at while
+    /// the text around them grew.
+    fn line_height(&self) -> f32 {
+        self.metrics.line_height
     }
 
     /// Opens the manager on `rows`, with the first row highlighted.
@@ -247,7 +254,7 @@ impl PluginList {
         if self.rows.is_empty() {
             return 0;
         }
-        let screen = ((self.viewport.1 - 80.0) / self.line_height) as usize;
+        let screen = ((self.viewport.1 - 80.0) / self.line_height()) as usize;
         self.rows.len().min(MAX_ROWS).min(screen.max(1))
     }
 
@@ -314,7 +321,7 @@ impl PluginList {
     /// The height the dialog occupies: title, gap, rows, gap, hint.
     pub fn height(&self) -> f32 {
         let rows = self.visible().max(1) as f32;
-        PADDING * 2.0 + (rows + 4.0) * self.line_height
+        PADDING * 2.0 + (rows + 4.0) * self.line_height()
     }
 
     /// The top-left corner, centred in the window.
@@ -334,11 +341,11 @@ impl PluginList {
         if x < left || x > left + self.width() {
             return None;
         }
-        let rows_top = top + PADDING + self.line_height * 2.0;
+        let rows_top = top + PADDING + self.line_height() * 2.0;
         if y < rows_top {
             return None;
         }
-        let drawn = ((y - rows_top) / self.line_height) as usize;
+        let drawn = ((y - rows_top) / self.line_height()) as usize;
         if drawn >= self.visible() {
             return None;
         }
@@ -415,13 +422,13 @@ impl PluginList {
         quads.push(left + width - 1.0, top, 1.0, height, border);
 
         if !self.rows.is_empty() {
-            let rows_top = top + PADDING + self.line_height * 2.0;
+            let rows_top = top + PADDING + self.line_height() * 2.0;
             let drawn = (self.selected.saturating_sub(self.first)) as f32;
             quads.push(
                 left + 1.0,
-                rows_top + drawn * self.line_height,
+                rows_top + drawn * self.line_height(),
                 width - 2.0,
-                self.line_height,
+                self.line_height(),
                 theme.menu_hover.to_linear(),
             );
         }
@@ -452,7 +459,7 @@ impl PluginList {
             TextArea {
                 buffer: &self.body,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height * 2.0,
+                top: top + PADDING + self.line_height() * 2.0,
                 scale: 1.0,
                 bounds,
                 default_color: theme.foreground.to_cosmic(),
@@ -550,12 +557,12 @@ mod tests {
         list.open(rows());
         list.set_viewport(1200.0, 800.0);
         let (left, top) = list.origin();
-        let rows_top = top + PADDING + list.line_height * 2.0;
-        let hit = list.row_at(left + 20.0, rows_top + list.line_height * 1.5);
+        let rows_top = top + PADDING + list.line_height() * 2.0;
+        let hit = list.row_at(left + 20.0, rows_top + list.line_height() * 1.5);
         assert_eq!(hit, Some(1));
         // Outside the frame, and below the last row, there is nothing to hit.
         assert_eq!(list.row_at(left - 5.0, rows_top + 4.0), None);
-        assert_eq!(list.row_at(left + 20.0, rows_top + list.line_height * 5.0), None);
+        assert_eq!(list.row_at(left + 20.0, rows_top + list.line_height() * 5.0), None);
     }
 
     #[test]

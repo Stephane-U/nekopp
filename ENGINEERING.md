@@ -11910,3 +11910,53 @@ the metrics, the preferences box doubling, and the two halves of the status bar
 kept apart. `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo
 fmt` was not run. The feature reference has the row in the preferences table and
 the paragraph on the furniture now points at the dialog, and the PDF was rebuilt.
+
+## The hundred-and-fifth pass: the rows that did not move with the text
+
+The pass before this one made the furniture grow with the display, and left one
+thing behind. Six widgets -- the file browser, the plugin list, the preferences
+dialog, the print preview, the shortcut mapper and the style configurator -- held
+their own copy of the line height, taken from the metrics in their constructor.
+Every row they draw, and every highlight over a row, was placed and sized from
+that copy. Nothing ever wrote to it again.
+
+So a density change grew the glyphs and left the rows where they were. The
+labels are one shaped buffer per widget, and a buffer re-shapes its own lines at
+the new metrics, so the text moved to a thirty-pixel pitch while the highlight
+over the selected row stayed twenty pixels tall and sat above the row it was
+meant to mark. Which is what a user sees when they open Preferences and change
+the Window Scale row: the very dialog they are editing draws its selection short.
+The same six widgets had the same fault, and the shortcut mapper is the one
+somebody would try next.
+
+### One answer to the row height
+
+The copy is gone. Each of the six reads `self.metrics.line_height` through a
+private `line_height`, which is the shape `charset.rs` had already chosen, and
+`EditorView` gives up the same copy: its `line_height` was only ever assigned
+from the metrics in `zoom` and `set_font_size`, so the getter reads the metrics
+and the two assignments disappeared with the field.
+
+This is the third time in four passes that a second copy of a number has been
+the fault -- the renderer's row height against the labels', and now a widget's
+row height against the metrics'. The rule the passes keep re-learning: a value
+that can be derived is not a value to store.
+
+### Verified
+
+Measured on the running build, before and after, at a 96-dpi display: opened
+Preferences, stepped the Window Scale row to x1.5, and measured the frame.
+
+Before: the labels of the dialog sit on a 30-pixel pitch, which is the doubled
+metrics, and the highlight over the selected row is 20 pixels tall at y 245..264
+-- the height of the old font, and inside the box of the row above the one it is
+meant to mark. After: the highlight is 30 pixels tall at y 180..209 and covers
+the Window Scale row exactly. The whole layout moves between the two shots
+because the dialog is taller once its rows are, and re-centres itself; the pair
+of numbers that matter is 20 against 30, and the row it lands on.
+
+`cargo test --offline --release`: 2,304 tests, 0 failed, two of them new -- a new
+density moving the preferences rows and their highlight, and the same for the
+shortcut mapper, both of which fail on the code before this pass. `cargo clippy
+--offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. The
+feature reference needed no change: no command and no preference was added.

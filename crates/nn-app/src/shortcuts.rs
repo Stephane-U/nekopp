@@ -71,7 +71,6 @@ pub struct Shortcuts {
     /// be told from the size already in hand.
     metrics: Metrics,
     char_width: f32,
-    line_height: f32,
     /// Window size, so the dialog can centre itself.
     viewport: (f32, f32),
 }
@@ -94,7 +93,6 @@ impl Shortcuts {
             family,
             metrics,
             char_width,
-            line_height: metrics.line_height,
             viewport: (0.0, 0.0),
         }
     }
@@ -113,6 +111,15 @@ impl Shortcuts {
         self.title.set_metrics(metrics);
         self.body.set_metrics(metrics);
         self.hint.set_metrics(metrics);
+    }
+
+    /// The line height the widget was built with.
+    ///
+    /// Read from the metrics rather than kept beside them: a second copy is what
+    /// left the rows and their highlight at the size the window opened at while
+    /// the text around them grew.
+    fn line_height(&self) -> f32 {
+        self.metrics.line_height
     }
 
     /// Opens the dialog on a copy of `keymap`.
@@ -262,7 +269,7 @@ impl Shortcuts {
     /// Title, a gap, the column header, the rows, a gap, and the hint, plus the
     /// padding above and below.
     pub fn height(&self) -> f32 {
-        PADDING * 2.0 + (self.visible_rows() as f32 + 5.0) * self.line_height
+        PADDING * 2.0 + (self.visible_rows() as f32 + 5.0) * self.line_height()
     }
 
     /// The top-left corner, centred in the window.
@@ -275,7 +282,7 @@ impl Shortcuts {
 
     /// The y pixel where the first row starts.
     fn rows_top(&self) -> f32 {
-        self.origin().1 + PADDING + self.line_height * 3.0
+        self.origin().1 + PADDING + self.line_height() * 3.0
     }
 
     /// The row index under `(x, y)` in window pixels.
@@ -291,7 +298,7 @@ impl Shortcuts {
         if y < rows_top || y > top + self.height() {
             return None;
         }
-        let row = ((y - rows_top) / self.line_height) as usize;
+        let row = ((y - rows_top) / self.line_height()) as usize;
         if row >= self.visible_rows() {
             return None;
         }
@@ -367,18 +374,18 @@ impl Shortcuts {
         quads.push(left + width - 1.0, top, 1.0, height, border);
 
         let row = (self.selected - self.scroll) as f32;
-        let row_top = self.rows_top() + row * self.line_height;
+        let row_top = self.rows_top() + row * self.line_height();
         quads.push(
             left + 1.0,
             row_top,
             width - 2.0,
-            self.line_height,
+            self.line_height(),
             theme.menu_hover.to_linear(),
         );
         // A capture in progress gets a caret-coloured edge, so the row that is
         // waiting for a key is not just the row that happens to be highlighted.
         if self.capturing {
-            quads.push(left + 1.0, row_top, 3.0, self.line_height, theme.caret.to_linear());
+            quads.push(left + 1.0, row_top, 3.0, self.line_height(), theme.caret.to_linear());
         }
     }
 
@@ -407,7 +414,7 @@ impl Shortcuts {
             TextArea {
                 buffer: &self.body,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height * 2.0,
+                top: top + PADDING + self.line_height() * 2.0,
                 scale: 1.0,
                 bounds,
                 default_color: theme.foreground.to_cosmic(),
@@ -416,7 +423,7 @@ impl Shortcuts {
             TextArea {
                 buffer: &self.hint,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height * (self.visible_rows() as f32 + 3.0),
+                top: top + PADDING + self.line_height() * (self.visible_rows() as f32 + 3.0),
                 scale: 1.0,
                 bounds,
                 default_color: theme.bar_label.to_cosmic(),
@@ -519,10 +526,27 @@ mod tests {
         let rows_top = shortcuts.rows_top();
         assert_eq!(shortcuts.row_at(left + 20.0, rows_top + 5.0), Some(0));
         assert_eq!(
-            shortcuts.row_at(left + 20.0, rows_top + shortcuts.line_height + 5.0),
+            shortcuts.row_at(left + 20.0, rows_top + shortcuts.line_height() + 5.0),
             Some(1)
         );
         assert_eq!(shortcuts.row_at(left - 5.0, rows_top + 5.0), None);
+    }
+
+    #[test]
+    fn a_new_density_moves_the_mapper_rows_with_the_highlight() {
+        let mut shortcuts = dialog();
+        shortcuts.open(&Keymap::default());
+        shortcuts.set_viewport(1000.0, 900.0);
+        // The row pitch is the metrics' line height, and the highlight over a
+        // row is the same number. Kept beside the metrics it stayed at the size
+        // the window opened at, and a display change left the highlight short
+        // and over the wrong row.
+        shortcuts.set_metrics(Metrics::new(30.0, 40.0));
+        assert_eq!(shortcuts.line_height(), 40.0);
+        let (left, _) = shortcuts.origin();
+        let rows_top = shortcuts.rows_top();
+        assert_eq!(shortcuts.row_at(left + 20.0, rows_top + 45.0), Some(1));
+        assert_eq!(shortcuts.row_at(left + 20.0, rows_top + 85.0), Some(2));
     }
 
     #[test]
@@ -531,7 +555,7 @@ mod tests {
         shortcuts.open(&Keymap::default());
         shortcuts.set_viewport(1000.0, 800.0);
         let (left, _) = shortcuts.origin();
-        let y = shortcuts.rows_top() + shortcuts.visible_rows() as f32 * shortcuts.line_height + 5.0;
+        let y = shortcuts.rows_top() + shortcuts.visible_rows() as f32 * shortcuts.line_height() + 5.0;
         assert_eq!(shortcuts.row_at(left + 20.0, y), None);
     }
 

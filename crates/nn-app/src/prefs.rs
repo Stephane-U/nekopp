@@ -311,7 +311,6 @@ pub struct Preferences {
     /// be told from the size already in hand.
     metrics: Metrics,
     char_width: f32,
-    line_height: f32,
     /// Window size, so the dialog can centre itself.
     viewport: (f32, f32),
 }
@@ -335,7 +334,6 @@ impl Preferences {
             family,
             metrics,
             char_width,
-            line_height: metrics.line_height,
             viewport: (0.0, 0.0),
         }
     }
@@ -354,6 +352,15 @@ impl Preferences {
         self.title.set_metrics(metrics);
         self.body.set_metrics(metrics);
         self.picker_body.set_metrics(metrics);
+    }
+
+    /// The line height the widget was built with.
+    ///
+    /// Read from the metrics rather than kept beside them: a second copy is what
+    /// left the rows and their highlight at the size the window opened at while
+    /// the text around them grew.
+    fn line_height(&self) -> f32 {
+        self.metrics.line_height
     }
 
     /// Opens the dialog on a copy of `settings`.
@@ -648,7 +655,7 @@ impl Preferences {
         if x < left || x > left + width || y < top || y > top + height {
             return None;
         }
-        let row = ((y - top - PICKER_PADDING) / self.line_height).floor();
+        let row = ((y - top - PICKER_PADDING) / self.line_height()).floor();
         if row < 0.0 {
             return None;
         }
@@ -719,7 +726,7 @@ impl Preferences {
 
     /// How many list rows fit in `height` pixels.
     fn picker_rows_in(&self, height: f32) -> usize {
-        ((height - PICKER_PADDING * 2.0).max(0.0) / self.line_height).floor() as usize
+        ((height - PICKER_PADDING * 2.0).max(0.0) / self.line_height()).floor() as usize
     }
 
     /// The panel: `(left, top, width, height, rows)` in window pixels.
@@ -737,11 +744,11 @@ impl Preferences {
             return None;
         }
         let (left, top) = self.origin();
-        let rows_top = top + PADDING + self.line_height * 2.0;
+        let rows_top = top + PADDING + self.line_height() * 2.0;
         let row = Row::ALL.iter().position(|r| *r == picker.row)?;
-        let anchor = rows_top + row as f32 * self.line_height + self.line_height;
+        let anchor = rows_top + row as f32 * self.line_height() + self.line_height();
         let (viewport_width, viewport_height) = self.viewport;
-        let wanted = entries as f32 * self.line_height + PICKER_PADDING * 2.0;
+        let wanted = entries as f32 * self.line_height() + PICKER_PADDING * 2.0;
         // Without a window there is nothing to fit into, which is the state a
         // test builds and a headless frame renders: show the list whole.
         let below = if viewport_height > 0.0 {
@@ -750,14 +757,14 @@ impl Preferences {
             wanted
         };
         let above = if viewport_height > 0.0 {
-            (anchor - self.line_height).max(0.0)
+            (anchor - self.line_height()).max(0.0)
         } else {
             0.0
         };
         let (y, mut rows) = if wanted <= below {
             (anchor, entries)
         } else if wanted <= above {
-            (anchor - self.line_height - wanted, entries)
+            (anchor - self.line_height() - wanted, entries)
         } else if below >= above {
             (
                 anchor,
@@ -765,10 +772,10 @@ impl Preferences {
             )
         } else {
             let rows = self.picker_rows_in(above).clamp(PICKER_MIN_ROWS, entries);
-            let height = rows as f32 * self.line_height + PICKER_PADDING * 2.0;
-            ((anchor - self.line_height - height).max(0.0), rows)
+            let height = rows as f32 * self.line_height() + PICKER_PADDING * 2.0;
+            ((anchor - self.line_height() - height).max(0.0), rows)
         };
-        let mut height = rows as f32 * self.line_height + PICKER_PADDING * 2.0;
+        let mut height = rows as f32 * self.line_height() + PICKER_PADDING * 2.0;
         // A list that does not fit on one side of its row but does fit in the
         // window is still shown whole: the panel slides to wherever it can
         // stand, over the dialog and its title if it has to, rather than hiding
@@ -776,16 +783,16 @@ impl Preferences {
         // taller than the window drops to a scroll.
         if rows < entries && viewport_height > 0.0 && wanted <= viewport_height - top.max(0.0) {
             rows = entries;
-            height = rows as f32 * self.line_height + PICKER_PADDING * 2.0;
+            height = rows as f32 * self.line_height() + PICKER_PADDING * 2.0;
         }
         let mut y = self.clamp_panel(y.max(0.0), height);
         // A list long enough to cover the dialog's hint carries the keys on its
         // own last line, provided the line still fits in the window.
-        let hint_top = rows_top + ROWS as f32 * self.line_height + self.line_height;
+        let hint_top = rows_top + ROWS as f32 * self.line_height() + self.line_height();
         let mut footer = y + height > hint_top;
         if footer {
-            if viewport_height <= 0.0 || y + height + self.line_height <= viewport_height {
-                height += self.line_height;
+            if viewport_height <= 0.0 || y + height + self.line_height() <= viewport_height {
+                height += self.line_height();
                 // Only upwards: the extra line has to stay in the window, and a
                 // panel that moves up still covers the hint it was covering.
                 y = y.min((viewport_height - height).max(0.0));
@@ -839,7 +846,7 @@ impl Preferences {
             return y;
         }
         let top = self.origin().1;
-        let title_bottom = top + PADDING + self.line_height;
+        let title_bottom = top + PADDING + self.line_height();
         let max_y = (viewport_height - height).max(0.0);
         let min_y = if title_bottom + height <= viewport_height {
             title_bottom
@@ -1049,7 +1056,7 @@ impl Preferences {
     /// Title, a gap, the rows, a gap, and the hint, plus the padding above and
     /// below.
     pub fn height(&self) -> f32 {
-        PADDING * 2.0 + (ROWS as f32 + 4.0) * self.line_height
+        PADDING * 2.0 + (ROWS as f32 + 4.0) * self.line_height()
     }
 
     /// The top-left corner, centred in the window.
@@ -1069,11 +1076,11 @@ impl Preferences {
         if x < left || x > left + self.width() {
             return None;
         }
-        let rows_top = top + PADDING + self.line_height * 2.0;
+        let rows_top = top + PADDING + self.line_height() * 2.0;
         if y < rows_top {
             return None;
         }
-        let row = ((y - rows_top) / self.line_height) as usize;
+        let row = ((y - rows_top) / self.line_height()) as usize;
         (row < ROWS).then_some(row)
     }
 
@@ -1090,7 +1097,7 @@ impl Preferences {
             picker.scroll_into_view(rows);
         }
 
-        let rows_top = self.origin().1 + PADDING + self.line_height * 2.0;
+        let rows_top = self.origin().1 + PADDING + self.line_height() * 2.0;
         let title_top = self.origin().1 + PADDING;
         let covered = self
             .picker_panel()
@@ -1098,7 +1105,7 @@ impl Preferences {
         // The title is drawn from its own buffer, so a list flipped above its
         // row covers it and the same blanking applies.
         let title_hidden = covered.is_some_and(|(panel_top, panel_bottom)| {
-            panel_top < title_top + self.line_height && panel_bottom > title_top
+            panel_top < title_top + self.line_height() && panel_bottom > title_top
         });
         let title = if title_hidden {
             " ".repeat(self.title().len())
@@ -1133,8 +1140,8 @@ impl Preferences {
             }
             let value = self.value(*row);
             let hidden = covered.is_some_and(|(panel_top, panel_bottom)| {
-                let row_top = rows_top + index as f32 * self.line_height;
-                let row_bottom = row_top + self.line_height;
+                let row_top = rows_top + index as f32 * self.line_height();
+                let row_bottom = row_top + self.line_height();
                 panel_top < row_bottom && panel_bottom > row_top
             });
             if hidden {
@@ -1148,9 +1155,9 @@ impl Preferences {
         // last rows sit right above the hint, so a list opened on one of them
         // hangs past the bottom of the dialog and over the keys.
         text.push_str("\n\n");
-        let hint_top = rows_top + ROWS as f32 * self.line_height + self.line_height;
+        let hint_top = rows_top + ROWS as f32 * self.line_height() + self.line_height();
         let hint_hidden = covered.is_some_and(|(panel_top, panel_bottom)| {
-            panel_top < hint_top + self.line_height && panel_bottom > hint_top
+            panel_top < hint_top + self.line_height() && panel_bottom > hint_top
         });
         if hint_hidden {
             text.push_str(&" ".repeat(self.hint().chars().count()));
@@ -1232,12 +1239,12 @@ impl Preferences {
         quads.push(left + width - 1.0, top, 1.0, height, border);
 
         // The title sits above the rows, the hint below them.
-        let rows_top = top + PADDING + self.line_height * 2.0;
+        let rows_top = top + PADDING + self.line_height() * 2.0;
         quads.push(
             left + 1.0,
-            rows_top + self.selected as f32 * self.line_height,
+            rows_top + self.selected as f32 * self.line_height(),
             width - 2.0,
-            self.line_height,
+            self.line_height(),
             theme.menu_hover.to_linear(),
         );
 
@@ -1266,14 +1273,14 @@ impl Preferences {
             .skip(picker.first)
             .take(capacity)
         {
-            let y = top + PICKER_PADDING + (row - picker.first) as f32 * self.line_height;
+            let y = top + PICKER_PADDING + (row - picker.first) as f32 * self.line_height();
             match entry {
                 Entry::Divider => {
                     // Halfway down the line the divider owns, so it reads as a
                     // rule between two rows rather than as an underline.
                     quads.push(
                         left + 1.0,
-                        y + self.line_height / 2.0,
+                        y + self.line_height() / 2.0,
                         width - 2.0,
                         1.0,
                         border,
@@ -1284,7 +1291,7 @@ impl Preferences {
                         left + 1.0,
                         y,
                         width - 2.0,
-                        self.line_height,
+                        self.line_height(),
                         theme.menu_hover.to_linear(),
                     );
                 }
@@ -1296,7 +1303,7 @@ impl Preferences {
         if self.picker_layout().is_some_and(|panel| panel.footer) {
             quads.push(
                 left + 1.0,
-                top + PICKER_PADDING + capacity as f32 * self.line_height,
+                top + PICKER_PADDING + capacity as f32 * self.line_height(),
                 width - 2.0,
                 1.0,
                 border,
@@ -1329,7 +1336,7 @@ impl Preferences {
             TextArea {
                 buffer: &self.body,
                 left: left + PADDING,
-                top: top + PADDING + self.line_height * 2.0,
+                top: top + PADDING + self.line_height() * 2.0,
                 scale: 1.0,
                 bounds,
                 default_color: theme.foreground.to_cosmic(),
@@ -1674,12 +1681,32 @@ mod tests {
         prefs.open(&Settings::default());
         prefs.set_viewport(1000.0, 800.0);
         let (left, top) = prefs.origin();
-        let rows_top = top + PADDING + prefs.line_height * 2.0;
+        let rows_top = top + PADDING + prefs.line_height() * 2.0;
         let x = left + 20.0;
         assert_eq!(prefs.row_at(x, rows_top + 5.0), Some(0));
-        assert_eq!(prefs.row_at(x, rows_top + prefs.line_height + 5.0), Some(1));
+        assert_eq!(prefs.row_at(x, rows_top + prefs.line_height() + 5.0), Some(1));
         assert_eq!(prefs.row_at(x, rows_top - 5.0), None);
         assert_eq!(prefs.row_at(left - 5.0, rows_top + 5.0), None);
+    }
+
+    #[test]
+    fn a_new_density_moves_the_rows_and_their_highlight() {
+        let mut prefs = dialog();
+        prefs.open(&Settings::default());
+        prefs.set_viewport(1000.0, 900.0);
+        // The row pitch and the highlight over it are the metrics' line height.
+        // A copy kept beside the metrics is what left both at the size the
+        // window opened at while the labels grew, which is the fault this test
+        // exists to keep from coming back: the preference that changes the
+        // scale is edited in this very dialog.
+        prefs.set_metrics(Metrics::new(30.0, 40.0));
+        assert_eq!(prefs.line_height(), 40.0);
+        let (left, top) = prefs.origin();
+        let rows_top = top + PADDING + 40.0 * 2.0;
+        assert_eq!(prefs.row_at(left + 20.0, rows_top + 45.0), Some(1));
+        assert_eq!(prefs.row_at(left + 20.0, rows_top + 85.0), Some(2));
+        // The box grows with them: the rows are the height's largest term.
+        assert_eq!(prefs.height(), PADDING * 2.0 + (ROWS as f32 + 4.0) * 40.0);
     }
 
     #[test]
@@ -1688,8 +1715,8 @@ mod tests {
         prefs.open(&Settings::default());
         prefs.set_viewport(1000.0, 800.0);
         let (left, top) = prefs.origin();
-        let rows_top = top + PADDING + prefs.line_height * 2.0;
-        let y = rows_top + ROWS as f32 * prefs.line_height + 5.0;
+        let rows_top = top + PADDING + prefs.line_height() * 2.0;
+        let y = rows_top + ROWS as f32 * prefs.line_height() + 5.0;
         assert_eq!(prefs.row_at(left + 20.0, y), None);
     }
 
@@ -1919,7 +1946,7 @@ mod tests {
         assert!(panel.top >= 0.0);
         assert!(panel.top + panel.height <= 800.0);
         // And it still starts below the title, so the dialog keeps its name.
-        let title_bottom = prefs.origin().1 + PADDING + prefs.line_height;
+        let title_bottom = prefs.origin().1 + PADDING + prefs.line_height();
         assert!(panel.top >= title_bottom);
     }
 
@@ -2145,7 +2172,7 @@ mod tests {
         open_row(&mut prefs, Row::Theme);
         let (left, top, _, _) = prefs.picker_panel().expect("a panel");
         let x = left + 10.0;
-        let y = top + PICKER_PADDING + 1.5 * prefs.line_height;
+        let y = top + PICKER_PADDING + 1.5 * prefs.line_height();
         assert_eq!(prefs.picker_at(x, y), Some(1));
         assert!(prefs.picker_select(1));
         prefs.picker_choose();
@@ -2175,7 +2202,7 @@ mod tests {
         // the row itself.
         let bottom_of = |prefs: &Preferences, row: Row| {
             let above = Row::ALL.iter().position(|each| *each == row).expect("a row");
-            prefs.origin().1 + PADDING + prefs.line_height * (2.0 + above as f32 + 1.0)
+            prefs.origin().1 + PADDING + prefs.line_height() * (2.0 + above as f32 + 1.0)
         };
         // The language row is near the bottom, so nothing fits under it in a
         // window this short and the panel goes above.
@@ -2258,7 +2285,7 @@ mod tests {
         // The footer is not an entry: a click on its line chooses nothing, and
         // the last entry is still the last entry.
         let (_, top, width, _) = prefs.picker_panel().expect("a panel");
-        let y = top + PICKER_PADDING + panel.rows as f32 * prefs.line_height + 1.5;
+        let y = top + PICKER_PADDING + panel.rows as f32 * prefs.line_height() + 1.5;
         assert_eq!(prefs.picker_at(prefs.origin().0 + width, y), None);
     }
 

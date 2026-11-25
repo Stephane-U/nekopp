@@ -302,7 +302,6 @@ pub struct EditorView {
     /// drawing code never has to know which pane it is.
     origin_x: f32,
     origin_y: f32,
-    line_height: f32,
     char_width: f32,
     gutter_width: f32,
     /// Width of the bookmark margin, between the line numbers and the folds.
@@ -397,7 +396,6 @@ impl EditorView {
             palette: Palette::new(theme),
             width: 800.0,
             height: 600.0,
-            line_height,
             char_width,
             gutter_width: 48.0,
             bookmark_width: 12.0,
@@ -535,8 +533,11 @@ impl EditorView {
     }
 
     /// The height of one line, in pixels.
+    ///
+    /// Read from the metrics: a copy kept beside them is what left the rows and
+    /// the selections at the size the window opened at when a display changed.
     pub fn line_height(&self) -> f32 {
-        self.line_height
+        self.metrics.line_height
     }
 
     /// Steps the font size by `steps` notches, or restores the default when
@@ -556,7 +557,6 @@ impl EditorView {
             return;
         }
         self.metrics = Metrics::new(size, (size * 4.0 / 3.0).round());
-        self.line_height = self.metrics.line_height;
         self.char_width = measure_char_width(font_system, self.metrics, self.family);
         self.cache = LineCache::new(self.metrics, self.family, self.tab_width);
         self.numbers.clear();
@@ -572,7 +572,6 @@ impl EditorView {
             return;
         }
         self.metrics = Metrics::new(size, (size * 4.0 / 3.0).round());
-        self.line_height = self.metrics.line_height;
         self.char_width = measure_char_width(font_system, self.metrics, self.family);
         self.cache = LineCache::new(self.metrics, self.family, self.tab_width);
         self.numbers.clear();
@@ -804,7 +803,7 @@ impl EditorView {
         );
         editor
             .viewport
-            .set_metrics(self.line_height, self.char_width);
+            .set_metrics(self.line_height(), self.char_width);
     }
 
     /// Applies the wrap width the window now allows, keeping the top line.
@@ -928,7 +927,7 @@ impl EditorView {
                     self.text_left(),
                     self.y(editor.viewport.line_y(row)),
                     self.text_right() - self.text_left(),
-                    self.line_height,
+                    self.line_height(),
                     self.theme.current_line.to_linear(),
                 );
             }
@@ -962,7 +961,7 @@ impl EditorView {
                 x,
                 self.y(editor.viewport.line_y(row)),
                 2.0,
-                self.line_height,
+                self.line_height(),
                 caret_color,
             );
         }
@@ -1026,7 +1025,7 @@ impl EditorView {
             if segment != 0 || !doc.is_bookmarked(line) {
                 continue;
             }
-            let y = self.y(vp.line_y(row)) + (self.line_height - size) * 0.5;
+            let y = self.y(vp.line_y(row)) + (self.line_height() - size) * 0.5;
             quads.push(cx - size * 0.5, y, size, size, color);
         }
     }
@@ -1055,7 +1054,7 @@ impl EditorView {
         let guide = self.theme.indent_guide.to_linear();
         let cw = self.char_width;
         let tab = self.tab_width.max(1) as usize;
-        let mid = self.line_height * 0.5;
+        let mid = self.line_height() * 0.5;
         // Marks are placed column by column, so an unwrapped line is walked only
         // as far as the window that was shaped for it. Nothing is missed: the
         // columns past the window are off screen.
@@ -1131,7 +1130,7 @@ impl EditorView {
             if self.show_indent_guides && indent >= tab {
                 let mut at = tab;
                 while at <= indent {
-                    quads.push(left + at as f32 * cw, y, 1.0, self.line_height, guide);
+                    quads.push(left + at as f32 * cw, y, 1.0, self.line_height(), guide);
                     at += tab;
                 }
             }
@@ -1192,7 +1191,7 @@ impl EditorView {
             if segment != 0 || !doc.is_foldable(line) {
                 continue;
             }
-            let y = self.y(vp.line_y(row)) + (self.line_height - size) * 0.5;
+            let y = self.y(vp.line_y(row)) + (self.line_height() - size) * 0.5;
             let left = cx - size * 0.5;
             let right = cx + size * 0.5 - stroke;
             let bottom = y + size - stroke;
@@ -1226,7 +1225,7 @@ impl EditorView {
                     continue;
                 }
                 let x = self.text_left() + (pos - seg_start) as f32 * self.char_width - vp.scroll_x;
-                quads.push(x, self.y(vp.line_y(row)), self.char_width, self.line_height, color);
+                quads.push(x, self.y(vp.line_y(row)), self.char_width, self.line_height(), color);
             }
         }
     }
@@ -1258,7 +1257,7 @@ impl EditorView {
                 let x1 = (self.text_left() + (end - seg_start) as f32 * self.char_width
                     - vp.scroll_x)
                     .min(self.text_right());
-                quads.push(x0, self.y(vp.line_y(row)), x1 - x0, self.line_height, color);
+                quads.push(x0, self.y(vp.line_y(row)), x1 - x0, self.line_height(), color);
             }
         }
     }
@@ -1291,7 +1290,7 @@ impl EditorView {
                     let x1 = (self.text_left() + (end - seg_start) as f32 * self.char_width
                         - vp.scroll_x)
                         .min(self.text_right());
-                    quads.push(x0, self.y(vp.line_y(row)), x1 - x0, self.line_height, color);
+                    quads.push(x0, self.y(vp.line_y(row)), x1 - x0, self.line_height(), color);
                 }
             }
         }
@@ -1325,7 +1324,7 @@ impl EditorView {
                 } else {
                     all
                 };
-                quads.push(x0, self.y(vp.line_y(row)), x1 - x0, self.line_height, color);
+                quads.push(x0, self.y(vp.line_y(row)), x1 - x0, self.line_height(), color);
             }
         }
     }
@@ -1362,7 +1361,7 @@ impl EditorView {
                 } else {
                     self.text_left() + (end - seg_start) as f32 * self.char_width - vp.scroll_x
                 };
-                quads.push(x0, self.y(vp.line_y(row)), x1 - x0, self.line_height, color);
+                quads.push(x0, self.y(vp.line_y(row)), x1 - x0, self.line_height(), color);
             }
         }
     }
