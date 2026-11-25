@@ -27,6 +27,7 @@
 //! keystroke latency.
 
 use crate::document::Style;
+use crate::lang::Apostrophe;
 
 /// The style indices the default theme knows how to colour.
 pub mod style {
@@ -233,12 +234,7 @@ impl Lexer for CLikeLexer {
                     return (styles, LexState::Normal);
                 }
                 c if c.is_ascii_digit() => {
-                    let mut j = i;
-                    while j < chars.len()
-                        && (chars[j].is_alphanumeric() || chars[j] == '.' || chars[j] == '_')
-                    {
-                        j += 1;
-                    }
+                    let j = number_end(&chars, i);
                     styles[i..j].fill(style::NUMBER);
                     i = j;
                 }
@@ -248,7 +244,8 @@ impl Lexer for CLikeLexer {
                         j += 1;
                     }
                     let word: String = chars[i..j].iter().collect();
-                    let style = classify(&word, chars.get(j) == Some(&'('));
+                    let call = declares_a_function(&chars, i) || is_called(&chars, j);
+                    let style = classify(&word, call);
                     styles[i..j].fill(style);
                     i = j;
                 }
@@ -266,10 +263,11 @@ impl Lexer for CLikeLexer {
 
 /// A lexer driven by a [`LangSpec`](crate::lang::LangSpec).
 ///
-/// Ninety-odd languages differ in three things a line-at-a-time tokeniser can
-/// see: their comment markers, their quote characters, and their keyword list.
-/// Writing ninety lexers would produce ninety files that differ only in their
-/// tables, so the tables live in `lang` and this one lexer reads them.
+/// Ninety-odd languages differ in four things a line-at-a-time tokeniser can
+/// see: their comment markers, their quote characters, how an apostrophe ends,
+/// and their keyword list. Writing ninety lexers would produce ninety files that
+/// differ only in their tables, so the tables live in `lang` and this one lexer
+/// reads them.
 ///
 /// The order of the checks is the whole design:
 ///
@@ -280,7 +278,11 @@ impl Lexer for CLikeLexer {
 ///    opener and colour the rest of the file as a comment.
 /// 2. Quotes are tested after comments, so a `"` inside a comment stays a
 ///    comment and a `//` inside a string stays a string.
-/// 3. Numbers before identifiers, so `0x1f` is one number rather than a number
+/// 3. An apostrophe is only a string where the language says so, and only
+///    while it still closes on the line. `&'a str` is a lifetime, `x'` is an
+///    identifier and `don't` is prose; colouring any of them as the start of a
+///    string would carry that string into every line below.
+/// 4. Numbers before identifiers, so `0x1f` is one number rather than a number
 ///    and a word.
 ///
 /// What it cannot do is context. `*` is a comment in SAS only at the start of a
@@ -310,6 +312,23 @@ impl ConfigLexer {
             .line
             .iter()
             .any(|marker| self.starts_with(chars, at, marker))
+    }
+
+    /// The index just past the literal opened by `quote` at `at`.
+    ///
+    /// `None` means the literal does not end on this line, which is a string
+    /// carried into the next one for `"` and for an apostrophe the language
+    /// lets run on.
+    fn literal_end(&self, chars: &[char], at: usize, quote: char) -> Option<usize> {
+        match self.spec.apostrophe {
+            Apostrophe::Char if quote == '\'' => find_char_literal_end(chars, at),
+            _ => find_string_end(chars, at, quote),
+        }
+    }
+
+    /// Whether a literal opened by an apostrophe may cross into the next line.
+    fn apostrophe_runs_on(&self) -> bool {
+        self.spec.quotes.contains(&'\'') && self.spec.apostrophe == Apostrophe::Multiline
     }
 
     /// The index just past a block-comment opener at `at`, if one starts there.
@@ -355,19 +374,25 @@ impl Lexer for ConfigLexer {
                     return (styles, LexState::BlockComment);
                 }
             },
-            LexState::String(quote) => match find_string_end(&chars, 0, quote) {
-                Some(end) => {
-                    styles[..end].fill(style::STRING);
-                    i = end;
+            // A carried apostrophe is only resumable in the languages that let
+            // one run on; anywhere else it was never a string to begin with,
+            // and falls through below.
+            LexState::String(quote) if quote != '\'' || self.apostrophe_runs_on() => {
+                match find_string_end(&chars, 0, quote) {
+                    Some(end) => {
+                        styles[..end].fill(style::STRING);
+                        i = end;
+                    }
+                    None => {
+                        styles.fill(style::STRING);
+                        return (styles, LexState::String(quote));
+                    }
                 }
-                None => {
-                    styles.fill(style::STRING);
-                    return (styles, LexState::String(quote));
-                }
-            },
-            // A user-defined language's construct is not this lexer's to
-            // finish; treat it as ordinary text rather than guessing.
-            LexState::Normal | LexState::Udl(_) => {}
+            }
+            // A construct of a user-defined language is not this lexer's to
+            // finish, and an apostrophe it never opened is not a literal:
+            // both are ordinary text here.
+            LexState::Normal | LexState::String(_) | LexState::Udl(_) => {}
         }
 
         while i < chars.len() {
@@ -391,10 +416,19 @@ impl Lexer for ConfigLexer {
 
             let c = chars[i];
             if self.spec.quotes.contains(&c) {
-                match find_string_end(&chars, i, c) {
+                match self.literal_end(&chars, i, c) {
                     Some(end) => {
                         styles[i..end].fill(style::STRING);
                         i = end;
+                    }
+                    // An apostrophe that does not close on its own line is
+                    // only a string where the language lets one run on. The
+                    // rest of the time it is the quote in `don't`, a lifetime,
+                    // or a transpose, and drawing it as punctuation keeps it
+                    // out of the lines below.
+                    None if c == '\'' && !self.apostrophe_runs_on() => {
+                        styles[i] = style::OPERATOR;
+                        i += 1;
                     }
                     None => {
                         styles[i..].fill(style::STRING);
@@ -404,12 +438,7 @@ impl Lexer for ConfigLexer {
                 continue;
             }
             if c.is_ascii_digit() {
-                let mut j = i;
-                while j < chars.len()
-                    && (chars[j].is_alphanumeric() || chars[j] == '.' || chars[j] == '_')
-                {
-                    j += 1;
-                }
+                let j = number_end(&chars, i);
                 styles[i..j].fill(style::NUMBER);
                 i = j;
                 continue;
@@ -420,9 +449,10 @@ impl Lexer for ConfigLexer {
                     j += 1;
                 }
                 let word: String = chars[i..j].iter().collect();
+                let call = declares_a_function(&chars, i) || is_called(&chars, j);
                 let style = if self.spec.is_keyword(&word) {
                     style::KEYWORD
-                } else if chars.get(j) == Some(&'(') {
+                } else if call {
                     style::FUNCTION
                 } else {
                     style::DEFAULT
@@ -467,23 +497,155 @@ fn find_string_end(chars: &[char], from: usize, quote: char) -> Option<usize> {
 }
 
 /// The index just past a character literal starting at `from`, if it is one.
+///
+/// A character literal holds one character or one escape: `'a'`, `'\n'`,
+/// `'\''`, `'\u{1F600}'`. A longer run is not a literal -- it is a lifetime, a
+/// type parameter, a quote macro or a transpose -- and pairing its opening
+/// quote with the next apostrophe on the line would colour code as a string.
 fn find_char_literal_end(chars: &[char], from: usize) -> Option<usize> {
-    let mut j = from + 1;
-    let mut escaped = false;
-    while j < chars.len() && j <= from + 4 {
-        if escaped {
-            escaped = false;
-            j += 1;
-            continue;
+    if chars.get(from + 1) == Some(&'\\') {
+        // An escape: scan a few characters for the closing quote, stepping
+        // over the backslash pairs on the way.
+        let mut j = from + 1;
+        while j < chars.len() && j <= from + 12 {
+            match chars[j] {
+                '\\' => j += 2,
+                '\'' if j > from + 1 => return Some(j + 1),
+                _ => j += 1,
+            }
         }
+        return None;
+    }
+    // One character, then the closing quote, and nothing else.
+    (chars.get(from + 2) == Some(&'\'')).then_some(from + 3)
+}
+
+/// The words that name the word after them as a function.
+///
+/// A definition is the one place a function name is not followed by `(`, so
+/// without these `fn f<'a>(` and `def f` would lose their colour. The list
+/// holds no language's name: the declaration words are the same word in a dozen
+/// languages, shortened or not.
+const DECLARES_A_FUNCTION: &[&str] = &[
+    "def",
+    "defmacro",
+    "defn",
+    "defp",
+    "defun",
+    "fn",
+    "func",
+    "fun",
+    "function",
+    "procedure",
+    "proc",
+    "sub",
+    "subroutine",
+];
+
+/// The index just past a numeric literal starting at `at`.
+///
+/// The scan is fine-grained for the stop rather than for the start: `4..end` is
+/// a range, and a literal that swallows what follows it takes the identifier
+/// after the dots with it, which is how a method call lost its colour.
+fn number_end(chars: &[char], at: usize) -> usize {
+    let digit = |c: char| c.is_ascii_digit() || c == '_';
+    let mut j = at;
+    while j < chars.len() && digit(chars[j]) {
+        j += 1;
+    }
+    // A fraction only where a digit follows the dot: `1.5` is one number,
+    // `4..end` and `1.foo()` are a number and punctuation.
+    if chars.get(j) == Some(&'.') && chars.get(j + 1).is_some_and(|c| c.is_ascii_digit()) {
+        j += 1;
+        while j < chars.len() && digit(chars[j]) {
+            j += 1;
+        }
+    }
+    // An exponent, which is a sign and digits.
+    if matches!(chars.get(j), Some('e' | 'E')) {
+        let mut k = j + 1;
+        if matches!(chars.get(k), Some('+' | '-')) {
+            k += 1;
+        }
+        if chars.get(k).is_some_and(|c| c.is_ascii_digit()) {
+            j = k;
+            while j < chars.len() && digit(chars[j]) {
+                j += 1;
+            }
+        }
+    }
+    // A suffix or a radix marker: `0x1f`, `0b1010`, `1u8`, `1.5f32`, `10L`.
+    while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+        j += 1;
+    }
+    j
+}
+
+/// Whether the word ending at `end` is used as a function: followed by `(`,
+/// or by a list of type arguments and then `(`.
+fn is_called(chars: &[char], end: usize) -> bool {
+    let mut j = end;
+    while chars.get(j).is_some_and(|c| c.is_whitespace()) {
+        j += 1;
+    }
+    if chars.get(j) == Some(&'(') {
+        return true;
+    }
+    // A turbofish: `collect::<Vec<_>>()`.
+    if chars.get(j) == Some(&':') && chars.get(j + 1) == Some(&':') {
+        j += 2;
+    }
+    chars.get(j) == Some(&'<')
+        && generic_end(chars, j).is_some_and(|after| chars.get(after) == Some(&'('))
+}
+
+/// The index just past the `>` that closes the `<` at `open`, when what stands
+/// between them can be a list of type arguments.
+///
+/// The test is deliberately narrow. `<` is a comparison in every language here,
+/// so `a < b && c > (d)` must not read as a call: a type argument list holds
+/// letters, digits, spaces, commas, `:`, `'`, `*`, `.`, brackets, `!`, `+`, `-`
+/// and parentheses, and it is short.
+fn generic_end(chars: &[char], open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut j = open;
+    while j < chars.len() && j - open <= 60 {
         match chars[j] {
-            '\\' => escaped = true,
-            '\'' => return Some(j + 1),
-            _ => {}
+            '<' => depth += 1,
+            '>' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(j + 1);
+                }
+            }
+            // `&&` is a comparison in C and the family; a single `&` is a
+            // reference in the type arguments of Rust and C++.
+            '&' if chars.get(j + 1) != Some(&'&') => {}
+            c if c.is_alphanumeric() || c == ' ' || "_:,'*.[]()!#+-".contains(c) => {}
+            _ => return None,
         }
         j += 1;
     }
     None
+}
+
+/// Whether the word before `at` declares the word at `at` as a function.
+fn declares_a_function(chars: &[char], at: usize) -> bool {
+    let mut back = at;
+    while back > 0 && chars[back - 1].is_whitespace() {
+        back -= 1;
+    }
+    let mut begin = back;
+    while begin > 0 && (chars[begin - 1].is_alphanumeric() || chars[begin - 1] == '_') {
+        begin -= 1;
+    }
+    if begin == back {
+        return false;
+    }
+    let word: String = chars[begin..back].iter().collect();
+    DECLARES_A_FUNCTION
+        .iter()
+        .any(|declares| declares.eq_ignore_ascii_case(&word))
 }
 
 /// Whether `c` is drawn as punctuation.
@@ -552,7 +714,8 @@ mod tests {
         let styles = lex("fn main");
         assert_eq!(styles[0], style::KEYWORD);
         assert_eq!(styles[1], style::KEYWORD);
-        assert_eq!(styles[3], style::DEFAULT);
+        // The name after a declaration keyword is a function, not plain text.
+        assert_eq!(styles[3], style::FUNCTION);
     }
 
     #[test]
@@ -783,6 +946,182 @@ mod tests {
         assert_eq!(styles[0], style::STRING);
         assert_eq!(styles[6], style::DEFAULT);
         assert_eq!(state, LexState::Normal);
+    }
+
+    #[test]
+    fn an_apostrophe_that_does_not_close_is_not_a_string() {
+        // YAML's apostrophe is the one in `don't`. Calling it the start of a
+        // string coloured every line below the value as a string until the next
+        // apostrophe in the file.
+        let mut lexer = ConfigLexer::new(spec("YAML"));
+        let (styles, state) = lexer.lex_line("name: don't panic", LexState::Normal);
+        assert!(!styles.contains(&style::STRING));
+        assert_eq!(state, LexState::Normal);
+
+        let (styles, state) = lexer.lex_line("version: 3", state);
+        assert_eq!(styles[0], style::DEFAULT);
+        assert_eq!(state, LexState::Normal);
+    }
+
+    #[test]
+    fn a_single_quoted_string_still_closes_on_its_own_line() {
+        let styles = config("YAML", "note: 'quoted here'");
+        assert_eq!(styles.len(), 19);
+        assert_eq!(styles[6], style::STRING);
+        assert_eq!(styles[18], style::STRING);
+    }
+
+    #[test]
+    fn a_rust_lifetime_is_not_a_string() {
+        // `'` is a quote in Rust, for the character literal. A lifetime is the
+        // other use of the same character, and it must not open anything.
+        for text in [
+            "fn f<'a>(x: &'a str)",
+            "fn f<'a, 'b>(a: &'a str, b: &'b str)",
+        ] {
+            let mut lexer = ConfigLexer::new(spec("Rust"));
+            let (styles, state) = lexer.lex_line(text, LexState::Normal);
+            assert!(!styles.contains(&style::STRING), "for {text:?}");
+            assert_eq!(state, LexState::Normal, "for {text:?}");
+        }
+    }
+
+    #[test]
+    fn a_rust_character_literal_is_a_string() {
+        let styles = config("Rust", "let c = 'x';");
+        assert_eq!(styles[8], style::STRING);
+        assert_eq!(styles[10], style::STRING);
+        // An escape holds more than one character and still closes.
+        let styles = config("Rust", "let c = '\\n';");
+        assert_eq!(styles[8], style::STRING);
+        assert_eq!(styles[11], style::STRING);
+    }
+
+    #[test]
+    fn a_prime_belongs_to_the_word() {
+        // Haskell's `x'` is an identifier, and `'` quotes nothing there.
+        let mut lexer = ConfigLexer::new(spec("Haskell"));
+        let (styles, state) = lexer.lex_line("let x' = 1 in x'", LexState::Normal);
+        assert!(!styles.contains(&style::STRING));
+        assert_eq!(state, LexState::Normal);
+    }
+
+    #[test]
+    fn a_transpose_is_not_a_string() {
+        let mut lexer = ConfigLexer::new(spec("Julia"));
+        let (styles, state) = lexer.lex_line("b = a'", LexState::Normal);
+        assert!(!styles.contains(&style::STRING));
+        assert_eq!(state, LexState::Normal);
+    }
+
+    #[test]
+    fn a_shell_string_still_runs_across_lines() {
+        // The rule is per language, not one rule for all of them: a shell
+        // string opens with an apostrophe and legitimately ends on a later
+        // line, and must keep doing so.
+        let mut lexer = ConfigLexer::new(spec("Shell"));
+        let (styles, state) = lexer.lex_line("msg='line one", LexState::Normal);
+        assert_eq!(styles[4], style::STRING);
+        assert_eq!(state, LexState::String('\''));
+
+        let (styles, state) = lexer.lex_line("line two' end", state);
+        assert_eq!(styles[8], style::STRING);
+        assert_eq!(styles[10], style::DEFAULT);
+        assert_eq!(state, LexState::Normal);
+    }
+
+    #[test]
+    fn a_stray_apostrophe_never_reaches_the_next_line() {
+        // The rules live in the tables, and the tables are data. This walks all
+        // of them: a word holding one apostrophe either opens a string the
+        // language says may run on, or opens nothing at all.
+        for spec in crate::lang::LANGS.iter() {
+            let allowed = spec.quotes.contains(&'\'')
+                && spec.apostrophe == crate::lang::Apostrophe::Multiline;
+            let (styles, state) = ConfigLexer::new(spec).lex_line("don't", LexState::Normal);
+            assert_eq!(styles.len(), 5, "{}", spec.name);
+            if allowed {
+                assert_eq!(state, LexState::String('\''), "{}", spec.name);
+            } else {
+                assert_eq!(state, LexState::Normal, "{}", spec.name);
+                assert!(!styles.contains(&style::STRING), "{}", spec.name);
+            }
+        }
+    }
+
+    #[test]
+    fn a_language_that_does_not_quote_with_an_apostrophe_does_not_list_it() {
+        // The table promises that `quotes` is what can open a literal, so the
+        // languages where an apostrophe is a prime or an operator leave it out.
+        for name in ["Haskell", "Julia", "Makefile", "Dockerfile", "NSIS"] {
+            assert!(!spec(name).quotes.contains(&'\''), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_generic_definition_is_a_function() {
+        // A definition is the one place a function name is not followed by
+        // `(`, and a lifetime or a type parameter can stand between the two.
+        let styles = config("Rust", "fn markup<'a>(text: &'a str)");
+        assert_eq!(styles[3], style::FUNCTION);
+        let styles = config("Rust", "fn f<T>(x: T)");
+        assert_eq!(styles[3], style::FUNCTION);
+        // A language that declares with a word of its own.
+        let styles = config("Perl", "sub foo {");
+        assert_eq!(styles[4], style::FUNCTION);
+        let styles = config("TCL", "proc foo {}");
+        assert_eq!(styles[5], style::FUNCTION);
+    }
+
+    #[test]
+    fn a_turbofish_call_is_a_function() {
+        let text = "let v: Vec<_> = names.collect::<Vec<_>>();";
+        let styles = config("Rust", text);
+        let at = text.find("collect").unwrap();
+        assert_eq!(styles[at], style::FUNCTION);
+    }
+
+    #[test]
+    fn a_type_argument_list_is_not_a_call() {
+        // `Vec<u8>` is a type: nothing follows the `>` but a name.
+        let styles = config("Rust", "let v: Vec<u8> = value;");
+        assert_eq!(styles[7], style::DEFAULT);
+        assert!(!styles.contains(&style::FUNCTION));
+    }
+
+    #[test]
+    fn a_comparison_is_not_a_call() {
+        // `<` and `>` are operators here, and a rule that reads them as type
+        // arguments colours `a` as a function.
+        let styles = config("C", "if (a < b && c > (d)) {");
+        assert!(!styles.contains(&style::FUNCTION));
+    }
+
+    #[test]
+    fn a_number_stops_where_the_number_stops() {
+        // `4..end.len()` is a range and a call, not one long number; the old
+        // rule took everything alphanumeric and dotted with it, so `len` was
+        // painted as a number and the call lost its colour.
+        let text = "let tail = &s[4..end.len()];";
+        let styles = config("Rust", text);
+        let four = text.find('4').unwrap();
+        assert_eq!(styles[four], style::NUMBER);
+        assert_eq!(styles[four + 1], style::OPERATOR);
+        let end = text.find("end").unwrap();
+        assert_eq!(styles[end], style::DEFAULT);
+        assert_eq!(styles[end + 4], style::FUNCTION);
+        // The forms that are one number stay whole.
+        for (text, number) in [
+            ("x = 1.5f32;", "1.5f32"),
+            ("x = 0x1f;", "0x1f"),
+            ("x = 1e-9;", "1e-9"),
+            ("x = 1_000u64;", "1_000u64"),
+        ] {
+            let styles = config("Rust", text);
+            let start = text.find(number).unwrap();
+            let painted = &styles[start..start + number.len()];
+            assert!(painted.iter().all(|&s| s == style::NUMBER), "for {text:?}");
+        }
     }
 
     #[test]

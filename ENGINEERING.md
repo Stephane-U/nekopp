@@ -11380,3 +11380,113 @@ feature was added. `cargo test --offline`: 2,274 tests, 0 failed. `cargo clippy
 --offline --all-targets`: 0 warnings. `cargo fmt` was not run. The plugin
 workspace keeps its own 0.1.0: different target, versioned separately, interface
 unchanged.
+
+## Ninety-seventh pass: the apostrophe that was not a quote
+
+Reported as: syntax colouring is sometimes wrong, "maybe due to comment signs".
+
+It was not the comments. `'` was in `quotes` for eighty-three of the hundred and
+forty-seven languages, and `ConfigLexer` read that as "this character opens a
+string that may end on a later line". Every use of the apostrophe that is not a
+string was therefore the start of one, and the state carried into every line
+below it until the next apostrophe anywhere in the file. Rust's
+`fn f<'a>(x: &'a str) -> &'a str { x }` turned the rest of the line and every line
+under it green; so did YAML's `name: don't panic`, Haskell's `x'` and Julia's
+`a'`.
+
+The built-in C lexer had the right rule all along -- an apostrophe has to close
+within a few characters or it is not a literal -- but the rule lived in the lexer
+rather than in the table, so it only ever applied to the `builtin` language.
+
+### A fifth field
+
+`LangSpec` grew `apostrophe`, and `quotes` now means what its name says: the
+characters that can *open* a literal. Six languages stopped listing `'` at all --
+Haskell's prime, Julia's adjoint, and Makefile, Dockerfile, NSIS and AutoIt, which
+do not quote with it. The other seventy-seven say how a literal opened by one
+ends:
+
+| `Apostrophe` | Rule | Languages |
+| --- | --- | --- |
+| `Char` | one character or one escape, closing within a dozen characters at the outside | 19: Rust, C, C++, C#, Java, Kotlin, Go, Zig, Nim, D, Crystal, Vala, Elm, F#, PureScript, Objective-C, CUDA, HLSL, Assembly |
+| `Line` | closes on the line it opened on, or it is punctuation | 42: YAML, TOML, JSON5, JavaScript, TypeScript, Dart, Groovy, Lua, Matlab, APL and the rest |
+| `Multiline` | may carry into the next line | 16: Shell, Fish, Nushell, PowerShell, Perl, Ruby, PHP, R, Smalltalk, Elixir, Raku, SQL, MySQL, PostgreSQL, Transact-SQL |
+
+`find_char_literal_end` was tightened at the same time and the built-in lexer
+inherited it: it used to accept a closing quote up to five characters away, which
+paired the two apostrophes in `<'a, 'b`. It now takes one character, or an escape
+scanned to the outside of a `'\u{1F600}'`.
+
+Python is `Line` on purpose. Its multi-line string is a delimiter of three, and a
+line-at-a-time lexer cannot count three: docstring bodies are coloured as code
+rather than everything after the closing `'''` being coloured as a string. That
+is the same trade the header already records for Lua's long brackets.
+
+### Verified
+
+The repository's own Rust, 120 files and 102,589 lines, run through `Highlighter`
+with the Rust spec: characters painted as a string fell from 796,733 to 352,381,
+and lines painted entirely as a string from 15,898 to 2,090. The 2,090 that
+remain are real multi-line literals -- the `"...\` continuations in `bench.rs` and
+the help texts in `api_config.rs`.
+
+Nine tests, among them the table-wide one: for all hundred and forty-seven
+languages, a line holding one apostrophe either opens a string the language
+allows or opens nothing at all.
+
+`cargo test --offline --release`: 2,283 tests, 0 failed. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. No feature
+reference change: the colour of a language is not something the PDF documents.
+
+## Ninety-eighth pass: the name after `fn`
+
+Reported as: some Rust functions are not coloured as functions, pointing at
+`plugins/xml/src/lib.rs`; "maybe it is a wider issue and it goes beyond Rust".
+
+Three defects, all in the shared lexer, all older than the last pass:
+
+* **A definition is not a call.** The rule was "an identifier immediately
+  followed by `(`", and a definition puts its type parameters in between:
+  `fn markup<'a>(text: &'a str)` left `markup` plain text. Four functions in that
+  one file, every generic method in the repository.
+* **A turbofish is not a call either.** `names.collect::<Vec<_>>()` puts `::`
+  between the name and the arguments, so `collect` was plain text: eighty-one
+  sites in this repository alone.
+* **A number took the rest of the line.** The literal scan accepted letters and
+  dots, so `&s[4..end.len()]` was one number from `4` to `len`: the range read as
+  a number and `len` lost its colour as a method.
+
+The first two are one question -- what follows a name when it is being used as a
+function -- and the answer is now three shapes: `(`, a list of type arguments and
+then `(`, and `::` before that list. The list is checked rather than assumed,
+because `<` is a comparison in every language here: at most sixty characters, and
+none of `&&`, `=`, `;`, `{`, `|`, `"`. `if (a < b && c > (d))` is still a
+comparison.
+
+A declaration is the one place a name is a function without being called, so the
+word before it is checked against the words that declare: `fn`, `def`, `function`,
+`func`, `fun`, `sub`, `subroutine`, `procedure`, `proc` and the Lisp and Elixir
+spellings. The list names no language, because those words are the same word in a
+dozen of them, and it is compared without case so that Pascal's `Procedure` and
+VB's `Sub` are read.
+
+The number scan was replaced: digits and underscores, a fraction only where a
+digit follows the dot, an exponent, then one suffix run for `0x1f`, `0b1010`,
+`1u8` and `1.5f32`. `4..end` is a number, two dots, and a name.
+
+### Verified
+
+A probe over the repository's own sources -- 120 files, 43,345 identifiers that
+are followed by one of the three call shapes -- finds 0 that are not painted as
+functions, and 0 identifiers painted as a function that are not followed by one
+of them, so the new rules add no colour that the text does not ask for. The same
+probe against the previous lexer reports 203 misses, which is a floor rather than
+a count: lines the apostrophe bug had painted as strings were not examined.
+`plugins/xml/src/lib.rs` alone: 5 misses, then 0.
+
+Five tests, and one existing one changed rather than deleted: `fn main` now
+expects `main` painted as a function, because that is what it is.
+
+`cargo test --offline --release`: 2,288 tests, 0 failed. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. No feature
+reference change.
