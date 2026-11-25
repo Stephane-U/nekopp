@@ -11995,3 +11995,81 @@ at 355,293 bytes. `cargo test --offline --release`: 2,304 tests, 0 failed. `carg
 clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not run.
 The plugin workspace keeps its own 0.1.0: different target, versioned separately,
 interface unchanged.
+
+## The hundred-and-sixth pass: the page at the window's scale
+
+The three passes before the release taught the window to read the display, gave
+the reader a Window Scale row for the desktops that report a density of one, and
+moved the panels and the rows with it. One surface was left out, because it is not
+a widget: the playground.
+
+The playground replaces the window with a page, and that page carried three
+numbers written as constants -- a twenty-pixel line, a forty-pixel glyph atlas and
+a thirteen-pixel corner label, with a fourteen-pixel gap to the edge. Nothing told
+it that the window had a scale, so on a display that reports 200% the mode drew a
+small page in a large window: the one place in the editor that stayed the size it
+had been on a 96-dpi screen, next to furniture that had doubled.
+
+### What the page reads instead
+
+The three numbers are now described as the values they are -- what a line, a cell
+and a label measure at a scale of one -- and the page multiplies them by the
+window's scale. The label is re-shaped at the new size, its gap to the edge goes
+with it, and the grid is derived from the window and the line height by a
+`cells()` that is a function of both rather than a pair of constants in `resize`.
+
+The atlas is the part that cannot be multiplied after the fact. Glyphs are
+rasterised once into a texture, so a page drawn at twice the size needs the texture
+built at twice the cell or the glyphs come out soft, stretched from the smaller
+set. `Scene` now keeps the bind group's layout and its sampler, and `set_atlas`
+builds a texture, a view and a bind group from a new atlas without touching the
+three pipelines around it; `upload_atlas` is the upload that was already inside
+`Scene::new`, lifted out so both paths use it.
+
+A label is shaped once per text, so `set_scale` clears `hint_text`: setting the
+metrics alone leaves the old shaping in place and the corner keeps the small
+words.
+
+### The scale is not a suggestion
+
+`sane` refuses a zero, a negative and a NaN and returns one, because a scale of
+zero would divide the grid by nothing. The bench passes one on purpose: its dumps
+are compared with each other, and a scale would move every number in them without
+saying anything about the page.
+
+### Verified
+
+Measured on the running build, X display :1 at 96 dpi unless said otherwise,
+window 1100 by 750 unless said otherwise, the page opened with `Ctrl+Alt+K` and
+shot through `/tmp/scalecheck.py`. The measure is the pitch of the line-number
+gutter down the left edge of the page, which is one row of the page.
+
+| Window scale | Window | Gutter pitch | Rows on the page |
+|---|---|---|---|
+| ×1 (`ui_scale 1`) | 1100×750 | 20 px | 39 |
+| ×2 (`ui_scale 2`) | 1100×750 | 39 px | 19 |
+| ×3 (`ui_scale 3`) | 1100×750 | 58 px | 11 |
+| Follow the display, display at 200% | 2560×1371 | 40 px | 33 |
+
+The two mechanisms differ in exactly the way they should. A preferred scale does
+not grow the window it is applied to, so twice the line height is half the rows:
+39 becomes 19, and 58 pixels leaves 11. A display that reports twice the density
+doubles the window as well, so the pitch doubles and the row count stays: 33 rows
+on a page 1371 pixels tall, which is the 34 the arithmetic gives for 685 logical
+rows at a twenty-pixel line. The glyphs are
+rasterised at the size they are drawn at: the atlas is 40 pixels at scale one, 80
+at two and 120 at three, and the letters at ×3 are sharp-edged in the shot rather
+than interpolated.
+
+The cramped look of a page at around fifty columns is older than this pass. The
+bench dumps the same page at 550 by 375 with a scale of one -- `bench "" 550 375 1
+/tmp/small.ppm playground playground_time=1.0` -- and the furniture crowds the text
+there too; what changed is that a small window can now ask for a small page on
+purpose.
+
+`cargo test --offline --release`: 2,307 tests, 0 failed, three of them new -- the
+grid halving with the line height, the atlas and the label at the scale they draw
+at, and a nonsense scale drawing the plain page. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
+reference gained one paragraph, under the page's own section, and the PDF was
+built again.

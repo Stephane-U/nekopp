@@ -58,9 +58,9 @@ pub use nn_core::playground::scene::GLYPH_WIDTH;
 /// window's scale is not a round number and leaves room for a display with more
 /// pixels than we were asked for.
 const ATLAS_PX: u32 = 40;
-/// The height of one line of the page, in pixels: the editor's own line height.
+/// The height of one line of the page, in pixels, at a window scale of one.
 const LINE_PX: f32 = 20.0;
-/// How tall the hint line is drawn.
+/// How tall the hint line is drawn, at a window scale of one.
 const HINT_SIZE: f32 = 13.0;
 /// How long a frame lasts while the mode is open.
 ///
@@ -69,6 +69,48 @@ const HINT_SIZE: f32 = 13.0;
 pub const FRAME: Duration = Duration::from_millis(16);
 /// The gap between the hint and the window's edge.
 const HINT_INSET: f32 = 14.0;
+
+/// The height of one line of the page, in pixels, at `scale`.
+///
+/// The page is the editor's page: a line of code is the height it would be in the
+/// document, so a window drawn at twice the density gets a page at twice the size
+/// rather than a small one in a large window.
+fn line_px(scale: f32) -> f32 {
+    LINE_PX * scale
+}
+
+/// The height the atlas cells are rasterised at, in pixels.
+///
+/// Twice the line the glyphs are drawn on, which is what keeps them crisp when
+/// the scale is not a whole number, and it follows the scale for the same reason.
+fn atlas_px(scale: f32) -> u32 {
+    (ATLAS_PX as f32 * scale).round() as u32
+}
+
+/// The hint's metrics at `scale`.
+fn hint_metrics(scale: f32) -> Metrics {
+    Metrics::new(HINT_SIZE * scale, HINT_SIZE * 1.35 * scale)
+}
+
+/// `scale`, or one when it is zero, negative or not a number.
+fn sane(scale: f32) -> f32 {
+    if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    }
+}
+
+/// How many cells a window of `width` by `height` holds at `line_px` a line.
+///
+/// The page is laid out to the line height rather than to a fixed grid, so a big
+/// window holds more lines of code than a small one, exactly as the editor does.
+fn cells(width: u32, height: u32, line_px: f32) -> [u32; 2] {
+    let height = height.max(1) as f32;
+    let rows = (height / line_px).round().max(8.0) as u32;
+    let columns = (width as f32 / (line_px * GLYPH_WIDTH)).floor().max(24.0) as u32;
+    [columns, rows]
+}
 
 /// The kitten's colours.
 ///
@@ -129,6 +171,9 @@ pub struct Playground {
     input_age: f32,
     /// When the last input arrived, for the idle clock.
     last_input: Instant,
+    /// How much larger than the plain page this one is drawn: the window's
+    /// furniture scale, so the mode and the editor agree about how big a line is.
+    scale: f32,
     /// The window as a grid of cells, from the last frame or step.
     grid: [u32; 2],
     /// When the next frame of the page is due.
@@ -151,18 +196,21 @@ impl Playground {
         font_system: &mut FontSystem,
         seed: u64,
         now: Instant,
+        scale: f32,
     ) -> Self {
-        let atlas = glyphs::GlyphAtlas::build(font_system, ATLAS_PX);
+        let scale = sane(scale);
+        let atlas = glyphs::GlyphAtlas::build(font_system, atlas_px(scale));
         Self {
             sim: Simulation::new(seed),
             scene: render::Scene::new(device, queue, format, &atlas),
-            hint: Buffer::new_empty(Metrics::new(HINT_SIZE, HINT_SIZE * 1.35)),
+            hint: Buffer::new_empty(hint_metrics(scale)),
             hint_text: String::new(),
             active: false,
             pointer: None,
             pointer_age: f32::MAX,
             input_age: 0.0,
             last_input: now,
+            scale,
             grid: [120, 40],
             next: now,
             last_frame: now,
@@ -249,10 +297,38 @@ impl Playground {
     /// grid, so a big window holds more lines of code than a small one, exactly as
     /// the editor does.
     pub fn resize(&mut self, width: u32, height: u32) {
-        let height = height.max(1) as f32;
-        let rows = (height / LINE_PX).round().max(8.0) as u32;
-        let columns = (width as f32 / (LINE_PX * GLYPH_WIDTH)).floor().max(24.0) as u32;
-        self.grid = [columns, rows];
+        self.grid = cells(width, height, line_px(self.scale));
+    }
+
+    /// How much larger than the plain page this one is drawn.
+    pub fn scale(&self) -> f32 {
+        self.scale
+    }
+
+    /// Draws the page, its glyphs and its label at a new window scale.
+    ///
+    /// The atlas is rasterised at the size the cells are drawn at, so it has to be
+    /// built again: keeping it would draw forty-pixel glyphs on an eighty-pixel
+    /// page, which is the mode looking half its age on the display that asked for
+    /// the larger window. The grid follows on the next frame, which is the one
+    /// that resizes against the line height measured here.
+    pub fn set_scale(
+        &mut self,
+        scale: f32,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        font_system: &mut FontSystem,
+    ) {
+        let scale = sane(scale);
+        if (scale - self.scale).abs() < f32::EPSILON {
+            return;
+        }
+        self.scale = scale;
+        self.hint.set_metrics(hint_metrics(scale));
+        // A label is shaped once per text, so it has to look like it changed.
+        self.hint_text.clear();
+        let atlas = glyphs::GlyphAtlas::build(font_system, atlas_px(scale));
+        self.scene.set_atlas(device, queue, &atlas);
     }
 
     /// Advances the clocks, and the page if it is open.
@@ -335,17 +411,23 @@ impl Playground {
         if !self.active {
             return Vec::new();
         }
-        let top = height - HINT_SIZE * 1.35 - HINT_INSET;
+        // The label is drawn at the page's scale too, and its gap to the window's
+        // edge with it, so a page at twice the size does not carry a stamp meant
+        // for a small window in its corner.
+        let size = HINT_SIZE * self.scale;
+        let line = size * 1.35;
+        let inset = HINT_INSET * self.scale;
+        let top = height - line - inset;
         vec![TextArea {
             buffer: &self.hint,
-            left: HINT_INSET,
+            left: inset,
             top,
             scale: 1.0,
             bounds: TextBounds {
-                left: HINT_INSET as i32,
+                left: inset as i32,
                 top: top as i32,
-                right: (HINT_INSET + self.hint_text.chars().count() as f32 * HINT_SIZE * 0.62) as i32,
-                bottom: (top + HINT_SIZE * 1.35) as i32,
+                right: (inset + self.hint_text.chars().count() as f32 * size * 0.62) as i32,
+                bottom: (top + line) as i32,
             },
             default_color: theme.foreground.to_cosmic(),
             custom_glyphs: &[],
@@ -377,6 +459,41 @@ mod tests {
         assert!(on_paper.0 < FUR.0, "{on_paper:?}");
         assert!(on_night.0 >= FUR.0, "{on_night:?}");
         assert!(on_paper.1 < on_night.1, "{on_paper:?} {on_night:?}");
+    }
+
+    #[test]
+    fn the_page_holds_half_the_cells_at_twice_the_line_height() {
+        // A dense display gets a page at twice the size, which is half as many
+        // lines and half as many columns in the same window. The grid is what the
+        // simulation walks around in, so it has to follow or the kitten is drawn on
+        // a page that is not the one behind her.
+        let window = (1280, 800);
+        let sparse = cells(window.0, window.1, line_px(1.0));
+        let dense = cells(window.0, window.1, line_px(2.0));
+        assert_eq!(sparse, [1280 / 11, 40]);
+        assert_eq!(dense, [sparse[0] / 2, sparse[1] / 2]);
+        // The floor holds: a window smaller than the page still has a page.
+        assert_eq!(cells(1, 1, line_px(2.0)), [24, 8]);
+    }
+
+    #[test]
+    fn the_glyphs_and_the_label_are_rasterised_at_the_scale_they_draw_at() {
+        // Twice the window is twice the cell, and twice the atlas that fills it;
+        // the label and its gap from the edge go the same way.
+        assert_eq!(atlas_px(1.0), 40);
+        assert_eq!(atlas_px(2.0), 80);
+        assert_eq!(atlas_px(1.5), 60);
+        assert_eq!(hint_metrics(2.0).font_size, 26.0);
+        assert_eq!(hint_metrics(2.0).line_height, HINT_SIZE * 1.35 * 2.0);
+        assert_eq!(line_px(1.75), 35.0);
+    }
+
+    #[test]
+    fn a_nonsense_scale_draws_the_plain_page() {
+        assert_eq!(sane(0.0), 1.0);
+        assert_eq!(sane(-2.0), 1.0);
+        assert_eq!(sane(f32::NAN), 1.0);
+        assert_eq!(sane(1.5), 1.5);
     }
 
     #[test]

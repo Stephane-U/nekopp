@@ -307,6 +307,9 @@ fn main() {
             renderer.font_system(),
             flags.playground_seed,
             now,
+            // The bench draws at the density of one: its dumps are compared to
+            // each other, and a scale would only move every number in them.
+            1.0,
         );
         if flags.playground {
             playground.enter(flags.playground_seed, now);

@@ -1644,6 +1644,7 @@ impl State {
             &mut font_system,
             PLAYGROUND_SEED,
             std::time::Instant::now(),
+            ui.scale(),
         );
         let mut renderer =
             Renderer::with_font_system(&gpu.device, &gpu.queue, gpu.format(), font_system);
@@ -4331,6 +4332,16 @@ impl State {
         if let Some(other) = &mut self.other {
             other.tab_bar.set_metrics(metrics);
         }
+        // The playground replaces the window, so it is not one of the widgets; but
+        // its page is drawn to the editor's line height, and that number moved.
+        // Its atlas is rasterised at the size its cells are drawn at, so it is
+        // built again here rather than sampled at the wrong size later.
+        self.playground.set_scale(
+            ui.scale(),
+            &self.gpu.device,
+            &self.gpu.queue,
+            self.renderer.font_system(),
+        );
         self.resize_view();
         self.window.request_redraw();
     }

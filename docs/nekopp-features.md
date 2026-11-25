@@ -1853,8 +1853,13 @@ of code is the same size as the twentieth: what the reader sees is a document,
 not a diorama of one. The kitten is the exception -- its boxes go through the same
 camera pre-multiplied by a shear, so a cube has a visible side and top while the
 letters it stands on stay square. Everything is measured in lines rather than in
-pixels, so the mode fills a 1280 by 800 window with about 40 rows of 116 columns, a
-smaller window with fewer of both, and looks the same on any display.
+pixels, so the mode fills a 1280 by 800 window with about 40 rows of 116 columns and
+a smaller window with fewer of both. The height of a line is the editor's, so the
+page follows the window scale: on a display that reports 200% the same rows are
+drawn twice as large, and the atlas the glyphs are rasterised into is rebuilt at
+that size, so they are drawn bigger rather than stretched. Where the scale is fixed
+by the preference instead of by the display, the window has not grown with it and
+the page holds the rows that fit at the size asked for.
 
 | Piece | Behaviour |
 |---|---|

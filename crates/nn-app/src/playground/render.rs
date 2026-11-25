@@ -342,6 +342,44 @@ impl Batch3d {
     }
 }
 
+/// The atlas as a texture: one coverage value per pixel, uploaded whole.
+fn upload_atlas(device: &wgpu::Device, queue: &wgpu::Queue, atlas: &GlyphAtlas) -> wgpu::Texture {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("playground glyphs"),
+        size: wgpu::Extent3d {
+            width: atlas.width(),
+            height: atlas.height(),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::R8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &atlas.pixels,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(atlas.width()),
+            rows_per_image: Some(atlas.height()),
+        },
+        wgpu::Extent3d {
+            width: atlas.width(),
+            height: atlas.height(),
+            depth_or_array_layers: 1,
+        },
+    );
+    texture
+}
+
 /// Everything the playground draws with.
 pub struct Scene {
     glyph_pipeline: wgpu::RenderPipeline,
@@ -349,6 +387,10 @@ pub struct Scene {
     dot_pipeline: wgpu::RenderPipeline,
     glow_pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
+    /// What the bind group is built from, kept so a new atlas can be given a new
+    /// one without rebuilding the pipelines around it.
+    layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
     globals: wgpu::Buffer,
     glyphs: Batch3d,
     boxes: Batch3d,
@@ -423,39 +465,7 @@ impl Scene {
             ..Default::default()
         });
 
-        let atlas_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("playground glyphs"),
-            size: wgpu::Extent3d {
-                width: atlas.width(),
-                height: atlas.height(),
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &atlas_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            &atlas.pixels,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(atlas.width()),
-                rows_per_image: Some(atlas.height()),
-            },
-            wgpu::Extent3d {
-                width: atlas.width(),
-                height: atlas.height(),
-                depth_or_array_layers: 1,
-            },
-        );
+        let atlas_texture = upload_atlas(device, queue, atlas);
         let atlas_view = atlas_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -641,6 +651,8 @@ impl Scene {
             dot_pipeline,
             glow_pipeline,
             bind_group,
+            layout,
+            sampler,
             globals,
             glyphs: Batch3d::new(device, MAX_GLYPHS, "playground glyph instances"),
             boxes: Batch3d::new(device, MAX_BOXES, "playground box instances"),
@@ -657,6 +669,46 @@ impl Scene {
             depth,
             depth_view,
         }
+    }
+
+    /// Replaces the glyphs.
+    ///
+    /// The atlas is rasterised at the size the cells are drawn at, so a window
+    /// whose scale changed -- a display that reports another density, or the
+    /// Window Scale row -- needs its glyphs again or they come out half the size
+    /// of the page they are written on. Only the texture and the bind group that
+    /// samples it are rebuilt: the pipelines describe the shape of a glyph, not
+    /// how big it is.
+    pub fn set_atlas(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        atlas: &GlyphAtlas,
+    ) {
+        let texture = upload_atlas(device, queue, atlas);
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("playground bind group"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.globals.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+            ],
+        });
+        self.uvs = (FIRST..=LAST)
+            .filter_map(char::from_u32)
+            .map(|ch| atlas.uv(ch))
+            .collect();
     }
 
     /// A depth texture of the target's size, and its view.
