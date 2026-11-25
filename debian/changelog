@@ -1,3 +1,25 @@
+npp (0.4.0) unstable; urgency=medium
+
+  * Draw the window at the density the display reports. A 4K panel whose desktop
+    is set to 200% gets a doubled menu bar, toolbar, tab strip, status bar and
+    panels, with icons rasterised at the size they draw at rather than stretched.
+  * Add a Window Scale row to Preferences: follow the display, x1.5, x1.75 or x2,
+    for the desktops that report a density of one on a dense panel. The same
+    choice is written as `ui_scale` in `settings.txt`, where zero follows the
+    display.
+  * Grow the widths with the text. Every length that was a constant in pixels --
+    a tab's floor and ceiling, the panels, the dialogs, the tooltip, the peeker --
+    now goes through the line height, so no label is clipped at a larger size.
+  * Read each widget's row height from the metrics instead of keeping a copy of
+    it: the copy left the selected-row highlight short, and over the row above,
+    once the scale was changed from inside the dialog that changes it.
+  * Clip the status bar's left half where the right half begins, at a whole
+    character, so the numbers no longer land inside the encoding label on a
+    narrow window.
+  * Keep a toolbar label from appearing under an open menu.
+
+ -- Neko++ maintainers <npp@example.invalid>  Thu, 26 Nov 2026 00:30:00 +0100
+
 npp (0.3.3) unstable; urgency=medium
 
   * Open a large file with one copy of it in memory instead of four: the file,

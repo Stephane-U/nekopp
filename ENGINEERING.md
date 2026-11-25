@@ -11960,3 +11960,38 @@ density moving the preferences rows and their highlight, and the same for the
 shortcut mapper, both of which fail on the code before this pass. `cargo clippy
 --offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. The
 feature reference needed no change: no command and no preference was added.
+
+## The version at 0.4.0
+
+A minor number, and the first one in the released history: 0.3.0 was followed by
+three patches, and this release is a bigger thing than a patch -- four commits
+that change what a person sees: a window that reads the display, a Window Scale
+row in the preferences for the desktops that report a density of one on a dense
+panel, the widths that had to grow with it, and two faults the growing exposed --
+a selection highlight left at the old height, and a status bar that drew its two
+halves over each other. A new preference is a new thing to choose, so this is
+0.4.0 and not 0.3.4: a 4K user is the one who will look for it, and a patch
+number would tell them there is nothing to look for.
+
+The version is still declared once, in `[workspace.package]`. What cannot follow
+the manifest was edited by hand, the same three places as last time: a debian
+changelog entry above the 0.3.3 one, the man page's header, and the MCP README's
+transcript. The reference's title line reads the manifest, so `python3
+docs/build-pdf.py` was all the PDF needed, and `--check` says so.
+
+Both packages in `dist/` were rebuilt by the two scripts under `packaging/`, and
+the release page carries the five assets 0.3.3 settled on: the AppImage, the deb,
+the documentation directory as a zip, and the source as a tarball and a zip, both
+of them `git archive` with a `nekopp-0.4.0/` prefix.
+
+Verified: `npp --version` prints `Neko++ 0.4.0`; `npp-mcp --version` prints
+`npp-mcp 0.4.0: 111 sections, 74 shortcuts, 1 of 5 plugins enabled`;
+`dpkg-parsechangelog -S Version` hands the package build 0.4.0; the deb's control
+file says 0.4.0, the binary unpacked from it prints `Neko++ 0.4.0`, and the
+AppImage's copy hashes the same as `target/release/npp`
+(`e14a395bf21c6ffed0b753ec8c98988b1d53f99340fa3480fdce2ba25b14351b`) and prints
+the same version when run. `docs/build-pdf.py --check` reports the PDF up to date
+at 355,293 bytes. `cargo test --offline --release`: 2,304 tests, 0 failed. `cargo
+clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not run.
+The plugin workspace keeps its own 0.1.0: different target, versioned separately,
+interface unchanged.

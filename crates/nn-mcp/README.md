@@ -111,7 +111,7 @@ printf '%s\n' \
 ```
 
 The same session against the built binary prints those two response lines and, on
-stderr, one startup line: `npp-mcp 0.3.3: 111 sections, 74 shortcuts, 1 of 5
+stderr, one startup line: `npp-mcp 0.4.0: 111 sections, 74 shortcuts, 1 of 5
 plugins enabled, one JSON object per line on stdio`. The plugin counts are this
 machine's -- the folder the editor uses -- so they differ from one installation
 to the next.
