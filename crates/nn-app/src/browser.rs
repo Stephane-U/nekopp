@@ -149,6 +149,15 @@ impl Browser {
         }
     }
 
+    /// Rebuilds the dialog at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.title.set_metrics(metrics);
+        self.label.set_metrics(metrics);
+        self.path.set_metrics(metrics);
+        self.body.set_metrics(metrics);
+        self.hint.set_metrics(metrics);
+    }
+
     /// Opens the browser on `dir`, or on the nearest directory above it.
     pub fn open(&mut self, dir: &Path) {
         self.dir = if dir.is_dir() {

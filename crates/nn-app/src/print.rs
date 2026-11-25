@@ -167,6 +167,15 @@ impl PrintPreview {
         }
     }
 
+    /// Rebuilds the preview at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.title.set_metrics(metrics);
+        self.body.set_metrics(metrics);
+        for control in &mut self.controls {
+            control.set_metrics(metrics);
+        }
+    }
+
     /// Opens the preview on a document.
     ///
     /// `char_width` is the width of one character at the setup's font size, in

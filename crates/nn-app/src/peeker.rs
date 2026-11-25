@@ -71,6 +71,11 @@ impl DocumentPeeker {
         }
     }
 
+    /// Rebuilds the peeker at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.body.set_metrics(metrics);
+    }
+
     /// Records the window size, so the box can be centred in it.
     pub fn set_viewport(&mut self, width: f32, height: f32) {
         self.viewport = (width, height);

@@ -80,6 +80,18 @@ impl ResultsPanel {
         }
     }
 
+    /// Rebuilds the list at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.header.set_metrics(metrics);
+        for row in &mut self.rows {
+            row.set_metrics(metrics);
+        }
+    }
+
     /// Replaces the hit list and opens the panel.
     pub fn set_hits(&mut self, hits: Vec<Hit>) {
         self.set_hits_named(hits, String::new());

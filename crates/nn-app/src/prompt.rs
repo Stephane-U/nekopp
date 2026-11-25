@@ -180,6 +180,15 @@ impl PromptBar {
         }
     }
 
+    /// Rebuilds the bar at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.label.set_metrics(metrics);
+    }
+
     /// Swaps in a localization, or clears it with `None`.
     pub fn set_catalog(&mut self, catalog: Option<Catalog>) {
         self.catalog = catalog;

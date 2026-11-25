@@ -83,6 +83,20 @@ impl StatusBar {
         }
     }
 
+    /// Rebuilds the bar at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.left.set_metrics(metrics);
+        self.right.set_metrics(metrics);
+        // A label is shaped only when its text changes, so the texts these
+        // buffers are holding have to look like they changed.
+        self.left_shaped.clear();
+        self.right_shaped.clear();
+    }
+
     /// Swaps in a localization, or clears it with `None`.
     pub fn set_catalog(&mut self, catalog: Option<Catalog>) {
         self.catalog = catalog;

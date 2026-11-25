@@ -348,6 +348,18 @@ impl TabBar {
         }
     }
 
+    /// Rebuilds the strip at a new display density.
+    ///
+    /// The tab buffers are shaped lazily from `metrics` whenever `stale` says
+    /// they should be, which is now.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.stale = true;
+    }
+
     /// Replaces the tabs and the active index.
     pub fn set_tabs(&mut self, tabs: Vec<TabInfo>, active: usize) {
         if self.tabs != tabs || self.active != active {

@@ -136,6 +136,12 @@ impl AboutBox {
         }
     }
 
+    /// Rebuilds the box at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.body.set_metrics(metrics);
+        self.button.set_metrics(metrics);
+    }
+
     /// Every label this box can draw, for the coverage test.
     ///
     /// The version line, the author's name and the LinkedIn address are absent:

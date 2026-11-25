@@ -34,6 +34,13 @@ use crate::theme::Rgb;
 /// The smallest and largest font size the preferences dialog offers.
 pub const MIN_FONT_SIZE: f32 = 8.0;
 pub const MAX_FONT_SIZE: f32 = 40.0;
+/// The smallest and largest window scale `ui_scale` accepts.
+///
+/// A half and four times the furniture: below the first the labels stop being
+/// legible, and above the second the bars take more of the window than the
+/// document does.
+pub const MIN_UI_SCALE: f32 = 0.5;
+pub const MAX_UI_SCALE: f32 = 4.0;
 /// The tab widths the preferences dialog offers.
 pub const MIN_TAB_WIDTH: u16 = 1;
 pub const MAX_TAB_WIDTH: u16 = 16;
@@ -377,6 +384,16 @@ pub struct Settings {
     pub theme: ThemeChoice,
     /// The editor font size in pixels.
     pub font_size: f32,
+    /// How big the window furniture is drawn: the menu bar, the toolbar, the tab
+    /// strip, the status bar and the panels.
+    ///
+    /// Zero, the default, means "follow the display": a 4K monitor whose desktop
+    /// reports a scale of 2 gets furniture twice the size. A number is an
+    /// override, for the screens where the desktop reports 1 on a dense panel and
+    /// the labels come out too small to read. A setting rather than a menu command
+    /// because it is a fact about the screen, and it should be there again next
+    /// launch.
+    pub ui_scale: f32,
     /// How many columns a tab occupies.
     pub tab_width: u16,
     /// Whether long lines wrap.
@@ -503,6 +520,7 @@ impl Default for Settings {
         Self {
             theme: ThemeChoice::System,
             font_size: 15.0,
+            ui_scale: 0.0,
             tab_width: 4,
             wrap: false,
             minimap: true,
@@ -579,6 +597,18 @@ impl Settings {
                 "font_size" => {
                     if let Ok(size) = value.parse::<f32>() {
                         settings.font_size = size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
+                    }
+                }
+                "ui_scale" => {
+                    if let Ok(scale) = value.parse::<f32>() {
+                        // Zero is the word "follow the display" spelled as a
+                        // number; anything under it is a typo rather than a wish
+                        // to shrink the chrome to nothing.
+                        settings.ui_scale = if scale > 0.0 {
+                            scale.clamp(MIN_UI_SCALE, MAX_UI_SCALE)
+                        } else {
+                            0.0
+                        };
                     }
                 }
                 "tab_width" => {
@@ -694,6 +724,7 @@ impl Settings {
         let mut out = String::from("# Neko++ settings\n");
         out.push_str(&format!("theme {}\n", self.theme.key()));
         out.push_str(&format!("font_size {}\n", self.font_size));
+        out.push_str(&format!("ui_scale {}\n", self.ui_scale));
         out.push_str(&format!("tab_width {}\n", self.tab_width));
         out.push_str(&format!("wrap {}\n", on_off(self.wrap)));
         out.push_str(&format!("minimap {}\n", on_off(self.minimap)));
@@ -1320,6 +1351,28 @@ mod tests {
     fn an_out_of_range_font_size_is_clamped() {
         assert_eq!(Settings::parse("font_size 400").font_size, MAX_FONT_SIZE);
         assert_eq!(Settings::parse("font_size 1").font_size, MIN_FONT_SIZE);
+    }
+
+    #[test]
+    fn a_window_scale_is_clamped_and_zero_means_follow_the_display() {
+        assert_eq!(Settings::parse("ui_scale 9").ui_scale, MAX_UI_SCALE);
+        assert_eq!(Settings::parse("ui_scale 0.1").ui_scale, MIN_UI_SCALE);
+        assert_eq!(Settings::parse("ui_scale 1.5").ui_scale, 1.5);
+        // The default, and what a hand-edited nought turns back into: ask the
+        // display rather than scale the furniture to nothing.
+        assert_eq!(Settings::default().ui_scale, 0.0);
+        assert_eq!(Settings::parse("ui_scale 0").ui_scale, 0.0);
+        assert_eq!(Settings::parse("ui_scale -3").ui_scale, 0.0);
+        assert_eq!(Settings::parse("ui_scale wide").ui_scale, 0.0);
+    }
+
+    #[test]
+    fn a_window_scale_round_trips() {
+        let settings = Settings {
+            ui_scale: 2.0,
+            ..Settings::default()
+        };
+        assert_eq!(Settings::parse(&settings.render()).ui_scale, 2.0);
     }
 
     #[test]

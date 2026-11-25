@@ -98,6 +98,16 @@ impl FolderPanel {
         }
     }
 
+    /// Rebuilds the panel at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.header.set_metrics(metrics);
+        self.body.set_metrics(metrics);
+    }
+
     /// Shows `tree` under `title`.
     ///
     /// An empty tree still opens: a workspace with no files is a state the user

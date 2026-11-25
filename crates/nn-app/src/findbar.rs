@@ -632,6 +632,30 @@ impl FindBar {
         }
     }
 
+    /// Rebuilds the bar at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.label_find.set_metrics(metrics);
+        self.label_replace.set_metrics(metrics);
+        for chip in &mut self.chips {
+            chip.set_metrics(metrics);
+        }
+        for swap in &mut self.swaps {
+            swap.set_metrics(metrics);
+        }
+        self.history_glyph.set_metrics(metrics);
+        for row in &mut self.history_rows {
+            row.set_metrics(metrics);
+        }
+        for button in &mut self.buttons {
+            button.set_metrics(metrics);
+        }
+        self.count.set_metrics(metrics);
+    }
+
     /// Every label this bar can draw, for the coverage test.
     ///
     /// The chips are absent on purpose: `Aa`, `W` and `.*` are marks, not

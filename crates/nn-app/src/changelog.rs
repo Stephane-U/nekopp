@@ -104,6 +104,18 @@ impl ChangeHistory {
         }
     }
 
+    /// Rebuilds the list at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.header.set_metrics(metrics);
+        for row in &mut self.buffers {
+            row.set_metrics(metrics);
+        }
+    }
+
     /// Replaces the rows and opens the panel.
     ///
     /// The list is scrolled to the bottom, because the newest change is the one

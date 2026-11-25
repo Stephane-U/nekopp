@@ -11718,3 +11718,81 @@ highlight -- every differing pixel is in rows 27..54, the bar, and none below it
 of its own: the predicate reads a `Menu` and six modal flags inside `State`, and
 `main.rs` has no test module to put a seventh state in. No feature reference
 change.
+
+## The hundred-and-third pass: a window that reads the display
+
+The furniture of the window -- the menu bar, the toolbar, the tab strip, the
+status bar and the panels -- was fifteen-pixel text on a twenty-pixel row, and
+those two numbers were constants in `renderer.rs`. Nothing anywhere asked what
+the display was. On a 4K panel whose desktop is set to 200%, where a pixel is
+half of what the eye expects, every label came out at half the size it should be:
+a user reads that as "everything is tiny", and no preference could fix it,
+because the preferences had no number for it.
+
+The number exists and the window always had it: `winit` reports a scale factor,
+2.0 on such a screen, and the program had never asked for it.
+
+### One pair of numbers, taken together
+
+`UiMetrics` is now the font size and the row height as one value, built from a
+density by `UiMetrics::at`. Rounded to whole pixels, because that is the size a
+glyph is rasterised at: 18.75 is honoured by the shaper and comes out with stems
+between two pixel columns, where 19 is sharp. A density that is zero, negative or
+not a number falls back to the plain sizes rather than to nothing.
+
+The document's text follows the same factor, in `apply_view_settings`, so a 4K
+screen does not get a doubled menu bar over a fifteen-pixel document. The
+preference stays what it was -- a size in pixels at density one -- so the number
+the dialog shows is still the number a user typed. Zoom is untouched: it is a
+property of the text, not of the window, and this pass does not change that.
+
+### A reshape, not a repaint
+
+The widgets shape their labels when they are built and keep the shaped buffers,
+which is what makes the bar cheap to draw. So a density is not a number the
+renderer reads at paint time; it is a reason to rebuild every one of them. Each
+widget gained a `set_metrics` that hands the new metrics to the buffers it holds
+-- `Buffer::set_metrics` re-shapes in place and keeps the text -- and drops the
+small caches that would otherwise pin the old size: `MenuBar::shaped`,
+`TabBar::stale`, the two shaped-text guards on the status bar, and the tooltip's
+(text, columns) pair. Twenty-three widgets, and the toolbar is not among them: it
+takes the row height as a parameter and holds no text.
+
+The renderer takes the row height as an argument now instead of reading the
+constant. That is the fault the first attempt at this pass shipped: the labels
+were built at forty pixels and the bars were still measured at twenty, so the menu
+bar came out twenty-six pixels tall with thirty-pixel text spilling out of it.
+Two answers to "how tall is a row" is exactly one too many, and the renderer was
+holding the wrong one.
+
+Icons follow the row they sit in, a fixed fifteen hundredths of it, and the 16..28
+pixel clamp is gone. The clamp only ever bound because the row height was the
+constant twenty; left in place it would have capped a 4K display at 28-pixel icons
+in a 40-pixel row, which is the same complaint moved one step along.
+
+### Verified
+
+Two runs of each case on the release binary. At density one the frame is
+pixel-identical to a build of the commit before this one, twice over: 0 differing
+pixels, and the one shot that disagreed at first differed from its own re-run by
+the same 1,976 pixels, so the fault was a stale window on the screen rather than
+the change. Which is the answer to "will I see anything on my 2560x1440 at 96
+dpi": no.
+
+At `WINIT_X11_SCALE_FACTOR=2` every band doubles, measured down the left edge of
+the frame: menu bar 26 -> 46 pixels, toolbar 30 -> 54, icons 23 -> 46, tab strip
+and text with them. The icons are rasterised at the new size rather than stretched:
+a scan across one stroke gives the smooth run 121, 159, 153, 185, 206, 207, 140,
+63 where a doubled 23-pixel atlas would have given every value twice. A dropdown
+opened at that density highlights the right row for a pointer at (180, 70), and the
+preferences dialog draws its rows at forty pixels.
+
+`ui_scale 1.5` in a settings file on that same 96-dpi screen gives a menu bar of
+36 pixels and a toolbar of 43, which is 1.5 rounded into whole pixels, so the
+escape hatch works for the desktops that report one on a dense panel.
+
+`cargo test --offline --release`: 2,298 tests, 0 failed, four of them new -- the
+rounding, the fallback for a nonsense density, the clamped window scale, and its
+round trip through the settings file. `cargo clippy --offline --release
+--all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference has the
+`ui_scale` row and a paragraph on the window, and the PDF was rebuilt.

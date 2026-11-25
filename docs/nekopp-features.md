@@ -206,6 +206,13 @@ The window is a menu bar, a toolbar, a tab strip, the editor pane, optional
 docked panels, and a status bar. Every piece of furniture can be turned off,
 because a text editor's job is the text.
 
+The furniture is drawn at the density the display reports, so a 4K monitor whose
+desktop is set to 200% gets a menu bar, icons and text at twice the size rather
+than fifteen-pixel labels on a dense panel. Where the desktop reports a density
+of one on such a screen, `ui_scale` in `settings.txt` says what to use instead;
+zero, the default, means ask the display. The document's text follows the same
+number, and zoom stays what it was: a property of the text, not of the window.
+
 ### Menu bar
 
 Thirteen menus: File, Edit, Search, View, Encoding, Language, Settings, Tools,
@@ -2999,6 +3006,7 @@ able to fix in an editor when it goes wrong.
 |---|---|---|
 | `theme` | `system`, `light`, `dark` or a palette key | `system` |
 | `font_size` | pixels | `15` |
+| `ui_scale` | furniture scale, `0` follows the display | `0` |
 | `tab_width` | columns | `4` |
 | `wrap` | `on`, `off` | `off` |
 | `minimap` | `on`, `off` | `on` |

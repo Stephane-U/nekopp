@@ -161,6 +161,11 @@ impl CompletionPopup {
         }
     }
 
+    /// Rebuilds the popup at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.body.set_metrics(metrics);
+    }
+
     /// Records the window height, so a popup near the bottom edge flips above
     /// the caret instead of running off the screen.
     pub fn set_viewport(&mut self, height: f32) {
@@ -437,6 +442,11 @@ impl ParamHint {
             family,
             char_width,
         }
+    }
+
+    /// Rebuilds the hint at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.body.set_metrics(metrics);
     }
 
     /// Records the window height, so a hint near the bottom edge flips above the

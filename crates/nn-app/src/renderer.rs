@@ -53,15 +53,15 @@ use crate::toolbar::Toolbar;
 use crate::tooltip::Tooltip;
 use crate::view::EditorView;
 
-/// The font size every piece of window furniture is shaped with.
+/// The font size every piece of window furniture is shaped with, at scale 1.
 ///
 /// The menu bar, the toolbar, the tab strip, the status bar and the panels are
-/// built once, at startup, with these metrics, and nothing ever reshapes them.
-/// That is deliberate: zoom is a property of the document, not of the window.
-/// Notepad++ behaves the same way — `Ctrl` and the wheel make the text bigger
-/// and leave the furniture where it is — and it is the only reading that makes
-/// sense, because a menu bar that grew with the font would push the text off the
-/// bottom of the window at 40px.
+/// built at startup with the metrics this implies, and are rebuilt only when the
+/// display's density changes. Zoom does not touch them, which is deliberate: zoom
+/// is a property of the document, not of the window. Notepad++ behaves the same
+/// way — `Ctrl` and the wheel make the text bigger and leave the furniture where
+/// it is — and it is the only reading that makes sense, because a menu bar that
+/// grew with the font would push the text off the bottom of the window at 40px.
 pub const UI_FONT_SIZE: f32 = 15.0;
 
 /// The line height every piece of window furniture is laid out with.
@@ -73,6 +73,60 @@ pub const UI_FONT_SIZE: f32 = 15.0;
 /// line height: the bars would grow while their text stayed 15px, which is what
 /// left the menu bar 59px tall with a 15px label pinned to its top edge.
 pub const UI_LINE_HEIGHT: f32 = 20.0;
+
+/// The two numbers the window furniture is built with, at one display density.
+///
+/// A pair rather than two parameters because they are always needed together and
+/// always in the same ratio: a caller that scaled the line height and forgot the
+/// font size would get a bar with a 15px label floating in a 40px row, which is
+/// exactly the fault the constants above were split apart to stop.
+///
+/// Rounded to whole pixels, because that is the size the glyphs are rasterised
+/// at and a fractional one lands on half a pixel: `cosmic-text` will honour 18.75
+/// but the stems come out smeared where 19 would have been sharp. The rounding is
+/// the reason this is not simply a multiplier kept in `State`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UiMetrics {
+    /// The size every piece of furniture is shaped at, in pixels.
+    pub font_size: f32,
+    /// The height of one row of it, in pixels.
+    pub line_height: f32,
+}
+
+impl UiMetrics {
+    /// The furniture metrics a display of `scale` density asks for.
+    pub fn at(scale: f32) -> Self {
+        let scale = if scale.is_finite() && scale > 0.0 {
+            scale
+        } else {
+            1.0
+        };
+        Self {
+            font_size: (UI_FONT_SIZE * scale).round(),
+            line_height: (UI_LINE_HEIGHT * scale).round(),
+        }
+    }
+
+    /// How far this is from the size the constants describe.
+    ///
+    /// Read back off the line height rather than kept as a third field: it is the
+    /// number the icons and the hit tests are scaled by, and two answers to "how
+    /// big is everything" would be one too many.
+    pub fn scale(self) -> f32 {
+        self.line_height / UI_LINE_HEIGHT
+    }
+
+    /// The metrics `cosmic-text` wants for a buffer of this furniture.
+    pub fn metrics(self) -> cosmic_text::Metrics {
+        cosmic_text::Metrics::new(self.font_size, self.line_height)
+    }
+}
+
+impl Default for UiMetrics {
+    fn default() -> Self {
+        Self::at(1.0)
+    }
+}
 
 /// One pane's mutable state, as the renderer needs it.
 ///
@@ -203,6 +257,7 @@ impl Renderer {
         browser: &mut Browser,
         playground: &mut Playground,
         chrome: &Chrome,
+        ui: f32,
         cursor_y: f32,
         width: f32,
         height: f32,
@@ -225,12 +280,11 @@ impl Renderer {
         let theme = panes[0].view.theme();
         // Two line heights exist in this window and the distinction matters. The
         // document's belongs to the view and changes with zoom; `ui` belongs to
-        // the window and does not. Every bar below is measured and laid out with
-        // `ui`, so zooming moves the text and nothing else. Passing the
-        // document's height here is what made the menu bar grow to 59px at 40px
-        // while its labels stayed 15px, and it also rebuilt the toolbar's icon
-        // atlas on every notch.
-        let ui = UI_LINE_HEIGHT;
+        // the window, and changes only when the display's density does. Every bar
+        // below is measured and laid out with `ui`, so zooming moves the text and
+        // nothing else. Passing the document's height here is what made the menu
+        // bar grow to 59px at 40px while its labels stayed 15px, and it also
+        // rebuilt the toolbar's icon atlas on every notch.
 
         // Which furniture is on screen. Every height below is zero when its bar
         // is hidden, so the layout arithmetic needs no special case: a hidden
@@ -870,5 +924,36 @@ impl Renderer {
         }
         queue.submit(Some(encoder.finish()));
         self.atlas.trim();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_furniture_doubles_with_the_display() {
+        let one = UiMetrics::at(1.0);
+        assert_eq!((one.font_size, one.line_height), (UI_FONT_SIZE, UI_LINE_HEIGHT));
+        assert_eq!(one.scale(), 1.0);
+        let two = UiMetrics::at(2.0);
+        assert_eq!((two.font_size, two.line_height), (30.0, 40.0));
+        assert_eq!(two.scale(), 2.0);
+        assert_eq!(two.metrics(), cosmic_text::Metrics::new(30.0, 40.0));
+        // Whole pixels, because that is the size a glyph is rasterised at: 18.75
+        // would be honoured by the shaper and come out with smeared stems.
+        let quarter = UiMetrics::at(1.25);
+        assert_eq!((quarter.font_size, quarter.line_height), (19.0, 25.0));
+    }
+
+    #[test]
+    fn a_nonsense_scale_is_the_plain_one() {
+        // Not zero: a window whose furniture is nothing is worse than a window
+        // that ignored the display.
+        let one = UiMetrics::at(1.0);
+        assert_eq!(UiMetrics::at(0.0), one);
+        assert_eq!(UiMetrics::at(-2.0), one);
+        assert_eq!(UiMetrics::at(f32::NAN), one);
+        assert_eq!(UiMetrics::default(), one);
     }
 }

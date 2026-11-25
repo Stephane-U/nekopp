@@ -106,6 +106,14 @@ impl Tooltip {
         }
     }
 
+    /// Rebuilds the label at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.body.set_metrics(metrics);
+        // The label is shaped once per (text, columns), so forgetting the pair is
+        // what makes it shape again at the new size rather than reuse the old.
+        self.shaped = (String::new(), 0);
+    }
+
     /// Records the window size, so a label on the rightmost button is pushed
     /// back inside the frame instead of running off it.
     pub fn set_viewport(&mut self, width: f32, height: f32) {

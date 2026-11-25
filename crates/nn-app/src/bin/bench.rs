@@ -1000,6 +1000,7 @@ fn main() {
             &mut browser,
             &mut playground,
             &chrome,
+            nn_app::renderer::UI_LINE_HEIGHT,
             cursor_y,
             width as f32,
             height as f32,
@@ -1270,6 +1271,7 @@ fn main() {
             &mut browser,
             &mut playground,
             &chrome,
+            nn_app::renderer::UI_LINE_HEIGHT,
             cursor_y,
             width as f32,
             height as f32,
@@ -1280,17 +1282,17 @@ fn main() {
 
     report(
         "idle",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, cursor_y, width, height, frames, |_, _| {}),
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, nn_app::renderer::UI_LINE_HEIGHT, cursor_y, width, height, frames, |_, _| {}),
     );
     report(
         "scroll",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, cursor_y, width, height, frames, |ed, _| {
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, nn_app::renderer::UI_LINE_HEIGHT, cursor_y, width, height, frames, |ed, _| {
             ed.scroll_lines(1);
         }),
     );
     report(
         "type",
-        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, cursor_y, width, height, frames, |ed, hl| {
+        measure(&device, &queue, &target, &mut renderer, &mut editor, &mut highlighter, &mut view, &mut find, &mut dialog, &mut tab_bar, &mut menu, &mut toolbar, &mut prompt, &mut status, &mut results, &mut history, &mut charset, &mut functions, &mut workspace, &mut complete, &mut param_hint, &mut tooltip, &mut context, &mut peeker, &mut about, &mut prefs, &mut plugin_list, &mut print, &mut styles, &mut shortcuts, &mut browser, &mut playground, &chrome, nn_app::renderer::UI_LINE_HEIGHT, cursor_y, width, height, frames, |ed, hl| {
             let line = ed.doc.char_to_line(ed.caret());
             ed.insert("x");
             hl.highlight_from(&mut ed.doc, line);
@@ -1406,6 +1408,7 @@ fn measure(
     browser: &mut Browser,
     playground: &mut nn_app::Playground,
     chrome: &Chrome,
+    ui: f32,
     cursor_y: f32,
     width: u32,
     height: u32,
@@ -1453,6 +1456,7 @@ fn measure(
             browser,
             playground,
             chrome,
+            ui,
             cursor_y,
             width as f32,
             height as f32,

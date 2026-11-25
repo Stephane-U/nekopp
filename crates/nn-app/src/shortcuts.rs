@@ -95,6 +95,13 @@ impl Shortcuts {
         }
     }
 
+    /// Rebuilds the dialog at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.title.set_metrics(metrics);
+        self.body.set_metrics(metrics);
+        self.hint.set_metrics(metrics);
+    }
+
     /// Opens the dialog on a copy of `keymap`.
     pub fn open(&mut self, keymap: &Keymap) {
         self.keymap = keymap.clone();

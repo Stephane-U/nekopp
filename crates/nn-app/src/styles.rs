@@ -275,6 +275,12 @@ impl StyleConfigurator {
         }
     }
 
+    /// Rebuilds the dialog at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.title.set_metrics(metrics);
+        self.body.set_metrics(metrics);
+    }
+
     /// Opens the dialog on a copy of `theme`.
     pub fn open(&mut self, theme: Theme) {
         self.theme = theme;

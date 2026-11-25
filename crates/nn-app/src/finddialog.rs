@@ -416,6 +416,17 @@ impl FindDialog {
         }
     }
 
+    /// Rebuilds the dialog at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        for row in &mut self.history_rows {
+            row.set_metrics(metrics);
+        }
+    }
+
     /// Every label this dialog can draw, for the coverage test.
     ///
     /// The buttons are absent: they are the bar's, and the bar counts them once.

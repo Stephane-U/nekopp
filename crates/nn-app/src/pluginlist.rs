@@ -119,6 +119,12 @@ impl PluginList {
         }
     }
 
+    /// Rebuilds the dialog at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.title.set_metrics(metrics);
+        self.body.set_metrics(metrics);
+    }
+
     /// Opens the manager on `rows`, with the first row highlighted.
     pub fn open(&mut self, rows: Vec<Row>) {
         self.open = true;

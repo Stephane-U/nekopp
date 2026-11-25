@@ -144,6 +144,19 @@ impl CharPanel {
         }
     }
 
+    /// Rebuilds the grid at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.header.set_metrics(metrics);
+        self.readout.set_metrics(metrics);
+        for cell in &mut self.buffers {
+            cell.set_metrics(metrics);
+        }
+    }
+
     /// Whether the panel is showing.
     pub fn is_open(&self) -> bool {
         self.open

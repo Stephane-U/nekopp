@@ -41,7 +41,7 @@ use nn_app::{
 };
 use nn_app::context;
 use nn_app::plugin::Context;
-use nn_app::renderer::{UI_FONT_SIZE, UI_LINE_HEIGHT};
+use nn_app::renderer::UiMetrics;
 use nn_app::layout::{self, Rect};
 use nn_app::nppimport;
 use nn_app::paths::{complete_path, resolve_dir, split_fragment};
@@ -907,6 +907,13 @@ struct State {
     /// second window, so it is one value the renderer reads rather than a flag
     /// consulted at each of a dozen call sites.
     chrome: Chrome,
+    /// How big the window furniture is drawn.
+    ///
+    /// The menu bar, the toolbar, the tab strip, the status bar and the panels
+    /// are built once with these metrics, and rebuilding them is the only way a
+    /// label changes size: a widget shapes its text when it is made. Which is why
+    /// the density is read here, once, rather than asked for at each draw.
+    ui: UiMetrics,
     /// When the unsaved buffers were last written to the snapshot directory.
     ///
     /// A timestamp rather than a deadline: the interval can change under it when
@@ -945,12 +952,18 @@ impl State {
         font_system: &mut cosmic_text::FontSystem,
         settings: &Settings,
         system_light: Option<bool>,
+        scale: f32,
     ) {
         view.set_theme(nn_app::styles::effective_theme(
             settings.theme.theme(system_light),
             &settings.styles,
         ));
-        view.set_font_size(font_system, settings.font_size);
+        // The text follows the display as well as the furniture: a 4K screen that
+        // doubled the menu bar and left the document at fifteen pixels would be
+        // the same complaint in a different place. The preference stays what it
+        // always was, a size in pixels at scale 1, so the number a user typed is
+        // the number the dialog still shows.
+        view.set_font_size(font_system, (settings.font_size * scale).round());
         view.set_tab_width(settings.tab_width);
         view.set_wrap(settings.wrap);
         view.minimap_mut().set_enabled(settings.minimap);
@@ -970,9 +983,10 @@ impl State {
             self.renderer.font_system(),
             &settings,
             self.system_light,
+            self.ui.scale(),
         );
         let mut tab_bar = TabBar::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            self.ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
@@ -1173,7 +1187,7 @@ impl State {
         if !first.contains(x, y) || y >= self.strip_band().1 {
             return None;
         }
-        self.tab_bar.reorder_end(x, y, UI_LINE_HEIGHT)
+        self.tab_bar.reorder_end(x, y, self.ui.line_height)
     }
 
     /// Finishes a tab drag.
@@ -1380,7 +1394,7 @@ impl State {
     /// one place and the geometry in another is how that happens, so both are
     /// read here.
     fn menu_height(&self) -> f32 {
-        let line_height = UI_LINE_HEIGHT;
+        let line_height = self.ui.line_height;
         if self.chrome.shows_menu(self.cursor.1 as f32, line_height) {
             self.menu.height(line_height)
         } else {
@@ -1391,7 +1405,7 @@ impl State {
     /// The height of the toolbar as the renderer will lay it out this frame.
     fn toolbar_height(&self) -> f32 {
         if self.chrome.shows_toolbar() {
-            self.toolbar.height(UI_LINE_HEIGHT)
+            self.toolbar.height(self.ui.line_height)
         } else {
             0.0
         }
@@ -1400,7 +1414,7 @@ impl State {
     /// The height of the tab strip as the renderer will lay it out this frame.
     fn tab_height(&self) -> f32 {
         if self.chrome.shows_tabs() {
-            self.tab_bar.height(UI_LINE_HEIGHT)
+            self.tab_bar.height(self.ui.line_height)
         } else {
             0.0
         }
@@ -1409,7 +1423,7 @@ impl State {
     /// The height of the status bar as the renderer will lay it out this frame.
     fn status_height(&self) -> f32 {
         if self.chrome.shows_status() {
-            self.status.height(UI_LINE_HEIGHT)
+            self.status.height(self.ui.line_height)
         } else {
             0.0
         }
@@ -1418,7 +1432,7 @@ impl State {
     /// The height of the results panel as the renderer will lay it out.
     fn results_height(&self) -> f32 {
         if self.chrome.shows_results(self.results.is_open()) {
-            self.results.height(UI_LINE_HEIGHT)
+            self.results.height(self.ui.line_height)
         } else {
             0.0
         }
@@ -1427,7 +1441,7 @@ impl State {
     /// The height of the change-history panel as the renderer will lay it out.
     fn history_height(&self) -> f32 {
         if self.chrome.shows_history(self.history.is_open()) {
-            self.history.height(UI_LINE_HEIGHT)
+            self.history.height(self.ui.line_height)
         } else {
             0.0
         }
@@ -1460,7 +1474,7 @@ impl State {
         let bottom = self.status_height()
             + self.history_height()
             + self.results_height()
-            + self.find.height(width, UI_LINE_HEIGHT, self.view.padding());
+            + self.find.height(width, self.ui.line_height, self.view.padding());
         let inset = self.column_inset();
         (inset, top, width - 2.0 * inset, (height - top - bottom).max(1.0))
     }
@@ -1506,7 +1520,7 @@ impl State {
     /// the left edge of each pane. Both are derived from the same geometry the
     /// renderer draws with, so a click cannot land on a tab that is not there.
     fn tab_at(&self, x: f64, y: f64) -> Option<usize> {
-        let line_height = UI_LINE_HEIGHT;
+        let line_height = self.ui.line_height;
         let (x, y) = (x as f32, y as f32);
         if self.tab_bar.layout().is_vertical() {
             let column = self.tab_column();
@@ -1542,7 +1556,7 @@ impl State {
         if y < top || y >= bottom {
             return None;
         }
-        self.tab_bar.arrow_at(x, y, UI_LINE_HEIGHT)
+        self.tab_bar.arrow_at(x, y, self.ui.line_height)
     }
 
     /// The close or pin button under the pointer, if any.
@@ -1552,7 +1566,7 @@ impl State {
     /// Notepad++'s default. The band guards mirror [`Self::tab_at`] so a click
     /// on the toolbar above cannot be read as a click on a tab's cross.
     fn tab_button_at(&self, x: f64, y: f64) -> Option<TabButton> {
-        let line_height = UI_LINE_HEIGHT;
+        let line_height = self.ui.line_height;
         let (x, y) = (x as f32, y as f32);
         if self.tab_bar.layout().is_vertical() {
             let column = self.tab_column();
@@ -1607,6 +1621,11 @@ impl State {
         fonts: Option<std::thread::JoinHandle<LoadedFonts>>,
     ) -> Self {
         let size = window.inner_size();
+        // Read before anything is built, because every widget below shapes its
+        // labels at construction. A display that reports a density of two -- a 4K
+        // panel with the desktop's scaling on, which is what "everything is tiny"
+        // looks like from inside the program -- gets furniture twice the size.
+        let ui = UiMetrics::at(window.scale_factor() as f32);
 
         // The scan was started beside the graphics device; joining it here is
         // normally free, and a thread that panicked falls back to doing the work
@@ -1675,119 +1694,119 @@ impl State {
             }
         }
         let find = FindBar::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let find_dialog = FindDialog::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let tab_bar = TabBar::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let menu = MenuBar::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
             Keymap::default(),
         );
         let toolbar = Toolbar::new();
         let prompt = PromptBar::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let status = StatusBar::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let results = ResultsPanel::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let history = ChangeHistory::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let charset = CharPanel::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let functions = FunctionList::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let folder = FolderPanel::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let complete = CompletionPopup::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let param_hint = ParamHint::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let tooltip = Tooltip::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let peeker = DocumentPeeker::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let about = AboutBox::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let context = ContextMenu::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let prefs = Preferences::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let plugin_list = PluginList::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let print = PrintPreview::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let styles = StyleConfigurator::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let shortcuts = Shortcuts::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
         let browser = Browser::new(
-            cosmic_text::Metrics::new(UI_FONT_SIZE, UI_LINE_HEIGHT),
+            ui.metrics(),
             cosmic_text::Family::Monospace,
             view.char_width(),
         );
@@ -1891,6 +1910,7 @@ impl State {
             tab_press: None,
             tab_drag: None,
             chrome: Chrome::new(Mode::Normal),
+            ui,
             last_snapshot: std::time::Instant::now(),
         };
         // Read before the settings are applied, so the first frame is already
@@ -2173,11 +2193,13 @@ impl State {
     fn apply_settings_quiet(&mut self) {
         let settings = self.prefs.settings().clone();
         let system_light = self.system_light;
+        let scale = ui_scale(&settings, self.window.scale_factor());
         Self::apply_view_settings(
             &mut self.view,
             self.renderer.font_system(),
             &settings,
             system_light,
+            scale,
         );
         if let Some(other) = &mut self.other {
             Self::apply_view_settings(
@@ -2185,8 +2207,10 @@ impl State {
                 self.renderer.font_system(),
                 &settings,
                 system_light,
+                scale,
             );
         }
+        self.set_ui_scale(scale);
         self.toolbar.set_enabled(settings.toolbar);
         self.set_function_list(settings.function_list);
         // The search keeps its pattern and options: the preference moves the
@@ -3866,6 +3890,7 @@ impl State {
             &mut self.browser,
             &mut self.playground,
             &self.chrome,
+            self.ui.line_height,
             self.cursor.1 as f32,
             width,
             height,
@@ -4232,6 +4257,81 @@ impl State {
     fn apply_settings(&mut self) {
         self.apply_settings_quiet();
         self.settings.save();
+        self.window.request_redraw();
+    }
+
+    /// Draws the text and the furniture for a display of density `display`.
+    ///
+    /// One call rather than two, because a window that moved to another screen
+    /// with the text at the old size and the menu bar at the new one is worse
+    /// than either answer on its own.
+    fn rescale(&mut self, display: f64) {
+        let scale = ui_scale(&self.settings, display);
+        let settings = self.settings.clone();
+        let system_light = self.system_light;
+        Self::apply_view_settings(
+            &mut self.view,
+            self.renderer.font_system(),
+            &settings,
+            system_light,
+            scale,
+        );
+        if let Some(other) = &mut self.other {
+            Self::apply_view_settings(
+                &mut other.view,
+                self.renderer.font_system(),
+                &settings,
+                system_light,
+                scale,
+            );
+        }
+        self.set_ui_scale(scale);
+    }
+
+    /// Draws the window furniture at `scale` from now on.
+    ///
+    /// Every widget shapes its labels when it is made and keeps them, so a new
+    /// density is a reshape of each of them rather than a number the renderer
+    /// reads at paint time. The toolbar is the exception and needs no telling: it
+    /// takes the row height as a parameter and holds no text of its own, and its
+    /// icons are rasterised afresh whenever the size they are drawn at changes.
+    ///
+    /// The document text is not here: it follows the display through
+    /// `apply_view_settings`, which the caller has already run by this point.
+    fn set_ui_scale(&mut self, scale: f32) {
+        let ui = UiMetrics::at(scale);
+        if ui == self.ui {
+            return;
+        }
+        self.ui = ui;
+        let metrics = ui.metrics();
+        self.menu.set_metrics(metrics);
+        self.prompt.set_metrics(metrics);
+        self.status.set_metrics(metrics);
+        self.results.set_metrics(metrics);
+        self.history.set_metrics(metrics);
+        self.charset.set_metrics(metrics);
+        self.functions.set_metrics(metrics);
+        self.folder.set_metrics(metrics);
+        self.complete.set_metrics(metrics);
+        self.param_hint.set_metrics(metrics);
+        self.tooltip.set_metrics(metrics);
+        self.context.set_metrics(metrics);
+        self.peeker.set_metrics(metrics);
+        self.about.set_metrics(metrics);
+        self.prefs.set_metrics(metrics);
+        self.plugin_list.set_metrics(metrics);
+        self.print.set_metrics(metrics);
+        self.styles.set_metrics(metrics);
+        self.shortcuts.set_metrics(metrics);
+        self.browser.set_metrics(metrics);
+        self.find.set_metrics(metrics);
+        self.find_dialog.set_metrics(metrics);
+        self.tab_bar.set_metrics(metrics);
+        if let Some(other) = &mut self.other {
+            other.tab_bar.set_metrics(metrics);
+        }
+        self.resize_view();
         self.window.request_redraw();
     }
 
@@ -5389,7 +5489,7 @@ impl State {
 
     /// Routes a left-button press to the tab strip or the text area.
     fn click(&mut self, x: f64, y: f64) {
-        let line_height = UI_LINE_HEIGHT;
+        let line_height = self.ui.line_height;
         let menu_height = self.menu_height();
         // Only the minimap arm below turns this back on.
         self.minimap_drag = false;
@@ -8177,7 +8277,7 @@ impl State {
             - self.results_height()
             - self.find.height(
                 self.gpu.config.width as f32,
-                UI_LINE_HEIGHT,
+                self.ui.line_height,
                 self.view.padding(),
             )
     }
@@ -9773,7 +9873,7 @@ impl State {
                 y,
                 self.menu_height(),
                 self.gpu.config.width as f32,
-                UI_LINE_HEIGHT,
+                self.ui.line_height,
             )
         } else {
             None
@@ -9820,7 +9920,7 @@ impl State {
         // pointer leaving the link while a drag is in progress still puts the
         // arrow back. Everything else in the window is text, where the default
         // arrow is what the platform gives a window that never asks.
-        let over_link = self.about.is_open() && self.about.link_hit(x as f32, y as f32, UI_LINE_HEIGHT);
+        let over_link = self.about.is_open() && self.about.link_hit(x as f32, y as f32, self.ui.line_height);
         if over_link != self.link_hover {
             self.link_hover = over_link;
             self.window.set_cursor(if over_link {
@@ -9883,16 +9983,16 @@ impl State {
         }
         if self.complete.is_open() {
             self.complete
-                .hover(x as f32, y as f32, UI_LINE_HEIGHT);
+                .hover(x as f32, y as f32, self.ui.line_height);
         }
         if self.context.is_open() {
             self.context
-                .hover(x as f32, y as f32, UI_LINE_HEIGHT);
+                .hover(x as f32, y as f32, self.ui.line_height);
             self.window.request_redraw();
         }
         if self.peeker.is_open() {
             self.peeker
-                .hover(x as f32, y as f32, UI_LINE_HEIGHT);
+                .hover(x as f32, y as f32, self.ui.line_height);
             self.window.request_redraw();
         }
         // A hidden bar cannot be hovered. Without these guards the menu bar's
@@ -9902,14 +10002,14 @@ impl State {
             && self.menu.hover_at(
                 x as f32,
                 y as f32,
-                UI_LINE_HEIGHT,
+                self.ui.line_height,
                 self.gpu.config.width as f32,
             )
         {
             self.window.request_redraw();
             return;
         }
-        let line_height = UI_LINE_HEIGHT;
+        let line_height = self.ui.line_height;
         if self.toolbar_height() > 0.0
             && self.toolbar.hover_at(
                 x as f32,
@@ -10243,6 +10343,14 @@ impl ApplicationHandler<UserEvent> for App {
                 state.resize(size.width, size.height);
                 state.window.request_redraw();
             }
+            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                // The window has moved to a display of another density, or the
+                // desktop's scaling changed under it. The factor comes from the
+                // event rather than from the window, because the event is what
+                // says it changed; a settings file that names a scale keeps
+                // naming it, because that is what insisting means.
+                state.rescale(scale_factor);
+            }
             // The window is drawn on demand, so nothing is presented between
             // events: a window that comes back to the front, or regains the
             // focus, is showing whatever frame the compositor still holds, and
@@ -10345,7 +10453,7 @@ impl ApplicationHandler<UserEvent> for App {
                 // frame changed, so the crossing is detected here rather than
                 // left to whichever widget happens to notice.
                 if state.chrome.is_distraction_free() {
-                    let line_height = UI_LINE_HEIGHT;
+                    let line_height = state.ui.line_height;
                     let before = state.chrome.shows_menu(was.1 as f32, line_height);
                     let after = state.chrome.shows_menu(position.y as f32, line_height);
                     if before != after {
@@ -10539,6 +10647,20 @@ fn main() {
 /// system's first shaping, and the thread that scans the fonts is otherwise
 /// idle for as long as the graphics device takes to open.
 type LoadedFonts = (cosmic_text::FontSystem, f32);
+
+/// The density the window furniture is drawn at.
+///
+/// The settings file can insist, and does when it holds a number: some desktops
+/// report a scale of one on a panel where fifteen-pixel labels are the complaint.
+/// Zero, the default, means ask the display, which is the only answer that keeps
+/// following the window as it moves between screens.
+fn ui_scale(settings: &Settings, display: f64) -> f32 {
+    if settings.ui_scale > 0.0 {
+        settings.ui_scale
+    } else {
+        display as f32
+    }
+}
 
 /// Scans the fonts and measures the editor font.
 fn load_fonts() -> LoadedFonts {

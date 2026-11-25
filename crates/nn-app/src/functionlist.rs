@@ -88,6 +88,16 @@ impl FunctionList {
         }
     }
 
+    /// Rebuilds the panel at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.header.set_metrics(metrics);
+        self.body.set_metrics(metrics);
+    }
+
     /// Replaces the symbol list. An empty list closes the panel.
     pub fn set_symbols(&mut self, symbols: Vec<Symbol>) {
         self.header_text = match symbols.len() {

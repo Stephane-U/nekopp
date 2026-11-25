@@ -3046,6 +3046,23 @@ impl MenuBar {
         bar
     }
 
+    /// Rebuilds the bar at a new display density.
+    ///
+    /// The titles are shaped in `prepare` from `metrics` and cached behind a
+    /// flag, so dropping the flag is the whole of the work: the next frame shapes
+    /// every label at the size the display asked for, and measures the widths
+    /// from what it made.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        self.metrics = metrics;
+        self.shaped = false;
+        self.titles.clear();
+        self.title_widths.clear();
+        self.shaped_rows.clear();
+    }
+
     /// Points the shortcut column at a new keymap.
     pub fn set_keymap(&mut self, keymap: Keymap) {
         if self.keymap == keymap {

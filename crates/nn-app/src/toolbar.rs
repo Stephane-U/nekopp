@@ -46,13 +46,6 @@ const BUTTON_PADDING: f32 = 4.0;
 const BAR_PADDING: f32 = 4.0;
 /// The gap a group separator occupies.
 const SEPARATOR_WIDTH: f32 = 8.0;
-/// The smallest an icon is drawn, in pixels.
-const MIN_ICON: f32 = 16.0;
-/// The largest an icon is drawn, in pixels.
-///
-/// Past this the bar is taller than the text it sits above, and a toolbar that
-/// costs more room than the document is a toolbar that gets turned off.
-const MAX_ICON: f32 = 28.0;
 
 /// One button on the bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -191,14 +184,20 @@ impl Toolbar {
 
     /// The side of one icon, in pixels.
     ///
-    /// Tied to the line height rather than fixed, so the bar grows with the
-    /// font: an icon smaller than the text beside it reads as a bullet point.
-    /// The line height it is given is the chrome's, not the document's, so the
-    /// bar does not grow when the text is zoomed — Notepad++'s toolbar is a row
-    /// of fixed bitmaps for the same reason, and a bar that resized on every
-    /// notch would rebuild the icon atlas each time.
+    /// A fixed fraction of the line height rather than a number, so the bar grows
+    /// with the furniture: an icon smaller than the text beside it reads as a
+    /// bullet point. The line height it is given is the chrome's, not the
+    /// document's, so the bar does not grow when the text is zoomed — Notepad++'s
+    /// toolbar is a row of fixed bitmaps for the same reason, and a bar that
+    /// resized on every notch would rebuild the icon atlas each time.
+    ///
+    /// There used to be a 16..28 clamp here. It only ever bound because the
+    /// chrome's line height was the constant twenty, and it would have capped a
+    /// 4K display at 28-pixel icons in a 40-pixel row — a bar of small icons
+    /// above large text, which is the complaint it was meant to prevent, moved
+    /// one step along.
     pub fn icon_size(&self, line_height: f32) -> f32 {
-        (line_height * 1.15).round().clamp(MIN_ICON, MAX_ICON)
+        (line_height * 1.15).round()
     }
 
     /// The height the bar occupies, zero when it is hidden.
@@ -621,11 +620,15 @@ mod tests {
     }
 
     #[test]
-    fn the_icon_grows_with_the_font_but_stays_within_bounds() {
+    fn the_icon_grows_with_the_row_it_sits_in() {
         let b = bar();
-        assert_eq!(b.icon_size(8.0), MIN_ICON);
         assert_eq!(b.icon_size(20.0), 23.0);
-        assert_eq!(b.icon_size(80.0), MAX_ICON);
+        // A display that reports a density of two gets a row of forty and an
+        // icon of forty-six: the bar twice the size, in the same proportion.
+        assert_eq!(b.icon_size(40.0), 46.0);
+        // And the small end still follows the row rather than stopping at a
+        // floor, which is what a 16-pixel minimum used to do.
+        assert_eq!(b.icon_size(10.0), 12.0);
     }
 
     #[test]

@@ -333,6 +333,12 @@ impl ContextMenu {
         }
     }
 
+    /// Rebuilds the menu at a new display density.
+    pub fn set_metrics(&mut self, metrics: Metrics) {
+        self.body.set_metrics(metrics);
+        self.dim.set_metrics(metrics);
+    }
+
     /// Records the window size, so a menu opened near an edge is nudged inside.
     pub fn set_viewport(&mut self, width: f32, height: f32) {
         self.viewport = (width, height);
