@@ -1,3 +1,16 @@
+npp (0.3.2) unstable; urgency=medium
+
+  * Colour an apostrophe only where the language quotes with it: a Rust
+    lifetime, Haskell's x', Julia's a' and a YAML don't are no longer the start
+    of a string that painted the rest of the line and every line below it.
+  * Colour the name a definition declares: fn, def, function and their
+    spellings in the other languages open a function without being called, and
+    a call written through type arguments, collect::<Vec<_>>(), is one again.
+  * Colour a number only as far as it goes: a range like 4..end is a number,
+    two dots and a name, instead of one number that swallowed the name after it.
+
+ -- Neko++ maintainers <npp@example.invalid>  Wed, 25 Nov 2026 20:49:24 +0100
+
 npp (0.3.1) unstable; urgency=medium
 
   * Keep a selection across Alt+Tab: the keystroke that made the window switch

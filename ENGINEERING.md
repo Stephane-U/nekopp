@@ -11490,3 +11490,32 @@ expects `main` painted as a function, because that is what it is.
 `cargo test --offline --release`: 2,288 tests, 0 failed. `cargo clippy --offline
 --release --all-targets`: 0 warnings. `cargo fmt` was not run. No feature
 reference change.
+
+## The version at 0.3.2
+
+A patch number, the day after 0.3.1: two commits, one of them the colouring pass
+that was reported twice, the other the line clippy asked for. The version is
+still declared once, in `[workspace.package]`, and `npp --version`, the About
+window, the single-instance bus property and the MCP server's `serverInfo` all
+read it from there, so changing the line and rebuilding moved all four.
+
+By hand, as before: a debian changelog entry above 0.3.1, which is what
+`dpkg-parsechangelog -S Version` hands the package build; the man page's header;
+and the MCP README's transcript, which carries what the binary prints. The
+reference's title line reads the manifest, so `python3 docs/build-pdf.py` was all
+the PDF needed -- 353,641 bytes, and `--check` reports it up to date.
+
+Both packages in `dist/` were rebuilt: `npp_0.3.2_amd64.deb`, whose control file
+says 0.3.2, and `npp-x86_64.AppImage`, which holds the same binary as
+`target/release/npp` -- the two hash alike. This is the release that carries the
+apostrophe and the declared-name colouring, so the AppImage is the first build a
+reader who installs rather than compiles will see them in.
+
+Verified: `npp --version` prints `Neko++ 0.3.2`; `npp-mcp` prints `npp-mcp 0.3.2:
+111 sections, 74 shortcuts, 1 of 5 plugins enabled` and answers `initialize` with
+`"version":"0.3.2"`; `dpkg-parsechangelog -S Version` hands the package build
+0.3.2; `docs/build-pdf.py --check` reports the PDF up to date at 353,641 bytes.
+`cargo test --offline --release`: 2,288 tests, 0 failed. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. The plugin
+workspace keeps its own 0.1.0: different target, versioned separately, interface
+unchanged.
