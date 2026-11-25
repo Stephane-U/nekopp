@@ -9750,6 +9750,15 @@ impl State {
             || self.charset.is_open()
     }
 
+    /// Whether a toolbar label may be shown at all.
+    ///
+    /// A dropdown covers the toolbar, and a dialog covers the window, so with
+    /// either of them up a label would be naming a button the pointer cannot be
+    /// touching: the menu row under the pointer is what a click would hit.
+    fn tooltips_allowed(&self) -> bool {
+        !self.modal_open() && !self.menu.is_open()
+    }
+
     /// Tells the tooltip what the pointer is over.
     ///
     /// The toolbar is the only control with a tooltip. It is asked through
@@ -9758,7 +9767,7 @@ impl State {
     /// pointer is known to be on the bar, while the tooltip has to be told about
     /// every position so that leaving the bar clears the label.
     fn rest_tooltip(&mut self, x: f32, y: f32) {
-        let target = if self.toolbar_height() > 0.0 && !self.modal_open() {
+        let target = if self.toolbar_height() > 0.0 && self.tooltips_allowed() {
             self.toolbar.tip_at(
                 x,
                 y,
@@ -10182,6 +10191,12 @@ impl ApplicationHandler<UserEvent> for App {
             state.server = Some(server);
         }
         state.poll_disk();
+        // A menu opened from the keyboard can leave a label standing over the
+        // bar its dropdown now covers; the pointer has not moved, so nothing else
+        // would clear it.
+        if !state.tooltips_allowed() {
+            state.hide_tooltip();
+        }
         // The tooltip's delay is served here rather than from a thread: the
         // event loop has just woken for it, and opening a label is a repaint.
         if state.tooltip.tick(std::time::Instant::now()) {

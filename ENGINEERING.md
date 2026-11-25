@@ -11674,3 +11674,47 @@ Verified: `npp --version` prints `Neko++ 0.3.3`; `npp-mcp` prints `npp-mcp 0.3.3
 `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
 run. The plugin workspace keeps its own 0.1.0: different target, versioned
 separately, interface unchanged.
+
+## The hundred-and-second pass: a label under a menu that covers it
+
+The toolbar's tooltips were shown through one gate, `State::modal_open`, and a
+dropdown is not a modal. A menu panel is drawn from the menu bar downward, across
+the bar of icons, so a pointer resting on `Open...` in the File menu is also, by
+its coordinates, resting on the Save button underneath -- and half a second later
+the label for that button appeared on top of the menu it belonged to, because the
+tooltip is painted after everything else in the frame.
+
+The hover highlight had the answer already. `Menu::hover_at` returns true when the
+pointer is inside an open panel and the toolbar is only asked when it returns
+false, so a dropdown has never lit a button it covers. Only the tooltip path
+bypassed that, because it asked the bar directly on every pointer move.
+
+So the gate became one predicate, `State::tooltips_allowed`: no modal and no menu.
+`rest_tooltip` reads it, and the event loop closes a label with `hide_tooltip`
+whenever it is false, which is the case a menu opened from the keyboard leaves
+behind -- the pointer has not moved, so nothing else would take the label down.
+
+### Verified
+
+Two runs of each case on the release binary, against a binary built from a
+worktree at the commit before the change. The counter is the pixels that differ in
+the box under the Save All button -- x 88..215, y 52..82, which is where a label
+would be -- compared with a frame of the same menu state taken with the pointer
+parked off the controls, so the panel and its border cancel out:
+
+| pointer resting on | before | after |
+| --- | --- | --- |
+| the button, nothing open | 1,806 | 1,806 |
+| the File menu's first row, over the bar | 112 | 0 |
+| the button, Tools menu open | 1,806 | 78 |
+
+Both runs of each row gave the same numbers. The mark of 112 is the shorter label
+`Save` rather than `Save All`, which is the fault exactly as reported: the label of
+the button the row sits on. The 78 left in the third row is the button's own hover
+highlight -- every differing pixel is in rows 27..54, the bar, and none below it.
+
+`cargo test --offline --release`: 2,294 tests, 0 failed. `cargo clippy
+--offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. No test
+of its own: the predicate reads a `Menu` and six modal flags inside `State`, and
+`main.rs` has no test module to put a seventh state in. No feature reference
+change.
