@@ -11615,9 +11615,9 @@ writing down: instrumenting the open found the remaining 132 MB in
 `State::a11y_snapshot`, which copies the *whole document* into a `String` for the
 accessibility tree, once per snapshot. That is a memory cost and a time cost at
 the same time -- 131 MB allocated and copied per call on this file -- and it is
-not fixed here, because what a screen reader is handed is a decision about
-behaviour rather than about bytes. Cap the text that reaches the tree, or hand it
-over lazily, and the peak should come down to the steady weight.
+not fixed there, because what a screen reader is handed is a decision about
+behaviour rather than about bytes; the hundred-and-first pass caps it where it is
+built.
 
 `cargo test --offline --release`: 2,292 tests, 0 failed, one of them new: eight
 file shapes -- plain, empty, shorter than three bytes, CRLF, a lone final CR, a
@@ -11625,3 +11625,27 @@ UTF-8 BOM, a four-byte character split across the 64 KiB boundary, and bytes tha
 are not UTF-8 -- each streamed through `from_file` and compared with `from_bytes`
 on text, line ending and encoding. `cargo clippy --offline --release
 --all-targets`: 0 warnings. `cargo fmt` was not run. No feature reference change.
+
+## The hundred-and-first pass: the document a screen reader is handed
+
+`a11y` had a limit all along -- `MAX_TEXT`, 64 KiB, with a line saying the
+document was cut -- but it was applied in `tree`, after `State::a11y_snapshot`
+had already built a `String` of the whole document. A limit that runs after the
+copy limits what goes over D-Bus, not what the editor holds.
+
+`Document::text_upto(chars)` hands back a rope slice rather than the file, and
+the snapshot takes `MAX_TEXT` characters of it and remembers that it left the
+rest behind, in a `truncated` flag of its own. `exposed_text` keeps its cut as a
+second guard, and appends the note when either it or the producer had to stop.
+
+### Verified
+
+On the 131 MiB file the editor's peak went 457 -> 324 MB, which is now its steady
+weight as well: there is no transient copy left to find. The 32 MiB file went 242
+-> 206 MB the same way. A screen reader still gets the first 64 KiB and the line
+that says the document was cut; what it no longer gets is the allocation.
+
+`cargo test --offline --release`: 2,294 tests, 0 failed, two of them new -- the
+prefix helper, and the note a truncated snapshot carries. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. No feature
+reference change.

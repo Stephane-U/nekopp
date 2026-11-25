@@ -3607,7 +3607,11 @@ impl State {
                     selected: index == self.active,
                 })
                 .collect(),
-            text: editor.doc.text(),
+            // Only what the tree can carry: the whole document here would be a
+            // copy of the file on every accessibility update, and `a11y` cuts it
+            // to this size a moment later anyway.
+            truncated: editor.doc.len_chars() > nn_app::a11y::MAX_TEXT,
+            text: editor.doc.text_upto(nn_app::a11y::MAX_TEXT),
             caret_line: editor.caret_line(),
             status: self.status.text(),
             playground: self.playground.is_active().then(|| {

@@ -110,8 +110,13 @@ pub struct Snapshot {
     pub menus: Vec<Row>,
     /// The open documents.
     pub tabs: Vec<TabRow>,
-    /// The active document's text.
+    /// The active document's text, at most [`MAX_TEXT`] characters of it.
+    ///
+    /// Capped where it is built rather than where it is sent: a copy of the
+    /// whole document made here would be made on every update, and then cut.
     pub text: String,
+    /// Whether the document is longer than the text above.
+    pub truncated: bool,
     /// The caret's line, zero-based.
     pub caret_line: usize,
     /// The status bar's text.
@@ -185,19 +190,22 @@ fn line_lengths(text: &str) -> Vec<u8> {
 }
 
 /// The text as it is exposed, cut at [`MAX_TEXT`] with a note when it was.
-fn exposed_text(text: &str) -> String {
-    if text.len() <= MAX_TEXT {
-        return text.to_string();
-    }
+///
+/// `truncated` says the producer already left text behind; the cut here is a
+/// second guard, for the caller that hands over more than the limit.
+fn exposed_text(text: &str, truncated: bool) -> String {
     // Cut on a character boundary, not a byte one: slicing a `str` mid-character
     // panics, and a document with an accent near the limit would take the
     // accessibility tree down with it.
-    let mut cut = MAX_TEXT;
+    let mut cut = text.len().min(MAX_TEXT);
     while cut > 0 && !text.is_char_boundary(cut) {
         cut -= 1;
     }
+    let cut_here = cut < text.len();
     let mut out = text[..cut].to_string();
-    out.push_str("\n[document truncated for the screen reader]\n");
+    if cut_here || truncated {
+        out.push_str("\n[document truncated for the screen reader]\n");
+    }
     out
 }
 
@@ -209,7 +217,7 @@ fn exposed_text(text: &str) -> String {
 /// reading a document that is no longer open, which is worse than sending a few
 /// hundred nodes.
 pub fn tree(snapshot: &Snapshot) -> TreeUpdate {
-    let text = exposed_text(&snapshot.text);
+    let text = exposed_text(&snapshot.text, snapshot.truncated);
     let lengths = line_lengths(&text);
     let caret = snapshot.caret_line.min(lengths.len().saturating_sub(1));
 
@@ -410,6 +418,7 @@ mod tests {
                 },
             ],
             text: "alpha\nbeta\ngamma\n".to_string(),
+            truncated: false,
             caret_line: 1,
             status: "Ln: 2, Col: 1".to_string(),
         }
@@ -595,6 +604,22 @@ mod tests {
         let update = tree(&snap);
         let value = node(&update, TEXT_RUN).value().unwrap();
         assert!(value.contains("truncated"), "{}", value.len());
+    }
+
+    #[test]
+    fn a_snapshot_that_left_text_behind_says_so() {
+        // The producer caps at `MAX_TEXT` characters, so the cut above never
+        // fires for it; the note is the only thing telling a reader the document
+        // goes on, and it has to appear without going over the limit again.
+        let mut snap = snapshot();
+        snap.truncated = true;
+        let update = tree(&snap);
+        let value = node(&update, TEXT_RUN).value().unwrap();
+        assert!(value.starts_with("alpha"), "{value}");
+        assert!(
+            value.ends_with("[document truncated for the screen reader]\n"),
+            "{value}"
+        );
     }
 
     #[test]

@@ -492,6 +492,16 @@ impl Document {
         self.rope.to_string()
     }
 
+    /// The first `chars` characters of the document, as text.
+    ///
+    /// For a reader that cannot take all of it: the accessibility tree sends its
+    /// text over D-Bus on every update, so asking it for the whole document
+    /// would copy a hundred megabytes to hand over sixty kilobytes. A rope slice
+    /// is what this costs, whatever the file weighs.
+    pub fn text_upto(&self, chars: usize) -> String {
+        self.rope.slice(..chars.min(self.len_chars())).to_string()
+    }
+
     /// The whole document written with `eol` terminators.
     pub fn text_with_eol(&self, eol: EolMode) -> String {
         if eol == EolMode::Lf {
@@ -1715,6 +1725,16 @@ mod tests {
             }
             assert_eq!(doc.styles().len(), doc.len_chars());
         }
+    }
+
+    #[test]
+    fn text_upto_takes_a_prefix_and_never_more() {
+        let doc = Document::from_text("hello\nworld");
+        assert_eq!(doc.text_upto(5), "hello");
+        assert_eq!(doc.text_upto(100), "hello\nworld");
+        // Characters, not bytes: a two-byte character is one character.
+        let doc = Document::from_text("héllo");
+        assert_eq!(doc.text_upto(2), "hé");
     }
 
     #[test]
