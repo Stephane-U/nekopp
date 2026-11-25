@@ -79,6 +79,15 @@ impl EolMode {
             i += 1;
         }
 
+        Self::from_counts(crlf, lf, cr)
+    }
+
+    /// The mode a count of each terminator shape adds up to.
+    ///
+    /// One rule, in one place: `detect` counts them by walking a text it already
+    /// has, and the file loader counts them as the bytes stream past, because it
+    /// never holds the text to walk.
+    pub(crate) fn from_counts(crlf: usize, lf: usize, cr: usize) -> Self {
         if crlf >= lf && crlf >= cr && crlf > 0 {
             EolMode::CrLf
         } else if cr > lf && cr > 0 {

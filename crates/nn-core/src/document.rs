@@ -28,7 +28,7 @@
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-use ropey::Rope;
+use ropey::{Rope, RopeBuilder};
 
 use crate::encoding::Encoding;
 use crate::eol::EolMode;
@@ -201,7 +201,11 @@ impl Document {
 
     /// Builds a document from text that is already `\n`-terminated.
     pub fn from_text(text: &str) -> Self {
-        let rope = Rope::from_str(text);
+        Self::from_rope(Rope::from_str(text), Encoding::Utf8, EolMode::Lf)
+    }
+
+    /// The one constructor: every field the text decides, from a rope.
+    fn from_rope(rope: Rope, encoding: Encoding, eol: EolMode) -> Self {
         let chars = rope.len_chars();
         let lines = rope.len_lines();
         let line_lens: Vec<u32> = (0..lines)
@@ -228,8 +232,8 @@ impl Document {
             line_lens,
             wrap_cols: 0,
             rows_dirty: false,
-            eol: EolMode::Lf,
-            encoding: Encoding::Utf8,
+            eol,
+            encoding,
             path: None,
             stamp: None,
             disk_conflict: false,
@@ -245,17 +249,29 @@ impl Document {
         let encoding = Encoding::detect(bytes);
         let decoded = encoding.decode(bytes);
         let (text, eol) = EolMode::normalise(&decoded);
-        let mut doc = Self::from_text(&text);
-        doc.eol = eol;
-        doc.encoding = encoding;
-        doc
+        Self::from_rope(Rope::from_str(&text), encoding, eol)
     }
 
     /// Reads a file from disk.
+    ///
+    /// Streamed through one buffer rather than read whole and copied three
+    /// times: `stream` builds the rope straight from the file, and only a file
+    /// that is not UTF-8 -- a UTF-16 one, a code page, or something that is not
+    /// text at all -- falls back to reading it into memory, because telling
+    /// those apart needs the bytes. See `Document::from_bytes`.
     pub fn from_file(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let path = path.as_ref();
-        let bytes = std::fs::read(path)?;
-        let mut doc = Self::from_bytes(&bytes);
+        let (rope, encoding, eol) = match stream(path) {
+            Ok(streamed) => streamed,
+            Err(_) => {
+                let bytes = std::fs::read(path)?;
+                let encoding = Encoding::detect(&bytes);
+                let decoded = encoding.decode(&bytes);
+                let (text, eol) = EolMode::normalise(&decoded);
+                (Rope::from_str(&text), encoding, eol)
+            }
+        };
+        let mut doc = Self::from_rope(rope, encoding, eol);
         doc.path = Some(path.to_path_buf());
         doc.stamp = FileStamp::of(path);
         Ok(doc)
@@ -1317,6 +1333,199 @@ impl Document {
     }
 }
 
+// ---- loading ---------------------------------------------------------------
+
+/// Builds a rope from `path`, one bite of the file at a time.
+fn stream(path: &Path) -> std::io::Result<(Rope, Encoding, EolMode)> {
+    use std::io::Read;
+
+    const BITE: usize = 64 * 1024;
+    let file = std::fs::File::open(path)?;
+    let mut reader = std::io::BufReader::with_capacity(BITE, file);
+    let mut raw = vec![0u8; BITE];
+    let mut loader = Loader::new();
+    loop {
+        let read = reader.read(&mut raw)?;
+        if read == 0 {
+            break;
+        }
+        loader.feed(&raw[..read], false)?;
+    }
+    loader.feed(&[], true)?;
+    loader.finish()
+}
+
+/// Reads a file into a rope, folding its line terminators on the way in.
+///
+/// The document keeps `\n` terminators and UTF-8 text, so a UTF-8 BOM has to go
+/// and every carriage return has to become a newline. Doing that to a whole-file
+/// `String` means holding the file, then the normalised copy, then the rope's
+/// own copy; this holds 64 KiB of file, counts the terminators as they pass, and
+/// grows the rope behind them.
+///
+/// Anything that is not UTF-8 -- a UTF-16 file, a code page, a binary -- is
+/// refused here rather than guessed at, and `Document::from_file` re-reads it
+/// the old way, because telling those apart means looking at every byte at once.
+struct Loader {
+    builder: RopeBuilder,
+    /// The bytes of this bite, with the tail of the last one in front of them.
+    text: Vec<u8>,
+    /// At most three bytes of a character split across two bites.
+    tail: Vec<u8>,
+    /// The first three bytes of the file, which are a BOM or are not.
+    head: Vec<u8>,
+    head_done: bool,
+    bom: bool,
+    /// A `\r` at the very end of a bite, waiting to see whether a `\n` follows.
+    pending_cr: bool,
+    lf: usize,
+    crlf: usize,
+    cr: usize,
+}
+
+impl Loader {
+    fn new() -> Self {
+        Self {
+            builder: RopeBuilder::new(),
+            text: Vec::with_capacity(64 * 1024 + 4),
+            tail: Vec::new(),
+            head: Vec::new(),
+            head_done: false,
+            bom: false,
+            pending_cr: false,
+            lf: 0,
+            crlf: 0,
+            cr: 0,
+        }
+    }
+
+    /// Feeds one bite of the file; `at_end` says it is the last one.
+    fn feed(&mut self, bytes: &[u8], at_end: bool) -> std::io::Result<()> {
+        let mut bytes = bytes;
+        if !self.head_done {
+            let want = 3 - self.head.len();
+            let take = want.min(bytes.len());
+            self.head.extend_from_slice(&bytes[..take]);
+            bytes = &bytes[take..];
+            if self.head.len() < 3 && !at_end {
+                return Ok(());
+            }
+            self.head_done = true;
+            self.bom = self.head == [0xEF, 0xBB, 0xBF];
+            if !self.bom {
+                let head = std::mem::take(&mut self.head);
+                self.filter(&head, at_end)?;
+            }
+        }
+        self.filter(bytes, at_end)
+    }
+
+    /// Folds the terminators in `bytes` and hands the result to the rope.
+    fn filter(&mut self, bytes: &[u8], at_end: bool) -> std::io::Result<()> {
+        let mut bytes = bytes;
+        self.text.clear();
+        self.text.append(&mut self.tail);
+        if self.pending_cr {
+            match bytes.first() {
+                Some(&b'\n') => {
+                    self.crlf += 1;
+                    self.pending_cr = false;
+                    bytes = &bytes[1..];
+                }
+                Some(_) => {
+                    self.cr += 1;
+                    self.pending_cr = false;
+                }
+                None if at_end => {
+                    self.cr += 1;
+                    self.pending_cr = false;
+                }
+                None => {}
+            }
+            if !self.pending_cr {
+                self.text.push(b'\n');
+            }
+        }
+        let mut index = 0;
+        while index < bytes.len() {
+            let byte = bytes[index];
+            if byte == b'\r' {
+                if index + 1 == bytes.len() && !at_end {
+                    // The newline may be the first byte of the next bite.
+                    self.pending_cr = true;
+                    index += 1;
+                    continue;
+                }
+                if bytes.get(index + 1) == Some(&b'\n') {
+                    self.crlf += 1;
+                    index += 1;
+                } else {
+                    self.cr += 1;
+                }
+                self.text.push(b'\n');
+                index += 1;
+                continue;
+            }
+            if byte == b'\n' {
+                self.lf += 1;
+            }
+            self.text.push(byte);
+            index += 1;
+        }
+        self.append()
+    }
+
+    /// Checks what was filtered is UTF-8, and grows the rope by it.
+    ///
+    /// A character split across two bites stays in `tail` until the rest of it
+    /// arrives; a byte that is not UTF-8 at all ends the load, and the caller
+    /// falls back to reading the file whole.
+    fn append(&mut self) -> std::io::Result<()> {
+        match std::str::from_utf8(&self.text) {
+            Ok(text) => self.builder.append(text),
+            Err(error) => {
+                let valid = error.valid_up_to();
+                if valid > 0 {
+                    let text = std::str::from_utf8(&self.text[..valid])
+                        .expect("from_utf8 said this prefix is valid");
+                    self.builder.append(text);
+                }
+                match error.error_len() {
+                    Some(_) => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "not UTF-8",
+                        ))
+                    }
+                    None => {
+                        self.tail.clear();
+                        self.tail.extend_from_slice(&self.text[valid..]);
+                    }
+                }
+            }
+        }
+        self.text.clear();
+        Ok(())
+    }
+
+    /// The rope, once every bite has been fed.
+    fn finish(self) -> std::io::Result<(Rope, Encoding, EolMode)> {
+        if !self.tail.is_empty() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "not UTF-8",
+            ));
+        }
+        let encoding = if self.bom {
+            Encoding::Utf8Bom
+        } else {
+            Encoding::Utf8
+        };
+        let eol = EolMode::from_counts(self.crlf, self.lf, self.cr);
+        Ok((self.builder.finish(), encoding, eol))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1785,9 +1994,42 @@ mod tests {
         assert!(doc.is_dirty());
     }
 
+    #[test]
+    fn a_streamed_file_loads_the_same_as_a_whole_one() {
+        // Every shape the loader has to get right: a plain file, an empty one, a
+        // file shorter than the three bytes the BOM check waits for, CRLF, a
+        // lone CR at the end of the file, a UTF-8 BOM, a four-byte character
+        // straddling the 64 KiB bite, and bytes that are not UTF-8 at all.
+        let mut split = String::new();
+        split.push_str(&"a".repeat(64 * 1024 - 2));
+        split.push('🎉');
+        split.push_str("\nend\n");
+        let cases: &[(&str, &[u8])] = &[
+            ("plain", b"one\ntwo\n"),
+            ("empty", b""),
+            ("short", b"a"),
+            ("crlf", b"one\r\ntwo\r\n"),
+            ("cr-end", b"one\rtwo\r"),
+            ("bom", b"\xEF\xBB\xBFhi\n"),
+            ("split", split.as_bytes()),
+            ("latin1", b"caf\xE9\n"),
+        ];
+        let dir = std::env::temp_dir().join("nn-core-tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        for &(name, bytes) in cases {
+            let path = dir.join(format!("streamed-{name}.txt"));
+            std::fs::write(&path, bytes).unwrap();
+            let streamed = Document::from_file(&path).unwrap();
+            let whole = Document::from_bytes(bytes);
+            assert_eq!(streamed.text(), whole.text(), "{name}: text");
+            assert_eq!(streamed.eol(), whole.eol(), "{name}: eol");
+            assert_eq!(streamed.encoding(), whole.encoding(), "{name}: encoding");
+            std::fs::remove_file(&path).ok();
+        }
+    }
+
     /// A scratch file that removes itself.
     struct Scratch(PathBuf);
-
     impl Scratch {
         fn new(name: &str, text: &str) -> Self {
             let dir = std::env::temp_dir().join("nn-core-tests");

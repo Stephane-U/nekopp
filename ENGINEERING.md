@@ -11572,9 +11572,9 @@ there, turns it off, and checks all three vectors are empty.
 
 Same file, same machine, same measurement -- `VmHWM` polled while the editor ran
 and `VmRSS` read two and a half seconds in: peak 747 -> 460 MB, steady 367 ->
-328 MB. The 132 MB left between those two is the `std::fs::read` buffer, alive
-while the rope is built; `Rope::from_reader` over a buffered file would take that
-one too, and is the next step if the peak matters.
+328 MB. The 132 MB left between those two turned out not to be the read buffer
+the next paragraph guessed at; the hundredth pass found it, and took the buffer
+anyway.
 
 Nothing else moved: the same screenshot of twelve string literals counts 1,548
 string-coloured pixels, before and after. `cargo test --offline --release`: 2,291
@@ -11583,3 +11583,45 @@ they can, one that a code page still decodes rather than borrowing, and the one
 about the three vectors. `cargo clippy --offline --release --all-targets`: 0
 warnings. `cargo fmt` was not run. No feature reference change: what the editor
 does with a file is the same, it just holds one copy of it while doing it.
+
+## The hundredth pass: a file that arrives in bites
+
+The ninety-ninth pass made the whole-file copies borrow instead of copy and left
+one standing: `std::fs::read` held the file while the rope was built from it.
+
+`Document::from_file` streams now. A 64 KiB buffer is read, a UTF-8 BOM dropped,
+every carriage return folded into the `\n` the document keeps, the terminators
+counted for the line-ending decision, and the result appended to a `RopeBuilder`.
+A character split across two bites waits in a three-byte tail until the rest of
+it arrives. `EolMode::from_counts` is the rule `detect` already applied, lifted
+into a function of its own so the counting loader and the walking detector cannot
+drift apart.
+
+Anything that is not UTF-8 -- a UTF-16 file, a code page, a binary -- ends the
+stream, and the file is re-read whole and decoded as before, because telling
+those apart means seeing every byte at once. Only that case still pays for a copy
+of the file.
+
+### Verified
+
+A standalone load of the same 131 MiB file peaked at 331 MB before this change
+and 162 MB after. It is also 59 ms faster rather than slower -- 927 ms against
+868 ms, best of three each -- because the file is copied through one 64 KiB
+buffer instead of being read into an allocation the size of the document first.
+
+In the running editor the peak went 460 -> 457 MB and the steady weight 328 ->
+326 MB, which is not the improvement those numbers promise. The reason is worth
+writing down: instrumenting the open found the remaining 132 MB in
+`State::a11y_snapshot`, which copies the *whole document* into a `String` for the
+accessibility tree, once per snapshot. That is a memory cost and a time cost at
+the same time -- 131 MB allocated and copied per call on this file -- and it is
+not fixed here, because what a screen reader is handed is a decision about
+behaviour rather than about bytes. Cap the text that reaches the tree, or hand it
+over lazily, and the peak should come down to the steady weight.
+
+`cargo test --offline --release`: 2,292 tests, 0 failed, one of them new: eight
+file shapes -- plain, empty, shorter than three bytes, CRLF, a lone final CR, a
+UTF-8 BOM, a four-byte character split across the 64 KiB boundary, and bytes that
+are not UTF-8 -- each streamed through `from_file` and compared with `from_bytes`
+on text, line ending and encoding. `cargo clippy --offline --release
+--all-targets`: 0 warnings. `cargo fmt` was not run. No feature reference change.
