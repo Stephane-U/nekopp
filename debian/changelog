@@ -1,3 +1,20 @@
+npp (0.3.3) unstable; urgency=medium
+
+  * Open a large file with one copy of it in memory instead of four: the file,
+    the decoded text, the text with its line endings rewritten, and the buffer
+    itself. A 131 MiB file peaked at 747 MB and now peaks at 324, which is also
+    what it settles at.
+  * Read files 64 KiB at a time, folding line endings and dropping a byte-order
+    mark as the bytes arrive, so a file that needs no conversion is never copied
+    whole. Slightly faster as well as smaller: 868 ms against 927 on that file.
+  * Keep the row mapping only while something is wrapped or folded. With neither
+    it said nothing but "row n is line n", at forty-one megabytes for a file of a
+    million and a half lines.
+  * Give the accessibility tree its first 64 KiB from the document rather than a
+    copy of the whole file, which was 131 MB allocated per update on that file.
+
+ -- Neko++ maintainers <npp@example.invalid>  Wed, 25 Nov 2026 21:55:47 +0100
+
 npp (0.3.2) unstable; urgency=medium
 
   * Colour an apostrophe only where the language quotes with it: a Rust

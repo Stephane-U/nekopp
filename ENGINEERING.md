@@ -11649,3 +11649,28 @@ that says the document was cut; what it no longer gets is the allocation.
 prefix helper, and the note a truncated snapshot carries. `cargo clippy --offline
 --release --all-targets`: 0 warnings. `cargo fmt` was not run. No feature
 reference change.
+
+## The version at 0.3.3
+
+A patch number for three passes of memory work, three commits, none of them a
+change in behaviour: how a file is opened, what the document keeps while it is
+open, and what the accessibility tree is handed.
+
+The version is still declared once, in `[workspace.package]`, and everything that
+reports one reads it from there. By hand again: a debian changelog entry above
+0.3.2, the man page's header, and the MCP README's transcript. The reference's
+title line reads the manifest, so `python3 docs/build-pdf.py` was all the PDF
+needed -- 353,641 bytes, and `--check` reports it up to date.
+
+Both packages in `dist/` were rebuilt, and the release page carries the five
+assets the last one settled on: the AppImage, the deb, the docs zip, and the
+source as a tarball and a zip.
+
+Verified: `npp --version` prints `Neko++ 0.3.3`; `npp-mcp` prints `npp-mcp 0.3.3:
+111 sections, 74 shortcuts, 1 of 5 plugins enabled` and answers `initialize` with
+`"version":"0.3.3"`; `dpkg-parsechangelog -S Version` hands the package build
+0.3.3; the deb's control file says 0.3.3 and the AppImage holds the same binary as
+`target/release/npp`. `cargo test --offline --release`: 2,294 tests, 0 failed.
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The plugin workspace keeps its own 0.1.0: different target, versioned
+separately, interface unchanged.
