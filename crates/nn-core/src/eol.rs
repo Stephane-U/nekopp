@@ -19,6 +19,8 @@
 //! with multi-byte terminators. The original mode is remembered and restored on
 //! save.
 
+use std::borrow::Cow;
+
 /// The line terminator a document is written with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum EolMode {
@@ -89,10 +91,14 @@ impl EolMode {
     /// Rewrites every terminator in `text` to `\n`.
     ///
     /// Returns the normalised text and the mode that was detected on the way in.
-    pub fn normalise(text: &str) -> (String, EolMode) {
+    /// Text that needs no rewriting -- no carriage return anywhere, which is
+    /// every file written on this side of the last thirty years -- comes back
+    /// borrowed rather than copied, so opening a large file does not duplicate
+    /// it a second time.
+    pub fn normalise(text: &str) -> (Cow<'_, str>, EolMode) {
         let mode = Self::detect(text);
         if !text.as_bytes().contains(&b'\r') {
-            return (text.to_owned(), mode);
+            return (Cow::Borrowed(text), mode);
         }
 
         let mut out = String::with_capacity(text.len());
@@ -107,7 +113,7 @@ impl EolMode {
                 out.push(c);
             }
         }
-        (out, mode)
+        (Cow::Owned(out), mode)
     }
 }
 
@@ -155,5 +161,18 @@ mod tests {
         let (text, mode) = EolMode::normalise("a\nb");
         assert_eq!(text, "a\nb");
         assert_eq!(mode, EolMode::Lf);
+    }
+
+    #[test]
+    fn normalise_borrows_text_it_does_not_have_to_rewrite() {
+        // A file with no carriage return anywhere is handed back as the slice
+        // it came in as; copying it would double a large document on the way to
+        // the rope for no change at all.
+        let (text, _) = EolMode::normalise("a\nb\nc");
+        assert!(matches!(text, Cow::Borrowed(_)), "{text:?}");
+        // One carriage return is enough to need a new string.
+        let (text, mode) = EolMode::normalise("a\r\nb");
+        assert!(matches!(text, Cow::Owned(_)), "{text:?}");
+        assert_eq!(mode, EolMode::CrLf);
     }
 }

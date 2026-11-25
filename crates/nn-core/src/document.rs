@@ -139,12 +139,14 @@ pub struct Document {
     /// Per line: is the block that starts here collapsed?
     folded: Vec<bool>,
     /// Row (visible line) to `(document line, wrapped segment)`. Rebuilt lazily
-    /// after a fold change, an edit, or a change of wrap width.
+    /// after a fold change, an edit, or a change of wrap width, and empty when
+    /// there is nothing to say: with no wrapping and no collapsed block, row `n`
+    /// is line `n`, and the three vectors here would only spell that out.
     rows: Vec<(usize, u16)>,
     /// Document line to its first row, or `HIDDEN` when the line is inside a
-    /// collapsed block.
+    /// collapsed block. Empty means every line is on its own row.
     row_of: Vec<usize>,
-    /// Per line: how many rows it occupies once wrapped.
+    /// Per line: how many rows it occupies once wrapped. Empty means one.
     row_count: Vec<u16>,
     /// Per line: its length in characters, excluding the terminator. Kept here
     /// because wrapping needs every line's length and reaching into the rope for
@@ -220,9 +222,9 @@ impl Document {
             lex_states: vec![0; lines],
             fold_depths: vec![0; lines],
             folded: vec![false; lines],
-            rows: (0..lines).map(|line| (line, 0)).collect(),
-            row_of: (0..lines).collect(),
-            row_count: vec![1; lines],
+            rows: Vec::new(),
+            row_of: Vec::new(),
+            row_count: Vec::new(),
             line_lens,
             wrap_cols: 0,
             rows_dirty: false,
@@ -902,16 +904,23 @@ impl Document {
 
     /// Rebuilds the row mapping if folding, wrapping, or the text changed since
     /// the last call.
+    ///
+    /// Leaves the three vectors empty when there is no mapping to build -- no
+    /// wrap width and no collapsed block -- because then row `n` is line `n` and
+    /// every reader below reads an empty vector as exactly that.
     fn sync_rows(&mut self) {
         if !self.rows_dirty {
             return;
         }
         self.rows_dirty = false;
-        let lines = self.rope.len_lines();
         self.rows.clear();
         self.row_of.clear();
-        self.row_of.resize(lines, HIDDEN);
         self.row_count.clear();
+        if self.wrap_cols == 0 && !self.folded.iter().any(|&folded| folded) {
+            return;
+        }
+        let lines = self.rope.len_lines();
+        self.row_of.resize(lines, HIDDEN);
         self.row_count.resize(lines, 1);
         let wrap = self.wrap_cols;
         let mut line = 0;
@@ -938,12 +947,18 @@ impl Document {
     /// How many lines are visible, i.e. not inside a collapsed block.
     pub fn visible_line_count(&mut self) -> usize {
         self.sync_rows();
+        if self.rows.is_empty() {
+            return self.rope.len_lines();
+        }
         self.rows.len()
     }
 
     /// The document line drawn at `row`.
     pub fn line_of_row(&mut self, row: usize) -> usize {
         self.sync_rows();
+        if self.rows.is_empty() {
+            return row.min(self.rope.len_lines().saturating_sub(1));
+        }
         self.rows
             .get(row)
             .map(|r| r.0)
@@ -982,6 +997,9 @@ impl Document {
     /// The row `line` is drawn at, or `None` when it is hidden by a fold.
     pub fn row_of_line(&mut self, line: usize) -> Option<usize> {
         self.sync_rows();
+        if self.row_of.is_empty() {
+            return (line < self.rope.len_lines()).then_some(line);
+        }
         match self.row_of.get(line).copied() {
             Some(HIDDEN) | None => None,
             Some(row) => Some(row),
@@ -1532,6 +1550,30 @@ mod tests {
         doc.set_wrap(4);
         assert_eq!(doc.segments_of_line(0), 1);
         assert_eq!(doc.visible_line_count(), 3);
+    }
+
+    #[test]
+    fn a_plain_document_keeps_no_row_mapping() {
+        // Sixteen bytes of `rows` and eight of `row_of` per line would say, for
+        // a file with a million lines, only that row n is line n.
+        let mut doc = Document::from_text("one\ntwo\nthree\n");
+        assert!(doc.rows.is_empty());
+        assert_eq!(doc.visible_line_count(), 4);
+        assert_eq!(doc.line_of_row(2), 2);
+        assert_eq!(doc.segment_of_row(2), 0);
+        assert_eq!(doc.segments_of_line(2), 1);
+        assert_eq!(doc.row_of_line(2), Some(2));
+        assert_eq!(doc.row_of_line(9), None);
+        // Wrapping needs the mapping, and turning it off drops it back to
+        // nothing rather than leaving the last one behind.
+        assert!(doc.set_wrap(2));
+        assert_eq!(doc.segments_of_line(0), 2);
+        assert!(!doc.rows.is_empty());
+        assert!(doc.set_wrap(0));
+        assert_eq!(doc.visible_line_count(), 4);
+        assert!(doc.rows.is_empty(), "{} rows", doc.rows.len());
+        assert!(doc.row_of.is_empty(), "{} rows", doc.row_of.len());
+        assert!(doc.row_count.is_empty(), "{} rows", doc.row_count.len());
     }
 
     #[test]

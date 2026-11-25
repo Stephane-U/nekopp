@@ -24,6 +24,8 @@
 //! also the fallback `detect` reaches for, because every byte maps to a character
 //! and so no file is ever unreadable.
 
+use std::borrow::Cow;
+
 use crate::codepage::CodePage;
 
 /// How the bytes of a document map to characters.
@@ -92,17 +94,20 @@ impl Encoding {
         Encoding::CodePage(CodePage::Iso8859_1)
     }
 
-    /// Decodes `bytes` into a `String`.
+    /// Decodes `bytes` into text, borrowing them when they need no change.
     ///
     /// Invalid sequences become `U+FFFD` rather than failing: an editor must
-    /// always be able to open a file.
-    pub fn decode(self, bytes: &[u8]) -> String {
+    /// always be able to open a file. Nothing is copied for the case that
+    /// matters -- valid UTF-8 with no BOM, which is most files -- so a large
+    /// document is not copied whole just to be handed to the rope.
+    pub fn decode(self, bytes: &[u8]) -> Cow<'_, str> {
         let body = bytes.strip_prefix(self.bom()).unwrap_or(bytes);
         match self {
-            Encoding::Utf8 | Encoding::Utf8Bom => String::from_utf8_lossy(body).into_owned(),
+            Encoding::Utf8 | Encoding::Utf8Bom => String::from_utf8_lossy(body),
             Encoding::CodePage(page) => {
                 let high = page.high();
-                body.iter()
+                let decoded: String = body
+                    .iter()
                     .map(|&b| {
                         if b < 0x80 {
                             b as char
@@ -110,7 +115,8 @@ impl Encoding {
                             high[(b - 0x80) as usize]
                         }
                     })
-                    .collect()
+                    .collect();
+                Cow::Owned(decoded)
             }
             Encoding::Utf16Le | Encoding::Utf16Be => {
                 let units = body.chunks_exact(2).map(|pair| {
@@ -120,9 +126,10 @@ impl Encoding {
                         u16::from_be_bytes([pair[0], pair[1]])
                     }
                 });
-                char::decode_utf16(units)
+                let decoded: String = char::decode_utf16(units)
                     .map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER))
-                    .collect()
+                    .collect();
+                Cow::Owned(decoded)
             }
         }
     }
@@ -196,6 +203,20 @@ mod tests {
     fn utf8_roundtrip() {
         let text = "héllo\nwörld";
         assert_eq!(Encoding::Utf8.decode(&Encoding::Utf8.encode(text)), text);
+    }
+
+    #[test]
+    fn decoding_valid_utf8_borrows_instead_of_copying() {
+        // The case that matters for a large file: the bytes already are the
+        // text, so decoding hands them back rather than duplicating the whole
+        // document before the rope copies it a third time.
+        let bytes = "héllo\nwörld".as_bytes();
+        let text = Encoding::Utf8.decode(bytes);
+        assert!(matches!(text, Cow::Borrowed(_)), "{text:?}");
+        assert_eq!(text, "héllo\nwörld");
+        // A code page cannot borrow: every high byte has to be mapped.
+        let latin = Encoding::CodePage(CodePage::Iso8859_1).decode(b"caf\xE9");
+        assert_eq!(latin, "café");
     }
 
     #[test]

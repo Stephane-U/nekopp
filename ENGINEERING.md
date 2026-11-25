@@ -11524,3 +11524,62 @@ Verified: `npp --version` prints `Neko++ 0.3.2`; `npp-mcp` prints `npp-mcp 0.3.2
 --release --all-targets`: 0 warnings. `cargo fmt` was not run. The plugin
 workspace keeps its own 0.1.0: different target, versioned separately, interface
 unchanged.
+
+## Ninety-ninth pass: the copies an open did not need
+
+Asked whether the memory could come down without touching performance. Of the
+four and a half bytes a byte of text cost, three bytes were not the text.
+
+Measured on a 131 MiB file of source-like lines -- 137,363,424 characters and
+1,560,949 lines -- against an empty window that costs 163 MB on this machine: the
+editor peaked at 747 MB and settled at 367 MB. The 380 MB between those two
+numbers was the load path, and all of it was copies:
+
+* `std::fs::read` hands `from_bytes` the whole file as bytes.
+* `Encoding::decode` returned `String::from_utf8_lossy(..).into_owned()`, which
+  copies the file even when its bytes already are valid UTF-8.
+* `EolMode::normalise` returned `text.to_owned()` when there was no carriage
+  return to rewrite -- which is every file that needs no rewriting.
+* `Rope::from_str` copies the text into the rope, which is the one copy that has
+  to happen.
+
+So for the width of one call, four copies of the document were alive at once.
+
+### Borrowed, not copied
+
+`decode` and `normalise` return `Cow<str>` now: borrowed for valid UTF-8 with no
+BOM and for text holding no `\r`, owned for the code pages, the two UTF-16 byte
+orders, and line endings that have to be rewritten. No call site had to change
+shape, because `&Cow<str>` is a `&str` where one was expected.
+
+### A mapping that only said "the same"
+
+`Document` kept three vectors over the lines: `rows` at sixteen bytes a line, an
+index pair per line, `row_of` at eight and `row_count` at two. With no wrapping
+and no collapsed block their whole content is "row `n` is line `n`", which for a
+file this size is forty-one megabytes of the letter n.
+
+`from_text` leaves all three empty, `sync_rows` returns before building when
+there is nothing to build, and the six accessors that read them read an empty
+vector as the identity. Which also means the rebuild that used to walk every line
+after every edit of such a document is now a scan of the folded flags.
+
+Wrapping and folding still build the mapping, and dropping back to neither drops
+it again -- the test that asserts it turns wrapping on, checks the mapping is
+there, turns it off, and checks all three vectors are empty.
+
+### Verified
+
+Same file, same machine, same measurement -- `VmHWM` polled while the editor ran
+and `VmRSS` read two and a half seconds in: peak 747 -> 460 MB, steady 367 ->
+328 MB. The 132 MB left between those two is the `std::fs::read` buffer, alive
+while the rope is built; `Rope::from_reader` over a buffered file would take that
+one too, and is the next step if the peak matters.
+
+Nothing else moved: the same screenshot of twelve string literals counts 1,548
+string-coloured pixels, before and after. `cargo test --offline --release`: 2,291
+tests, 0 failed, three of them new -- one that the two conversions borrow when
+they can, one that a code page still decodes rather than borrowing, and the one
+about the three vectors. `cargo clippy --offline --release --all-targets`: 0
+warnings. `cargo fmt` was not run. No feature reference change: what the editor
+does with a file is the same, it just holds one copy of it while doing it.
