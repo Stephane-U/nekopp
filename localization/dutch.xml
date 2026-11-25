@@ -429,6 +429,8 @@
                 <Item id="Col:" name="Kol:"/>
                 <Item id="length:" name="lengte:"/>
                 <Item id="Font Size" name="Lettergrootte"/>
+                <Item id="Window Scale" name="Vensterschaal"/>
+                <Item id="Follow the display" name="Volg het scherm"/>
                 <Item id="Play macro times:" name="Macro aantal keer afspelen:"/>
                 <Item id="Run Multiple Macros" name="Macro meerdere keren uitvoeren"/>
                 <Item id="Folder:" name="Map:"/>

@@ -87,6 +87,9 @@ pub struct Tooltip {
     /// What the body was shaped for: (text, columns).
     shaped: (String, usize),
     family: Family<'static>,
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
 }
 
@@ -102,12 +105,22 @@ impl Tooltip {
             body: Buffer::new_empty(metrics),
             shaped: (String::new(), 0),
             family,
+            metrics,
             char_width,
         }
     }
 
     /// Rebuilds the label at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.body.set_metrics(metrics);
         // The label is shaped once per (text, columns), so forgetting the pair is
         // what makes it shape again at the new size rather than reuse the old.
@@ -212,7 +225,8 @@ impl Tooltip {
     /// The width the tooltip occupies.
     pub fn width(&self) -> f32 {
         let columns = self.text.chars().count() as f32;
-        (columns * self.char_width + PADDING * 2.0).min(MAX_WIDTH)
+        (columns * self.char_width + PADDING * 2.0)
+            .min(MAX_WIDTH * crate::renderer::scale_of(self.metrics))
     }
 
     /// The height the tooltip occupies.

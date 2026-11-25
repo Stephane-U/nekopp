@@ -452,6 +452,8 @@
                 <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
                 <Item id="Backup on Save" name="Sikkerhedskopiering ved lagring"/>
                 <Item id="Font Size" name="Skriftstørrelse"/>
+                <Item id="Window Scale" name="Vinduesskalering"/>
+                <Item id="Follow the display" name="Følg skærmen"/>
                 <Item id="LARGE" name="STOR"/>
                 <Item id="Sync Vertical Scroll" name="Synkronisér lodret rulning"/>
                 <Item id="Sync Horizontal Scroll" name="Synkronisér vandret rulning"/>

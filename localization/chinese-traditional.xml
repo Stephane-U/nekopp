@@ -431,6 +431,8 @@
                 <Item id="LARGE" name="大檔案"/>
                 <Item id="Character code:" name="字元編碼:"/>
                 <Item id="Font Size" name="字型大小"/>
+                <Item id="Window Scale" name="視窗縮放"/>
+                <Item id="Follow the display" name="跟隨螢幕"/>
                 <Item id="Tab Width" name="定位字元寬度"/>
                 <Item id="Find" name="尋找"/>
                 <Item id="Find:" name="尋找:"/>

@@ -209,9 +209,13 @@ because a text editor's job is the text.
 The furniture is drawn at the density the display reports, so a 4K monitor whose
 desktop is set to 200% gets a menu bar, icons and text at twice the size rather
 than fifteen-pixel labels on a dense panel. Where the desktop reports a density
-of one on such a screen, `ui_scale` in `settings.txt` says what to use instead;
-zero, the default, means ask the display. The document's text follows the same
-number, and zoom stays what it was: a property of the text, not of the window.
+of one on such a screen, the "Window Scale" row in Preferences says what to use
+instead -- ×1.5, ×1.75 or ×2 -- and its first choice, "Follow the display", is
+the default and asks the display. The same choice can be written as `ui_scale` in
+`settings.txt`, where zero means follow the display. Panels, dialogs and every
+length measured in pixels grow with it, so no label is cut off at the larger
+sizes. The document's text follows the same number, and zoom stays what it was: a
+property of the text, not of the window.
 
 ### Menu bar
 
@@ -2155,6 +2159,7 @@ one the shortcut editor uses, and it is what makes Escape mean "forget it".
 |---|---|---|
 | Theme | The 50 choices | System |
 | Font Size | Pixels, clamped to a sane range | 15 |
+| Window Scale | Follow the display, ×1.5, ×1.75, ×2 | Follow the display |
 | Tab Width | Columns, clamped | 4 |
 | Word Wrap | On or off | Off |
 | Minimap | On or off | On |

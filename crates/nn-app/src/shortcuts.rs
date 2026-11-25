@@ -67,6 +67,9 @@ pub struct Shortcuts {
     hint: Buffer,
     hint_shaped: String,
     family: Family<'static>,
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
     line_height: f32,
     /// Window size, so the dialog can centre itself.
@@ -89,6 +92,7 @@ impl Shortcuts {
             hint: Buffer::new_empty(metrics),
             hint_shaped: String::new(),
             family,
+            metrics,
             char_width,
             line_height: metrics.line_height,
             viewport: (0.0, 0.0),
@@ -97,6 +101,15 @@ impl Shortcuts {
 
     /// Rebuilds the dialog at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.title.set_metrics(metrics);
         self.body.set_metrics(metrics);
         self.hint.set_metrics(metrics);
@@ -236,8 +249,12 @@ impl Shortcuts {
     }
 
     /// The width the dialog occupies.
+    ///
+    /// `WIDTH` is the width at the plain density; a display that asks for twice
+    /// the text asks for twice the box, or the chords in the second column run
+    /// past its right edge.
     pub fn width(&self) -> f32 {
-        WIDTH
+        WIDTH * crate::renderer::scale_of(self.metrics)
     }
 
     /// The height the dialog occupies.

@@ -88,6 +88,12 @@ impl StatusBar {
         if metrics == self.metrics {
             return;
         }
+        // Everything in this widget that is counted in characters -- a tab's
+        // width, the column a value starts in, the box around a row -- is
+        // measured with `char_width`, so the width has to grow with the text or
+        // the box stays the size the window opened at and the labels run out of
+        // it.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
         self.metrics = metrics;
         self.left.set_metrics(metrics);
         self.right.set_metrics(metrics);
@@ -273,19 +279,34 @@ impl StatusBar {
             bottom: (top + height) as i32,
         };
         let right_width = self.right_text.chars().count() as f32 * self.char_width;
+        let right_left = (width - padding - right_width).max(padding);
+        // The left half stops where the right half starts rather than running to
+        // the window's edge. A narrow window at a large scale would otherwise
+        // draw the two runs on top of each other, and a number landing in the
+        // middle of a label reads as neither. The cut falls on a whole character
+        // because a boundary halfway through a glyph leaves half of it drawn,
+        // which reads as one more label.
+        let char = self.char_width.max(1.0);
+        let cells = ((right_left - 2.0 * padding) / char).floor().max(0.0);
+        let left_bounds = TextBounds {
+            left: 0,
+            top: top as i32,
+            right: (padding + cells * char) as i32,
+            bottom: (top + height) as i32,
+        };
         vec![
             TextArea {
                 buffer: &self.left,
                 left: padding,
                 top: top + 2.0,
                 scale: 1.0,
-                bounds,
+                bounds: left_bounds,
                 default_color: theme.bar_label.to_cosmic(),
                 custom_glyphs: &[],
             },
             TextArea {
                 buffer: &self.right,
-                left: (width - padding - right_width).max(padding),
+                left: right_left,
                 top: top + 2.0,
                 scale: 1.0,
                 bounds,
@@ -369,5 +390,26 @@ mod tests {
         bar.set_message(Some("Imported".into()));
         bar.update(&editor());
         assert_eq!(bar.right_text, "Imported");
+    }
+
+    #[test]
+    fn the_two_halves_do_not_draw_over_each_other() {
+        let mut bar = bar();
+        bar.update(&editor());
+        let theme = Theme::default();
+        // A window narrow enough that the two runs would meet at eight pixels a
+        // character: the left half is clipped where the right half begins.
+        let areas = bar.text_areas(240.0, 0.0, 20.0, 8.0, &theme);
+        assert_eq!(areas.len(), 2);
+        assert!(
+            (areas[0].bounds.right as f32) <= areas[1].left,
+            "left ends at {} and right starts at {}",
+            areas[0].bounds.right,
+            areas[1].left
+        );
+        // A window wide enough for both gives the left half the room back.
+        let wide = bar.text_areas(1200.0, 0.0, 20.0, 8.0, &theme);
+        assert!(wide[0].bounds.right > 600, "{}", wide[0].bounds.right);
+        assert!(wide[1].left > wide[0].bounds.right as f32);
     }
 }

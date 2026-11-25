@@ -449,6 +449,8 @@
                 <Item id="Simple" name="Простой"/>
                 <Item id="Split on:" name="Разделить по:"/>
                 <Item id="Font Size" name="Размер шрифта"/>
+                <Item id="Window Scale" name="Масштаб окна"/>
+                <Item id="Follow the display" name="По экрану"/>
                 <Item id="Backup on Save" name="Резервная копия при сохранении"/>
                 <Item id="Sync Vertical Scroll" name="Синхронизировать вертикальную прокрутку"/>
                 <Item id="Sync Horizontal Scroll" name="Синхронизировать горизонтальную прокрутку"/>

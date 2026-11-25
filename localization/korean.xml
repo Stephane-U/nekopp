@@ -410,6 +410,8 @@
                 <Item id="Simple" name="간단히"/>
                 <Item id="Search URL:" name="검색 URL:"/>
                 <Item id="Font Size" name="글꼴 크기"/>
+                <Item id="Window Scale" name="창 배율"/>
+                <Item id="Follow the display" name="화면 따라가기"/>
                 <Item id="length:" name="길이:"/>
                 <Item id="Off" name="끔"/>
                 <Item id="Split on:" name="나눌 기준:"/>

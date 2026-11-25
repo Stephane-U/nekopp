@@ -467,6 +467,8 @@
                 <Item id="Replace All" name="Substituir tudo"/>
                 <Item id="Replace:" name="Substituir:"/>
                 <Item id="Font Size" name="Tamanho da fonte"/>
+                <Item id="Window Scale" name="Escala da janela"/>
+                <Item id="Follow the display" name="Seguir a tela"/>
                 <Item id="A GPU-rendered text editor" name="Um editor de texto renderizado por GPU"/>
                 <Item id="Search URL:" name="URL de pesquisa:"/>
             <Item id="Count" name="Contar"/>

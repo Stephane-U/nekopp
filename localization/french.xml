@@ -464,6 +464,8 @@
                 <Item id="Sync Horizontal Scroll" name="Synchroniser le défilement horizontal"/>
                 <Item id="Sync Vertical Scroll" name="Synchroniser le défilement vertical"/>
                 <Item id="Font Size" name="Taille de police"/>
+                <Item id="Window Scale" name="Échelle de la fenêtre"/>
+                <Item id="Follow the display" name="Suivre l'écran"/>
                 <Item id="A GPU-rendered text editor" name="Un éditeur de texte rendu par le GPU"/>
                 <Item id="Search URL:" name="URL de recherche :"/>
                 <Item id="Verbose" name="Verbeux"/>

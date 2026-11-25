@@ -93,6 +93,9 @@ pub struct PluginList {
     body: Buffer,
     body_shaped: String,
     family: Family<'static>,
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
     line_height: f32,
     /// Window size, so the dialog can centre itself and know how many rows fit.
@@ -113,6 +116,7 @@ impl PluginList {
             body: Buffer::new_empty(metrics),
             body_shaped: String::new(),
             family,
+            metrics,
             char_width,
             line_height: metrics.line_height,
             viewport: (0.0, 0.0),
@@ -121,6 +125,15 @@ impl PluginList {
 
     /// Rebuilds the dialog at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.title.set_metrics(metrics);
         self.body.set_metrics(metrics);
     }
@@ -295,7 +308,7 @@ impl PluginList {
             ])
             .max()
             .unwrap_or(0);
-        (widest as f32 * self.char_width + PADDING * 2.0).max(WIDTH)
+        (widest as f32 * self.char_width + PADDING * 2.0).max(WIDTH * crate::renderer::scale_of(self.metrics))
     }
 
     /// The height the dialog occupies: title, gap, rows, gap, hint.

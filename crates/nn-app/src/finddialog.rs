@@ -421,6 +421,12 @@ impl FindDialog {
         if metrics == self.metrics {
             return;
         }
+        // Everything in this widget that is counted in characters -- a tab's
+        // width, the column a value starts in, the box around a row -- is
+        // measured with `char_width`, so the width has to grow with the text or
+        // the box stays the size the window opened at and the labels run out of
+        // it.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
         self.metrics = metrics;
         for row in &mut self.history_rows {
             row.set_metrics(metrics);
@@ -607,7 +613,10 @@ impl FindDialog {
 
     /// The frame's width at this window size.
     fn width(&self) -> f32 {
-        WIDTH.min((self.viewport.0 - 2.0 * PAD).max(MIN_WIDTH))
+        // Both numbers are scale-1: a dense display gets a frame wide enough for
+        // the text it now draws, up to the window it has to fit in.
+        let scale = crate::renderer::scale_of(self.metrics);
+        (WIDTH * scale).min((self.viewport.0 - 2.0 * PAD).max(MIN_WIDTH * scale))
     }
 
     /// The width a button needs for the word on it.

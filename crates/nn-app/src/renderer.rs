@@ -122,6 +122,21 @@ impl UiMetrics {
     }
 }
 
+/// How much larger than the plain furniture a set of metrics is.
+///
+/// The widgets are handed `cosmic_text::Metrics` and nothing else, so this is how
+/// one of them asks "how big am I" when it has a length to lay out that is not
+/// text: a tab's minimum width, a dialog's narrowest box, the column a folder tree
+/// takes. Every one of those was a constant in pixels, and every one of them
+/// clipped its content the moment the text around it doubled.
+pub fn scale_of(metrics: cosmic_text::Metrics) -> f32 {
+    if metrics.line_height > 0.0 {
+        metrics.line_height / UI_LINE_HEIGHT
+    } else {
+        1.0
+    }
+}
+
 impl Default for UiMetrics {
     fn default() -> Self {
         Self::at(1.0)

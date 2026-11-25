@@ -30,8 +30,9 @@ use glyphon::{TextArea, TextBounds};
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
 use crate::settings::{
-    FileDialog, Settings, ThemeChoice, MAX_AUTOSAVE, MAX_FONT_SIZE, MAX_PLAYGROUND_MINUTES,
-    MAX_TAB_WIDTH, MIN_AUTOSAVE, MIN_FONT_SIZE, MIN_PLAYGROUND_MINUTES, MIN_TAB_WIDTH,
+    FileDialog, Settings, ThemeChoice, UiScale, MAX_AUTOSAVE, MAX_FONT_SIZE,
+    MAX_PLAYGROUND_MINUTES, MAX_TAB_WIDTH, MIN_AUTOSAVE, MIN_FONT_SIZE,
+    MIN_PLAYGROUND_MINUTES, MIN_TAB_WIDTH,
 };
 use crate::text::shaping_for;
 use crate::theme::Theme;
@@ -67,13 +68,14 @@ const TITLE: &str = "Preferences";
 /// The hint line under the rows.
 const HINT: &str = "Up/Down  Left/Right  Enter open  Esc close";
 /// How many rows the dialog has.
-pub const ROWS: usize = 16;
+pub const ROWS: usize = 17;
 
 /// The settings the dialog edits, in row order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Row {
     Theme,
     FontSize,
+    UiScale,
     TabWidth,
     Wrap,
     Minimap,
@@ -95,6 +97,7 @@ impl Row {
     pub const ALL: [Row; ROWS] = [
         Row::Theme,
         Row::FontSize,
+        Row::UiScale,
         Row::TabWidth,
         Row::Wrap,
         Row::Minimap,
@@ -116,6 +119,7 @@ impl Row {
         match self {
             Row::Theme => "Theme",
             Row::FontSize => "Font Size",
+            Row::UiScale => "Window Scale",
             Row::TabWidth => "Tab Width",
             Row::Wrap => "Word Wrap",
             Row::Minimap => "Minimap",
@@ -303,6 +307,9 @@ pub struct Preferences {
     picker_body: Buffer,
     picker_shaped: String,
     family: Family<'static>,
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
     line_height: f32,
     /// Window size, so the dialog can centre itself.
@@ -326,6 +333,7 @@ impl Preferences {
             picker_body: Buffer::new_empty(metrics),
             picker_shaped: String::new(),
             family,
+            metrics,
             char_width,
             line_height: metrics.line_height,
             viewport: (0.0, 0.0),
@@ -334,6 +342,15 @@ impl Preferences {
 
     /// Rebuilds the dialog at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.title.set_metrics(metrics);
         self.body.set_metrics(metrics);
         self.picker_body.set_metrics(metrics);
@@ -787,7 +804,7 @@ impl Preferences {
             0
         });
         let width = (widest as f32 * self.char_width + PADDING * 2.0)
-            .max(PICKER_MIN_WIDTH)
+            .max(PICKER_MIN_WIDTH * crate::renderer::scale_of(self.metrics))
             .min(self.width());
         // Under the value, which is where the eye already is.
         let mut x = left + PADDING + self.value_column() as f32 * self.char_width;
@@ -877,6 +894,18 @@ impl Preferences {
                 let size = self.settings.font_size + delta as f32;
                 self.settings.font_size = size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
             }
+            Row::UiScale => {
+                // A short list of choices rather than a number: "follow the
+                // display" has no numeric form, and the point of the row is to
+                // reach a readable size in one or two presses.
+                let all = UiScale::ALL;
+                let at = all
+                    .iter()
+                    .position(|choice| *choice == UiScale(self.settings.ui_scale))
+                    .unwrap_or(0) as i32;
+                let next = (at + delta).clamp(0, all.len() as i32 - 1) as usize;
+                self.settings.ui_scale = all[next].0;
+            }
             Row::TabWidth => {
                 let width = self.settings.tab_width as i32 + delta;
                 self.settings.tab_width =
@@ -954,6 +983,13 @@ impl Preferences {
         match row {
             Row::Theme => self.tr(self.settings.theme.label()).to_string(),
             Row::FontSize => format!("{}", self.settings.font_size),
+            Row::UiScale => {
+                if self.settings.ui_scale <= 0.0 {
+                    self.tr("Follow the display").to_string()
+                } else {
+                    format!("x{}", UiScale(self.settings.ui_scale).label())
+                }
+            }
             Row::TabWidth => format!("{}", self.settings.tab_width),
             Row::Wrap => on_off(self.settings.wrap),
             Row::Minimap => on_off(self.settings.minimap),
@@ -1002,7 +1038,10 @@ impl Preferences {
             .chain([self.title().chars().count(), self.hint().chars().count()])
             .max()
             .unwrap_or(0);
-        (widest as f32 * self.char_width + PADDING * 2.0).max(WIDTH)
+        // The floor is a scale-1 number, so it doubles with the text rather
+        // than pinning a dense display to a box measured for a sparse one.
+        let floor = WIDTH * crate::renderer::scale_of(self.metrics);
+        (widest as f32 * self.char_width + PADDING * 2.0).max(floor)
     }
 
     /// The height the dialog occupies.
@@ -1330,6 +1369,7 @@ impl Preferences {
             "On",
             "Off",
             "Never",
+            "Follow the display",
             "Edit...",
             PICKER_FOOTER,
             HINT,
@@ -1393,6 +1433,18 @@ mod tests {
     #[test]
     fn the_first_row_is_the_theme() {
         assert_eq!(dialog().selected(), Row::Theme);
+    }
+
+    #[test]
+    fn the_dialog_widens_with_the_text_it_holds() {
+        let sparse = dialog();
+        // The dense dialog of a display at twice the density: same box, twice
+        // the font, so the character width doubles with the row height.
+        let dense = Preferences::new(Metrics::new(30.0, 40.0), Family::Monospace, 16.0);
+        // Both boxes are measured in characters, so the dense one is the same
+        // number of columns and twice the pixels -- which is the whole point of
+        // the floor passing through `scale_of`.
+        assert_eq!(dense.width(), sparse.width() * 2.0);
     }
 
     #[test]
@@ -1529,7 +1581,8 @@ mod tests {
     fn a_switch_row_ignores_the_direction() {
         let mut prefs = dialog();
         prefs.open(&Settings::default());
-        prefs.set_selected(3);
+        let index = Row::ALL.iter().position(|r| *r == Row::Wrap).unwrap();
+        prefs.set_selected(index);
         assert!(prefs.adjust(1));
         assert!(prefs.settings().wrap);
         assert!(prefs.adjust(-1));
@@ -1546,6 +1599,34 @@ mod tests {
         assert!(prefs.adjust(1));
         assert!(!prefs.settings().volatile_find);
         assert_eq!(prefs.value(Row::VolatileFind), "Off");
+    }
+
+    #[test]
+    fn the_window_scale_row_steps_through_its_choices() {
+        let mut prefs = dialog();
+        prefs.open(&Settings::default());
+        let index = Row::ALL.iter().position(|r| *r == Row::UiScale).unwrap();
+        prefs.set_selected(index);
+        assert_eq!(prefs.value(Row::UiScale), "Follow the display");
+        // Four choices in all: the display's own density, then three
+        // multipliers for the screens that report one on a dense panel.
+        assert!(prefs.adjust(1));
+        assert_eq!(prefs.settings().ui_scale, 1.5);
+        assert_eq!(prefs.value(Row::UiScale), "x1.5");
+        assert!(prefs.adjust(1));
+        assert_eq!(prefs.value(Row::UiScale), "x1.75");
+        assert!(prefs.adjust(1));
+        assert_eq!(prefs.value(Row::UiScale), "x2");
+        // Both ends hold rather than wrapping, so holding the key cannot
+        // walk the window past a size the furniture still fits in.
+        assert!(!prefs.adjust(1));
+        assert_eq!(prefs.settings().ui_scale, 2.0);
+        prefs.adjust(-1);
+        prefs.adjust(-1);
+        assert!(prefs.adjust(-1));
+        assert_eq!(prefs.settings().ui_scale, 0.0);
+        assert_eq!(prefs.value(Row::UiScale), "Follow the display");
+        assert!(!prefs.adjust(-1));
     }
 
     #[test]

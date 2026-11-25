@@ -103,6 +103,12 @@ impl FolderPanel {
         if metrics == self.metrics {
             return;
         }
+        // Everything in this widget that is counted in characters -- a tab's
+        // width, the column a value starts in, the box around a row -- is
+        // measured with `char_width`, so the width has to grow with the text or
+        // the box stays the size the window opened at and the labels run out of
+        // it.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
         self.metrics = metrics;
         self.header.set_metrics(metrics);
         self.body.set_metrics(metrics);
@@ -214,7 +220,8 @@ impl FolderPanel {
         if !self.open {
             return 0.0;
         }
-        (char_width * TARGET_COLUMNS).clamp(MIN_WIDTH, MAX_WIDTH)
+        let scale = crate::renderer::scale_of(self.metrics);
+        (char_width * TARGET_COLUMNS).clamp(MIN_WIDTH * scale, MAX_WIDTH * scale)
     }
 
     /// Scrolls the list by `delta` rows.

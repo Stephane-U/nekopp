@@ -420,6 +420,8 @@
                 <Item id="System dialog" name="Järjestelmän valintaikkuna"/>
                 <Item id="Folder:" name="Kansio:"/>
                 <Item id="Font Size" name="Kirjasinkoko"/>
+                <Item id="Window Scale" name="Ikkunan skaala"/>
+                <Item id="Follow the display" name="Seuraa näyttöä"/>
                 <Item id="Replace" name="Korvaa"/>
                 <Item id="Replace All" name="Korvaa kaikki"/>
                 <Item id="Replace:" name="Korvaa:"/>

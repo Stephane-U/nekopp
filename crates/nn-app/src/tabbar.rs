@@ -356,6 +356,12 @@ impl TabBar {
         if metrics == self.metrics {
             return;
         }
+        // Everything in this widget that is counted in characters -- a tab's
+        // width, the column a value starts in, the box around a row -- is
+        // measured with `char_width`, so the width has to grow with the text or
+        // the box stays the size the window opened at and the labels run out of
+        // it.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
         self.metrics = metrics;
         self.stale = true;
     }
@@ -432,7 +438,7 @@ impl TabBar {
         }
         // A column wider than the pane would leave no text at all, so it gives
         // way rather than pushing the document off the edge.
-        COLUMN_WIDTH.min(self.width * 0.5).max(0.0)
+        (COLUMN_WIDTH * self.scale()).min(self.width * 0.5).max(0.0)
     }
 
     /// How many rows the strip uses.
@@ -481,6 +487,16 @@ impl TabBar {
         }
     }
 
+    /// How much larger than the plain strip this one is drawn.
+    ///
+    /// Every length in the strip that is not text -- a tab's floor and ceiling, a
+    /// vertical column -- is a constant in pixels from the scale-1 window, so they
+    /// all pass through here. Without it a title twice as wide as a sparse
+    /// screen's was still clamped to 260 pixels and came out cut off.
+    fn scale(&self) -> f32 {
+        crate::renderer::scale_of(self.metrics)
+    }
+
     /// The width of tab `index`.
     ///
     /// Every tab reserves the button zone whether or not its buttons are drawn,
@@ -488,8 +504,9 @@ impl TabBar {
     /// only reserved on a tab that has one, because a dirty marker appearing
     /// should widen its own tab and nothing else.
     fn tab_width(&self, index: usize) -> f32 {
+        let scale = self.scale();
         let Some(tab) = self.tabs.get(index) else {
-            return MIN_TAB_WIDTH;
+            return MIN_TAB_WIDTH * scale;
         };
         let chars = tab.title.chars().count();
         let mark = if tab.modified {
@@ -498,7 +515,7 @@ impl TabBar {
             0.0
         };
         (chars as f32 * self.char_width + 2.0 * TAB_PADDING + BUTTON_ZONE + mark)
-            .clamp(MIN_TAB_WIDTH, MAX_TAB_WIDTH)
+            .clamp(MIN_TAB_WIDTH * scale, MAX_TAB_WIDTH * scale)
     }
 
     /// The width the tabs need if they are laid out in one row.
@@ -524,7 +541,7 @@ impl TabBar {
     /// arrow is a tab whose buttons cannot be clicked.
     fn usable_width(&self) -> f32 {
         if self.overflows() {
-            (self.width - BUTTON_ZONE).max(MIN_TAB_WIDTH)
+            (self.width - BUTTON_ZONE).max(MIN_TAB_WIDTH * self.scale())
         } else {
             self.width
         }
@@ -585,7 +602,7 @@ impl TabBar {
         if direction == 0 || !self.overflows() {
             return false;
         }
-        let step = (self.usable_width() * 0.75).max(MIN_TAB_WIDTH * 0.5);
+        let step = (self.usable_width() * 0.75).max(MIN_TAB_WIDTH * self.scale() * 0.5);
         let before = self.offset;
         self.offset += direction.signum() as f32 * step;
         self.clamp_offset();
@@ -1515,6 +1532,26 @@ mod tests {
         // The tabs past the edge are still placed, just clipped.
         assert_eq!(bar.slots(20.0).len(), 4);
         assert!(bar.slots(20.0)[3].left >= MIN_TAB_WIDTH);
+    }
+
+    #[test]
+    fn a_tab_widens_with_the_text_it_holds() {
+        let mut bar = bar();
+        // One title short enough to sit on the floor and one long enough to sit
+        // on the ceiling, which is the pair of constants a wider font outgrows.
+        let long = "a-very-long-document-title-that-overflows-the-ceiling.rs";
+        bar.set_tabs(strip(&["a.rs", long]), 0);
+        assert_eq!(
+            (bar.tab_width(0), bar.tab_width(1)),
+            (MIN_TAB_WIDTH, MAX_TAB_WIDTH)
+        );
+        // A dense display asks for twice the line height, and a title twice as
+        // wide does not fit the box the sparse screen was measured for.
+        bar.set_metrics(Metrics::new(30.0, 40.0));
+        assert_eq!(
+            (bar.tab_width(0), bar.tab_width(1)),
+            (MIN_TAB_WIDTH * 2.0, MAX_TAB_WIDTH * 2.0)
+        );
     }
 
     #[test]

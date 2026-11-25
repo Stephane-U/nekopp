@@ -426,6 +426,8 @@
                 <Item id="Run Multiple Macros" name="多次运行宏"/>
                 <Item id="LARGE" name="大文件"/>
                 <Item id="Font Size" name="字体大小"/>
+                <Item id="Window Scale" name="窗口缩放"/>
+                <Item id="Follow the display" name="跟随显示器"/>
                 <Item id="Character code:" name="字符编码:"/>
                 <Item id="Play macro times:" name="宏播放次数:"/>
                 <Item id="Import from:" name="导入来源:"/>

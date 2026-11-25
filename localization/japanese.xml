@@ -426,6 +426,8 @@
                 <Item id="Find in files:" name="ファイル内を検索:"/>
                 <Item id="Folder:" name="フォルダ:"/>
                 <Item id="Font Size" name="フォントサイズ"/>
+                <Item id="Window Scale" name="ウィンドウ倍率"/>
+                <Item id="Follow the display" name="画面に合わせる"/>
                 <Item id="Import plugin from:" name="プラグインのインポート元:"/>
                 <Item id="Find in projects:" name="プロジェクト内を検索:"/>
                 <Item id="Play macro times:" name="マクロの実行回数:"/>

@@ -463,6 +463,8 @@
                 <Item id="Tab Width" name="Tabulatorbredd"/>
                 <Item id="Character code:" name="Teckenkod:"/>
                 <Item id="Font Size" name="Teckenstorlek"/>
+                <Item id="Window Scale" name="Fönsterskala"/>
+                <Item id="Follow the display" name="Följ skärmen"/>
                 <Item id="Up/Down  Left/Right  Enter  Esc" name="Upp/Ner  Vänster/Höger  Enter  Esc"/>
                 <Item id="Up/Down  Left/Right  Enter open  Esc close" name="Upp/Ner  Vänster/Höger  Enter öppna  Esc stäng"/>
                 <Item id="Verbose" name="Utförlig"/>

@@ -11796,3 +11796,117 @@ rounding, the fallback for a nonsense density, the clamped window scale, and its
 round trip through the settings file. `cargo clippy --offline --release
 --all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference has the
 `ui_scale` row and a paragraph on the window, and the PDF was rebuilt.
+
+## The hundred-and-fourth pass: a scale a user can pick, and the widths that go with it
+
+The pass before this one made the window read the display. Two things were left
+out of it, and both of them showed on the screen.
+
+The density was only ever what the display said. A 4K panel driven at 100% --
+which is how a great many of them are driven, because a desktop that doubles
+everything is a desktop where some other program looks wrong -- reports a
+density of one, so the window stayed at fifteen-pixel labels and there was
+nothing in the preferences to say otherwise. `ui_scale` existed in
+`settings.txt` and no dialog offered it.
+
+The other one is the reason this pass is more than a row. The furniture grew and
+the boxes did not. `set_metrics` on each widget handed the new metrics to the
+buffers it holds and stopped there, and every widget measures its own lengths
+from a `char_width` it was built with. So at density two the glyphs doubled and
+the character kept the advance of the sparse screen: a tab width computed as
+`chars * char_width` stayed where it was while the title it held grew past the
+edge, a value column drawn at `char_width * n` no longer met the value it was
+drawing, and the preferences dialog came out with its right-hand values running
+out of the box. That dialog was in the screenshot that closed the last pass, and
+it read "System" for the theme with the m cut off.
+
+### One row, four answers
+
+`Row::UiScale`, "Window Scale", sits under Font Size. Left and right step through
+`UiScale::ALL` in `settings.rs`: the display's own density first, then ×1.5, ×1.75
+and ×2, and the value column writes the first as the words "Follow the display"
+and the others as "x1.5", "x1.75", "x2". Zero is the number the settings file
+already used for "ask the display", so the dialog and the file agree on what the
+default means and a hand-written `ui_scale` line lands on a row rather than
+between two.
+
+Stepping stops at both ends instead of wrapping. The row is a choice among
+window sizes that fit, and a press at ×2 that wrapped round to "follow the
+display" would resize the window at the moment the user was pressing the key to
+stop. The row and the words are in all 23 localisations, which the coverage test
+that walks every catalog enforces rather than suggests.
+
+### Lengths counted in characters
+
+Every `set_metrics` in the twenty-three widgets now begins with the same two
+lines after its early return: multiply `char_width` by the ratio of the new line
+height to the old one, then take the new metrics. It is one line, and it is the
+line that makes the arithmetic in the rest of the widget right -- the widget
+counts in characters and has to know how wide a character is now. The early
+return is what keeps it a no-op on a preference that did not move: an
+unconditional multiplication would compound every time the display was asked
+about itself.
+
+The lengths that are *not* counted in characters are constants in pixels,
+written when the only font was fifteen pixels. A tab's floor and ceiling, the tab
+strip's vertical column, the folder and function list's clamp, the completion
+popup's, the context menu's, the peeker's, the tooltip's ceiling, the about box's
+buttons, the preferences floor and its pickers, the widths of the browser, the
+style configurator, the shortcut mapper and the plugin list, and the find
+dialog's pair. They all go through one number now, `scale_of(metrics)` in
+`renderer.rs`: the line height over the twenty it was written against, one for a
+density that is not a number. A constant means what it meant at fifteen pixels
+at every density, which is the definition of a constant doing its job.
+
+The preferences floor stays a floor and not a width. Its widest line is still
+measured in characters, so a language with longer words still opens a wider box;
+the floor only says how narrow it may get.
+
+### The status bar drew over itself
+
+Not caused by the scale, but made common by it, which is the same thing from a
+user's chair. The bar draws two runs, one from the left edge and one from the
+right, and the left one's clip rectangle ran to the window's edge rather than to
+where the right one begins. On a wide window nothing met; on a narrow one at
+double size the numbers landed inside the encoding label and the result read as
+"lines 5UTF-8". The left run is now clipped where the right run starts, less one
+padding, and the cut is rounded down to a whole character -- a clip halfway
+through a glyph leaves half of it drawn, and a half-drawn "5" reads as another
+label rather than as a truncation.
+
+### Verified
+
+Two routes to the same density, measured against each other. `WINIT_X11_SCALE_FACTOR=2`
+on a 96-dpi display, and `ui_scale 2` in a fresh settings file on the same
+display with no factor at all, give frames whose horizontal boundaries down the
+left edge fall on the same pixel rows: the menu bar ends at 45, the toolbar at
+90, the tab strip at 147, and in a 1371-pixel window the status bar starts at
+1327. The setting is the same number as the factor, not a second way of
+computing one.
+
+The preferences dialog at that density is 880 pixels wide and its rows are 40
+pixels apart, which is twice the 440 floor and the 20-pixel row it was built
+from, and all seventeen rows and their values are inside it: "Follow the display"
+for the new row, "System dialog", "English" and "Edit..." for the last three.
+Before this pass the same dialog drew the same shell around text at the same
+double size and cut "System" and "Englis" off at the right edge.
+
+A tab strip reads its own floor and ceiling through the same number: a four
+character title measures 128 pixels at density one and 256 at density two, a long
+one 260 and 520, which is the pair of constants that used to clamp a doubled title
+into a sparse screen's box. The find bar at density two draws all seven of its
+right-hand buttons -- Find Next, Count, Find All in Current Document, Find All in
+All Opened Documents, Mark All, Clear Marks, Close -- at double height with none
+of them cut.
+
+At density one the geometry is unchanged, because every factor is one and every
+early return holds; the one visible difference is the preferences dialog, which
+grew a row. The clip on the status bar only moves when the two runs would have
+met, which on a wide window they never did.
+
+`cargo test --offline --release`: 2,302 tests, 0 failed, four of them new -- the
+window scale row stepping and stopping at both ends, a tab's width doubling with
+the metrics, the preferences box doubling, and the two halves of the status bar
+kept apart. `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo
+fmt` was not run. The feature reference has the row in the preferences table and
+the paragraph on the furniture now points at the dialog, and the PDF was rebuilt.

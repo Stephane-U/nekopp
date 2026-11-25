@@ -115,6 +115,9 @@ pub struct AboutBox {
     /// would be dark text on a light box.
     shaped: Option<(Rgb, Rgb)>,
     family: Family<'static>,
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
     /// The localization the box's words come from.
     catalog: Option<Catalog>,
@@ -131,6 +134,7 @@ impl AboutBox {
             button: Buffer::new_empty(metrics),
             shaped: None,
             family,
+            metrics,
             char_width,
             catalog: None,
         }
@@ -138,6 +142,15 @@ impl AboutBox {
 
     /// Rebuilds the box at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.body.set_metrics(metrics);
         self.button.set_metrics(metrics);
     }
@@ -234,7 +247,8 @@ impl AboutBox {
             .map(|line| line.chars().count())
             .max()
             .unwrap_or(0);
-        (longest as f32 * self.char_width + PADDING * 2.0).max(MIN_WIDTH)
+        (longest as f32 * self.char_width + PADDING * 2.0)
+            .max(MIN_WIDTH * crate::renderer::scale_of(self.metrics))
     }
 
     /// The height the box occupies.
@@ -243,7 +257,8 @@ impl AboutBox {
             return 0.0;
         }
         let rows = self.lines.len() as f32;
-        PADDING + rows * line_height + BUTTON_GAP + BUTTON_HEIGHT + PADDING
+        let button = BUTTON_HEIGHT * crate::renderer::scale_of(self.metrics);
+        PADDING + rows * line_height + BUTTON_GAP + button + PADDING
     }
 
     /// The left edge: centred, and pinned to zero when the window is narrower
@@ -265,8 +280,9 @@ impl AboutBox {
     pub fn button_rect(&self, line_height: f32) -> (f32, f32, f32, f32) {
         let width = self.button_width();
         let left = self.left() + self.width() - PADDING - width;
-        let top = self.top(line_height) + self.height(line_height) - PADDING - BUTTON_HEIGHT;
-        (left, top, width, BUTTON_HEIGHT)
+        let height = BUTTON_HEIGHT * crate::renderer::scale_of(self.metrics);
+        let top = self.top(line_height) + self.height(line_height) - PADDING - height;
+        (left, top, width, height)
     }
 
     /// The button's width.
@@ -275,7 +291,7 @@ impl AboutBox {
     /// word such as the German "Schließen" still fits inside its border.
     fn button_width(&self) -> f32 {
         let text = self.button_label().chars().count() as f32 * self.char_width;
-        (text + PADDING * 2.0).max(BUTTON_WIDTH)
+        (text + PADDING * 2.0).max(BUTTON_WIDTH * crate::renderer::scale_of(self.metrics))
     }
 
     /// Whether `(x, y)` is on the Close button.

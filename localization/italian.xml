@@ -418,6 +418,8 @@
                 <Item id="Backup on Save" name="Copia di sicurezza al salvataggio"/>
                 <Item id="Verbose" name="Dettagliato"/>
                 <Item id="Font Size" name="Dimensione carattere"/>
+                <Item id="Window Scale" name="Scala della finestra"/>
+                <Item id="Follow the display" name="Segui lo schermo"/>
                 <Item id="Off" name="Disattivo"/>
                 <Item id="Split on:" name="Dividi su:"/>
                 <Item id="Run Multiple Macros" name="Esegui più macro"/>

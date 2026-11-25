@@ -464,6 +464,8 @@
                 <Item id="Sync Horizontal Scroll" name="Yatay kaydırmayı eşitle"/>
                 <Item id="Print" name="Yazdır"/>
                 <Item id="Font Size" name="Yazı tipi boyutu"/>
+                <Item id="Window Scale" name="Pencere Ölçeği"/>
+                <Item id="Follow the display" name="Ekranı izle"/>
                 <Item id="Rename to:" name="Yeni ad:"/>
                 <Item id="Built-in browser" name="Yerleşik tarayıcı"/>
                 <Item id="None" name="Yok"/>

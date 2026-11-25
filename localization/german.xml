@@ -447,6 +447,8 @@
                 <Item id="Hash file:" name="Prüfsummendatei:"/>
                 <Item id="REC" name="REC"/>
                 <Item id="Font Size" name="Schriftgröße"/>
+                <Item id="Window Scale" name="Fensterskalierung"/>
+                <Item id="Follow the display" name="Anzeige folgen"/>
                 <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
                 <Item id="Backup on Save" name="Sicherung beim Speichern"/>
                 <Item id="Load session:" name="Sitzung laden:"/>

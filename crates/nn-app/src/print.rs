@@ -114,6 +114,9 @@ pub struct PrintPreview {
     name: String,
     fields: Fields,
     /// The width of one character cell at the setup's font size, in points.
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
     /// The width of one character cell at the interface's font size, in pixels.
     ///
@@ -150,6 +153,7 @@ impl PrintPreview {
             text: String::new(),
             name: String::new(),
             fields: Fields::default(),
+            metrics,
             char_width,
             ui_char_width: char_width,
             scale: 1.0,
@@ -169,6 +173,15 @@ impl PrintPreview {
 
     /// Rebuilds the preview at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.title.set_metrics(metrics);
         self.body.set_metrics(metrics);
         for control in &mut self.controls {

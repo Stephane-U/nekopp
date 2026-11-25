@@ -452,6 +452,8 @@
                 <Item id="Backup on Save" name="Sikkerhetskopiering ved lagring"/>
                 <Item id="Hash file:" name="Sjekksumfil:"/>
                 <Item id="Font Size" name="Skriftstørrelse"/>
+                <Item id="Window Scale" name="Vindusskala"/>
+                <Item id="Follow the display" name="Følg skjermen"/>
                 <Item id="Print" name="Skriv ut"/>
                 <Item id="Play macro times:" name="Spill av makro ganger:"/>
                 <Item id="LARGE" name="STOR"/>

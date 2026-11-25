@@ -34,6 +34,30 @@ use crate::theme::Rgb;
 /// The smallest and largest font size the preferences dialog offers.
 pub const MIN_FONT_SIZE: f32 = 8.0;
 pub const MAX_FONT_SIZE: f32 = 40.0;
+/// The window scales the preferences dialog steps through.
+///
+/// Zero is not a scale: it means "follow the display", which is the default and
+/// the only answer that keeps following the window as it moves between screens.
+/// The rest are multipliers for the screens where the desktop reports a density
+/// of one on a panel dense enough that fifteen-pixel labels are the complaint.
+///
+/// A short list rather than a number, because the row is stepped with the arrow
+/// keys and a size you have to type into a text field is not a preference
+/// anybody changes twice.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UiScale(pub f32);
+
+impl UiScale {
+    /// What the row offers, in the order it steps through them.
+    pub const ALL: [UiScale; 4] =
+        [UiScale(0.0), UiScale(1.5), UiScale(1.75), UiScale(2.0)];
+
+    /// The multiplier as the dialog writes it: `1.5`, `1.75`, `2`.
+    pub fn label(self) -> String {
+        format!("{}", self.0)
+    }
+}
+
 /// The smallest and largest window scale `ui_scale` accepts.
 ///
 /// A half and four times the furniture: below the first the labels stop being

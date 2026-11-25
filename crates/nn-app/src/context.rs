@@ -313,6 +313,9 @@ pub struct ContextMenu {
     /// What the buffers were shaped for: (row count, columns).
     shaped_key: (usize, usize),
     family: Family<'static>,
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
 }
 
@@ -329,12 +332,22 @@ impl ContextMenu {
             dim: Buffer::new_empty(metrics),
             shaped_key: (usize::MAX, usize::MAX),
             family,
+            metrics,
             char_width,
         }
     }
 
     /// Rebuilds the menu at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.body.set_metrics(metrics);
         self.dim.set_metrics(metrics);
     }
@@ -382,7 +395,8 @@ impl ContextMenu {
             .map(|entry| entry.text().chars().count())
             .max()
             .unwrap_or(0);
-        (longest as f32 * self.char_width + PADDING_X * 2.0).clamp(MIN_WIDTH, MAX_WIDTH)
+        let scale = crate::renderer::scale_of(self.metrics);
+        (longest as f32 * self.char_width + PADDING_X * 2.0).clamp(MIN_WIDTH * scale, MAX_WIDTH * scale)
     }
 
     /// The height the menu occupies.

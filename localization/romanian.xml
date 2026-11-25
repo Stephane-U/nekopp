@@ -440,6 +440,8 @@
                 <Item id="LARGE" name="MARE"/>
                 <Item id="Zoom In" name="Mărește"/>
                 <Item id="Font Size" name="Mărimea caracterelor"/>
+                <Item id="Window Scale" name="Scara ferestrei"/>
+                <Item id="Follow the display" name="Urmează ecranul"/>
                 <Item id="Go to line:" name="Mergi la linia:"/>
                 <Item id="Zoom Out" name="Micșorează"/>
                 <Item id="Minimap" name="Minihartă"/>

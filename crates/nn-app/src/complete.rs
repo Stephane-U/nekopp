@@ -140,6 +140,9 @@ pub struct CompletionPopup {
     /// What the body was shaped for: (item count, scroll, width in chars).
     shaped_key: (usize, usize, usize),
     family: Family<'static>,
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
 }
 
@@ -157,12 +160,22 @@ impl CompletionPopup {
             body_shaped: String::new(),
             shaped_key: (usize::MAX, usize::MAX, usize::MAX),
             family,
+            metrics,
             char_width,
         }
     }
 
     /// Rebuilds the popup at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.body.set_metrics(metrics);
     }
 
@@ -267,7 +280,8 @@ impl CompletionPopup {
             .map(|item| item.label.chars().count())
             .max()
             .unwrap_or(0);
-        (longest as f32 * self.char_width + PADDING * 2.0).clamp(MIN_WIDTH, MAX_WIDTH)
+        let scale = crate::renderer::scale_of(self.metrics);
+        (longest as f32 * self.char_width + PADDING * 2.0).clamp(MIN_WIDTH * scale, MAX_WIDTH * scale)
     }
 
     /// The height the popup occupies.
@@ -425,6 +439,9 @@ pub struct ParamHint {
     /// What the body was shaped for: (text, columns, accent colour).
     shaped: (String, usize, Rgb),
     family: Family<'static>,
+    /// The metrics the widget was last built with, so a density change can
+    /// be told from the size already in hand.
+    metrics: Metrics,
     char_width: f32,
 }
 
@@ -440,12 +457,22 @@ impl ParamHint {
             body: Buffer::new_empty(metrics),
             shaped: (String::new(), 0, Rgb(0, 0, 0)),
             family,
+            metrics,
             char_width,
         }
     }
 
     /// Rebuilds the hint at a new display density.
     pub fn set_metrics(&mut self, metrics: Metrics) {
+        if metrics == self.metrics {
+            return;
+        }
+        // Lengths counted in characters -- a row's column, the box around a
+        // label, the width a tab wants -- are measured with `char_width`, so the
+        // width grows with the text instead of staying at the size the window
+        // opened with.
+        self.char_width *= metrics.line_height / self.metrics.line_height;
+        self.metrics = metrics;
         self.body.set_metrics(metrics);
     }
 
@@ -544,7 +571,8 @@ impl ParamHint {
     /// The width the hint occupies.
     pub fn width(&self) -> f32 {
         let columns = self.text.chars().count() as f32;
-        (columns * self.char_width + PADDING * 2.0).clamp(MIN_WIDTH, MAX_WIDTH)
+        let scale = crate::renderer::scale_of(self.metrics);
+        (columns * self.char_width + PADDING * 2.0).clamp(MIN_WIDTH * scale, MAX_WIDTH * scale)
     }
 
     /// The height the hint occupies.

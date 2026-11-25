@@ -413,6 +413,8 @@
                 <Item id="bad regex" name="ביטוי רגולרי שגוי"/>
                 <Item id="LARGE" name="גדול"/>
                 <Item id="Font Size" name="גודל גופן"/>
+                <Item id="Window Scale" name="קנה מידה של החלון"/>
+                <Item id="Follow the display" name="לפי הצג"/>
                 <Item id="Hash file:" name="גיבוב קובץ:"/>
                 <Item id="Backup on Save" name="גיבוי בעת שמירה"/>
                 <Item id="System dialog" name="דו־שיח המערכת"/>

@@ -448,6 +448,8 @@
                 <Item id="bad regex" name="Λανθασμένη κανονική έκφραση"/>
                 <Item id="LARGE" name="ΜΕΓΑΛΟ"/>
                 <Item id="Font Size" name="Μέγεθος γραμματοσειράς"/>
+                <Item id="Window Scale" name="Κλίμακα παραθύρου"/>
+                <Item id="Follow the display" name="Ακολούθηση οθόνης"/>
                 <Item id="Zoom In" name="Μεγέθυνση"/>
                 <Item id="Go to line:" name="Μετάβαση σε γραμμή:"/>
                 <Item id="Rename to:" name="Μετονομασία σε:"/>

@@ -460,6 +460,8 @@
                 <Item id="Edit..." name="Upravit..."/>
                 <Item id="Search URL:" name="URL hledání:"/>
                 <Item id="Font Size" name="Velikost písma"/>
+                <Item id="Window Scale" name="Měřítko okna"/>
+                <Item id="Follow the display" name="Podle obrazovky"/>
                 <Item id="LARGE" name="VELKÝ"/>
                 <Item id="Built-in browser" name="Vestavěný prohlížeč"/>
                 <Item id="Insert at column:" name="Vložit na sloupec:"/>

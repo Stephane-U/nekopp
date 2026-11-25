@@ -438,6 +438,8 @@
                 <Item id="Go to line:" name="Przejdź do wiersza:"/>
                 <Item id="REC" name="REC"/>
                 <Item id="Font Size" name="Rozmiar czcionki"/>
+                <Item id="Window Scale" name="Skala okna"/>
+                <Item id="Follow the display" name="Zgodnie z ekranem"/>
                 <Item id="shortcuts.xml:" name="shortcuts.xml:"/>
                 <Item id="Shortcuts" name="Skróty"/>
                 <Item id="Sync Vertical Scroll" name="Synchronizuj przewijanie pionowe"/>

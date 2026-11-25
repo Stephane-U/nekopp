@@ -452,6 +452,8 @@
                 <Item id="Backup on Save" name="Резервна копія під час збереження"/>
                 <Item id="Split on:" name="Розділити за:"/>
                 <Item id="Font Size" name="Розмір шрифту"/>
+                <Item id="Window Scale" name="Масштаб вікна"/>
+                <Item id="Follow the display" name="За екраном"/>
                 <Item id="Ln:" name="Ряд:"/>
                 <Item id="lines:" name="рядків:"/>
                 <Item id="Sync Vertical Scroll" name="Синхронізувати вертикальне прокручування"/>
