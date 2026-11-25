@@ -8334,10 +8334,8 @@ impl State {
         let template = self.find.replacement.text().to_string();
         let mut replaced = 0usize;
         let mut files = 0usize;
-        let tabs = self.tabs.len();
         if let Some(search) = self.find.search() {
-            for index in 0..tabs {
-                let tab = &mut self.tabs[index];
+            for tab in &mut self.tabs {
                 let matches = search.find_all(&tab.editor.doc);
                 if matches.is_empty() {
                     continue;
