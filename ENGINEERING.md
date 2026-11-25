@@ -11511,6 +11511,11 @@ says 0.3.2, and `npp-x86_64.AppImage`, which holds the same binary as
 apostrophe and the declared-name colouring, so the AppImage is the first build a
 reader who installs rather than compiles will see them in.
 
+The release page carries five assets, where 0.3.1 carried four: the AppImage, the
+deb, the docs zip, and the source as both a tarball and a zip. The deb is the new
+one and stays -- a Debian user with a package on offer should not have to build
+the package to install it.
+
 Verified: `npp --version` prints `Neko++ 0.3.2`; `npp-mcp` prints `npp-mcp 0.3.2:
 111 sections, 74 shortcuts, 1 of 5 plugins enabled` and answers `initialize` with
 `"version":"0.3.2"`; `dpkg-parsechangelog -S Version` hands the package build
