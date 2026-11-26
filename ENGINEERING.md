@@ -12840,3 +12840,45 @@ the file.
 before plus six for the dialog. `cargo clippy --offline --release --all-targets`:
 0 warnings, after a test stopped asking for a `mut` it does not need. `cargo fmt`
 was not run. The feature reference and its PDF are untouched.
+
+## The hundred-and-twenty-second pass: the translations
+
+Phase 1, twelfth pass, and the last of the two things the terminal was waiting on
+before it could draw a menu bar in French: `i18n` left `nn-app` for `nn-shared`,
+whole, with its eight hundred lines of catalogue, the twenty-three bundled
+localizations, the two-schema reader and the language list.
+
+It moved for the reason every other module in this series moved, said about words
+instead of types: a translation is a promise about a *word*, and both front-ends
+draw the same words. A terminal that read `french.xml` its own way would show
+"Fichier" beside the window's "Fichier" -- or, worse, fall back to English where
+the window does not, and a user comparing the two would conclude that one of the
+programs was broken.
+
+The file crossed with one change and one leaving. `is_literal` asked
+`nn_shared::theme::ThemeChoice::ALL` from the other side; it now asks `crate::`.
+And the coverage test -- "no bundled language may leave a word of the window in
+English" -- stayed behind, in `nn-app`, because the list it walks is
+`Preferences::labels()`, `StatusBar::labels()` and six more, and those widgets are
+the only thing that knows what the window draws. `nn-app/src/i18n.rs` is now a
+documentation comment, one `pub use` of six items and that single test, which is
+the shape the boundary takes when the *data* is shared and the *inventory* is not.
+
+The bundled files did not move. `include_str!` resolves relative to the source
+file, and `crates/nn-shared/src/i18n.rs` sits at the same depth as
+`crates/nn-app/src/i18n.rs` did, so all twenty-three paths still read
+`../../../localization/…` and the repository keeps one `localization/` directory
+rather than a copy in each crate.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical. That
+is the whole argument for a move of this kind -- the dozens of strings this module
+produces are drawn in `prefs`, `light_prefs`, `menu_settings`, `menu_run`,
+`menu_edit` and the rest, so a catalogue that read the same files differently
+would have altered at least one picture. `cargo test --offline --release`: 2,359
+tests, 0 failed, the same total as the pass before: the twenty-two i18n tests
+changed crate, and the coverage test merely changed sides of the boundary.
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched -- and so are the twenty-three
+localization files themselves.

@@ -56,15 +56,16 @@
 //!   arrangements, the two file dialogs, the window scale.
 //! * [`color`] -- the colour type itself: three bytes and their brightness, with
 //!   the conversion to linear values left to the front-end with a shader.
+//! * [`i18n`] -- the translations: the bundled catalogues, the parser for a
+//!   localization file, and the language list a dialog offers.
 //!
 //! The one dispatcher comes next; it is still in `nn-app` while the shape of what
-//! the terminal needs is being learned from the terminal. Translation stays there
-//! too for now, because a catalogue has to know which words are names rather than
-//! labels, and deciding that means reading a list of every name in the program.
+//! the terminal needs is being learned from the terminal.
 
 pub mod action;
 pub mod catalogue;
 pub mod color;
+pub mod i18n;
 pub mod keymap;
 pub mod prefs;
 pub mod settings;
