@@ -12073,3 +12073,60 @@ at, and a nonsense scale drawing the plain page. `cargo clippy --offline
 --release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
 reference gained one paragraph, under the page's own section, and the PDF was
 built again.
+
+## The hundred-and-seventh pass: the plan for a terminal front-end
+
+Every other section here records something that was built and can be measured. This
+one records a decision taken before any code moved, because the decision is the
+expensive part: whether Neko++ gets a second front-end, drawn in characters, and how
+that front-end stays in step with the first one. `docs/tui-plan.md` is the document;
+this is why it says what it says.
+
+The question arrived in the order a person actually thinks about it. Is it possible?
+Yes, and the reason is that `nn-core` never learned about a window -- ropey, memchr
+and regex are its whole dependency list, and it holds the document, the caret, undo,
+the lexers, folding, search, the encodings, the WebAssembly host and the playground
+simulation. `npp-mcp` is already a binary that edits text through it with no
+renderer attached. Would it cost the windowed version anything? Not at runtime; only
+in build time and in the discipline of a shared seam. Can the two grow together?
+Only if the seam moves first.
+
+### The seam, and why it is the whole plan
+
+`Action` (241 variants) and its dispatch (275 sites), the menu tree (5,295 lines) and
+the preference rows (2,343) all live in the windowed program, welded to a `State`
+with 78 window-shaped fields. A second front-end that copied them would answer the
+same questions twice and drift at the first new command -- the thing the plan exists
+to prevent. So phase 1 pulls the decisions into a shared library and leaves the two
+front-ends holding drawings: one dispatch `match`, one menu tree, one settings list
+with labels and choices. A new command then fails to compile until both front-ends
+have it, and the handful of rows a terminal cannot express is a constant with a
+reason each and a test that keeps the list short.
+
+That phase is also the only one that can hurt the window, and its gate is a picture
+rather than a promise. The bench already writes a PPM and two runs of the same flags
+hash the same -- `a163442c3c14d3954aff272bd0937cdc` twice at 1280 by 720 with `menu
+tabmenu` -- so a refactor that moves ten thousand lines can be proven not to have
+moved a pixel before anyone looks at a frame rate.
+
+### What the numbers decided
+
+Three measurements from the conversation that shaped the plan rather than decorating
+it. A REST client over the existing API is the wrong shape for an editor: 8.3 ms a
+call, one frame of the window it talks to, 26.7 ms to change one character in a
+one-megabyte document, and no way to insert at a point at all, because an empty range
+is refused. A terminal is cheap to draw into: a full screen of styled text -- 37,116
+bytes -- is parsed by kitty inside one refresh of a 120 Hz display (4.65 ms) and by
+alacritty in 0.89 ms, so what decides a TUI's speed is the number of bytes it writes,
+which is why the diff writer is not a later optimisation. And the windowed version
+without a GPU is real but expensive: ten seconds of the animated page cost 1.35
+CPU-seconds on the 1080 Ti and 30.01 on llvmpipe, which is why the playground gets a
+plain character tier first.
+
+### Verified
+
+No code changed: `git status` was clean before this pass and the diff is documents
+only -- the plan, this section and a row in the README's table. `cargo test --offline --release`: 2,307 tests, 0 failed. `cargo clippy
+--offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
+reference and its PDF are untouched, because nothing a person can see has changed
+yet; the plan says which pass will change it.

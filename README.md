@@ -99,6 +99,7 @@ packaging/build-appimage.sh   # needs appimagetool on PATH
 | `docs/nekopp-features.md` | the reference: every menu row, option, key and file the editor reads |
 | `docs/nekopp-features.pdf` | the same document, typeset |
 | `ENGINEERING.md` | why each piece is built the way it is, pass by pass |
+| `docs/tui-plan.md` | the plan for the terminal front-end: seam, phases, gates |
 | `NL-COMMAND.md` | the command line, at length |
 | `crates/nn-mcp/README.md` | the MCP server and how to register it with a client |
 
