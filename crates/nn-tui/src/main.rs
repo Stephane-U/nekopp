@@ -29,6 +29,7 @@ mod app;
 mod keys;
 mod menus;
 mod palette;
+mod prefs;
 mod screen;
 mod term;
 

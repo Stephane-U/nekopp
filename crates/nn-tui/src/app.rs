@@ -30,10 +30,12 @@ use std::path::Path;
 use nn_core::{CLikeLexer, ConfigLexer, Document, Editor, Highlighter, Lexer, Motion};
 use nn_shared::action::Action;
 use nn_shared::keymap::Keymap;
+use nn_shared::settings::Settings;
 use unicode_width::UnicodeWidthChar;
 
 use crate::keys::Key;
 use crate::menus::Menus;
+use crate::prefs::Prefs;
 use crate::palette::{self, Tone};
 use crate::screen::Grid;
 
@@ -73,6 +75,13 @@ pub struct App {
     scroll_col: usize,
     /// The bar and its dropdowns, with the shared tree behind them.
     menus: Menus,
+    /// The preferences dialog, and the settings it edits.
+    ///
+    /// Loading them at startup rather than when the dialog opens is what makes a
+    /// terminal started twice behave the same way: what the dialog wrote last
+    /// time is already in force when the first frame is drawn.
+    prefs: Prefs,
+    settings: Settings,
     message: Option<Message>,
     /// Set once `Ctrl+Q` has been pressed with unsaved changes, so the second
     /// press means what the first one warned about.
@@ -105,6 +114,8 @@ impl App {
             scroll_line: 0,
             scroll_col: 0,
             menus: Menus::new(&Keymap::default()),
+            prefs: Prefs::new(),
+            settings: Settings::load(),
             message: None,
             quit_armed: false,
             quit: false,
@@ -129,6 +140,18 @@ impl App {
     /// the edit, because re-lexing starts there rather than at the top of the
     /// file.
     pub fn handle(&mut self, key: Key) {
+        // The preferences dialog is modal in both front-ends: while it is up,
+        // every key is either one it understands or is dropped.
+        if self.prefs.is_open() {
+            self.prefs.handle(key, &mut self.settings);
+            if !self.prefs.is_open() {
+                // Closing writes: the dialog is the only thing that changes
+                // settings, so leaving is the moment they are worth keeping.
+                self.settings.save();
+                self.say("preferences saved", false);
+            }
+            return;
+        }
         // While a dropdown is up it owns the keyboard: a keystroke means "move
         // the cursor" rather than "type a letter", which is the same rule the
         // window follows with its modal menus.
@@ -230,6 +253,7 @@ impl App {
                 }
             }
             Action::SelectAll => self.editor.select_all(),
+            Action::Preferences => self.prefs.open(),
             Action::Exit => self.ask_to_quit(),
             other => {
                 let label = other.label();
@@ -382,6 +406,9 @@ impl App {
         if self.menus.is_open() {
             self.menus.draw(grid);
         }
+        // And the preferences dialog over everything: it is the most modal thing
+        // the shell has, and a dropdown cannot be open at the same time.
+        self.prefs.draw(grid, &self.settings);
     }
 
     /// Puts the line number, right-aligned, at the left of `row`.

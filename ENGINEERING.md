@@ -12781,3 +12781,62 @@ tests, 0 failed, the two new ones counted. `cargo clippy --offline --release
 --all-targets`: 0 warnings, after the window's test module stopped importing the
 bounds that are no longer its business. `cargo fmt` was not run. The feature
 reference and its PDF are untouched.
+
+## The hundred-and-twenty-first pass: the preferences dialog in the terminal
+
+Phase 3, next pass, and the first one in this series that adds behaviour rather
+than moving it. `crates/nn-tui/src/prefs.rs` is a box the shell draws over the
+grid: seventeen rows in the order the window lists them, the same labels, the
+same values, the same steps -- because `Row`, `value_of` and `adjust` are the
+shared ones from the two passes before this. Up and Down move the lit row, Left,
+Right and Enter step it, Escape closes it. Nothing in the file decides what a
+setting is.
+
+It has to be worth asking why the box exists at all in a program whose settings
+file is text. The answer is the same one Midnight Commander gives for its own
+dialog: a user who opens the window's preferences and the terminal's should not
+be reading two different documents. Two of the seventeen rows are the window's
+alone -- the font size and the UI scale -- and they are drawn with the reason
+rather than hidden: "the terminal's font" and "follows the display". A row that
+disappeared from one of the two lists would be a worse answer than a row that
+says it does not apply here.
+
+Those two rows are also where this pass found a bug worth writing down. The first
+draft drew them as unhonoured and stepped them anyway, because `prefs::adjust`
+knows nothing about which front-end is asking. Pressing Right on "the terminal's
+font" then wrote `font_size 16` into the file the window reads: a key pressed in
+a terminal would have resized text in a window. The fix is a guard on the match
+arms -- an unhonoured row takes the key and does nothing with it -- and the test
+that caught it was already written, expecting exactly that.
+
+The dialog is modal the blunt way: `handle` returns before the editor sees
+anything while the box is up, and the eleven keys it does not use are swallowed
+rather than passed through. On close the app saves the settings and says so on
+the status bar, which is the moment the file is worth writing and the moment a
+user looks for confirmation.
+
+The terminal's translator is `|text| text.to_string()`. There is no catalogue in
+`nn-tui` yet; the first phase's last two passes bring one over.
+
+### Verified
+
+The window is untouched by this pass -- the only crate that changed is `nn-tui`,
+which the windowed binary does not link -- and the gate was run anyway: `bench`
+over the same thirty-one flag combinations, all thirty-one identical.
+
+The dialog was driven, not eyeballed. `npp-tui` was started under a pseudo
+terminal with a forty-row window and given the bytes a keyboard sends: `ESC [ 20
+~` for F9, six `ESC [ C` for the six menus to the right of File, `ESC [ B` to open
+Settings' dropdown on its first row, `\r` to pick Preferences. The stream the
+program wrote contains `Preferences`, `Tab Width` and the values beside them. Two
+runs of the same binary then answer the restart question the pass was written to
+ask: with a settings file holding `theme light` and `tab_width 6` the box draws
+`Theme    Light` and `Tab Width    6`, and with an empty `HOME` the same binary
+draws `Theme    System` and `Tab Width    4`. Stepping Tab Width to 6, leaving and
+reopening shows 6 again, and stepping the font size row leaves `font_size 16` in
+the file.
+
+`cargo test --offline --release`: 2,359 tests, 0 failed -- the 2,353 of the pass
+before plus six for the dialog. `cargo clippy --offline --release --all-targets`:
+0 warnings, after a test stopped asking for a `mut` it does not need. `cargo fmt`
+was not run. The feature reference and its PDF are untouched.
