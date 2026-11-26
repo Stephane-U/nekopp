@@ -80,7 +80,10 @@ pub fn is_literal(label: &str) -> bool {
     if SAMPLES.contains(&label) {
         return true;
     }
-    if crate::themes::CATALOGUE.iter().any(|p| p.name == label) {
+    if nn_shared::theme::ThemeChoice::ALL
+        .iter()
+        .any(|choice| choice.label() == label)
+    {
         return true;
     }
     nn_core::LANGS.iter().any(|lang| lang.name == label)

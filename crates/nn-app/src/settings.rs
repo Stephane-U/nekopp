@@ -134,273 +134,15 @@ impl FileDialog {
     }
 }
 
-/// Which palette the editor draws with.
-///
-/// `System` is not a synonym for one of the others: a user who has told their
-/// desktop to go dark at sunset expects the editor to follow, and a user who
-/// picked a named theme here expects it to stay put whatever the desktop does.
-/// A boolean cannot say both, and the settings file has to record which one was
-/// meant.
-///
-/// The named themes are the catalogue in [`crate::themes`]. They are variants
-/// rather than a `Named(&str)` payload so that a typo is a compile error rather
-/// than a settings line that silently does nothing -- the same reason the
-/// languages are a table with typed keys and not a directory of names.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ThemeChoice {
-    /// Follow the desktop's colour-scheme preference, falling back to dark when
-    /// the desktop has no opinion or no portal to ask.
-    #[default]
-    System,
-    /// The built-in light palette, hand-tuned to Notepad++'s own colours.
-    Light,
-    /// The built-in dark palette, from the Visual Studio Code family.
-    Dark,
-    AyuDark,
-    AyuLight,
-    AyuMirage,
-    CatppuccinFrappe,
-    CatppuccinLatte,
-    CatppuccinMacchiato,
-    CatppuccinMocha,
-    Darcula,
-    Dracula,
-    Everforest,
-    EverforestLight,
-    GitHubDark,
-    GitHubDarkDimmed,
-    GitHubLight,
-    GruvboxDark,
-    GruvboxLight,
-    Horizon,
-    Iceberg,
-    Kanagawa,
-    KanagawaDragon,
-    KanagawaLotus,
-    MaterialOcean,
-    MaterialPalenight,
-    Molokai,
-    Monokai,
-    MonokaiPro,
-    Moonlight,
-    NightOwl,
-    Nightfox,
-    Nord,
-    OceanicNext,
-    OneDark,
-    OneLight,
-    PandaSyntax,
-    QuietLight,
-    RosePine,
-    RosePineDawn,
-    RosePineMoon,
-    ShadesOfPurple,
-    SolarizedDark,
-    SolarizedLight,
-    Synthwave84,
-    TokyoNight,
-    TokyoNightDay,
-    TokyoNightStorm,
-    VitesseDark,
-    Zenburn,
-}
+// The themes a document can be drawn in moved to `nn-shared` in the
+// hundred-and-thirteenth pass: which themes exist, what they are called and
+// the keyword each is stored as are decisions both front-ends have to make
+// the same way, and the terminal has to offer the same fifty. What stays here
+// is the colours, which only a screen can use.
+pub use nn_shared::theme::ThemeChoice;
 
-impl ThemeChoice {
-    /// Every choice, in the order the preferences dialog cycles them.
-    ///
-    /// `System`, the two built-ins, then the catalogue in its own order. A
-    /// cycling row is only navigable if the order is predictable, which is why
-    /// the named themes are alphabetical and the two built-ins are not buried
-    /// in the middle of them.
-    pub const ALL: [ThemeChoice; 50] = [
-        ThemeChoice::System,
-        ThemeChoice::Light,
-        ThemeChoice::Dark,
-        ThemeChoice::AyuDark,
-        ThemeChoice::AyuLight,
-        ThemeChoice::AyuMirage,
-        ThemeChoice::CatppuccinFrappe,
-        ThemeChoice::CatppuccinLatte,
-        ThemeChoice::CatppuccinMacchiato,
-        ThemeChoice::CatppuccinMocha,
-        ThemeChoice::Darcula,
-        ThemeChoice::Dracula,
-        ThemeChoice::Everforest,
-        ThemeChoice::EverforestLight,
-        ThemeChoice::GitHubDark,
-        ThemeChoice::GitHubDarkDimmed,
-        ThemeChoice::GitHubLight,
-        ThemeChoice::GruvboxDark,
-        ThemeChoice::GruvboxLight,
-        ThemeChoice::Horizon,
-        ThemeChoice::Iceberg,
-        ThemeChoice::Kanagawa,
-        ThemeChoice::KanagawaDragon,
-        ThemeChoice::KanagawaLotus,
-        ThemeChoice::MaterialOcean,
-        ThemeChoice::MaterialPalenight,
-        ThemeChoice::Molokai,
-        ThemeChoice::Monokai,
-        ThemeChoice::MonokaiPro,
-        ThemeChoice::Moonlight,
-        ThemeChoice::NightOwl,
-        ThemeChoice::Nightfox,
-        ThemeChoice::Nord,
-        ThemeChoice::OceanicNext,
-        ThemeChoice::OneDark,
-        ThemeChoice::OneLight,
-        ThemeChoice::PandaSyntax,
-        ThemeChoice::QuietLight,
-        ThemeChoice::RosePine,
-        ThemeChoice::RosePineDawn,
-        ThemeChoice::RosePineMoon,
-        ThemeChoice::ShadesOfPurple,
-        ThemeChoice::SolarizedDark,
-        ThemeChoice::SolarizedLight,
-        ThemeChoice::Synthwave84,
-        ThemeChoice::TokyoNight,
-        ThemeChoice::TokyoNightDay,
-        ThemeChoice::TokyoNightStorm,
-        ThemeChoice::VitesseDark,
-        ThemeChoice::Zenburn,
-    ];
-
-    /// The catalogue entry for a named theme, or `None` for the three built-ins.
-    ///
-    /// The key is written as a literal beside the variant it belongs to rather
-    /// than kept as an index into [`crate::themes::CATALOGUE`]: an index is a
-    /// number that stays correct until someone inserts a palette in the middle
-    /// of the table, and a key is a word the compiler checks against the
-    /// `by_key` signature at least, and a test checks end to end.
-    pub fn palette(self) -> Option<&'static crate::themes::Palette> {
-        let key = match self {
-            ThemeChoice::System | ThemeChoice::Light | ThemeChoice::Dark => return None,
-            ThemeChoice::AyuDark => "ayu_dark",
-            ThemeChoice::AyuLight => "ayu_light",
-            ThemeChoice::AyuMirage => "ayu_mirage",
-            ThemeChoice::CatppuccinFrappe => "catppuccin_frappe",
-            ThemeChoice::CatppuccinLatte => "catppuccin_latte",
-            ThemeChoice::CatppuccinMacchiato => "catppuccin_macchiato",
-            ThemeChoice::CatppuccinMocha => "catppuccin_mocha",
-            ThemeChoice::Darcula => "darcula",
-            ThemeChoice::Dracula => "dracula",
-            ThemeChoice::Everforest => "everforest",
-            ThemeChoice::EverforestLight => "everforest_light",
-            ThemeChoice::GitHubDark => "github_dark",
-            ThemeChoice::GitHubDarkDimmed => "github_dark_dimmed",
-            ThemeChoice::GitHubLight => "github_light",
-            ThemeChoice::GruvboxDark => "gruvbox_dark",
-            ThemeChoice::GruvboxLight => "gruvbox_light",
-            ThemeChoice::Horizon => "horizon",
-            ThemeChoice::Iceberg => "iceberg",
-            ThemeChoice::Kanagawa => "kanagawa",
-            ThemeChoice::KanagawaDragon => "kanagawa_dragon",
-            ThemeChoice::KanagawaLotus => "kanagawa_lotus",
-            ThemeChoice::MaterialOcean => "material_ocean",
-            ThemeChoice::MaterialPalenight => "material_palenight",
-            ThemeChoice::Molokai => "molokai",
-            ThemeChoice::Monokai => "monokai",
-            ThemeChoice::MonokaiPro => "monokai_pro",
-            ThemeChoice::Moonlight => "moonlight",
-            ThemeChoice::NightOwl => "night_owl",
-            ThemeChoice::Nightfox => "nightfox",
-            ThemeChoice::Nord => "nord",
-            ThemeChoice::OceanicNext => "oceanic_next",
-            ThemeChoice::OneDark => "one_dark",
-            ThemeChoice::OneLight => "one_light",
-            ThemeChoice::PandaSyntax => "panda_syntax",
-            ThemeChoice::QuietLight => "quiet_light",
-            ThemeChoice::RosePine => "rose_pine",
-            ThemeChoice::RosePineDawn => "rose_pine_dawn",
-            ThemeChoice::RosePineMoon => "rose_pine_moon",
-            ThemeChoice::ShadesOfPurple => "shades_of_purple",
-            ThemeChoice::SolarizedDark => "solarized_dark",
-            ThemeChoice::SolarizedLight => "solarized_light",
-            ThemeChoice::Synthwave84 => "synthwave_84",
-            ThemeChoice::TokyoNight => "tokyo_night",
-            ThemeChoice::TokyoNightDay => "tokyo_night_day",
-            ThemeChoice::TokyoNightStorm => "tokyo_night_storm",
-            ThemeChoice::VitesseDark => "vitesse_dark",
-            ThemeChoice::Zenburn => "zenburn",
-        };
-        crate::themes::by_key(key)
-    }
-
-    /// The keyword written to the settings file.
-    pub fn key(self) -> &'static str {
-        match self {
-            ThemeChoice::System => "system",
-            ThemeChoice::Light => "light",
-            ThemeChoice::Dark => "dark",
-            named => named.palette().map_or("dark", |palette| palette.key),
-        }
-    }
-
-    /// The label shown in the preferences dialog and the Settings menu.
-    pub fn label(self) -> &'static str {
-        match self {
-            ThemeChoice::System => "System",
-            ThemeChoice::Light => "Light",
-            ThemeChoice::Dark => "Dark",
-            named => named.palette().map_or("Dark", |palette| palette.name),
-        }
-    }
-
-    /// Reads a keyword back, or `None` when it is not one of ours.
-    ///
-    /// `light` and `dark` are the two keywords the file used before this was a
-    /// three-way choice, and they still name the two built-in palettes, so an
-    /// existing settings file keeps working and keeps meaning what it meant.
-    pub fn from_key(text: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|choice| choice.key() == text)
-    }
-
-    /// The next choice, wrapping.
-    pub fn next(self) -> Self {
-        let at = Self::ALL.iter().position(|choice| *choice == self).unwrap_or(0);
-        Self::ALL[(at + 1) % Self::ALL.len()]
-    }
-
-    /// The previous choice, wrapping.
-    pub fn previous(self) -> Self {
-        let at = Self::ALL.iter().position(|choice| *choice == self).unwrap_or(0);
-        Self::ALL[(at + Self::ALL.len() - 1) % Self::ALL.len()]
-    }
-
-    /// The theme this choice resolves to.
-    ///
-    /// `system` is what the desktop said, or `None` when it said nothing -- no
-    /// portal, no session bus, or a desktop with no preference. The fallback is
-    /// dark, which is the palette this editor has always opened with, so a
-    /// machine that cannot answer looks exactly as it did before.
-    pub fn theme(self, system: Option<bool>) -> crate::theme::Theme {
-        match self {
-            ThemeChoice::Light => crate::theme::Theme::LIGHT,
-            ThemeChoice::Dark => crate::theme::Theme::DARK,
-            ThemeChoice::System => {
-                if system.unwrap_or(false) {
-                    crate::theme::Theme::LIGHT
-                } else {
-                    crate::theme::Theme::DARK
-                }
-            }
-            named => named.palette().map_or(crate::theme::Theme::DARK, |palette| {
-                crate::theme::Theme::from_palette(palette)
-            }),
-        }
-    }
-
-    /// Whether the theme this choice resolves to is a light one.
-    ///
-    /// Read off the resolved theme rather than the variant, so a named palette
-    /// and a `System` answer are described the same way.
-    pub fn is_light(self, system: Option<bool>) -> bool {
-        self.theme(system).background.luminance() >= 128
-    }
-}
-
+// What is left of this choice's own behaviour is the colours, and the colours
+// are the catalogue's: `themes::palette_of` reads them.
 /// Everything the user can change that survives a restart.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
@@ -863,6 +605,7 @@ fn parse_hex(text: &str) -> Option<Rgb> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::themes::{is_light_of, palette_of, theme_of};
 
     #[test]
     fn the_defaults_round_trip() {
@@ -1270,27 +1013,13 @@ mod tests {
     }
 
     #[test]
-    fn the_named_themes_are_the_catalogue_in_order() {
-        // `ALL` puts the three built-ins first and then the catalogue, so a
-        // theme added to one list and not the other is caught here rather than
-        // by a user who cannot find it in Preferences.
-        let named = &ThemeChoice::ALL[3..];
-        assert_eq!(named.len(), crate::themes::CATALOGUE.len());
-        for (choice, palette) in named.iter().zip(crate::themes::CATALOGUE.iter()) {
-            assert_eq!(choice.key(), palette.key);
-            assert_eq!(choice.label(), palette.name);
-            assert_eq!(choice.palette(), Some(palette));
-        }
-    }
-
-    #[test]
     fn every_choice_resolves_to_a_theme() {
         for choice in ThemeChoice::ALL {
-            let theme = choice.theme(None);
-            assert_eq!(theme.background, choice.theme(None).background);
+            let theme = theme_of(choice, None);
+            assert_eq!(theme.background, theme_of(choice, None).background);
             // A named theme is its palette's background; the three built-ins
             // are the two hand-written palettes.
-            match choice.palette() {
+            match palette_of(choice) {
                 Some(palette) => assert_eq!(theme.background, palette.background),
                 None => assert!(
                     theme.background == crate::theme::Theme::DARK.background
@@ -1298,17 +1027,17 @@ mod tests {
                 ),
             }
             assert_eq!(
-                choice.is_light(None),
+                is_light_of(choice, None),
                 theme.background.luminance() >= 128,
                 "{}",
                 choice.label()
             );
         }
         // `System` is the only choice whose answer depends on the desktop.
-        assert!(!ThemeChoice::System.is_light(Some(false)));
-        assert!(ThemeChoice::System.is_light(Some(true)));
-        assert!(ThemeChoice::Light.is_light(Some(false)));
-        assert!(!ThemeChoice::Dark.is_light(Some(true)));
+        assert!(!is_light_of(ThemeChoice::System, Some(false)));
+        assert!(is_light_of(ThemeChoice::System, Some(true)));
+        assert!(is_light_of(ThemeChoice::Light, Some(false)));
+        assert!(!is_light_of(ThemeChoice::Dark, Some(true)));
     }
 
     #[test]
@@ -1334,21 +1063,21 @@ mod tests {
 
     #[test]
     fn a_system_choice_uses_what_the_desktop_said() {
-        assert!(ThemeChoice::System.is_light(Some(true)));
-        assert!(!ThemeChoice::System.is_light(Some(false)));
+        assert!(is_light_of(ThemeChoice::System, Some(true)));
+        assert!(!is_light_of(ThemeChoice::System, Some(false)));
     }
 
     #[test]
     fn a_system_choice_with_no_answer_is_dark() {
         // No portal, no session bus, or a desktop with no preference: the
         // editor opens exactly as it did before this setting existed.
-        assert!(!ThemeChoice::System.is_light(None));
+        assert!(!is_light_of(ThemeChoice::System, None));
     }
 
     #[test]
     fn an_explicit_choice_ignores_the_desktop() {
-        assert!(ThemeChoice::Light.is_light(Some(false)));
-        assert!(!ThemeChoice::Dark.is_light(Some(true)));
+        assert!(is_light_of(ThemeChoice::Light, Some(false)));
+        assert!(!is_light_of(ThemeChoice::Dark, Some(true)));
     }
 
     #[test]

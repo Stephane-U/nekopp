@@ -116,6 +116,7 @@ struct Flags {
 use std::time::Instant;
 
 use nn_app::plugin::Context;
+use nn_app::themes;
 use nn_app::{
     Browser, Catalog, ChangeHistory, ChangeRow, CharPanel, Chrome, CompletionPopup, ContextMenu,
     AboutBox, DocumentPeeker,
@@ -543,7 +544,7 @@ fn main() {
             .collect();
         menu.set_runs(&labels);
         view.set_theme(nn_app::styles::effective_theme(
-            settings.theme.theme(None),
+            themes::theme_of(settings.theme, None),
             &settings.styles,
         ));
     }

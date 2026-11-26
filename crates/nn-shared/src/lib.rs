@@ -46,6 +46,9 @@
 //! * [`keymap`] -- the chords: the default bindings, the parser for a `key` line
 //!   in the settings file, and the lookup both front-ends read before they do
 //!   anything else with a keypress.
+//! * [`theme`] -- the themes by name: fifty choices, their labels, their keys and
+//!   the order a preference row steps through them, with the colours left to the
+//!   front-end that can draw them.
 //!
 //! The settings rows with their labels and choices, and the one dispatcher, come
 //! next; they are still in `nn-app` while the shape of what the terminal needs is
@@ -56,3 +59,4 @@
 pub mod action;
 pub mod keymap;
 pub mod menu;
+pub mod theme;

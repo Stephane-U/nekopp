@@ -674,7 +674,7 @@ impl Preferences {
             // The first named palette is where "follow the desktop or not" stops
             // and the list of palettes starts, so that is where the rule goes --
             // derived rather than hard-coded, so adding a built-in moves it.
-            if !ruled && choice.palette().is_some() {
+            if !ruled && crate::themes::palette_of(*choice).is_some() {
                 entries.push(Entry::Divider);
                 ruled = true;
             }

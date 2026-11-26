@@ -12464,3 +12464,54 @@ windowed front-end is untouched: all thirty-one `bench` dumps still hash to the
 same values. `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo
 fmt` was not run. The feature reference and its PDF are untouched -- the terminal
 is not shipped as a program yet.
+
+## The hundred-and-thirteenth pass: the theme list leaves the window
+
+Phase 1, fourth pass: the list of themes left `nn-app` for `nn-shared`. Which
+themes exist, what each is called in Preferences and the keyword it is stored as
+are decisions the two front-ends have to make the same way -- a terminal that
+offered forty of the window's fifty would be a different editor -- so the list
+belongs in the crate they share.
+
+What moved is the choice: the fifty-variant enum, `ALL` in the order the
+preferences row cycles it, the names and keywords, `named()` (where the named
+themes start in that order), `key`, `label`, `from_key`, `next` and `previous`.
+What stayed is the colours. A `ThemeChoice` names a palette; `themes::palette_of`
+reads its colours out of the catalogue, `themes::theme_of` resolves the choice
+into a `Theme` against what the desktop said, and `themes::is_light_of` answers
+the one question the window asked of the resolved theme. The three were methods
+until this pass and are functions now, for the reason inherent impls fail across
+a crate boundary: the type is no longer the window's to extend.
+
+That split is the point rather than an accident of the move. The catalogue is
+forty-seven palettes of ten colours each, and a colour is a number only a screen
+can use; the choice is a name, and both front-ends need it. So `nn-shared` holds
+the names and `nn-app` holds the values, and the only thing that can go wrong is
+the two lists disagreeing about which name sits where. That is what the new test
+in `themes.rs` is for: it asserts `CATALOGUE.len() == ThemeChoice::NAMES.len()`,
+then walks every choice and requires `palette_of` to be `Some` exactly for the
+named forty-seven and its name and keyword to match the choice's. It replaces
+the test that stood in `settings.rs` and assumed the three built-ins were a
+prefix of the order -- a weaker claim, and one that would have kept passing while
+a palette inserted in the middle renumbered every colour after it.
+
+Two smaller changes follow from the same idea. `i18n::is_literal` asks the shared
+list whether a label is a proper noun, rather than asking the catalogue: a theme
+called `Light` is as untranslatable as one called `Nord`, and now the built-ins
+are covered too. And the palette itself keeps its own `name` and `key` fields
+beside its colours, which is duplication -- but the alternative is editing
+forty-seven colour literals to change what they are called, and the test above is
+the guard that a name written twice arrives twice.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations, hashed before and after: all
+thirty-one identical, among them `light`, `light_prefs`, `prefs`,
+`prefs_settings` and `menu_settings` -- the five that draw a theme's colours and
+the preferences row that cycles them, so the dump is what says the colours still
+come from the same place. `cargo test --offline --release`: 2,346 tests, 0 failed,
+four of them new in `nn-shared::theme`; the ones in `settings.rs` now call the
+three functions and the weaker of them was replaced by the stronger test above.
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched -- the terminal is not
+shipped as a program yet, and nothing a user of the window can see has changed.

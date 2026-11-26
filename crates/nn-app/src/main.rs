@@ -44,6 +44,7 @@ use nn_app::plugin::Context;
 use nn_app::renderer::UiMetrics;
 use nn_app::layout::{self, Rect};
 use nn_app::nppimport;
+use nn_app::themes;
 use nn_app::paths::{complete_path, resolve_dir, split_fragment};
 use nn_core::backup::BackupMode;
 use nn_core::fold::BraceFolder;
@@ -955,7 +956,7 @@ impl State {
         scale: f32,
     ) {
         view.set_theme(nn_app::styles::effective_theme(
-            settings.theme.theme(system_light),
+            themes::theme_of(settings.theme, system_light),
             &settings.styles,
         ));
         // The text follows the display as well as the furniture: a 4K screen that
@@ -1974,7 +1975,7 @@ impl State {
             return;
         }
         let theme = nn_app::styles::effective_theme(
-            self.settings.theme.theme(self.system_light),
+            themes::theme_of(self.settings.theme, self.system_light),
             &self.settings.styles,
         );
         self.apply_theme(theme);
@@ -7900,7 +7901,7 @@ impl State {
         println!(
             "  theme: {} ({})",
             self.settings.theme.key(),
-            if self.settings.theme.is_light(self.system_light) {
+            if themes::is_light_of(self.settings.theme, self.system_light) {
                 "light"
             } else {
                 "dark"

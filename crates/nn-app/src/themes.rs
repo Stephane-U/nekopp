@@ -31,6 +31,7 @@
 //! variant in `ThemeChoice`. The last of those is what puts it in Preferences.
 
 use crate::theme::Rgb;
+use nn_shared::theme::ThemeChoice;
 
 /// One theme, as the colours a designer actually chooses.
 ///
@@ -1122,6 +1123,49 @@ pub fn by_key(key: &str) -> Option<&'static Palette> {
     CATALOGUE.iter().find(|palette| palette.key == key)
 }
 
+/// The catalogue entry a theme choice names, or `None` for the three built-ins.
+///
+/// The choice and the catalogue are two lists of fifty and forty-seven that have
+/// to agree about which is which, and they are written apart because the choice
+/// belongs to both front-ends while the colours belong to the screen. The index
+/// is [`ThemeChoice::named`], so a palette inserted in the middle of
+/// [`CATALOGUE`] renumbers nothing: the position is the choice's, not the
+/// table's, and the test below is what says the two still line up.
+pub fn palette_of(choice: ThemeChoice) -> Option<&'static Palette> {
+    choice.named().and_then(|at| CATALOGUE.get(at))
+}
+
+/// The theme a choice resolves to.
+///
+/// `system` is what the desktop said, or `None` when it said nothing -- no
+/// portal, no session bus, or a desktop with no preference. The fallback is
+/// dark, which is the palette this editor has always opened with, so a machine
+/// that cannot answer looks exactly as it did before.
+pub fn theme_of(choice: ThemeChoice, system: Option<bool>) -> crate::theme::Theme {
+    match choice {
+        ThemeChoice::Light => crate::theme::Theme::LIGHT,
+        ThemeChoice::Dark => crate::theme::Theme::DARK,
+        ThemeChoice::System => {
+            if system.unwrap_or(false) {
+                crate::theme::Theme::LIGHT
+            } else {
+                crate::theme::Theme::DARK
+            }
+        }
+        named => palette_of(named).map_or(crate::theme::Theme::DARK, |palette| {
+            crate::theme::Theme::from_palette(palette)
+        }),
+    }
+}
+
+/// Whether the theme a choice resolves to is a light one.
+///
+/// Read off the resolved theme rather than the variant, so a named palette and a
+/// `System` answer are described the same way.
+pub fn is_light_of(choice: ThemeChoice, system: Option<bool>) -> bool {
+    theme_of(choice, system).background.luminance() >= 128
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1229,6 +1273,33 @@ mod tests {
         names.sort_unstable();
         let listed: Vec<&str> = CATALOGUE.iter().map(|palette| palette.name).collect();
         assert_eq!(names, listed);
+    }
+
+    #[test]
+    fn the_choice_and_the_catalogue_name_the_same_themes() {
+        // Two lists written in two crates: the choice says which themes exist,
+        // the catalogue holds their colours. They agree only by construction, so
+        // this is what fails when someone adds a palette and forgets the choice,
+        // or adds a choice in the wrong place and shifts every colour after it.
+        assert_eq!(CATALOGUE.len(), ThemeChoice::NAMES.len());
+        let mut named = 0;
+        for choice in ThemeChoice::ALL {
+            match palette_of(choice) {
+                Some(palette) => {
+                    named += 1;
+                    assert_eq!(palette.name, choice.label(), "{choice:?}");
+                    assert_eq!(palette.key, choice.key(), "{choice:?}");
+                }
+                None => assert!(
+                    matches!(
+                        choice,
+                        ThemeChoice::System | ThemeChoice::Light | ThemeChoice::Dark
+                    ),
+                    "{choice:?} has no colours",
+                ),
+            }
+        }
+        assert_eq!(named, CATALOGUE.len());
     }
 
     #[test]
