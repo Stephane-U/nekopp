@@ -1,0 +1,23 @@
+[package]
+name = "nn-shared"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+# What both front-ends decide, as opposed to how either one draws it.
+#
+# The windowed program and the terminal program are two renderings of one
+# editor, and the sentence that keeps them one editor is "any feature added to
+# the windowed version is converted to the terminal version where it is
+# possible". That sentence only holds if the decisions have a single home. So
+# the list of commands and, in time, the menu tree and the settings rows live
+# here, where the compiler can count the callers and neither front-end can
+# quietly answer a question the other answers differently.
+#
+# There is no window in this crate and no terminal either: no wgpu, no libc, no
+# wgpu's own dependencies by accident. The only dependency is the engine, and
+# the only reason for that is that a command is sometimes a payload the engine
+# defines -- an `Encoding` to re-read bytes as, a `Hash` to compute.
+[dependencies]
+nn-core = { path = "../nn-core" }

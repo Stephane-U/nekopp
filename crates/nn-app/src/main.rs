@@ -6293,7 +6293,7 @@ impl State {
                 range,
                 whole,
             } => {
-                let Some(action) = Action::from_name(&name) else {
+                let Some(action) = nn_app::menu::action_from_name(&name) else {
                     return api::Error {
                         code: api::UNKNOWN_METHOD,
                         message: format!(

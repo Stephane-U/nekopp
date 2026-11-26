@@ -127,6 +127,8 @@ so a harness can sort, dedupe, re-indent or convert a file without a display.
 |---|---|
 | `crates/nn-core` | the editor without a window: document, caret, undo, search, folding, lexers, code pages, printing layout, the WebAssembly interpreter |
 | `crates/nn-app` | everything that needs a screen: the renderer, the widgets, the menus, the dialogs, the session, the settings, the dispatcher |
+| `crates/nn-shared` | what both front-ends decide rather than draw: the command vocabulary today, the menu tree and the settings rows next |
+| `crates/nn-tui` | the same editor in a terminal: a cell grid, escape sequences, no GPU |
 | `crates/nn-mcp` | the documentation-and-commands server |
 | `plugins/` | the example plugins and their own workspace |
 | `packaging/`, `debian/` | the desktop entry, the icons, the package build |

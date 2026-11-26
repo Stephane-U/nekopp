@@ -504,7 +504,7 @@ impl Keymap {
     /// Returns false when the line names something this build does not know, so
     /// a file written by a newer version still loads the rest.
     pub fn parse_line(&mut self, action: &str, chord: &str) -> bool {
-        let Some(action) = Action::from_name(action) else {
+        let Some(action) = crate::menu::action_from_name(action) else {
             return false;
         };
         let Some(chord) = Chord::parse(chord) else {

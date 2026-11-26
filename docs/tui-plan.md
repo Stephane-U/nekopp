@@ -117,7 +117,7 @@ refactor that moves ten thousand lines can be proven not to have moved a pixel.
 | Phase | State |
 |---|---|
 | 0 | done -- this document, and a yardstick that runs as a test rather than as a script |
-| 1 | not started |
+| 1 | under way -- `nn-shared` holds the command vocabulary (pass 109); the menu tree, the settings rows and the one dispatcher follow |
 | 2 | done, as a shell: the screen, the caret, the colours, typing, saving -- no menus yet |
 | 3 | next |
 | 4 | not started |
@@ -134,6 +134,14 @@ The shell's numbers, from `crates/nn-tui/src/app.rs`: the first paint of a 120 b
 40 window is 10,425 bytes, a keystroke in a 500-line file is 306 of them, and the
 drawing takes about 40 microseconds. The pass note in `ENGINEERING.md` has the
 detail and the screenshots.
+
+Phase 1 is measured the way the table above asks: `bench` over thirty-one flag
+combinations, dumped to PPM and hashed. Pass 109 moved `Action` and its four
+companion enums into `nn-shared` and every one of the thirty-one hashes stayed
+the same. The script that runs the matrix is not in the tree -- it is four lines
+of shell around `bench`, and a second copy of the flag list would be a third
+list to keep in step -- so the note records the result and the flags rather than
+a tool.
 
 ## Why the terminal front-end and not a client of the REST face
 

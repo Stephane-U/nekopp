@@ -12207,3 +12207,72 @@ What is not there yet, in the plan's own terms: the menu bar and its dropdowns,
 the preference dialog, find, tabs, the split view, plugins, the clipboard, and the
 playground. All of them read from the shared library that phase 1 has not built
 yet.
+
+## The hundred-and-ninth pass: the vocabulary moves out
+
+Phase 1 of the plan, first pass. The command vocabulary -- `Action` and its four
+companion enums, the name each command is written as in the settings file, the
+bindable list and the text-command table -- left `crates/nn-app/src/menu.rs` for
+a new crate, `crates/nn-shared`.
+
+The crate is the answer to a sentence rather than to a wish for tidiness. The
+plan's requirement is that any feature added to the windowed version is converted
+to the terminal version where it is possible. A rule like that survives on
+structure: a second list of actions and a second `match` that runs them would
+drift at the first new command, and the drift would be invisible until somebody
+compared the two programs row by row. So the list lives in one crate, and each
+front-end keeps what it is actually alone in.
+
+`nn-shared` has one dependency, `nn-core`, and only for the payloads a command
+carries: an `Encoding` to re-read a file's bytes as, a `Hash` to compute, a
+`CodePage` to convert to. There is no wgpu in its tree and no terminal either: it
+cannot open a window, read a key or measure a font, which is what makes it safe
+for both front-ends to depend on.
+
+### `pub use` rather than a rename
+
+`menu.rs` keeps four lines of re-export, so the 275 `Action::` sites, the import
+lists in `main.rs`, `bench.rs`, `keymap.rs`, `a11y.rs` and the API's command
+dispatch all keep compiling unchanged. A refactor that is provably not a
+behaviour change should not also be a rename: the compiler proves the first
+thing, and a rename only adds lines to review.
+
+### The one thing that did not come along
+
+`Action::from_name` reads a settings-file name and answers the command. Four
+families are prefix-shaped -- `encoding_set_*`, `encoding_convert_*`,
+`language_built_in_*`, `theme_*` -- and three of them resolve against lists that
+are the vocabulary's own business: `CodePage::ALL`, the encodings, and
+`nn_core::lang_by_key`. A theme is not. `ThemeChoice::ALL` is fifty palette names
+whose only other use is choosing colours, and a command has no reason to know
+them.
+
+So the theme prefix moved out of the shared function and into
+`menu::action_from_name`, which the two settings parsers -- the `key` line reader
+and the API's command call -- now go through. That split is visible in the tests:
+`Action::from_name("theme_dracula")` is `None` and `action_from_name` gives
+`Theme(12)`, while `save` resolves the same way in both. Nothing a user can
+observe changed, because both callers were already inside the windowed program;
+what changed is that the shared vocabulary no longer pulls a list of themes
+behind it, and phase 1's next pass can move the settings rows without dragging
+the menus with them.
+
+### Verified
+
+The gate for this phase is a picture, not an opinion: `bench` over a matrix of
+thirty-one flag combinations at 1280 by 720, dumped to PPM, hashed before the
+move and again after it. All thirty-one hashes are identical. The matrix covers
+the plain document, the menu bar with each dropdown, the preferences dialog in
+both themes, wrap and fold on a file with long lines, the function list, the find
+list, the completion popup, bookmarks, block select, the multi-caret rows, the
+peeker, the print preview, three tabs, and a run with every one of them at once.
+Two runs of the same flags hash the same, so the comparison is against a stable
+picture rather than against a lucky one.
+
+`cargo test --offline --release`: 2,331 tests, 0 failed -- the same count as
+before the move, because the four tests that belonged to `Action` (the bindable
+list, the text-command table, the duplicates check, the encoding names) moved
+with it rather than being rewritten, and one theme test grew two assertions.
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: nothing a person sees
+changed.

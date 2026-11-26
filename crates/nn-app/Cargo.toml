@@ -25,6 +25,10 @@ path = "src/bin/bench.rs"
 
 [dependencies]
 nn-core = { path = "../nn-core" }
+# What the window decides together with the terminal: the command vocabulary
+# today, the menu tree and the settings rows in the passes that follow. It has
+# no drawing dependency, so naming it here costs the window nothing.
+nn-shared = { path = "../nn-shared" }
 winit = "0.30"
 wgpu = "30"
 glyphon = "0.12"

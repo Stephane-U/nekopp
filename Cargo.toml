@@ -8,6 +8,9 @@ members = [
     "crates/nn-mcp",
     # The terminal front-end: the same editor, drawn in characters.
     "crates/nn-tui",
+    # What both front-ends decide: the command vocabulary today, the menu tree
+    # and the settings rows next. No window, no terminal, one dependency.
+    "crates/nn-shared",
 ]
 
 [workspace.package]
