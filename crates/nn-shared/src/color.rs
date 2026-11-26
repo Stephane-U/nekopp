@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! The colour type, and the one measurement made of it.
+//! The colour type, one measurement of it, and one blend.
 //!
 //! A colour is three bytes, and that is the whole of it: the settings file
 //! writes them as hex, a theme is a list of them, and the two front-ends both
@@ -42,6 +42,20 @@ impl Rgb {
         let weighted = 299 * r as u32 + 587 * g as u32 + 114 * b as u32;
         (weighted / 1000) as u16
     }
+}
+
+/// Blends `b` over `a` by `t`, in sRGB space.
+///
+/// The minimap wants muted versions of the syntax colours; blending towards the
+/// column background is cheaper and steadier than a second palette.
+pub fn mix(a: Rgb, b: Rgb, t: f32) -> Rgb {
+    let t = t.clamp(0.0, 1.0);
+    let channel = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    Rgb(
+        channel(a.0, b.0),
+        channel(a.1, b.1),
+        channel(a.2, b.2),
+    )
 }
 
 #[cfg(test)]

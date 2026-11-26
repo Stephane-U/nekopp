@@ -61,6 +61,7 @@
 //! reading a list of every name in the program.
 
 pub mod action;
+pub mod catalogue;
 pub mod color;
 pub mod keymap;
 pub mod prefs;

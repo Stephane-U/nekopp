@@ -12592,3 +12592,47 @@ scale and the order of the three channel weights. `cargo clippy --offline
 --release --all-targets`: 0 warnings. `cargo fmt` was not run -- the twenty-nine
 import lines were written by hand and sorted by eye, so a reader will find them
 in the order the files keep. The feature reference and its PDF are untouched.
+
+## The hundred-and-sixteenth pass: the theme and its catalogue move
+
+Phase 1, seventh pass, and the biggest single move since the shell: `Theme`,
+`Palette`, the forty-seven-entry catalogue and everything that builds a theme out
+of them left `nn-app` for `nn-shared`. A theme is data. Forty-nine colours, a
+blend, a shade, a hex reader and a Notepad++ importer -- none of it needs a
+window, and the terminal needs all of it, because a terminal drawing Tokyo Night
+has to draw the same Tokyo Night.
+
+The two modules went to two places. `nn-shared::theme` gained `Theme` itself, the
+two hand-written palettes, `from_palette`, `from_stylers`, `parse_hex` and
+`shade`, joining the choice that moved in the hundred-and-thirteenth pass: one
+module answers "which theme" and "what colour is a keyword in it". `nn-shared::
+catalogue` is the window's `themes` module under a name that reads better beside
+`theme` than `themes` did. The blend, `mix`, went to `color`, where the thing it
+takes and returns lives.
+
+What is left in `nn-app` is one trait, one function and two re-exports. `ToGpu`
+converts sRGB to what a shader wants; `srgb_to_linear` is the arithmetic under
+it; and `pub use nn_shared::theme::Theme`, `pub use nn_shared::color::{mix, Rgb}`
+keep every `crate::theme::` path in the crate working. `nn-app/src/themes.rs` is
+now four lines of documentation and a glob re-export. That is the shape these
+passes leave behind: the file stays as a name, and the name stops being a place
+where anything is decided.
+
+Two test modules met head-on and had to be told apart. `nn-shared::theme` now
+holds the choice's four tests and the theme's seven, and Rust allows one `mod
+tests` per file, so the second is `theme_tests` -- a name that says which half of
+the module it belongs to. The three tests for `srgb_to_linear` went back to the
+window with the function: a test that cannot reach the code it tests is a test
+that will be deleted by the next person to touch the file.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical.
+Forty-seven palettes, two built-in themes, an importer and a blend all changed
+crate in this pass, so the dumps are the whole of the argument -- every colour in
+all thirty-one pictures comes out of the code that moved, and every one is
+unchanged. `cargo test --offline --release`: 2,351 tests, 0 failed, the same total
+as the pass before: seven theme tests in `nn-shared`, three conversion tests in
+`nn-app`, none lost and none invented. `cargo clippy --offline --release
+--all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference and its
+PDF are untouched.
