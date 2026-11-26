@@ -152,18 +152,17 @@ fn help() -> String {
          \n\
          Usage: npp-tui [FILE]\n\
          \n\
-         Keys so far:\n\
-         \x20 Ctrl+S   save the file\n\
+         Keys:\n\
+         \x20 F9       the menus, and every command they offer\n\
          \x20 Ctrl+Q   quit; twice when there are unsaved changes\n\
-         \x20 Ctrl+Z   undo\n\
-         \x20 Ctrl+Y   redo\n\
-         \x20 Ctrl+A   select all\n\
          \x20 Arrows, Home, End, Page Up, Page Down\n\
          \x20 Shift with an arrow extends the selection\n\
          \x20 Ctrl with Left or Right moves by the word\n\
          \n\
-         The menus and the preference dialog are the next passes: this one is\n\
-         the screen, the caret, the colours and the file.\n",
+         The control chords are the ones in the settings file, which is the\n\
+         windowed editor's list: Ctrl+S saves, Ctrl+Z undoes, Ctrl+D duplicates\n\
+         the line, Ctrl+L deletes it, Ctrl+U lowercases the selection. A chord\n\
+         bound to a command this shell has not got yet says so on the bar.\n",
         env!("CARGO_PKG_VERSION")
     )
 }

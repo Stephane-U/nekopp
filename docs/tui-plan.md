@@ -119,7 +119,7 @@ refactor that moves ten thousand lines can be proven not to have moved a pixel.
 | 0 | done -- this document, and a yardstick that runs as a test rather than as a script |
 | 1 | under way -- `nn-shared` holds the command vocabulary, the menu tree, the keymap, the preference rows, the colour type, the themes with their colours, the slots a user may override, the settings file itself, what each preference row shows and steps, and the translations (passes 109 to 122); the one dispatcher follows |
 | 2 | done, as a shell: the screen, the caret, the colours, typing, saving |
-| 3 | under way -- the bar, the thirteen dropdowns and their submenus are drawn and navigable (pass 112); the preference dialog is drawn, steps its values, saves them and reads its words through the shared catalogue, as the bar now does (passes 121, 123), its theme and tab width now reach the screen (pass 124), and its two long rows open a list to choose from (pass 125); with the remaining rows applied, the enable rules and the commands next |
+| 3 | under way -- the bar, the thirteen dropdowns and their submenus are drawn and navigable (pass 112); the preference dialog is drawn, steps its values, saves them and reads its words through the shared catalogue, as the bar now does (passes 121, 123), its theme and tab width now reach the screen (pass 124), its two long rows open a list to choose from (pass 125), and the chords drive the command table, which brings the line and text commands with them (pass 126); with the remaining rows applied, the enable rules and the rest of the commands next |
 | 4 | not started |
 | 5 | not started |
 

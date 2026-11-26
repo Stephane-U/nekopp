@@ -30,7 +30,7 @@ use std::path::Path;
 use nn_core::{CLikeLexer, ConfigLexer, Document, Editor, Highlighter, Lexer, Motion};
 use nn_shared::action::Action;
 use nn_shared::i18n::Catalog;
-use nn_shared::keymap::Keymap;
+use nn_shared::keymap::{Chord, KeyName, Keymap};
 use nn_shared::settings::Settings;
 use unicode_width::UnicodeWidthChar;
 
@@ -80,6 +80,12 @@ pub struct App {
     /// time is already in force when the first frame is drawn.
     prefs: Prefs,
     settings: Settings,
+    /// The chords, read out of the settings.
+    ///
+    /// A field rather than a lookup into `settings` because a keystroke asks for
+    /// an action on every press and a linear scan of a hundred bindings per
+    /// press is work the reader would feel as latency.
+    keymap: Keymap,
     /// The escapes the screen is painted with, built from the theme the settings
     /// name.
     palette: Palette,
@@ -117,6 +123,7 @@ impl App {
             menus: Menus::new(&Keymap::default()),
             prefs: Prefs::new(),
             settings: Settings::load(),
+            keymap: Keymap::default(),
             palette: Palette::of(&nn_shared::theme::Theme::DARK),
             message: None,
             quit_armed: false,
@@ -147,6 +154,7 @@ impl App {
     fn apply_settings(&mut self) {
         self.apply_theme();
         self.apply_language();
+        self.keymap = self.settings.keymap.clone();
     }
 
     /// Resolves the theme the settings name into the escapes the screen uses.
@@ -239,6 +247,24 @@ impl App {
             return;
         }
         self.message = None;
+        // Ctrl+Q leaves, and it has to: the window binds `exit` to Ctrl+Shift+Q,
+        // which a terminal cannot send -- Ctrl and Shift and a letter is not one
+        // of the bytes a keyboard puts on the wire. A shell that could only be
+        // left with a chord the terminal cannot produce would have no way out,
+        // so the key every terminal editor uses for this is the shell's own,
+        // beside F9 for the bar.
+        if key == Key::Ctrl('q') {
+            self.ask_to_quit();
+            return;
+        }
+        // A chord the settings bind is a command, and the command table is the
+        // shared one: `Ctrl+D` duplicates a line here because it is
+        // `Action::DuplicateLine` there, and a user who rebinds it in the
+        // preferences gets the new key in both front-ends.
+        if let Some(action) = self.chord_action(key) {
+            self.run(action);
+            return;
+        }
         let line = self.editor.caret_line();
         match key {
             Key::Char(ch) => {
@@ -278,26 +304,37 @@ impl App {
             Key::DocEnd => self.editor.move_caret(Motion::DocEnd, false),
             Key::PageUp => self.editor.move_caret(Motion::PageUp, false),
             Key::PageDown => self.editor.move_caret(Motion::PageDown, false),
-            Key::Ctrl('s') => self.save(),
-            Key::Ctrl('q') => self.ask_to_quit(),
-            Key::Ctrl('z') => {
-                if self.editor.undo() {
-                    self.refresh_all();
-                }
-            }
-            Key::Ctrl('y') => {
-                if self.editor.redo() {
-                    self.refresh_all();
-                }
-            }
-            Key::Ctrl('a') => self.editor.select_all(),
             Key::Escape => {
                 self.quit_armed = false;
                 self.editor.clear_extra_carets();
             }
+            // Every other control chord and function key is either bound in the
+            // keymap, which was asked above, or bound to nothing. A chord bound
+            // to nothing does nothing: typing the control character it stands
+            // for would be the one answer nobody wants.
             Key::Ctrl(_) => {}
             Key::Function(_) => {}
         }
+    }
+
+    /// The action a keystroke is bound to, if it is bound to one.
+    ///
+    /// Only the chords and the function keys are asked about. A plain character
+    /// is text, and the arrows, Home, End and the paging keys are navigation
+    /// this shell answers itself -- a binding on one of those would take typing
+    /// away from a user who had bound it by accident.
+    fn chord_action(&self, key: Key) -> Option<Action> {
+        let chord = match key {
+            Key::Ctrl(ch) => Chord::from_char(ch, true, false, false),
+            Key::Function(number) => Chord {
+                ctrl: false,
+                shift: false,
+                alt: false,
+                key: KeyName::Function(number),
+            },
+            _ => return None,
+        };
+        self.keymap.lookup(&chord)
     }
 
     /// Runs a command chosen from a menu.
@@ -322,8 +359,18 @@ impl App {
                 }
             }
             Action::SelectAll => self.editor.select_all(),
+            Action::SelectLine => self.editor.select_line(),
+            Action::DuplicateLine => self.edit(|ed| ed.duplicate_lines()),
+            Action::MoveLineUp => self.edit(|ed| ed.move_lines(true)),
+            Action::MoveLineDown => self.edit(|ed| ed.move_lines(false)),
+            Action::DeleteLine => self.edit(|ed| ed.delete_lines()),
             Action::Preferences => self.prefs.open(),
             Action::Exit => self.ask_to_quit(),
+            // The rest of the editing commands are one table over in the engine:
+            // upper case, indent, sort, comment, and thirty more. They take the
+            // selected lines as text and give them back changed, so the shell
+            // answers them with one arm.
+            other if other.is_text_command() => self.text_command(other),
             other => {
                 let label = other.label();
                 self.say(&format!("{label}: not in the terminal yet"), true);
@@ -351,6 +398,42 @@ impl App {
             return;
         }
         self.quit = true;
+    }
+
+    /// Runs an edit that can have changed any line, and re-lexes what it did.
+    ///
+    /// The closure answers whether it changed anything, which is what the engine
+    /// returns: an edit that was a no-op -- indent on a line that is already
+    /// indented to the stop -- costs no undo step and no refresh.
+    fn edit(&mut self, edit: impl FnOnce(&mut Editor) -> bool) {
+        if edit(&mut self.editor) {
+            self.refresh_all();
+        }
+    }
+
+    /// Runs one of the text commands the engine owns over the selected lines.
+    ///
+    /// The options are the ones the window passes: the tab width from the
+    /// settings, a fresh seed for the two shuffling commands, and the sort's own
+    /// direction. The comment marker stays the default `//` here as it does
+    /// there -- a per-language marker is a pass of its own, and the two
+    /// front-ends should answer the same command the same way in the meantime.
+    fn text_command(&mut self, action: Action) {
+        let name = action.name();
+        let options = nn_core::ops::Options {
+            width: usize::from(self.settings.tab_width),
+            seed: nn_core::now_secs() as u64,
+            sort: match action {
+                Action::SortLines(sort) => sort.options(),
+                _ => Default::default(),
+            },
+            ..Default::default()
+        };
+        self.edit(|editor| {
+            editor.transform_lines(|text| {
+                nn_core::ops::run(name, text, &options).unwrap_or_else(|_| text.to_string())
+            })
+        });
     }
 
     fn say(&mut self, text: &str, alert: bool) {
@@ -636,8 +719,18 @@ mod tests {
     use crate::screen::Frame;
     use nn_shared::theme::ThemeChoice;
 
+    /// An app on `text`, with the default settings rather than the ones on the
+    /// machine that runs the tests.
+    ///
+    /// The settings file of whoever runs the suite decides the keymap and the
+    /// theme, and a test that read them would pass where it was written and fail
+    /// on the next machine. `Ctrl+Q` in this crate's tests means what it means in
+    /// a fresh installation.
     fn app(text: &str) -> App {
-        App::with_document(Document::from_text(text))
+        let mut app = App::with_document(Document::from_text(text));
+        *app.settings_mut() = Settings::default();
+        app.apply_settings();
+        app
     }
 
     fn drawn(app: &mut App, width: usize, height: usize) -> Vec<String> {
@@ -738,6 +831,79 @@ mod tests {
         app.handle(Key::Enter);
         app.handle(Key::Char('a'));
         assert_eq!(app.editor.doc.text(), "    let x = 1;\n    a\n");
+    }
+
+    #[test]
+    fn a_chord_runs_the_command_the_settings_bind_it_to() {
+        // Ctrl+D is `duplicate_line` in the default keymap and Ctrl+L is
+        // `delete_line`; both act on the caret's line when nothing is selected.
+        let mut app = app("one\ntwo\n");
+        app.handle(Key::Ctrl('d'));
+        assert_eq!(app.editor.doc.text(), "one\none\ntwo\n");
+        app.editor.goto_line(1);
+        app.handle(Key::Ctrl('l'));
+        assert_eq!(app.editor.doc.text(), "one\ntwo\n");
+    }
+
+    #[test]
+    fn a_chord_the_settings_do_not_bind_does_nothing() {
+        let mut app = app("one\n");
+        app.settings_mut().keymap.unbind(Action::DuplicateLine);
+        app.apply_settings();
+        app.handle(Key::Ctrl('d'));
+        assert_eq!(app.editor.doc.text(), "one\n", "an unbound chord edited the file");
+    }
+
+    #[test]
+    fn the_text_commands_run_over_the_selected_lines() {
+        let mut app = app("b\na\n");
+        // A caret alone means "the caret's line", which is what the window does
+        // too: these commands are about a selection, and the shell does not
+        // invent one for them.
+        app.run(Action::SelectAll);
+        app.run(Action::UpperCase);
+        assert_eq!(app.editor.doc.text(), "B\nA\n");
+        // An edit replaces what it was given, so the selection is gone after it:
+        // the next command needs one of its own.
+        app.run(Action::SelectAll);
+        app.run(Action::SortAsc);
+        assert_eq!(app.editor.doc.text(), "A\nB\n");
+        app.run(Action::SelectAll);
+        // The engine indents with a tab, not with `tab_width` spaces: the
+        // column a tab stands for is a display question, and the file keeps the
+        // character that is one keystroke away from the one it replaces.
+        app.run(Action::Indent);
+        assert_eq!(app.editor.doc.text(), "\tA\n\tB\n");
+        app.run(Action::SelectAll);
+        app.run(Action::Unindent);
+        assert_eq!(app.editor.doc.text(), "A\nB\n");
+    }
+
+    #[test]
+    fn the_line_commands_move_and_delete() {
+        let mut app = app("one\ntwo\n");
+        app.run(Action::MoveLineDown);
+        assert_eq!(app.editor.doc.text(), "two\none\n");
+        app.editor.goto_line(1);
+        app.run(Action::MoveLineUp);
+        assert_eq!(app.editor.doc.text(), "one\ntwo\n");
+        // The caret is left at the end of the block the move touched, which is
+        // the empty line after the last newline; a delete needs it somewhere
+        // with a line under it.
+        app.editor.goto_line(0);
+        app.run(Action::DeleteLine);
+        assert_eq!(app.editor.doc.text(), "two\n");
+        // The text commands leave a message when they cannot run, and these do
+        // not: they answered.
+        assert_eq!(app.message(), None);
+    }
+
+    #[test]
+    fn a_command_the_shell_has_not_got_says_so() {
+        let mut app = app("x\n");
+        app.run(Action::Find);
+        let message = app.message().unwrap_or_default();
+        assert!(message.contains("not in the terminal yet"), "{message}");
     }
 
     #[test]

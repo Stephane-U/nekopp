@@ -13059,3 +13059,67 @@ writes `None`, the list is drawn over the dialog, and Enter still steps a row th
 has none. `cargo clippy --offline --release --all-targets`: 0 warnings, after one
 test stopped assigning a field of a `Default::default()`. `cargo fmt` was not run.
 The feature reference and its PDF are untouched.
+
+## The hundred-and-twenty-sixth pass: the chords and the commands
+
+Phase 3, next pass, and the one the plan called the one dispatch: a keystroke is
+now a *chord*, the chord is looked up in the keymap the settings carry, and the
+action it names is run. Five hardcoded chords left the shell -- `Ctrl+S`, `Ctrl+Q`,
+`Ctrl+Z`, `Ctrl+Y`, `Ctrl+A` -- and the seventy-four bindings the default keymap
+carries arrived in their place, because the keymap is the window's list and the
+terminal was reading a private one.
+
+The lookup is deliberately narrow and the reason is worth stating: only chords and
+function keys are asked about. A character is text, and the arrows, Home, End and
+the two paging keys are navigation this shell answers itself. A binding on one of
+those would take typing away from a user who rebound a command to a letter without
+thinking about it, and the person it would surprise is the one who did it.
+
+`Ctrl+Q` stayed the shell's own, beside F9. The window binds `exit` to
+`Ctrl+Shift+Q`, and a terminal cannot send that: `Ctrl`, `Shift` and a letter is
+not one of the bytes a keyboard puts on the wire, so a shell that could only be
+left with the window's chord would have no way out. Every terminal editor quits on
+`Ctrl+Q` for the same reason it uses `Ctrl+S` to save, and the quirks list in this
+series now has three entries: `F9` for the bar, `Ctrl+Q` to leave, and the note that
+neither is a second implementation of anything.
+
+Then the commands. Five are the line operations the engine already had --
+duplicate, move up, move down, delete, select the line -- and the other thirty-four
+are one arm, because they are one table over in the engine: `is_text_command` says
+whether `nn_core::ops::run` knows the name, and the shell hands it the selected
+lines as text and the same `Options` the window passes. Upper case, lower case,
+indent, unindent, the five sorts, dedupe, trim, join, the comment commands, the
+case conversions: one arm and two options. That is what the extraction was for.
+
+Two facts about the engine came out of writing the tests, and both are worth
+having written down because they are the sort of thing a front-end author guesses
+wrong. `Indent` inserts a tab character, not `tab_width` spaces -- the column a tab
+stands for is a display question and the file keeps the character. And an edit
+replaces the lines it was given, so the selection is gone afterwards: a test that
+ran four text commands over one selection was really running three of them over a
+caret, and a caret means "the caret's line", in this shell as in the window.
+
+The suite also stopped reading the machine it runs on. `app()` in the tests now
+resets the settings to their defaults before the first frame, because the keymap
+comes out of the settings file and `Ctrl+Q` had begun to mean whatever the
+developer's own file said it meant. That is the second time in two passes that a
+test written against the real configuration failed for being right; the pattern is
+now written down here twice.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical; only
+`nn-tui` changed.
+
+Driven through a pseudo terminal: a file holding `x = 1` was opened, `Ctrl+D` sent,
+then `Ctrl+S`, and the file on disk afterwards holds the line twice -- two
+keystrokes, one keymap lookup each, one save. The shell's help was updated to say
+where the chords come from and that a chord bound to a command the shell has not
+got says so on the bar.
+
+`cargo test --offline --release`: 2,377 tests, 0 failed -- 2,372 plus five: a
+chord running the command the settings bind it to, an unbound chord doing nothing,
+the text commands over a selection, the line commands moving and deleting, and a
+command the shell has not got still saying so. `cargo clippy --offline --release
+--all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference and its
+PDF are untouched.
