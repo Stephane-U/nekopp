@@ -51,16 +51,16 @@
 //!   override by hand.
 //! * [`prefs`] -- the seventeen rows of the preferences dialog, in order, with
 //!   what each is called and whether it switches, steps or opens a dialog.
-//! * [`settings`] -- the values those rows hold, starting with the tab strip's
-//!   three arrangements.
+//! * [`settings`] -- the settings file: the struct, its defaults, the parser and
+//!   the writer, plus the values a row can hold -- the tab strip's three
+//!   arrangements, the two file dialogs, the window scale.
 //! * [`color`] -- the colour type itself: three bytes and their brightness, with
 //!   the conversion to linear values left to the front-end with a shader.
 //!
-//! The values those rows hold, and the one dispatcher, come next; they are still
-//! in `nn-app` while the shape of what the terminal needs is being learned from
-//! the terminal. Translation stays there too for now, because a catalogue has to
-//! know which words are names rather than labels, and deciding that means
-//! reading a list of every name in the program.
+//! The one dispatcher comes next; it is still in `nn-app` while the shape of what
+//! the terminal needs is being learned from the terminal. Translation stays there
+//! too for now, because a catalogue has to know which words are names rather than
+//! labels, and deciding that means reading a list of every name in the program.
 
 pub mod action;
 pub mod catalogue;

@@ -41,6 +41,7 @@
 use nn_core::{CodePage, Encoding};
 
 use crate::action::{Action, BrowserKind, MatchMode, Sort, WindowSort};
+use crate::theme::ThemeChoice;
 
 /// One plugin, as the Plugins menu shows it.
 ///
@@ -217,6 +218,23 @@ pub struct RowItem {
 /// The index matters to both front-ends: a rebuild of the recent-file list, the
 /// run list, the language list or the plugin list replaces one menu's rows, and
 /// finding it by title would break the moment a catalogue translated the title.
+/// The action a settings file names, theme rows included.
+///
+/// [`Action::from_name`] answers what a *command* is called; a theme is a
+/// setting, and `theme_<key>` is resolved against [`ThemeChoice::ALL`] here
+/// rather than in the shared vocabulary, because the list of fifty themes is
+/// palette names that no command has a use for. The order the two are tried in
+/// cannot be observed: no name starts with both `theme_` and another prefix.
+pub fn action_from_name(name: &str) -> Option<Action> {
+    if let Some(key) = name.strip_prefix("theme_") {
+        return ThemeChoice::ALL
+            .iter()
+            .position(|choice| choice.key() == key)
+            .map(Action::Theme);
+    }
+    Action::from_name(name)
+}
+
 pub const LANGUAGE_MENU: usize = 5;
 pub const RUN_MENU: usize = 9;
 pub const PLUGIN_MENU: usize = 10;

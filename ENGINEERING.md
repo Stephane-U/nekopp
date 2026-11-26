@@ -12698,3 +12698,44 @@ strip, which is where a wrong layout would show. `cargo test --offline
 --release`: 2,351 tests, 0 failed -- four `TabLayout` tests moved and none lost.
 `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
 run. The feature reference and its PDF are untouched.
+
+## The hundred-and-nineteenth pass: the settings themselves
+
+Phase 1, tenth pass, and the one this series was walking towards: `Settings`, with
+`UiScale`, `FileDialog` and the ten numeric bounds the dialog offers, left
+`nn-app` for `nn-shared::settings`. It is the type both front-ends have to agree
+about completely -- the same file, the same keywords, the same defaults, the same
+clamp on every number -- and until this pass the terminal could draw the
+preference rows but had no settings to put in them.
+
+The eight passes before this one are why it could be a move rather than a rewrite.
+`Settings` names a `ThemeChoice`, a `TabLayout`, a `Keymap`, a `Vec<(Slot, Rgb)>`,
+a `BackupMode` and a `RunList`; every one of those but the last two -- which are
+`nn_core`'s and were reachable all along -- moved in a pass of its own, each with
+the same gate. Nothing in this pass had to invent a bridging trait, and nothing
+had to be split: the file crossed whole.
+
+One function had to follow it. `menu::action_from_name` resolves the name on a
+`key` line, `theme_dracula` included, and the parser calls it for every line it
+reads; a parser in the shared crate cannot call a resolver in the window. It
+moved to `nn-shared::menu`, beside the theme list it consults, and the window
+re-exports it, so `crate::menu::action_from_name` still says what it said. That
+is the shape of this boundary in general: the vocabulary moves, and the file that
+used to own it keeps the name.
+
+`nn-app/src/settings.rs` is now a documentation comment and one `pub use` of
+nineteen items. The two test modules that met are `tests` and `layout_tests`, and
+the fifty-seven settings tests crossed with the code.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical.
+Thirty of those runs read a settings file, and `prefs`, `prefs_settings`,
+`light_prefs`, `menu_settings`, `menu_tab`, `wrap`, `tabs3` and `light` are the
+ones whose pixels depend on what was parsed -- a default, a bound or a keyword
+that changed sides would have moved at least one of them. `cargo test --offline
+--release`: 2,351 tests, 0 failed, the same total for the fifth pass running:
+sixty-one tests changed crate and none was lost. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
+reference and its PDF are untouched -- the settings file itself, its keywords and
+its defaults are all exactly as they were, which is the point.

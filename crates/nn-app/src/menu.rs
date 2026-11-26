@@ -54,6 +54,11 @@ pub use nn_shared::menu::{
     Item, Menu, PluginMenu, RowItem, CHARACTER_SETS,
 };
 
+// `action_from_name` moved to `nn-shared::menu` in the hundred-and-nineteenth
+// pass: the settings file is read by both front-ends, and a name in it has to
+// mean the same command in both -- `theme_dracula` included.
+pub use nn_shared::menu::action_from_name;
+
 /// The theme names, in the order the preference row steps through them.
 ///
 /// The Settings menu's Theme submenu is built from this list, and
@@ -61,23 +66,6 @@ pub use nn_shared::menu::{
 /// only agree: both read `ThemeChoice::ALL`.
 fn theme_labels() -> Vec<&'static str> {
     ThemeChoice::ALL.iter().map(|choice| choice.label()).collect()
-}
-
-/// The action a settings file names, theme rows included.
-///
-/// [`Action::from_name`] answers what a *command* is called; a theme is a
-/// setting, and `theme_<key>` is resolved against [`ThemeChoice::ALL`] here
-/// rather than in the shared vocabulary, because the list of fifty themes is
-/// palette names that no command has a use for. The order the two are tried in
-/// cannot be observed: no name starts with both `theme_` and another prefix.
-pub fn action_from_name(name: &str) -> Option<Action> {
-    if let Some(key) = name.strip_prefix("theme_") {
-        return ThemeChoice::ALL
-            .iter()
-            .position(|choice| choice.key() == key)
-            .map(Action::Theme);
-    }
-    Action::from_name(name)
 }
 
 /// Where one dropdown panel sits on screen.
