@@ -12276,3 +12276,72 @@ with it rather than being rewritten, and one theme test grew two assertions.
 `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
 run. The feature reference and its PDF are untouched: nothing a person sees
 changed.
+
+## The hundred-and-tenth pass: the tree follows the vocabulary
+
+Phase 1, second pass. The menus themselves -- `Item`, `Menu`, `PluginMenu`, the
+public row view the accessibility tree reads, and the fifteen builders that
+return one dropdown each -- moved into `nn-shared`, beside the vocabulary that
+now names what the rows run.
+
+A menu row is a decision, not a drawing: this label, this chord, this command, or
+these children. The window's share of a menu starts where the pixel does -- the
+shaped buffers, the panel arithmetic, the arrow, the hover -- and that share is
+what stayed in `nn-app`. The terminal front-end will read the same fifteen
+builders and write labels into cells, and neither front-end can add a row the
+other does not have, because there is only one place a row can be added.
+
+The two seams the move exposed are worth recording, because both are the same
+question asked twice: what does a menu know that the crate that holds it cannot?
+
+### The theme list, again
+
+`settings_items` builds the Theme submenu from `ThemeChoice::ALL`, using each
+choice's label and passing its position as `Action::Theme(n)`. That is the same
+fifty-name list the previous pass kept out of the vocabulary, and it is still the
+settings' own business. So the builder takes the labels as an argument:
+`settings_items(&[...])`, one entry per theme, in the order the preference row
+steps through them. The window passes `ThemeChoice::ALL`'s labels through a
+three-line helper; `Action::Theme(n)` is an index into the slice it was given, so
+the menu and the cycling row agree by construction rather than by both being
+remembered.
+
+The alternative -- moving `ThemeChoice` into the shared crate -- was rejected for
+now because the type is not only a list: `palette()`, `theme()` and `is_light()`
+turn a choice into colours, and those three reach into the forty-seven palettes
+in `nn-app`. Half a type is worse than a parameter, and the parameter is one line
+at the only call site.
+
+### What could not follow
+
+Two things still need the catalogue of translations: the Plugins menu, whose
+rows are composed from names the plugin supplies and verbs the catalogue
+translates, and the two passes that write a column after the tree is built --
+`relabel`, which fills each row's label from the catalogue, and `set_shortcuts`,
+which fills each row's shortcut column from the keymap. Both stayed in `nn-app`
+with the type they operate on now public, field by field: a row's label, its
+English text, its chord, its command, whether it is a separator, whether its
+label is a literal, and its children.
+
+Translation is the next thing to move and the reason the settings rows wait:
+`i18n::is_literal` decides whether a word is a name by asking whether the theme
+catalogue holds it, so the catalogue and the list of names have to move together
+or not at all.
+
+### Verified
+
+The same gate as the previous pass, and it matters more here, because the rows
+this pass moved are the rows the pictures are made of: `bench` over thirty-one
+flag combinations at 1280 by 720, hashed before and after. All thirty-one are
+identical -- including the eight dropdown dumps (`menu`, `menu_edit`,
+`menu_tab`, `menu_view`, `menu_lines`, `menu_settings`, `menu_run`,
+`context`), the preferences dialog in both themes, and the run with every flag at
+once, which is the one that would notice a row added to a submenu or a separator
+in the wrong place.
+
+`cargo test --offline --release`: 2,331 tests, 0 failed, the same count: the
+tests that walk the assembled menu stayed where the assembled menu is, because
+they drive a `MenuBar` and check what it draws rather than what the builder
+returned. `cargo clippy --offline --release --all-targets`: 0 warnings.
+`cargo fmt` was not run. The feature reference and its PDF are untouched: no
+label, no position and no behaviour changed, which is what the hashes say.

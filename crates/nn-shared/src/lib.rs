@@ -41,9 +41,14 @@
 //! * [`action`] -- the command vocabulary: every command the menus offer, the
 //!   name it is written as in the settings file, and the lists the keymap and
 //!   the text-command table agree with.
+//! * [`menu`] -- the menus as a tree of rows: one builder per dropdown, each row
+//!   carrying its label, its shortcut column and the command it runs.
 //!
-//! The menu tree, the settings rows with their labels and choices, and the one
-//! dispatcher come next; they are still in `nn-app` while the shape of what the
-//! terminal needs is being learned from the terminal.
+//! The settings rows with their labels and choices, and the one dispatcher, come
+//! next; they are still in `nn-app` while the shape of what the terminal needs is
+//! being learned from the terminal. Translation stays there too for now, because
+//! a catalogue has to know which words are names rather than labels, and the
+//! names it checks against are still the app's list of themes.
 
 pub mod action;
+pub mod menu;
