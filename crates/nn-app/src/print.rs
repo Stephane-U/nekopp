@@ -38,7 +38,7 @@ use nn_core::pdf;
 use nn_core::print::{self, Fields, Layout, PageSetup, Paper};
 
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// The margin between the window edge and the sheet, in pixels.
 const PAD: f32 = 20.0;

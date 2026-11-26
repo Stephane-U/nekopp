@@ -30,7 +30,7 @@ use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 
 use crate::quad::QuadRenderer;
-use crate::theme::{Rgb, Theme};
+use crate::theme::{Rgb, Theme, ToGpu};
 
 /// The width of the dialog, in pixels.
 const WIDTH: f32 = 460.0;

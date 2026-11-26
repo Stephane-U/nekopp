@@ -26,7 +26,7 @@ use glyphon::{TextArea, TextBounds};
 use crate::findbar::TextField;
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// What the prompt is asking for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

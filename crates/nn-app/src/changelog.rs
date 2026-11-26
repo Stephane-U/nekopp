@@ -35,7 +35,7 @@ use glyphon::{TextArea, TextBounds};
 use nn_core::clock_stamp;
 
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// How many rows the panel shows at once.
 ///

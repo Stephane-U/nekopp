@@ -44,7 +44,7 @@ use nn_core::SearchMode;
 use crate::findbar::{Button, Chip, Field, FindBar, Hit, Rect, BUTTONS, SWAP_CHIPS};
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
-use crate::theme::{mix, Rgb, Theme};
+use crate::theme::{mix, Rgb, Theme, ToGpu};
 
 /// Padding inside the frame, on all four sides.
 const PAD: f32 = 12.0;

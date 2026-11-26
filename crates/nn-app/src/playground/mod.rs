@@ -48,7 +48,7 @@ use glyphon::{TextArea, TextBounds};
 use nn_core::playground::{Frame, Input, Shade};
 use nn_core::playground::Playground as Simulation;
 
-use crate::theme::{mix, Rgb, Theme};
+use crate::theme::{mix, Rgb, Theme, ToGpu};
 
 pub use nn_core::playground::scene::GLYPH_WIDTH;
 

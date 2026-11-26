@@ -51,6 +51,8 @@
 //!   front-end that can draw them.
 //! * [`prefs`] -- the seventeen rows of the preferences dialog, in order, with
 //!   what each is called and whether it switches, steps or opens a dialog.
+//! * [`color`] -- the colour type itself: three bytes and their brightness, with
+//!   the conversion to linear values left to the front-end with a shader.
 //!
 //! The values those rows hold, and the one dispatcher, come next; they are still
 //! in `nn-app` while the shape of what the terminal needs is being learned from
@@ -59,6 +61,7 @@
 //! reading a list of every name in the program.
 
 pub mod action;
+pub mod color;
 pub mod keymap;
 pub mod prefs;
 pub mod menu;

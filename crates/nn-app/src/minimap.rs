@@ -29,7 +29,7 @@ use nn_core::{Document, Style, Viewport};
 
 use crate::quad::QuadRenderer;
 use crate::palette::Palette;
-use crate::theme::mix;
+use crate::theme::{mix, ToGpu};
 
 /// The narrowest column the runs are scaled against. A file of short lines is
 /// scaled to this rather than to its own longest line, so the picture does not

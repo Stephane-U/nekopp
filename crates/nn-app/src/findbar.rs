@@ -40,7 +40,7 @@ use nn_core::{Document, Search, SearchMode, SearchOptions};
 
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
-use crate::theme::{mix, Rgb, Theme};
+use crate::theme::{mix, Rgb, Theme, ToGpu};
 
 /// Which field has the caret.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

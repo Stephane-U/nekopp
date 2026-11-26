@@ -31,7 +31,7 @@ use nn_core::Editor;
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
 use crate::text::shaping_for;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// The bottom status strip.
 pub struct StatusBar {

@@ -35,7 +35,7 @@ use crate::settings::{
     MIN_PLAYGROUND_MINUTES, MIN_TAB_WIDTH,
 };
 use crate::text::shaping_for;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// The narrowest the dialog gets, in pixels.
 ///

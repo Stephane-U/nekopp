@@ -36,7 +36,7 @@ use crate::iconrender::IconRenderer;
 use crate::icons;
 use crate::quad::QuadRenderer;
 use crate::text::shaping_for;
-use crate::theme::{mix, Rgb, Theme};
+use crate::theme::{mix, Rgb, Theme, ToGpu};
 
 /// The minimum width of a tab, in pixels.
 ///

@@ -28,7 +28,7 @@ use glyphon::{TextArea, TextBounds};
 
 use crate::complete::truncate;
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// The most rows the peeker shows at once.
 pub const VISIBLE_ROWS: usize = 12;

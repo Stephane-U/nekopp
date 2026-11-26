@@ -37,7 +37,7 @@ use wgpu::util::DeviceExt;
 use nn_core::playground::{CardKind, Frame, GlowKind};
 
 use crate::palette::Palette;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 use super::glyphs::{GlyphAtlas, FIRST, LAST};
 use super::mesh::{Mesh, Vertex};

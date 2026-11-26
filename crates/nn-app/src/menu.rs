@@ -32,7 +32,7 @@ use crate::keymap::Keymap;
 use crate::quad::QuadRenderer;
 use crate::settings::ThemeChoice;
 use crate::text::shaping_for;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 // The command vocabulary moved to `nn-shared` in the hundred-and-ninth
 // pass: it is what both front-ends decide, and the terminal front-end has

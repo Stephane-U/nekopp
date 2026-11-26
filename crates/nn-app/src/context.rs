@@ -38,7 +38,7 @@ use crate::layout::Split;
 use crate::menu::Action;
 use crate::tabbar::TabColour;
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// Horizontal padding inside the frame, in pixels.
 const PADDING_X: f32 = 12.0;

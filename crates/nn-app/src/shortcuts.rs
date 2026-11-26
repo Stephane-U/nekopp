@@ -35,7 +35,7 @@ use crate::keymap::{Chord, Keymap};
 use crate::menu::Action;
 use crate::quad::QuadRenderer;
 use crate::text::shaping_for;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// The width of the dialog, in pixels.
 ///

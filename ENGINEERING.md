@@ -12554,3 +12554,41 @@ from the same list in the same order. `cargo test --offline --release`: 2,349
 tests, 0 failed, `nn-shared` now at forty of them and the window's untouched.
 `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
 run. The feature reference and its PDF are untouched.
+
+## The hundred-and-fifteenth pass: the colour type moves, its shader does not
+
+Phase 1, sixth pass, and the one with the widest blast radius so far: `Rgb` left
+`nn-app` for `nn-shared::color`. Three bytes is three bytes in a terminal. The
+theme catalogue is a list of them, the settings file writes them as hex, and a
+terminal drawing in true colour carries the same values into an escape sequence
+that the window carries into a vertex buffer. There was no reason for the type to
+belong to the front-end with a shader, only a reason for its methods to.
+
+That reason cost this pass its shape. `Rgb` had six methods: `new` and
+`luminance`, which are facts about a colour and moved with it, and `to_linear`,
+`to_linear_alpha`, `to_cosmic` and `to_wgpu`, which are facts about a GPU and
+could not. Rust will not let a crate write an inherent `impl` for a type it does
+not own, so those four became `theme::ToGpu` -- a trait in the window, so that
+the name of the type could stay where every call site already had it. Twenty-nine
+files gained one import and no call changed. That is the whole argument for the
+trait: 225 call sites would otherwise have become `theme::linear(colour)` and
+every one of them a place to get the argument order wrong.
+
+The split is also what the terminal needed to hear. `nn-shared::color` carries
+`luminance` and says in its own doc why the conversions are absent: the terminal
+has no shader to feed. When it draws a theme, it will map these three bytes onto
+whatever colour depth the terminal reports, which is a different problem from
+linearising them, and one the window must never be asked about.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical.
+That is a stronger claim this time than in the passes before it -- a colour that
+reached the shader through a different path would have shown up as a one-bit
+difference in any of the thirty-one dumps, and every one of them is a picture
+built out of some part of the theme. `cargo test --offline --release`: 2,351
+tests, 0 failed, two new in `nn-shared::color` for the ends of the brightness
+scale and the order of the three channel weights. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run -- the twenty-nine
+import lines were written by hand and sorted by eye, so a reader will find them
+in the order the files keep. The feature reference and its PDF are untouched.

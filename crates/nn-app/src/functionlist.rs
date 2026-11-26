@@ -32,7 +32,7 @@ use glyphon::{TextArea, TextBounds};
 use nn_core::Symbol;
 
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// The narrowest and widest the column gets, in pixels.
 const MIN_WIDTH: f32 = 170.0;

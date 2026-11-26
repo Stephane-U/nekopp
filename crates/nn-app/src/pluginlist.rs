@@ -37,7 +37,7 @@ use glyphon::{TextArea, TextBounds};
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
 use crate::text::shaping_for;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// The narrowest the dialog gets, in pixels.
 ///

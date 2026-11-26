@@ -43,7 +43,7 @@ use glyphon::{TextArea, TextBounds};
 
 use crate::quad::QuadRenderer;
 use crate::text::shaping_for;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// How long the pointer has to rest on a control before its tooltip appears.
 pub const DELAY: Duration = Duration::from_millis(500);

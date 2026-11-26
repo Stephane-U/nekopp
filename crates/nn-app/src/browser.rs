@@ -35,7 +35,7 @@ use glyphon::{TextArea, TextBounds};
 
 use crate::findbar::TextField;
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// The width of the dialog, in pixels.
 ///

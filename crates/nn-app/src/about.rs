@@ -45,7 +45,7 @@ use glyphon::{TextArea, TextBounds};
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
 use crate::text::shaping_for;
-use crate::theme::{Rgb, Theme};
+use crate::theme::{Rgb, Theme, ToGpu};
 
 /// Padding inside the frame, on all four sides.
 const PADDING: f32 = 14.0;

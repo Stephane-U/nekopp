@@ -32,7 +32,7 @@ use glyphon::{TextArea, TextBounds};
 use nn_core::Hit;
 
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// How many rows the panel shows at once.
 const VISIBLE_ROWS: usize = 8;

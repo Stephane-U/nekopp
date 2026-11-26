@@ -45,7 +45,7 @@ use crate::text::shaping_for;
 use crate::minimap::Minimap;
 use crate::quad::QuadRenderer;
 use crate::palette::Palette;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// A shaped line, kept until its text or its styling changes.
 struct CachedLine {

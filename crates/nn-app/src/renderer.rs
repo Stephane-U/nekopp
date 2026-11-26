@@ -36,6 +36,7 @@ use crate::finddialog::FindDialog;
 use crate::folder::FolderPanel;
 use crate::functionlist::FunctionList;
 use crate::layout::{self, Split};
+use crate::theme::ToGpu;
 use crate::menu::MenuBar;
 use crate::pluginlist::PluginList;
 use crate::prefs::Preferences;

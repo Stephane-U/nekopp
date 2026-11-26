@@ -33,7 +33,7 @@ use crate::iconrender::IconRenderer;
 use crate::icons;
 use crate::menu::Action;
 use crate::quad::QuadRenderer;
-use crate::theme::Theme;
+use crate::theme::{Theme, ToGpu};
 
 /// Horizontal padding inside a button, on each side of its icon.
 ///

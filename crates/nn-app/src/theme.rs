@@ -19,18 +19,30 @@
 //! pickers think. The GPU wants linear values, so conversion happens once, here,
 //! at the boundary.
 
-/// An sRGB colour.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Rgb(pub u8, pub u8, pub u8);
+// The colour type itself moved to `nn-shared` in the hundred-and-fifteenth pass:
+// three bytes are the same three bytes in a terminal, and the settings file that
+// writes them as hex has to be read by both front-ends.
+pub use nn_shared::color::Rgb;
 
-impl Rgb {
-    /// Builds a colour from its sRGB components.
-    pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        Self(r, g, b)
-    }
-
+/// What the GPU needs a colour turned into.
+///
+/// A trait rather than inherent methods because the type is no longer this
+/// crate's to extend, and it is a trait here rather than in `nn-shared` because
+/// none of these three answers means anything without a shader: linear values
+/// for a vertex buffer, `cosmic_text`'s packed colour, and `wgpu`'s clear value.
+pub trait ToGpu {
     /// The colour as linear RGBA, ready for a shader.
-    pub fn to_linear(self) -> [f32; 4] {
+    fn to_linear(self) -> [f32; 4];
+    /// The colour as linear RGBA with an explicit alpha.
+    fn to_linear_alpha(self, alpha: f32) -> [f32; 4];
+    /// The colour in the form glyphon expects.
+    fn to_cosmic(self) -> cosmic_text::Color;
+    /// The colour in the form `wgpu` expects for a clear value.
+    fn to_wgpu(self) -> wgpu::Color;
+}
+
+impl ToGpu for Rgb {
+    fn to_linear(self) -> [f32; 4] {
         [
             srgb_to_linear(self.0),
             srgb_to_linear(self.1),
@@ -39,19 +51,16 @@ impl Rgb {
         ]
     }
 
-    /// The colour as linear RGBA with an explicit alpha.
-    pub fn to_linear_alpha(self, alpha: f32) -> [f32; 4] {
+    fn to_linear_alpha(self, alpha: f32) -> [f32; 4] {
         let [r, g, b, _] = self.to_linear();
         [r, g, b, alpha]
     }
 
-    /// The colour in the form glyphon expects.
-    pub fn to_cosmic(self) -> cosmic_text::Color {
+    fn to_cosmic(self) -> cosmic_text::Color {
         cosmic_text::Color::rgb(self.0, self.1, self.2)
     }
 
-    /// The colour in the form `wgpu` expects for a clear value.
-    pub fn to_wgpu(self) -> wgpu::Color {
+    fn to_wgpu(self) -> wgpu::Color {
         let [r, g, b, a] = self.to_linear();
         wgpu::Color {
             r: r as f64,
@@ -658,19 +667,6 @@ pub fn from_stylers(xml: &str) -> Option<Theme> {
     theme.minimap_viewport = mix(foreground, background, 0.5);
     theme.gutter_active = foreground;
     Some(theme)
-}
-
-impl Rgb {
-    /// Perceived brightness, 0 for black and 255 for white.
-    ///
-    /// The Rec. 601 weights, matching [`nn_core::Rgb8::luminance`] so a colour
-    /// read from a language file and the same colour in the theme compare the
-    /// same way.
-    pub fn luminance(self) -> u16 {
-        let Rgb(r, g, b) = self;
-        let weighted = 299 * r as u32 + 587 * g as u32 + 114 * b as u32;
-        (weighted / 1000) as u16
-    }
 }
 
 impl Theme {
