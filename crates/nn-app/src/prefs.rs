@@ -29,11 +29,7 @@ use glyphon::{TextArea, TextBounds};
 
 use crate::i18n::Catalog;
 use crate::quad::QuadRenderer;
-use crate::settings::{
-    FileDialog, Settings, ThemeChoice, UiScale, MAX_AUTOSAVE, MAX_FONT_SIZE,
-    MAX_PLAYGROUND_MINUTES, MAX_TAB_WIDTH, MIN_AUTOSAVE, MIN_FONT_SIZE,
-    MIN_PLAYGROUND_MINUTES, MIN_TAB_WIDTH,
-};
+use crate::settings::{FileDialog, Settings, ThemeChoice};
 use crate::text::shaping_for;
 use crate::theme::{Theme, ToGpu};
 
@@ -786,150 +782,15 @@ impl Preferences {
     /// Returns whether anything changed, so the caller can skip a redraw and a
     /// disk write when a value is already at its limit.
     pub fn adjust(&mut self, delta: i32) -> bool {
-        let before = self.settings.clone();
-        match self.selected() {
-            // Fifty values, so it steps rather than toggles.
-            Row::Theme => {
-                self.settings.theme = if delta >= 0 {
-                    self.settings.theme.next()
-                } else {
-                    self.settings.theme.previous()
-                };
-            }
-            Row::FontSize => {
-                let size = self.settings.font_size + delta as f32;
-                self.settings.font_size = size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
-            }
-            Row::UiScale => {
-                // A short list of choices rather than a number: "follow the
-                // display" has no numeric form, and the point of the row is to
-                // reach a readable size in one or two presses.
-                let all = UiScale::ALL;
-                let at = all
-                    .iter()
-                    .position(|choice| *choice == UiScale(self.settings.ui_scale))
-                    .unwrap_or(0) as i32;
-                let next = (at + delta).clamp(0, all.len() as i32 - 1) as usize;
-                self.settings.ui_scale = all[next].0;
-            }
-            Row::TabWidth => {
-                let width = self.settings.tab_width as i32 + delta;
-                self.settings.tab_width =
-                    width.clamp(MIN_TAB_WIDTH as i32, MAX_TAB_WIDTH as i32) as u16;
-            }
-            Row::Wrap => self.settings.wrap = !self.settings.wrap,
-            Row::Minimap => self.settings.minimap = !self.settings.minimap,
-            Row::Toolbar => self.settings.toolbar = !self.settings.toolbar,
-            Row::FunctionList => self.settings.function_list = !self.settings.function_list,
-            Row::VolatileFind => self.settings.volatile_find = !self.settings.volatile_find,
-            Row::FloatingSearch => self.settings.find_floating = !self.settings.find_floating,
-            Row::Playground => self.settings.playground = !self.settings.playground,
-            Row::PlaygroundAfter => {
-                // One minute a press: an idle time is not something anyone
-                // tunes in five-second steps.
-                let minutes = self.settings.playground_after as i32 + delta;
-                self.settings.playground_after = minutes
-                    .clamp(MIN_PLAYGROUND_MINUTES as i32, MAX_PLAYGROUND_MINUTES as i32)
-                    as u32;
-            }
-            // Three values rather than two, so it steps rather than toggles.
-            Row::Backup => {
-                self.settings.backup_mode = if delta >= 0 {
-                    self.settings.backup_mode.next()
-                } else {
-                    self.settings.backup_mode.previous()
-                };
-            }
-            Row::Autosave => {
-                // Five-second steps: one second at a time would take sixty
-                // presses to reach a minute, and nobody wants a one-second
-                // autosave anyway.
-                let seconds = self.settings.autosave_seconds as i32 + delta * 5;
-                self.settings.autosave_seconds =
-                    seconds.clamp(MIN_AUTOSAVE as i32, MAX_AUTOSAVE as i32) as u32;
-            }
-            // Two values, but a switch would read as on/off and neither choice
-            // is the off one: both dialogs work.
-            Row::FileDialog => {
-                self.settings.file_dialog = if delta >= 0 {
-                    self.settings.file_dialog.next()
-                } else {
-                    let all = FileDialog::ALL;
-                    let at = all
-                        .iter()
-                        .position(|mode| *mode == self.settings.file_dialog)
-                        .unwrap_or(0);
-                    all[(at + all.len() - 1) % all.len()]
-                };
-            }
-            Row::Language => {
-                // Clamped, not wrapped: a language list is short and a wrap
-                // from the last entry back to English reads as a mistake.
-                let current = self
-                    .languages
-                    .iter()
-                    .position(|(file, _)| {
-                        file.as_str() == self.settings.language.as_deref().unwrap_or("")
-                    })
-                    .unwrap_or(0) as i32;
-                let last = self.languages.len() as i32 - 1;
-                let next = (current + delta).clamp(0, last) as usize;
-                let file = self.languages[next].0.clone();
-                self.settings.language = if file.is_empty() { None } else { Some(file) };
-            }
-            // Nothing to step through: the row opens a dialog instead.
-            Row::Shortcuts => {}
-        }
-        self.settings != before
+        let row = self.selected();
+        nn_shared::prefs::adjust(&mut self.settings, row, delta, &self.languages)
     }
 
     /// The value drawn on the right of `row`.
     pub fn value(&self, row: Row) -> String {
-        let on_off = |value: bool| self.tr(if value { "On" } else { "Off" }).to_string();
-        match row {
-            Row::Theme => self.tr(self.settings.theme.label()).to_string(),
-            Row::FontSize => format!("{}", self.settings.font_size),
-            Row::UiScale => {
-                if self.settings.ui_scale <= 0.0 {
-                    self.tr("Follow the display").to_string()
-                } else {
-                    format!("x{}", UiScale(self.settings.ui_scale).label())
-                }
-            }
-            Row::TabWidth => format!("{}", self.settings.tab_width),
-            Row::Wrap => on_off(self.settings.wrap),
-            Row::Minimap => on_off(self.settings.minimap),
-            Row::Toolbar => on_off(self.settings.toolbar),
-            Row::FunctionList => on_off(self.settings.function_list),
-            Row::VolatileFind => on_off(self.settings.volatile_find),
-            Row::FloatingSearch => on_off(self.settings.find_floating),
-            Row::Playground => on_off(self.settings.playground),
-            Row::PlaygroundAfter => {
-                if self.settings.playground_after == 0 {
-                    self.tr("Never").to_string()
-                } else {
-                    format!("{} min", self.settings.playground_after)
-                }
-            }
-            Row::Backup => self.tr(self.settings.backup_mode.label()).to_string(),
-            Row::Autosave => {
-                if self.settings.autosave_seconds == 0 {
-                    self.tr("Off").to_string()
-                } else {
-                    format!("{} s", self.settings.autosave_seconds)
-                }
-            }
-            Row::Language => self
-                .languages
-                .iter()
-                .find(|(file, _)| {
-                    file.as_str() == self.settings.language.as_deref().unwrap_or("")
-                })
-                .map(|(_, name)| name.clone())
-                .unwrap_or_else(|| "English".to_string()),
-            Row::FileDialog => self.tr(self.settings.file_dialog.label()).to_string(),
-            Row::Shortcuts => self.tr("Edit...").to_string(),
-        }
+        nn_shared::prefs::value_of(&self.settings, row, &self.languages, &|text| {
+            self.tr(text).to_string()
+        })
     }
 
     /// The width the dialog occupies.
@@ -1313,6 +1174,9 @@ impl Preferences {
 mod tests {
     use super::*;
     use crate::menu::Action;
+    // The two bounds these tests read directly; the rest are the shared
+    // function's business now.
+    use crate::settings::{MAX_FONT_SIZE, MIN_TAB_WIDTH};
 
     fn dialog() -> Preferences {
         Preferences::new(Metrics::new(15.0, 20.0), Family::Monospace, 8.0)

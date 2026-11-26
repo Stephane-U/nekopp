@@ -12739,3 +12739,45 @@ sixty-one tests changed crate and none was lost. `cargo clippy --offline
 --release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
 reference and its PDF are untouched -- the settings file itself, its keywords and
 its defaults are all exactly as they were, which is the point.
+
+## The hundred-and-twentieth pass: what a row shows and what a key does to it
+
+Phase 1, eleventh pass, and the first that is not a move: two functions, gathered
+out of the window's dialog and written against `Settings` instead of against a
+`Preferences`. `value_of` answers what a row shows on its right, and `adjust`
+answers what Left, Right and Enter do to it. Between them they are every fact the
+preferences dialog knows about a setting.
+
+They had to be shared rather than copied, because the interesting part of them is
+not the drawing. `adjust` is where the five step sizes and the ten bounds live:
+autosave moves in five-second steps, the playground in whole minutes, tab width
+between one and sixteen, the scale through a short list of named multipliers
+rather than a number. Two copies of that would be two settings files that
+disagree -- a terminal writing `ui_scale 1.25` where the window could never step
+to it. `value_of` is the same argument one layer up: `12 min`, `x1.5`, `Follow
+the display`, `Never` are strings a user reads in both programs.
+
+The translation stayed outside. `value_of` takes a `&dyn Fn(&str) -> String` and
+asks it for the *word* -- `On`, `Never`, `Edit...` -- not for the finished line,
+so `30 s` keeps its unit and the number keeps its formatting. That also let the
+terminal pass `|text| text.to_string()` and be done, which is exactly right for a
+front-end with no catalogue yet. A whole-line translation was the first shape
+tried and is wrong for a reason worth writing down: it would send `12 min`
+through a dictionary as one string, and no translator would ever match it.
+
+The window's two methods are now three lines each. Fifteen of its tests still
+walk the shared functions through the dialog, so the behaviour is covered twice
+over, and two new tests in `nn-shared::prefs` exercise them directly with the
+identity translator -- one that a value reads the same either way, one that a step
+stops at both ends.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical,
+`prefs`, `prefs_settings` and `light_prefs` among them -- those are the dumps that
+draw the values these two functions produce, so a changed string or a changed
+bound would have altered at least one. `cargo test --offline --release`: 2,353
+tests, 0 failed, the two new ones counted. `cargo clippy --offline --release
+--all-targets`: 0 warnings, after the window's test module stopped importing the
+bounds that are no longer its business. `cargo fmt` was not run. The feature
+reference and its PDF are untouched.

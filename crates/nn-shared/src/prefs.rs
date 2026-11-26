@@ -133,6 +133,182 @@ impl Row {
     }
 }
 
+// ---- the two questions a row answers ---------------------------------------
+
+/// What a row shows on its right-hand side.
+///
+/// Shared because the two dialogs are one dialog: a terminal that wrote `x1.5`
+/// where the window writes `x1.5x` would be a second editor with a typo in it.
+/// The translation is passed in rather than looked up, because the catalogue of
+/// words belongs to the front-end -- and it is asked for the *word* (`On`,
+/// `Never`), not for the finished line, so `12 min` keeps its unit instead of
+/// going through a dictionary as one string.
+pub fn value_of(
+    settings: &Settings,
+    row: Row,
+    languages: &[(String, String)],
+    tr: &dyn Fn(&str) -> String,
+) -> String {
+    let on_off = |value: bool| tr(if value { "On" } else { "Off" });
+    match row {
+        Row::Theme => tr(settings.theme.label()).to_string(),
+        Row::FontSize => format!("{}", settings.font_size),
+        Row::UiScale => {
+            if settings.ui_scale <= 0.0 {
+                tr("Follow the display")
+            } else {
+                format!("x{}", UiScale(settings.ui_scale).label())
+            }
+        }
+        Row::TabWidth => format!("{}", settings.tab_width),
+        Row::Wrap => on_off(settings.wrap),
+        Row::Minimap => on_off(settings.minimap),
+        Row::Toolbar => on_off(settings.toolbar),
+        Row::FunctionList => on_off(settings.function_list),
+        Row::VolatileFind => on_off(settings.volatile_find),
+        Row::FloatingSearch => on_off(settings.find_floating),
+        Row::Playground => on_off(settings.playground),
+        Row::PlaygroundAfter => {
+            if settings.playground_after == 0 {
+                tr("Never")
+            } else {
+                format!("{} min", settings.playground_after)
+            }
+        }
+        Row::Backup => tr(settings.backup_mode.label()).to_string(),
+        Row::Autosave => {
+            if settings.autosave_seconds == 0 {
+                tr("Off")
+            } else {
+                format!("{} s", settings.autosave_seconds)
+            }
+        }
+        Row::Language => languages
+            .iter()
+            .find(|(file, _)| {
+                file.as_str() == settings.language.as_deref().unwrap_or("")
+            })
+            .map(|(_, name)| name.clone())
+            .unwrap_or_else(|| "English".to_string()),
+        Row::FileDialog => tr(settings.file_dialog.label()).to_string(),
+        Row::Shortcuts => tr("Edit..."),
+    }
+}
+
+/// Steps a row, and says whether that changed anything.
+///
+/// Every number here has a floor and a ceiling and five of them also have a
+/// step: five seconds for the autosave, one minute for the playground, one for
+/// the tab width. They are in this function rather than in each dialog so that a
+/// terminal's arrow key and a window's arrow key land on the same values -- the
+/// bounds are what a settings file is written against, and two copies of them
+/// would mean two settings files that disagree.
+pub fn adjust(
+    settings: &mut Settings,
+    row: Row,
+    delta: i32,
+    languages: &[(String, String)],
+) -> bool {
+    let before = settings.clone();
+    match row {
+        // Fifty values, so it steps rather than toggles.
+        Row::Theme => {
+            settings.theme = if delta >= 0 {
+                settings.theme.next()
+            } else {
+                settings.theme.previous()
+            };
+        }
+        Row::FontSize => {
+            let size = settings.font_size + delta as f32;
+            settings.font_size = size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
+        }
+        Row::UiScale => {
+            // A short list of choices rather than a number: "follow the
+            // display" has no numeric form, and the point of the row is to
+            // reach a readable size in one or two presses.
+            let all = UiScale::ALL;
+            let at = all
+                .iter()
+                .position(|choice| *choice == UiScale(settings.ui_scale))
+                .unwrap_or(0) as i32;
+            let next = (at + delta).clamp(0, all.len() as i32 - 1) as usize;
+            settings.ui_scale = all[next].0;
+        }
+        Row::TabWidth => {
+            let width = settings.tab_width as i32 + delta;
+            settings.tab_width =
+                width.clamp(MIN_TAB_WIDTH as i32, MAX_TAB_WIDTH as i32) as u16;
+        }
+        Row::Wrap => settings.wrap = !settings.wrap,
+        Row::Minimap => settings.minimap = !settings.minimap,
+        Row::Toolbar => settings.toolbar = !settings.toolbar,
+        Row::FunctionList => settings.function_list = !settings.function_list,
+        Row::VolatileFind => settings.volatile_find = !settings.volatile_find,
+        Row::FloatingSearch => settings.find_floating = !settings.find_floating,
+        Row::Playground => settings.playground = !settings.playground,
+        Row::PlaygroundAfter => {
+            // One minute a press: an idle time is not something anyone
+            // tunes in five-second steps.
+            let minutes = settings.playground_after as i32 + delta;
+            settings.playground_after = minutes
+                .clamp(MIN_PLAYGROUND_MINUTES as i32, MAX_PLAYGROUND_MINUTES as i32)
+                as u32;
+        }
+        // Three values rather than two, so it steps rather than toggles.
+        Row::Backup => {
+            settings.backup_mode = if delta >= 0 {
+                settings.backup_mode.next()
+            } else {
+                settings.backup_mode.previous()
+            };
+        }
+        Row::Autosave => {
+            // Five-second steps: one second at a time would take sixty
+            // presses to reach a minute, and nobody wants a one-second
+            // autosave anyway.
+            let seconds = settings.autosave_seconds as i32 + delta * 5;
+            settings.autosave_seconds =
+                seconds.clamp(MIN_AUTOSAVE as i32, MAX_AUTOSAVE as i32) as u32;
+        }
+        // Two values, but a switch would read as on/off and neither choice
+        // is the off one: both dialogs work.
+        Row::FileDialog => {
+            settings.file_dialog = if delta >= 0 {
+                settings.file_dialog.next()
+            } else {
+                let all = FileDialog::ALL;
+                let at = all
+                    .iter()
+                    .position(|mode| *mode == settings.file_dialog)
+                    .unwrap_or(0);
+                all[(at + all.len() - 1) % all.len()]
+            };
+        }
+        Row::Language => {
+            // Clamped, not wrapped: a language list is short and a wrap
+            // from the last entry back to English reads as a mistake.
+            let current = languages
+                .iter()
+                .position(|(file, _)| {
+                    file.as_str() == settings.language.as_deref().unwrap_or("")
+                })
+                .unwrap_or(0) as i32;
+            let last = languages.len() as i32 - 1;
+            let next = (current + delta).clamp(0, last) as usize;
+            let file = languages[next].0.clone();
+            settings.language = if file.is_empty() { None } else { Some(file) };
+        }
+        // Nothing to step through: the row opens a dialog instead.
+        Row::Shortcuts => {}
+    }
+    *settings != before
+}
+
+use crate::settings::{FileDialog, Settings, UiScale, MAX_AUTOSAVE, MAX_FONT_SIZE,
+    MAX_PLAYGROUND_MINUTES, MAX_TAB_WIDTH, MIN_AUTOSAVE, MIN_FONT_SIZE,
+    MIN_PLAYGROUND_MINUTES, MIN_TAB_WIDTH};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,6 +335,55 @@ mod tests {
                 "{row:?} shares its label with an earlier row",
             );
         }
+    }
+
+    /// A translator that does nothing: what the terminal passes.
+    fn identity(text: &str) -> String {
+        text.to_string()
+    }
+
+    #[test]
+    fn a_value_reads_the_same_in_both_front_ends() {
+        let mut settings = Settings::default();
+        let languages = vec![(String::new(), "English".to_string())];
+        assert_eq!(
+            value_of(&settings, Row::FontSize, &languages, &identity),
+            format!("{}", settings.font_size),
+        );
+        assert_eq!(value_of(&settings, Row::Wrap, &languages, &identity), "Off");
+        settings.wrap = true;
+        assert_eq!(value_of(&settings, Row::Wrap, &languages, &identity), "On");
+        // The units stay outside the translated word.
+        settings.autosave_seconds = 30;
+        assert_eq!(
+            value_of(&settings, Row::Autosave, &languages, &identity),
+            "30 s",
+        );
+        // And a translation is asked for the word, not the finished line.
+        let shouted = |text: &str| text.to_uppercase();
+        assert_eq!(value_of(&settings, Row::Wrap, &languages, &shouted), "ON");
+        assert_eq!(
+            value_of(&settings, Row::Autosave, &languages, &shouted),
+            "30 s",
+        );
+    }
+
+    #[test]
+    fn stepping_stops_at_the_bounds_whichever_end_it_starts_from() {
+        let mut settings = Settings::default();
+        let languages = vec![(String::new(), "English".to_string())];
+        settings.tab_width = super::super::settings::MIN_TAB_WIDTH;
+        assert!(!adjust(&mut settings, Row::TabWidth, -1, &languages));
+        assert_eq!(settings.tab_width, super::super::settings::MIN_TAB_WIDTH);
+        settings.tab_width = super::super::settings::MAX_TAB_WIDTH;
+        assert!(!adjust(&mut settings, Row::TabWidth, 1, &languages));
+        assert_eq!(settings.tab_width, super::super::settings::MAX_TAB_WIDTH);
+        // A switch ignores the direction and reports the change.
+        let before = settings.wrap;
+        assert!(adjust(&mut settings, Row::Wrap, 1, &languages));
+        assert_eq!(settings.wrap, !before);
+        // An action row has nothing to step through.
+        assert!(!adjust(&mut settings, Row::Shortcuts, 1, &languages));
     }
 
     #[test]
