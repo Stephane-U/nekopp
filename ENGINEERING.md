@@ -13009,3 +13009,53 @@ the theme's colours), the tab width reaching the grid at eight columns, and a fr
 that starts the picture again when the palette changes. `cargo clippy --offline
 --release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
 reference and its PDF are untouched.
+
+## The hundred-and-twenty-fifth pass: the lists behind the two long rows
+
+Phase 3, next pass: the Theme and Language rows stopped pretending to be switches.
+`Row::opens_picker` has said since the shared rows crossed to `nn-shared` that
+these two are not stepped but listed -- fifty themes and two dozen languages, in a
+box you read -- and the terminal was the front-end ignoring it, stepping fifty
+values with the arrow keys instead. Enter on either row now opens a list.
+
+The list is the dialog's own, not a second thing: `Picker` holds the row it belongs
+to, what it offers, and which entry is lit; it is titled with the row's label, it
+opens on the value in force rather than at the top, and Enter writes the choice
+into the settings through the same `ThemeChoice::ALL` and the same language list
+the rest of the dialog uses. Escape closes it and writes nothing, which is what
+makes it safe to open one to look -- a list you cannot browse without committing to
+is a list people learn not to open.
+
+The keys are the interesting part, and the shape they took is the shape a modal
+takes: while a list is up, every key goes to it and the dialog behind it does not
+move. That is the same rule the dialog itself follows over the document, one level
+down, and it took a test to notice that I had got it wrong -- splitting "Right or
+Enter" into "Enter opens a list" and "Right steps" quietly dropped Enter from the
+fifteen rows that have no list, so Enter on Word Wrap stopped toggling it. The
+existing test for the font size row did not catch it, because that row is one the
+terminal refuses; the new one does.
+
+Two smaller things came with it. The hint line is now the window's own sentence --
+`Up/Down  Left/Right  Enter open  Esc close` -- which the catalogue already
+carries, so the last English line in a French dialog is gone and pass 123's
+apology about it is spent. And the box border moved into `draw_box`, because there
+are two boxes now and a duplicated corner is a corner that drifts.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical; only
+`nn-tui` changed.
+
+Driven through a pseudo terminal: F9, six Rights, Down, Enter, Enter opens the
+list on a fresh configuration, and the twelve rows it draws include `System`,
+`Ayu Dark` and `Catppuccin Mocha`. One Down and Enter, then Escape, and the
+settings file the run wrote says `theme light` -- the second entry of the list,
+chosen through it rather than stepped to.
+
+`cargo test --offline --release`: 2,372 tests, 0 failed -- 2,366 plus six: the
+list opens on the row's values, a choice is written and the dialog stays up, an
+Escape writes nothing, the language list offers English first and choosing it
+writes `None`, the list is drawn over the dialog, and Enter still steps a row that
+has none. `cargo clippy --offline --release --all-targets`: 0 warnings, after one
+test stopped assigning a field of a `Default::default()`. `cargo fmt` was not run.
+The feature reference and its PDF are untouched.
