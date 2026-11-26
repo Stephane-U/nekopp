@@ -1,0 +1,24 @@
+[package]
+name = "nn-tui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+# Same reasoning as the other two binaries: the package is named after the
+# workspace and the program after the editor.
+[[bin]]
+name = "npp-tui"
+path = "src/main.rs"
+
+[dependencies]
+# The editor, without a window: the document, the caret, the lexers and the
+# highlighter all live here, and this crate adds nothing to them.
+nn-core = { path = "../nn-core" }
+# Raw mode, the window size and one poll: three calls, and a whole terminal
+# library would be a dependency to keep current for them.
+libc = "0.2"
+# What a character occupies on screen. A wide character is two cells and a
+# combining mark is none, and a grid that assumes one cell per character rows
+# every line wrongly the moment someone opens a file with Chinese in it.
+unicode-width = "0.2"

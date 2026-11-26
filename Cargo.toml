@@ -6,6 +6,8 @@ members = [
     # The documentation server: a separate binary with no window dependency, so
     # that a machine can serve the feature reference without building the GUI.
     "crates/nn-mcp",
+    # The terminal front-end: the same editor, drawn in characters.
+    "crates/nn-tui",
 ]
 
 [workspace.package]

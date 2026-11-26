@@ -12130,3 +12130,80 @@ only -- the plan, this section and a row in the README's table. `cargo test --of
 --offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
 reference and its PDF are untouched, because nothing a person can see has changed
 yet; the plan says which pass will change it.
+
+## The hundred-and-eighth pass: the editor in a terminal
+
+The plan of the hundred-and-seventh pass put the extraction first: move the
+decisions out of the windowed program, then build the front-end that would use
+them. The order changed, and the reason is worth recording, because it is a rule
+about refactoring rather than a preference. A refactor with no consumer guesses
+at the API it should expose; a shell built first tells it what to expose. So the
+terminal front-end came first, as a new crate that touches nothing the window
+uses, and the extraction follows knowing what the second consumer actually needs.
+
+### What was built
+
+`crates/nn-tui`, one binary, `npp-tui`: the screen, the caret, the colours,
+typing, opening, saving, and a bar at the bottom. It is its own crate rather than
+a `--tui` switch in `npp` for the reason `npp-mcp` is: a front-end that cannot
+create a window should not link wgpu, and the packaging scripts already build
+`--bin npp` on its own.
+
+There is no terminal library. Raw mode, the window size and a read with a
+deadline are five calls -- `tcgetattr`, `tcsetattr`, `ioctl`, `poll`, `read` --
+and a dependency to keep current would have been larger than the code that
+replaces it. The cost is four `unsafe` blocks in one file that say what they
+assume.
+
+The screen is a grid of cells and a difference. A cell carries one tone, of
+fifteen, each of which sets a foreground *and* a background: half a pair is how a
+terminal ends up with black on black. A frame repaints a row from the first
+column that differs to the last, and says nothing about a row that is the same, so
+a keystroke costs a few hundred bytes rather than a screenful.
+
+Everything an editor does with text stayed in `nn-core`: the caret and its
+motions, undo and redo, auto-indent, the lexers and the highlighter, encodings and
+line endings, `Document::is_dirty`. The shell re-lexes from the edited line, and
+by the whole file only after undo, which can have changed any of them. Page Up and
+Page Down work without a special case because the core takes "a screenful" from
+the editor's viewport, and a cell is one line high: the shell sets the viewport to
+the window size in cells and the motions follow.
+
+Three details that a first version gets wrong. A tab is drawn as the spaces it
+stands for, in the tone of the text around it. A wide character takes two cells
+and is dropped rather than split in the last column, because a glyph in the last
+column makes a terminal wrap and scroll the whole screen. And a combining mark is
+not drawn at all, which is a gap rather than a decision: it needs a cell that
+knows it is carrying an accent.
+
+The bar gives way on the left. At forty columns a path and a line number cannot
+both fit, and the two numbers a person is looking at while typing are the line and
+the column, so the path is what gets cut.
+
+### Verified
+
+Measured in the release build, on X display :1, `npp-tui` running in kitty 0.48:
+the reference file opened with its line numbers, its comment green and its
+keywords blue; three presses of Down put the caret on line 3; typing replaced that
+line; `Ctrl+S` wrote it, and the file on disk went from `//` to `// still fast`
+with the `[+]` marker leaving the bar. A second shot after the save shows `saved`
+where the path was.
+
+The frame cost, from the test `a_keystroke_costs_a_fraction_of_a_screen...`, which
+prints what it measures: the first paint of a 120 by 40 window costs 10,425 bytes;
+a keystroke in a 500-line file costs 306 of them, in about 40 microseconds of
+drawing. That is three percent of a screen per keystroke, which is the property the
+whole module exists for.
+
+`cargo test --offline --release`: 2,331 tests, 0 failed, 24 of them new -- the
+diff writer, the key parser, the tones, and the layout (the gutter, the tab stops,
+the wide character, the scrolling that follows the caret, the two presses that
+discard unsaved work, and the save that writes a file). `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
+reference and its PDF are untouched: a shell with no menus is not yet something to
+document for a user, and the plan says the chapter arrives with the menus.
+
+What is not there yet, in the plan's own terms: the menu bar and its dropdowns,
+the preference dialog, find, tabs, the split view, plugins, the clipboard, and the
+playground. All of them read from the shared library that phase 1 has not built
+yet.

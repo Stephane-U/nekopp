@@ -58,6 +58,9 @@ a dash leaves behind it. Synthwave '84. `Esc` goes back to the document.
   Notepad++ offers, and the three line endings.
 - **Plugins**: WebAssembly, one `.wasm` file per plugin, run in an interpreter
   with its own limits rather than in the editor's address space.
+- **Terminal (in progress)**: `npp-tui` opens the same documents where there is no
+  window at all -- the screen, the caret, the colours, typing, saving. Menus and
+  preferences are the next passes, in `docs/tui-plan.md`.
 - **Automation**: `npp --call` takes a JSON request against the running window,
   `npp-mcp` serves the same commands over MCP on standard input with no window
   and no display, and `npp --rest` serves them as REST on `127.0.0.1`.

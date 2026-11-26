@@ -96,16 +96,44 @@ the change.
 |---|---|---|---|
 | 0 | This document; the parity rule; a yardstick for a TUI (bytes per frame, keystroke latency) | 1-2 passes | written down and measured |
 | 1 | Extract the shared library out of `main.rs`, `menu.rs`, `prefs.rs`. No behaviour change in the window | 8-14 passes | `bench` PPM dumps byte-identical across a flag matrix; 2,307 tests green |
-| 2 | The terminal shell: grid and diff writer, keys, open, save, status line, `--tui` entry in the same binary | 10-15 passes | typing and reopening a file, measured |
+| 2 | The terminal shell: grid and diff writer, keys, open, save, status line | 10-15 passes | typing and reopening a file, measured |
 | 3 | Menu bar and dropdowns; the preference dialog from the shared rows | 6-10 passes | all 35 settings reachable and applied |
 | 4 | The rest of the furniture, one pass per widget: tabs, split view, find bar and dialog, find in files, completion, function list, folder panel, plugins, macros, styles | 12-20 passes | the same checks each widget got in the window |
 | 5 | The playground in characters, plain first, colour behind a preference | 3-6 passes | CPU per second against the windowed mode's own number |
+
+The shell is its own crate and binary, `nn-tui` and `npp-tui`, rather than a
+`--tui` switch inside `npp`: a front-end that cannot create a window should not
+link wgpu, which is the same argument that made `npp-mcp` its own crate. A `--tui`
+alias in `npp` can forward to it later if that turns out to be what people type.
 
 Forty to sixty-five passes in total. Phase 1 is the long pole and the only one
 that can hurt the windowed version, which is why its gate is a picture rather than
 an opinion: the bench writes a PPM, and two runs of the same flags hash the same
 (`a163442c3c14d3954aff272bd0937cdc` twice, 1280 by 720, `menu tabmenu`), so a
 refactor that moves ten thousand lines can be proven not to have moved a pixel.
+
+## Status
+
+| Phase | State |
+|---|---|
+| 0 | done -- this document, and a yardstick that runs as a test rather than as a script |
+| 1 | not started |
+| 2 | done, as a shell: the screen, the caret, the colours, typing, saving -- no menus yet |
+| 3 | next |
+| 4 | not started |
+| 5 | not started |
+
+Phase 2 came before phase 1, which is the plan's order inverted, for a reason
+worth keeping: a refactor with no consumer guesses at the API it should expose, and
+the shell is now a consumer that can say what it needs. It touches nothing the
+windowed front-end uses -- a new crate, one line in the workspace's member list --
+so the inversion costs the window nothing, which is what phase 1's gate is there to
+protect.
+
+The shell's numbers, from `crates/nn-tui/src/app.rs`: the first paint of a 120 by
+40 window is 10,425 bytes, a keystroke in a 500-line file is 306 of them, and the
+drawing takes about 40 microseconds. The pass note in `ENGINEERING.md` has the
+detail and the screenshots.
 
 ## Why the terminal front-end and not a client of the REST face
 
