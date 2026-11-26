@@ -12669,3 +12669,32 @@ them. `cargo test --offline --release`: 2,351 tests, 0 failed -- unchanged again
 nine moved and none lost. `cargo clippy --offline --release --all-targets`: 0
 warnings. `cargo fmt` was not run. The feature reference and its PDF are
 untouched.
+
+## The hundred-and-eighteenth pass: the first setting value
+
+Phase 1, ninth pass, and a small one on purpose: this is the last type standing
+between `Settings` and the shared crate. `TabLayout` moved from `tabbar.rs` to
+`nn-shared::settings`, three arrangements with three keywords, a label and a
+`next` -- the same shape as `ThemeChoice`, and shared for the same reason. A tab
+strip is not a window: `tmux` has one, and a terminal front-end that can put its
+tabs down the side has to read the same word out of the same file and write the
+same word back.
+
+The module is new and holds one type, which is worth saying out loud rather than
+burying: naming it `settings` before `Settings` arrives is what makes the next
+pass a move rather than another new module, and it puts the file where a reader
+looking for "the values a setting can hold" will find it first.
+
+One doc link had to be let go. `TabLayout::MultiLine`'s comment pointed at
+`MAX_ROWS`, a private constant of the drawing code that stays behind, and a
+shared crate cannot link to a number it does not own. The comment now says "up to
+three rows", which is the whole of what the constant said.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical,
+`menu_tab` and `tabs3` and `menu_view` among them -- the three dumps that draw a
+strip, which is where a wrong layout would show. `cargo test --offline
+--release`: 2,351 tests, 0 failed -- four `TabLayout` tests moved and none lost.
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched.

@@ -51,6 +51,8 @@
 //!   override by hand.
 //! * [`prefs`] -- the seventeen rows of the preferences dialog, in order, with
 //!   what each is called and whether it switches, steps or opens a dialog.
+//! * [`settings`] -- the values those rows hold, starting with the tab strip's
+//!   three arrangements.
 //! * [`color`] -- the colour type itself: three bytes and their brightness, with
 //!   the conversion to linear values left to the front-end with a shader.
 //!
@@ -65,5 +67,6 @@ pub mod catalogue;
 pub mod color;
 pub mod keymap;
 pub mod prefs;
+pub mod settings;
 pub mod menu;
 pub mod theme;
