@@ -59,6 +59,9 @@ pub enum Key {
     ExtendRight,
     /// `Ctrl` and a letter, lowercased.
     Ctrl(char),
+    /// `F1` through `F12`. `F9` opens the menus, as it does in Midnight
+    /// Commander, and `F10` does the same for hands trained on Notepad++.
+    Function(u8),
 }
 
 /// Reads one key from the front of `bytes`, and how many bytes it took.
@@ -99,6 +102,12 @@ fn sequence(bytes: &[u8]) -> Option<(Key, usize)> {
         let key = match bytes.get(2)? {
             b'H' => Key::LineStart,
             b'F' => Key::LineEnd,
+            // `ESC O P` through `ESC O S` are the first four function keys on
+            // the terminals that send this form.
+            b'P' => Key::Function(1),
+            b'Q' => Key::Function(2),
+            b'R' => Key::Function(3),
+            b'S' => Key::Function(4),
             _ => return None,
         };
         return Some((key, 3));
@@ -137,6 +146,21 @@ fn sequence(bytes: &[u8]) -> Option<(Key, usize)> {
         (b'~', "6") => Key::PageDown,
         (b'~', "1") | (b'~', "7") => Key::LineStart,
         (b'~', "4") | (b'~', "8") => Key::LineEnd,
+        // The rest of the function keys, as `ESC [ N ~` with N counting from
+        // 11 for F1. F1 to F4 are numbered 11 to 14 here and exist in the other
+        // encoding above, depending on the terminal.
+        (b'~', "11") => Key::Function(1),
+        (b'~', "12") => Key::Function(2),
+        (b'~', "13") => Key::Function(3),
+        (b'~', "14") => Key::Function(4),
+        (b'~', "15") => Key::Function(5),
+        (b'~', "17") => Key::Function(6),
+        (b'~', "18") => Key::Function(7),
+        (b'~', "19") => Key::Function(8),
+        (b'~', "20") => Key::Function(9),
+        (b'~', "21") => Key::Function(10),
+        (b'~', "23") => Key::Function(11),
+        (b'~', "24") => Key::Function(12),
         _ => return None,
     };
     Some((key, at + 1))

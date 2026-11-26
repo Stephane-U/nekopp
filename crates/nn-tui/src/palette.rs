@@ -53,6 +53,16 @@ pub enum Tone {
     StatusBar,
     /// A message on the bar: saved, unsaved, refused.
     Alert,
+
+    /// The strip of menu titles along the top, and the rows of a dropdown.
+    ///
+    /// The same two colours for both, taken from the windowed theme's own menu
+    /// colours, because a menu is a menu in either front-end.
+    Menu,
+    /// A dropdown row under the pointer, or the title of the open menu.
+    MenuHover,
+    /// The box drawn round a dropdown.
+    MenuBorder,
 }
 
 impl Tone {
@@ -78,6 +88,9 @@ impl Tone {
             Tone::Caret => "\x1b[38;2;30;30;30;48;2;174;175;173m",
             Tone::StatusBar => "\x1b[38;2;150;150;150;48;2;37;37;38m",
             Tone::Alert => "\x1b[38;2;232;176;84;48;2;37;37;38m",
+            Tone::Menu => "\x1b[38;2;212;212;212;48;2;45;45;48m",
+            Tone::MenuHover => "\x1b[38;2;212;212;212;48;2;62;62;68m",
+            Tone::MenuBorder => "\x1b[38;2;70;70;74;48;2;45;45;48m",
         }
     }
 }

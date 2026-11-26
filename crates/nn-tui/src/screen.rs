@@ -147,6 +147,16 @@ pub struct Frame {
     front: Grid,
     back: Grid,
     out: Vec<u8>,
+    /// Whether the whole screen has to be written on the next frame.
+    ///
+    /// A blank cell and a cell painted in the document's own colours are the
+    /// same cell, so a diff against an empty grid writes nothing where the
+    /// picture is empty -- and the terminal keeps showing the background it had
+    /// before the program started, which does not match the background the
+    /// windowed editor uses. The first frame, and the first after a resize, are
+    /// therefore written edge to edge: after that the picture is the program's
+    /// own and a diff is again the right question.
+    fresh: bool,
 }
 
 impl Frame {
@@ -156,6 +166,7 @@ impl Frame {
             front: Grid::new(width, height),
             back: Grid::new(width, height),
             out: Vec::new(),
+            fresh: true,
         }
     }
 
@@ -173,6 +184,7 @@ impl Frame {
     pub fn resize(&mut self, width: usize, height: usize) {
         self.front = Grid::new(width, height);
         self.back = Grid::new(width, height);
+        self.fresh = true;
     }
 
     pub fn width(&self) -> usize {
@@ -193,8 +205,19 @@ impl Frame {
             self.front = Grid::new(self.back.width, self.back.height);
             self.out.extend_from_slice(b"\x1b[2J");
         }
+        let fresh = std::mem::replace(&mut self.fresh, false);
         for row in 0..self.back.height {
-            let Some(from) = self.first_difference(row) else {
+            // A fresh frame writes every column of every row; after that, only
+            // the columns that differ.
+            let span = if fresh {
+                self.back.width.checked_sub(1).map(|last| (0, last))
+            } else {
+                match (self.first_difference(row), self.last_difference(row)) {
+                    (Some(from), Some(last)) => Some((from, last)),
+                    _ => None,
+                }
+            };
+            let Some((from, last)) = span else {
                 continue;
             };
             // Cursor to the first column that differs, not to the start of the
@@ -204,9 +227,6 @@ impl Frame {
             // place this module translates.
             self.out
                 .extend_from_slice(format!("\x1b[{};{}H", row + 1, from + 1).as_bytes());
-            let Some(last) = self.last_difference(row) else {
-                continue;
-            };
             let mut tone: Option<Tone> = None;
             for column in from..=last {
                 let cell = self.back.get(row, column);

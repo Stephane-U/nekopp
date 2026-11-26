@@ -15,6 +15,10 @@ path = "src/main.rs"
 # The editor, without a window: the document, the caret, the lexers and the
 # highlighter all live here, and this crate adds nothing to them.
 nn-core = { path = "../nn-core" }
+# The menus, the commands they run and the chords beside them: the same tree
+# the window draws, so a command added there is on this bar before either
+# program is run. No wgpu reaches this crate through it.
+nn-shared = { path = "../nn-shared" }
 # Raw mode, the window size and one poll: three calls, and a whole terminal
 # library would be a dependency to keep current for them.
 libc = "0.2"

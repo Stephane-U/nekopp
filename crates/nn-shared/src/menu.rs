@@ -212,6 +212,112 @@ pub struct RowItem {
     pub children: Vec<RowItem>,
 }
 
+/// Where the menus that are filled from outside sit in the bar.
+///
+/// The index matters to both front-ends: a rebuild of the recent-file list, the
+/// run list, the language list or the plugin list replaces one menu's rows, and
+/// finding it by title would break the moment a catalogue translated the title.
+pub const LANGUAGE_MENU: usize = 5;
+pub const RUN_MENU: usize = 9;
+pub const PLUGIN_MENU: usize = 10;
+
+/// What the builders cannot answer for themselves.
+///
+/// Four menus hold rows that come from the disk or from the settings -- the files
+/// that were open lately, the commands a user saved, the languages they defined,
+/// and the themes the settings offer -- and each builder takes its list rather
+/// than reaching for it. This is the bundle a caller fills in, so that adding a
+/// fifth such menu is a field here and a compile error at every call site instead
+/// of a fifth argument threaded through by hand.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Contents<'a> {
+    /// The recently opened files, most recent first.
+    pub recent: &'a [String],
+    /// The saved run commands, in the order the user saved them.
+    pub runs: &'a [String],
+    /// The user-defined languages, in the order the folder listing gave them.
+    pub languages: &'a [String],
+    /// The themes, in the order the preference row steps through them.
+    pub themes: &'a [&'a str],
+}
+
+/// The whole menu bar, in bar order.
+///
+/// The Plugins menu is the one that stays empty: its rows are built by the
+/// front-end that owns the plugin host, because they are composed from a
+/// catalogue of translations and from names the plugins give themselves. An empty
+/// item list is a menu with nothing in it rather than a row saying so, and both
+/// front-ends fill it from the same `plugin` rows when they have them.
+pub fn menus(contents: Contents<'_>) -> Vec<Menu> {
+    vec![
+        Menu {
+            title: "File".to_string(),
+            english: "File",
+            items: file_items(contents.recent),
+        },
+        Menu {
+            title: "Edit".to_string(),
+            english: "Edit",
+            items: edit_items(),
+        },
+        Menu {
+            title: "Search".to_string(),
+            english: "Search",
+            items: search_items(),
+        },
+        Menu {
+            title: "View".to_string(),
+            english: "View",
+            items: view_items(),
+        },
+        Menu {
+            title: "Encoding".to_string(),
+            english: "Encoding",
+            items: encoding_items(),
+        },
+        Menu {
+            title: "Language".to_string(),
+            english: "Language",
+            items: language_items(contents.languages),
+        },
+        Menu {
+            title: "Settings".to_string(),
+            english: "Settings",
+            items: settings_items(contents.themes),
+        },
+        Menu {
+            title: "Tools".to_string(),
+            english: "Tools",
+            items: tools_items(),
+        },
+        Menu {
+            title: "Macro".to_string(),
+            english: "Macro",
+            items: macro_items(),
+        },
+        Menu {
+            title: "Run".to_string(),
+            english: "Run",
+            items: run_items(contents.runs),
+        },
+        Menu {
+            title: "Plugins".to_string(),
+            english: "Plugins",
+            items: Vec::new(),
+        },
+        Menu {
+            title: "Window".to_string(),
+            english: "Window",
+            items: window_items(),
+        },
+        Menu {
+            title: "Help".to_string(),
+            english: "Help",
+            items: help_items(),
+        },
+    ]
+}
+
 /// The Character sets submenu: Notepad++'s scripts, each with the sets that
 /// belong to it.
 ///

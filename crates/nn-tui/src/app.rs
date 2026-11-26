@@ -28,9 +28,12 @@
 use std::path::Path;
 
 use nn_core::{CLikeLexer, ConfigLexer, Document, Editor, Highlighter, Lexer, Motion};
+use nn_shared::action::Action;
+use nn_shared::keymap::Keymap;
 use unicode_width::UnicodeWidthChar;
 
 use crate::keys::Key;
+use crate::menus::Menus;
 use crate::palette::{self, Tone};
 use crate::screen::Grid;
 
@@ -68,6 +71,8 @@ pub struct App {
     scroll_line: usize,
     /// The first display column of the text area on screen.
     scroll_col: usize,
+    /// The bar and its dropdowns, with the shared tree behind them.
+    menus: Menus,
     message: Option<Message>,
     /// Set once `Ctrl+Q` has been pressed with unsaved changes, so the second
     /// press means what the first one warned about.
@@ -99,6 +104,7 @@ impl App {
             highlighter,
             scroll_line: 0,
             scroll_col: 0,
+            menus: Menus::new(&Keymap::default()),
             message: None,
             quit_armed: false,
             quit: false,
@@ -123,6 +129,23 @@ impl App {
     /// the edit, because re-lexing starts there rather than at the top of the
     /// file.
     pub fn handle(&mut self, key: Key) {
+        // While a dropdown is up it owns the keyboard: a keystroke means "move
+        // the cursor" rather than "type a letter", which is the same rule the
+        // window follows with its modal menus.
+        if self.menus.is_open() {
+            if let Some(action) = self.menus.handle(key) {
+                self.run(action);
+            }
+            return;
+        }
+        // F9 opens the menus, as in Midnight Commander; F10 is for hands trained
+        // on Notepad++. A menu opened by a keystroke is a menu whose keyboard
+        // focus has already moved, so nothing else happens on that press.
+        if matches!(key, Key::Function(9) | Key::Function(10)) {
+            self.message = None;
+            self.menus.toggle();
+            return;
+        }
         self.message = None;
         let line = self.editor.caret_line();
         match key {
@@ -181,6 +204,37 @@ impl App {
                 self.editor.clear_extra_carets();
             }
             Key::Ctrl(_) => {}
+            Key::Function(_) => {}
+        }
+    }
+
+    /// Runs a command chosen from a menu.
+    ///
+    /// The tree is the window's, so it offers all two hundred and forty-one
+    /// commands and this shell has six of them. The rest say what they are
+    /// rather than doing nothing: a menu that silently ignores a press teaches a
+    /// user that the program is broken, and the list of what is missing is the
+    /// shell's own work list.
+    fn run(&mut self, action: Action) {
+        self.message = None;
+        match action {
+            Action::Save => self.save(),
+            Action::Undo => {
+                if self.editor.undo() {
+                    self.refresh_all();
+                }
+            }
+            Action::Redo => {
+                if self.editor.redo() {
+                    self.refresh_all();
+                }
+            }
+            Action::SelectAll => self.editor.select_all(),
+            Action::Exit => self.ask_to_quit(),
+            other => {
+                let label = other.label();
+                self.say(&format!("{label}: not in the terminal yet"), true);
+            }
         }
     }
 
@@ -292,11 +346,22 @@ impl App {
         let selection = self.editor.selection_start()..self.editor.selection_end();
 
         for row in 0..text_rows {
+            // Every row is painted edge to edge, in the two tones the windowed
+            // editor uses for the same strips. Leaving the cells past the end of
+            // a line alone would let the terminal's own background through, and
+            // it would leave a menu's box behind after a dropdown closed over
+            // those cells: a frame that only writes what it has something to say
+            // about cannot erase.
+            for column in 0..layout.gutter.min(width) {
+                grid.put(row, column, ' ', Tone::Gutter);
+            }
+            for column in layout.gutter..width {
+                grid.put(row, column, ' ', Tone::Text);
+            }
             let line = self.scroll_line + row;
             if line >= self.editor.doc.len_lines() {
                 // Past the end of the document the gutter keeps its column, so
                 // the strip reads as one thing rather than as a ragged edge.
-                grid.text(row, 0, " ", Tone::Gutter);
                 continue;
             }
             self.draw_gutter(grid, row, line, layout.gutter, caret_line);
@@ -311,6 +376,12 @@ impl App {
             }
         }
         self.draw_status(grid, status_row, width);
+        // The menus last: a dropdown is an overlay, and the bar takes the top
+        // row only while it is up. Midnight Commander's bar behaves the same
+        // way, which is where a terminal user expects to find it.
+        if self.menus.is_open() {
+            self.menus.draw(grid);
+        }
     }
 
     /// Puts the line number, right-aligned, at the left of `row`.

@@ -47,6 +47,7 @@ pub use nn_shared::action::{Action, BrowserKind, MatchMode, Sort, WindowSort};
 // `MenuBar`, the shaped buffers, the panel arithmetic -- plus the two passes that
 // fill a column from outside: the keymap's chords and the catalogue's labels.
 pub use nn_shared::menu::{
+    LANGUAGE_MENU, PLUGIN_MENU, RUN_MENU,
     edit_items, encoding_items, file_items, help_items, language_items,
     line_operation_items, macro_items, multi_select_items, row_items, run_items,
     same_rows, search_items, settings_items, tools_items, view_items, window_items,
@@ -174,21 +175,6 @@ const PANEL_OVERLAP: f32 = 4.0;
 /// would have looked like a typo.
 const SUBMENU_ARROW: &str = "\u{25b8}";
 
-/// The index of the Run menu in the bar.
-///
-/// Fixed, because the bar's order is fixed.
-const RUN_MENU: usize = 9;
-
-/// The index of the Language menu in the bar.
-const LANGUAGE_MENU: usize = 5;
-
-/// The index of the Plugins menu in the bar.
-///
-/// The bar is Notepad++'s own thirteen, in its order: File, Edit, Search, View,
-/// Encoding, Language, Settings, Tools, Macro, Run, Plugins, Window, Help. The
-/// indices below are the ones that have to be reached by position, so they are
-/// named rather than written as literals at each use.
-const PLUGIN_MENU: usize = 10;
 
 
 /// The rows of the Plugins menu.
@@ -336,73 +322,14 @@ impl MenuBar {
         char_width: f32,
         keymap: Keymap,
     ) -> Self {
-        let menus = vec![
-            Menu {
-                title: "File".to_string(),
-                english: "File",
-                items: file_items(&[]),
-            },
-            Menu {
-                title: "Edit".to_string(),
-                english: "Edit",
-                items: edit_items(),
-            },
-            Menu {
-                title: "Search".to_string(),
-                english: "Search",
-                items: search_items(),
-            },
-            Menu {
-                title: "View".to_string(),
-                english: "View",
-                items: view_items(),
-            },
-            Menu {
-                title: "Encoding".to_string(),
-                english: "Encoding",
-                items: encoding_items(),
-            },
-            Menu {
-                title: "Language".to_string(),
-                english: "Language",
-                items: language_items(&[]),
-            },
-            Menu {
-                title: "Settings".to_string(),
-                english: "Settings",
-                items: settings_items(&theme_labels()),
-            },
-            Menu {
-                title: "Tools".to_string(),
-                english: "Tools",
-                items: tools_items(),
-            },
-            Menu {
-                title: "Macro".to_string(),
-                english: "Macro",
-                items: macro_items(),
-            },
-            Menu {
-                title: "Run".to_string(),
-                english: "Run",
-                items: run_items(&[]),
-            },
-            Menu {
-                title: "Plugins".to_string(),
-                english: "Plugins",
-                items: plugin_items(&[], None),
-            },
-            Menu {
-                title: "Window".to_string(),
-                english: "Window",
-                items: window_items(),
-            },
-            Menu {
-                title: "Help".to_string(),
-                english: "Help",
-                items: help_items(),
-            },
-        ];
+        let mut menus = nn_shared::menu::menus(nn_shared::menu::Contents {
+            themes: &theme_labels(),
+            ..Default::default()
+        });
+        // The Plugins rows are composed from the catalogue and from names the
+        // plugins give themselves, so they are built here and dropped into the
+        // menu the shared set left empty.
+        menus[PLUGIN_MENU].items = plugin_items(&[], None);
 
         // Guessed from the character grid until `prepare` measures the shaped
         // titles, so the bar has a layout before the first frame.

@@ -12379,3 +12379,88 @@ failed -- `keymap`'s own twenty-nine moved with it, and the three that apply a
 settings line now pass `Action::from_name` as their resolver. `cargo clippy
 --offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. The
 feature reference and its PDF are untouched.
+
+## The hundred-and-twelfth pass: the terminal draws the window's menus
+
+Phase 3, first pass, and the first time the extraction pays for itself in
+something a person can see. `npp-tui` now has a menu bar: `F9` opens it, Left and
+Right walk the thirteen titles, Down opens a dropdown, Up and Down walk its rows,
+Right and Left step into and out of a submenu, Enter runs the row, and Escape
+backs out one level at a time. The rows are not written in the shell. They come
+from `nn_shared::menu`, which is the same tree the windowed front-end shapes
+glyphs from, and the chords in the right-hand column come from
+`nn_shared::keymap`, which is the window's own table. A command added to a menu is
+on both bars before either program is run.
+
+The bar itself moved too, which is the belt to that braces. The thirteen menus
+were built inside `MenuBar::new`; they are now `nn_shared::menu::menus`, taking a
+`Contents` bundle for the four lists that come from outside -- recent files, saved
+run commands, user languages, themes -- and leaving the Plugins rows empty for the
+front-end that owns the plugin host. The three indices that are reached by
+position (Language, Run, Plugins) are constants there rather than in either
+front-end, so a bar with thirteen titles in one order is one statement rather than
+two.
+
+The shell has six of the two hundred and forty-one commands. The other two
+hundred and thirty-five say so: `New: not in the terminal yet`, on the bar, in
+the alert colour. That is deliberate. A menu that swallows a press teaches a user
+that the program is broken, and a list of what is missing is the shell's own work
+list -- one that a reader can check against the window's menus item by item,
+because both come from the same place.
+
+### What the drawing cost
+
+A dropdown is a box: `┌─┐│└┘` from the box-drawing block, the labels in the theme's
+menu colours, separators as a rule across the inside, `▸` on a row that opens a
+submenu, and the chord right-aligned. The box is cut at the last column rather
+than allowed to wrap: a glyph in the last column makes a real terminal scroll the
+whole screen, which is the one mistake that cannot be walked back from inside the
+program.
+
+The colours are the windowed theme's own menu colours, copied into four new tones
+-- `Menu`, `MenuHover`, `MenuBorder` -- so a menu looks like a menu in either
+front-end.
+
+### Two bugs the picture found
+
+The first was mine and the tests caught it: `items_at(depth)` read every level's
+index as an index into the *bar*, so the third level of a submenu chain showed a
+different menu's rows -- Encoding's third level came out as Language's. A level
+names a row of the level above it, not a menu, and the fix is one loop. The test
+that found it walks Encoding, Character sets, a script, and picks a code page.
+
+The second only a real terminal could show. Closing a dropdown left its box
+painted on the screen. The cause was not the menu: it was that a frame writes only
+the cells that differ from the previous frame, the previous frame's grid is reused
+rather than cleared, and a blank cell and a cell painted in the document's colours
+are the same cell -- so nothing ever repainted the places the box had been. Two
+changes, both of them the same idea: the editor now paints every row edge to edge
+in its gutter and page colours, and a fresh frame (the first one, and the first
+after a resize) writes every column rather than diffing against an empty grid. The
+background is now the program's rather than the terminal's, which is also what
+makes the window and the shell look like the same editor.
+
+### Verified
+
+In kitty 0.48 on display :1: `F9` draws the bar with all thirteen titles and lights
+the first, Down opens the File dropdown with `New` highlighted, `Ctrl+N` in its
+chord column, the separators in place and the arrows on its submenus; Enter
+on `New` closes the menu and says `New: not in the terminal yet` on the bar in
+amber; closing the menu leaves no trace of the box. Screenshots `/tmp/menu_bar.png`,
+`/tmp/menu_file.png`, `/tmp/menu_unsupported.png`, `/tmp/menu_closed2.png`.
+
+The frame cost, printed by the shell's own measuring test: the first paint of a
+120 by 40 window is now 15,554 bytes rather than 10,425 -- the whole screen is
+written once so the background is the editor's -- and a keystroke in a 500-line
+file is still 306 bytes, drawn in about 65 microseconds. Painting every row edge
+to edge therefore costs nothing per keystroke: the cells that changed were already
+being written, and the ones that did not change compare equal.
+
+`cargo test --offline --release`: 2,342 tests, 0 failed, eleven of them new -- the
+thirteen titles in order, the chords coming from the shared keymap, the cursor
+skipping separators, a submenu opening rather than running, a command three levels
+down, the box drawn round its rows, and a box wider than the screen being cut. The
+windowed front-end is untouched: all thirty-one `bench` dumps still hash to the
+same values. `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo
+fmt` was not run. The feature reference and its PDF are untouched -- the terminal
+is not shipped as a program yet.
