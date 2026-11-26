@@ -18,15 +18,20 @@
 //! A cell carries one [`Tone`] rather than a foreground and a background
 //! separately: the grid compares cells to decide what to write, and two numbers
 //! per cell would be two chances to write a frame that differs only in a colour
-//! nobody can see. The tones are the default theme's colours from
-//! `crates/nn-app/src/theme.rs`, so the two front-ends look the same, written as
-//! 24-bit escapes because that is what a terminal made this century reads.
+//! nobody can see.
+//!
+//! The escapes are built once per theme, in [`Palette`], and a tone's escape is
+//! then a slice of that: the renderer writes a run of cells in one tone, so the
+//! hot path must not be formatting a colour per cell, and a palette is eighteen
+//! strings that change when the user picks Tokyo Night and never otherwise.
 //!
 //! The vocabulary is deliberately small. A theme with a colour of its own for
 //! every token class is a later problem; what matters to a first shell is that a
 //! keyword differs from a string and that the furniture differs from the text.
 
 use nn_core::lexer::style;
+use nn_shared::color::Rgb;
+use nn_shared::theme::Theme;
 
 /// What a cell is drawn as: one foreground, one background, fixed for the run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,32 +71,106 @@ pub enum Tone {
 }
 
 impl Tone {
-    /// The escape that paints this tone, foreground and background both.
+    /// Where this tone's escape lives in a [`Palette`].
+    fn at(self) -> usize {
+        self as usize
+    }
+
+    /// Every tone, in the order the escapes are built.
+    #[cfg(test)]
+    const ALL: [Tone; 18] = [
+        Tone::Text,
+        Tone::Keyword,
+        Tone::Type,
+        Tone::String,
+        Tone::Comment,
+        Tone::Number,
+        Tone::Function,
+        Tone::Operator,
+        Tone::Preprocessor,
+        Tone::Gutter,
+        Tone::GutterActive,
+        Tone::Selection,
+        Tone::Caret,
+        Tone::StatusBar,
+        Tone::Alert,
+        Tone::Menu,
+        Tone::MenuHover,
+        Tone::MenuBorder,
+    ];
+}
+
+/// Every tone's escape for one theme, built in one go.
+///
+/// Built rather than formatted per cell because the renderer writes a tone's
+/// escape once per run: eighteen strings per theme change, and none per frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Palette {
+    escapes: Vec<String>,
+}
+
+impl Palette {
+    /// The escapes a theme's colours make.
+    pub fn of(theme: &Theme) -> Self {
+        let syntax = |index: u8| -> (Rgb, Rgb) {
+            let colour = theme
+                .syntax
+                .get(usize::from(index))
+                .copied()
+                .unwrap_or(theme.foreground);
+            (colour, theme.background)
+        };
+        let pairs = [
+            (theme.foreground, theme.background),
+            syntax(style::KEYWORD),
+            syntax(style::TYPE),
+            syntax(style::STRING),
+            syntax(style::COMMENT),
+            syntax(style::NUMBER),
+            syntax(style::FUNCTION),
+            syntax(style::OPERATOR),
+            syntax(style::PREPROCESSOR),
+            (theme.gutter_foreground, theme.gutter_background),
+            (theme.gutter_active, theme.gutter_background),
+            (theme.foreground, theme.selection),
+            // The caret is drawn as the background showing through it, which is
+            // the one place the two colours swap.
+            (theme.background, theme.caret),
+            (theme.bar_label, theme.bar_background),
+            // No theme colour means "this is bad news"; the orange a Notepad++
+            // tab draws its rule in is the one warm colour every palette has.
+            (theme.tab_active_rule, theme.bar_background),
+            (theme.menu_text, theme.menu_background),
+            (theme.menu_text, theme.menu_hover),
+            (theme.menu_border, theme.menu_background),
+        ];
+        Palette {
+            escapes: pairs
+                .into_iter()
+                .map(|(foreground, background)| {
+                    format!(
+                        "\x1b[38;2;{};{};{};48;2;{};{};{}m",
+                        foreground.0, foreground.1, foreground.2,
+                        background.0, background.1, background.2
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    /// The escape that paints `tone`, foreground and background both.
     ///
     /// Every tone sets both, because a run of text written after a coloured run
     /// inherits whatever the previous escape left behind: half a pair is how a
     /// terminal ends up with black on black.
-    pub fn sgr(self) -> &'static str {
-        match self {
-            Tone::Text => "\x1b[38;2;212;212;212;48;2;30;30;30m",
-            Tone::Keyword => "\x1b[38;2;86;156;214;48;2;30;30;30m",
-            Tone::Type => "\x1b[38;2;78;201;176;48;2;30;30;30m",
-            Tone::String => "\x1b[38;2;206;145;120;48;2;30;30;30m",
-            Tone::Comment => "\x1b[38;2;106;153;85;48;2;30;30;30m",
-            Tone::Number => "\x1b[38;2;181;206;168;48;2;30;30;30m",
-            Tone::Function => "\x1b[38;2;220;220;170;48;2;30;30;30m",
-            Tone::Operator => "\x1b[38;2;212;212;212;48;2;30;30;30m",
-            Tone::Preprocessor => "\x1b[38;2;197;134;192;48;2;30;30;30m",
-            Tone::Gutter => "\x1b[38;2;133;133;133;48;2;37;37;38m",
-            Tone::GutterActive => "\x1b[38;2;198;198;198;48;2;37;37;38m",
-            Tone::Selection => "\x1b[38;2;230;230;230;48;2;38;79;120m",
-            Tone::Caret => "\x1b[38;2;30;30;30;48;2;174;175;173m",
-            Tone::StatusBar => "\x1b[38;2;150;150;150;48;2;37;37;38m",
-            Tone::Alert => "\x1b[38;2;232;176;84;48;2;37;37;38m",
-            Tone::Menu => "\x1b[38;2;212;212;212;48;2;45;45;48m",
-            Tone::MenuHover => "\x1b[38;2;212;212;212;48;2;62;62;68m",
-            Tone::MenuBorder => "\x1b[38;2;70;70;74;48;2;45;45;48m",
-        }
+    pub fn sgr(&self, tone: Tone) -> &str {
+        self.escapes.get(tone.at()).map_or("", |one| one.as_str())
+    }
+
+    /// How many tones it paints, which is what the tests count.
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.escapes.len()
     }
 }
 
@@ -142,34 +221,28 @@ mod tests {
     }
 
     #[test]
-    fn every_tone_sets_a_foreground_and_a_background_and_ends_cleanly() {
-        let all = [
-            Tone::Text,
-            Tone::Keyword,
-            Tone::Type,
-            Tone::String,
-            Tone::Comment,
-            Tone::Number,
-            Tone::Function,
-            Tone::Operator,
-            Tone::Preprocessor,
-            Tone::Gutter,
-            Tone::GutterActive,
-            Tone::Selection,
-            Tone::Caret,
-            Tone::StatusBar,
-            Tone::Alert,
-        ];
-        for one in all {
-            let sgr = one.sgr();
+    fn every_tone_gets_an_escape_that_sets_both_colours() {
+        let palette = Palette::of(&Theme::DARK);
+        assert_eq!(palette.len(), 18);
+        for one in Tone::ALL {
+            let sgr = palette.sgr(one);
             assert!(sgr.starts_with("\x1b["), "{one:?} is not an escape");
             assert!(sgr.ends_with('m'), "{one:?} does not end in `m`");
             assert!(sgr.contains("38;2;"), "{one:?} sets no foreground");
             assert!(sgr.contains("48;2;"), "{one:?} sets no background");
         }
-        // `Operator` is drawn in the plain colour on purpose -- the theme has no
-        // colour of its own for punctuation -- so the escapes are not all
-        // distinct, and a test that demanded they were would be asking for a
-        // palette nobody chose.
+    }
+
+    #[test]
+    fn the_palette_is_the_themes_colours_not_a_copy_of_one() {
+        let dark = Palette::of(&Theme::DARK);
+        let light = Palette::of(&Theme::LIGHT);
+        assert_ne!(dark.sgr(Tone::Text), light.sgr(Tone::Text));
+        // A light theme puts dark ink on a light page, so the plain text escape
+        // and the dark one cannot be the same string.
+        assert_ne!(dark.sgr(Tone::Caret), light.sgr(Tone::Caret));
+        // The same theme twice is the same escapes: the renderer compares them
+        // to decide whether the screen it wrote is still current.
+        assert_eq!(Palette::of(&Theme::LIGHT), light);
     }
 }

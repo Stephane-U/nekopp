@@ -30,7 +30,7 @@
 
 use unicode_width::UnicodeWidthChar;
 
-use crate::palette::Tone;
+use crate::palette::{Palette, Tone};
 
 /// One cell: a character and the tone it is drawn in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,6 +157,8 @@ pub struct Frame {
     /// therefore written edge to edge: after that the picture is the program's
     /// own and a diff is again the right question.
     fresh: bool,
+    /// The escapes the cells are painted with, built from the theme.
+    palette: Palette,
 }
 
 impl Frame {
@@ -167,7 +169,22 @@ impl Frame {
             back: Grid::new(width, height),
             out: Vec::new(),
             fresh: true,
+            palette: Palette::of(&nn_shared::theme::Theme::DARK),
         }
+    }
+
+    /// Paints the next frames with `palette`, and starts the picture again when
+    /// it is not the one being used.
+    ///
+    /// Every cell in the grid carries a tone and no colour, so a new theme
+    /// changes every cell at once without touching one of them: the frames have
+    /// to be compared as different, which is what `fresh` says.
+    pub fn set_palette(&mut self, palette: &Palette) {
+        if self.palette == *palette {
+            return;
+        }
+        self.palette = palette.clone();
+        self.fresh = true;
     }
 
     /// The grid to draw the next frame into, empty.
@@ -234,7 +251,8 @@ impl Frame {
                     continue;
                 }
                 if tone != Some(cell.tone) {
-                    self.out.extend_from_slice(cell.tone.sgr().as_bytes());
+                    self.out
+                        .extend_from_slice(self.palette.sgr(cell.tone).as_bytes());
                     tone = Some(cell.tone);
                 }
                 let mut utf8 = [0u8; 4];
@@ -303,6 +321,34 @@ mod tests {
             grid.text(0, 0, "fn main() {", Tone::Text);
         }
         assert!(frame.render().is_empty(), "an unchanged screen was repainted");
+    }
+
+    #[test]
+    fn a_new_palette_starts_the_picture_again() {
+        let mut frame = Frame::new(20, 3);
+        {
+            let grid = frame.grid();
+            grid.text(0, 0, "fn main() {", Tone::Text);
+        }
+        frame.render();
+        // The same screen, the same palette: nothing to write.
+        frame.set_palette(&crate::palette::Palette::of(&nn_shared::theme::Theme::DARK));
+        {
+            let grid = frame.grid();
+            grid.text(0, 0, "fn main() {", Tone::Text);
+        }
+        assert!(frame.render().is_empty(), "the same palette repainted the screen");
+        // A new one changes every cell's colour without touching a cell, so the
+        // whole picture has to be written again.
+        frame.set_palette(&crate::palette::Palette::of(&nn_shared::theme::Theme::LIGHT));
+        {
+            let grid = frame.grid();
+            grid.text(0, 0, "fn main() {", Tone::Text);
+        }
+        assert!(
+            !frame.render().is_empty(),
+            "a new theme left the old colours on the screen"
+        );
     }
 
     #[test]

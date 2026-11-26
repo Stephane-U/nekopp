@@ -86,6 +86,7 @@ fn run(path: Option<PathBuf>) -> std::io::Result<()> {
     let (width, height) = terminal.size();
     let mut frame = Frame::new(width, height);
     loop {
+        frame.set_palette(app.palette());
         app.draw(frame.grid());
         terminal.write(frame.render())?;
         match terminal.read(TICK_MS)? {

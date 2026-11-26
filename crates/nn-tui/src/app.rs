@@ -36,12 +36,9 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::keys::Key;
 use crate::menus::Menus;
+use crate::palette::{self, Palette, Tone};
 use crate::prefs::Prefs;
-use crate::palette::{self, Tone};
 use crate::screen::Grid;
-
-/// Columns per tab stop, while the tab character is still one character.
-const TAB: usize = 4;
 
 /// How the window is divided up, worked out once per frame.
 ///
@@ -83,6 +80,9 @@ pub struct App {
     /// time is already in force when the first frame is drawn.
     prefs: Prefs,
     settings: Settings,
+    /// The escapes the screen is painted with, built from the theme the settings
+    /// name.
+    palette: Palette,
     message: Option<Message>,
     /// Set once `Ctrl+Q` has been pressed with unsaved changes, so the second
     /// press means what the first one warned about.
@@ -117,14 +117,50 @@ impl App {
             menus: Menus::new(&Keymap::default()),
             prefs: Prefs::new(),
             settings: Settings::load(),
+            palette: Palette::of(&nn_shared::theme::Theme::DARK),
             message: None,
             quit_armed: false,
             quit: false,
         };
-        // Before the first frame, so a terminal started twice reads the same way
-        // in the same language.
-        app.apply_language();
+        // Before the first frame, so a terminal started twice reads the same way,
+        // in the same language and the same colours.
+        app.apply_settings();
         app
+    }
+
+    /// The escapes the screen is painted with.
+    pub fn palette(&self) -> &Palette {
+        &self.palette
+    }
+
+    /// The settings, for a test that wants to set one before the first frame.
+    #[cfg(test)]
+    pub fn settings_mut(&mut self) -> &mut Settings {
+        &mut self.settings
+    }
+
+    /// Puts the settings that change how the program looks into force.
+    ///
+    /// Everything else a setting can change -- a backup, an autosave, a run
+    /// command -- happens where it is used; these three are the ones the screen
+    /// is drawn with, so they are built once here rather than looked up per cell.
+    fn apply_settings(&mut self) {
+        self.apply_theme();
+        self.apply_language();
+    }
+
+    /// Resolves the theme the settings name into the escapes the screen uses.
+    ///
+    /// `None` for the desktop's light or dark preference, because a terminal has
+    /// no such setting to ask: it is told its colours by the terminal, which
+    /// reports none back. `System` therefore means dark here, which is what the
+    /// terminals that draw a light page are in the minority about.
+    fn apply_theme(&mut self) {
+        let theme = nn_shared::theme::effective_theme(
+            nn_shared::catalogue::theme_of(self.settings.theme, None),
+            &self.settings.styles,
+        );
+        self.palette = Palette::of(&theme);
     }
 
     /// Loads the localization the settings name, and the list the dialog offers.
@@ -180,7 +216,7 @@ impl App {
                 // retranslates itself under the user's finger moves the entry
                 // they are stepping towards.
                 self.settings.save();
-                self.apply_language();
+                self.apply_settings();
                 self.say("preferences saved", false);
             }
             return;
@@ -352,7 +388,7 @@ impl App {
             if index >= column || ch == '\n' || ch == '\r' {
                 break;
             }
-            display = advance(display, ch);
+            display = advance(display, ch, self.settings.tab_width);
         }
         display
     }
@@ -479,7 +515,7 @@ impl App {
             }
             let width = ch.width().unwrap_or(1);
             let at = display;
-            display = advance(display, ch);
+            display = advance(display, ch, self.settings.tab_width);
             if at < self.scroll_col {
                 // Scrolled off to the left, but the caret can still be in it.
                 continue;
@@ -567,9 +603,14 @@ impl App {
 }
 
 /// Where a character leaves the display column.
-fn advance(column: usize, ch: char) -> usize {
+///
+/// A tab is a jump to the next tab stop rather than a character, so the width it
+/// jumps by is the one the preferences dialog holds -- the same setting the
+/// windowed editor passes to its own view, and the same default of four.
+fn advance(column: usize, ch: char, tab_width: u16) -> usize {
     if ch == '\t' {
-        (column / TAB + 1) * TAB
+        let stop = usize::from(tab_width).max(1);
+        (column / stop + 1) * stop
     } else {
         column + ch.width().unwrap_or(1)
     }
@@ -593,6 +634,7 @@ fn lexer_for(path: Option<&Path>) -> Box<dyn Lexer> {
 mod tests {
     use super::*;
     use crate::screen::Frame;
+    use nn_shared::theme::ThemeChoice;
 
     fn app(text: &str) -> App {
         App::with_document(Document::from_text(text))
@@ -652,6 +694,41 @@ mod tests {
         assert_eq!(row[7], '中', "{row:?}");
         assert_eq!(row[8], '\0', "{row:?}");
         assert_eq!(row[9], 'y', "{row:?}");
+    }
+
+    #[test]
+    fn the_tab_width_is_the_one_the_dialog_holds() {
+        let mut app = App::with_document(Document::from_text("\tx\n"));
+        app.settings_mut().tab_width = 8;
+        let mut grid = Grid::new(20, 3);
+        app.draw(&mut grid);
+        let row: Vec<char> = (0..20).map(|column| grid.get(0, column).ch).collect();
+        // The gutter is `1 ` -- two columns -- and the tab jumps from there to
+        // the eighth stop, so `x` stands at index ten.
+        let expected: String = std::iter::once('1')
+            .chain(std::iter::repeat_n(' ', 9))
+            .collect();
+        assert_eq!(row[..10].iter().collect::<String>(), expected, "{row:?}");
+        assert_eq!(row[10], 'x', "{row:?}");
+    }
+
+    #[test]
+    fn the_theme_the_settings_name_is_the_one_the_screen_uses() {
+        let mut app = app("");
+        // Both choices are set rather than assumed: the settings file of whoever
+        // runs the tests is not this test's business, and a default read from it
+        // would make the assertions depend on the machine.
+        app.settings_mut().theme = ThemeChoice::Dark;
+        app.apply_settings();
+        let dark = app.palette().sgr(Tone::Text).to_string();
+        app.settings_mut().theme = ThemeChoice::Light;
+        app.apply_settings();
+        let light = app.palette().sgr(Tone::Text);
+        assert_ne!(dark, light, "the theme changed and the colours did not");
+        // And back: the same choice twice is the same escapes.
+        app.settings_mut().theme = ThemeChoice::Dark;
+        app.apply_settings();
+        assert_eq!(app.palette().sgr(Tone::Text), dark);
     }
 
     #[test]

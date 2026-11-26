@@ -12940,3 +12940,72 @@ catalogue through the dialog's title, labels and words, a catalogue through the
 bar's titles and rows, and the Language row stepping a list that was handed to it.
 `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
 run. The feature reference and its PDF are untouched.
+
+## The hundred-and-twenty-fourth pass: the dialog's values reach the screen
+
+Phase 3, next pass, and the one that turns the preference dialog from a thing that
+writes a file into a thing that changes what the user is looking at. Two rows do
+it: the theme and the tab width -- the two the screen was hard-coding.
+
+The theme first, because it is the one that touches every cell. `Tone::sgr`
+returned a `&'static str`, one per tone, which is exactly what a hard-coded
+palette can offer and exactly what a theme cannot. It is now `Palette::of(theme)`,
+eighteen escapes built in one go, and `Palette::sgr(tone)` is a slice of that. The
+shape matters for what the terminal was built to be measured on: the renderer
+writes one escape per run of cells in the same tone, so a palette lookup is a
+lookup and nothing else -- no colour is formatted per cell, and the eight
+allocations happen when somebody changes theme and at no other time.
+
+`Frame` gained the palette and a setter that compares. A cell carries a tone and no
+colour, so a new theme changes every cell on the screen without touching one of
+them -- which means the diff the renderer computes would find nothing to write and
+the old colours would stay. `set_palette` therefore marks the frame fresh, and the
+next frame is written edge to edge. That is the one place where being cheap about
+bytes and being correct disagree, and it happens once per theme.
+
+The colours come from the shared theme, resolved by the shared code --
+`catalogue::theme_of` then `theme::effective_theme` -- so the sixteen `style`
+overrides a user can write by hand work in a terminal too, without a second
+implementation of what an override means. `System` resolves with `None`, which the
+window passes when the desktop will not say: a terminal has nobody to ask, so
+`System` is dark here, and the doc comment says so rather than leaving the next
+reader to guess.
+
+The tab width was a `const TAB: usize = 4` in the shape of an `advance` function
+that took a column and a character. It now takes the setting, which is the same
+number the window hands its own view, and the constant is gone. The rule is
+unchanged -- a tab advances to the next stop rather than by a width -- which is why
+this is one extra argument and not a rewrite of the layout.
+
+Both are applied by one function, `apply_settings`, called before the first frame
+and again when the dialog closes; it is the language pass's `apply_language` with
+the theme beside it, for the same reason: the display is built once from what the
+settings say, not looked up per cell.
+
+One test is worth confessing to. `the_theme_the_settings_name_is_the_one_the_screen_uses`
+first took its "before" palette from the app it had just built -- which reads the
+settings file of whoever runs the tests, and on this machine that file says Tokyo
+Night, so the assertion compared Tokyo Night to Dark and failed. Both sides are now
+set explicitly. A test that reads the developer's configuration is a test that
+passes on the machine where it was written and fails on the reviewer's.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical. Only
+`nn-tui` changed and the windowed binary does not link it, so this is the standing
+rule rather than evidence -- and this pass is the first in the series where that
+sentence is worth repeating, because a palette is the kind of change that could
+plausibly have reached the window through `nn-shared::theme`.
+
+The terminal was driven through a pseudo terminal with the same document and two
+settings files. With `theme light` the bytes it wrote carry the light page --
+forty-three backgrounds of `48;2;255;255;255` and forty of `48;2;240;240;240` for
+the gutter -- and with no theme line the same run carries `48;2;30;30;30` and
+`48;2;37;37;38` instead.
+
+`cargo test --offline --release`: 2,366 tests, 0 failed -- 2,362 plus four: the
+palette's two (every tone gets an escape that sets both colours, and the palette is
+the theme's colours), the tab width reaching the grid at eight columns, and a frame
+that starts the picture again when the palette changes. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature
+reference and its PDF are untouched.
