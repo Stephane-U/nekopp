@@ -31,6 +31,7 @@
 //! its label.
 
 use nn_shared::action::Action;
+use nn_shared::i18n::Catalog;
 use nn_shared::keymap::Keymap;
 use nn_shared::menu::{menus, Contents, Item, Menu};
 
@@ -58,6 +59,13 @@ pub struct Menus {
     open: Vec<Open>,
     /// Whether the bar itself has the focus, as opposed to a dropdown.
     bar: bool,
+    /// The catalogue the titles and labels are read through, or `None` for
+    /// English.
+    ///
+    /// The tree is the shared one and its labels are written in English; a
+    /// translation is a lookup applied where a label is drawn and where it is
+    /// measured, which is why this is a field rather than a second tree.
+    catalog: Option<Catalog>,
 }
 
 impl Menus {
@@ -71,6 +79,20 @@ impl Menus {
             menus,
             open: Vec::new(),
             bar: true,
+            catalog: None,
+        }
+    }
+
+    /// Swaps in a catalogue, or clears it back to English with `None`.
+    pub fn set_catalog(&mut self, catalog: Option<Catalog>) {
+        self.catalog = catalog;
+    }
+
+    /// The translation of `english`, or `english` itself.
+    fn tr<'a>(&'a self, english: &'a str) -> &'a str {
+        match &self.catalog {
+            Some(catalog) => catalog.tr(english),
+            None => english,
         }
     }
 
@@ -106,7 +128,10 @@ impl Menus {
     /// the tree rather than a string: a caller that wants the bar as text joins
     /// it, and a caller that wants to know how wide a title is asks the tree.
     pub fn titles(&self) -> Vec<&str> {
-        self.menus.iter().map(|menu| menu.title.as_str()).collect()
+        self.menus
+            .iter()
+            .map(|menu| self.tr(menu.title.as_str()))
+            .collect()
     }
 
     /// Handles a key while the menus are open, answering the command to run if
@@ -332,7 +357,9 @@ impl Menus {
         let height = grid.height();
         let label_width = items
             .iter()
-            .map(|item| item.label.chars().count() + usize::from(!item.children.is_empty()) * 2)
+            .map(|item| {
+                self.tr(&item.label).chars().count() + usize::from(!item.children.is_empty()) * 2
+            })
             .max()
             .unwrap_or(0);
         let shortcut_width = items
@@ -385,7 +412,7 @@ impl Menus {
             for column in left + 1..left + box_width - 1 {
                 grid.put(at, column, ' ', background);
             }
-            grid.text(at, left + 2, &item.label, tone);
+            grid.text(at, left + 2, self.tr(&item.label), tone);
             if !item.children.is_empty() {
                 grid.put(at, left + 2 + label_width + 1, ARROW, tone);
             }
@@ -404,7 +431,7 @@ impl Menus {
             // before it and its padding.
             let mut column = 1usize;
             for menu in self.menus.iter().take(self.open[0].at) {
-                column += menu.title.chars().count() + 3;
+                column += self.tr(&menu.title).chars().count() + 3;
             }
             return column;
         }
@@ -412,7 +439,7 @@ impl Menus {
         let items = self.items_at(depth - 1);
         let width = items
             .iter()
-            .map(|item| item.label.chars().count() + usize::from(!item.children.is_empty()) * 2)
+            .map(|item| self.tr(&item.label).chars().count() + usize::from(!item.children.is_empty()) * 2)
             .max()
             .unwrap_or(0);
         let shortcuts = items
@@ -463,6 +490,18 @@ mod tests {
 
     fn bar() -> Menus {
         Menus::new(&Keymap::default())
+    }
+
+    /// A catalogue written in this editor's own schema: one file, no ids.
+    fn french() -> Catalog {
+        let xml = concat!(
+            "<NotepadPlus><Native-Langue name=\"Francais\" english=\"French\" ",
+            "filename=\"french.xml\"><Menu><Main>",
+            "<Item id=\"File\" name=\"Fichier\"/>",
+            "<Item id=\"New\" name=\"Nouveau\"/>",
+            "</Main></Menu></Native-Langue></NotepadPlus>",
+        );
+        Catalog::parse(None, xml).expect("a catalog")
     }
 
     #[test]
@@ -660,5 +699,24 @@ mod tests {
             out.push(grid.get(row, column).ch);
         }
         out
+    }
+
+    #[test]
+    fn a_catalogue_translates_the_titles_and_the_rows() {
+        let mut menus = bar();
+        menus.set_catalog(Some(french()));
+        assert_eq!(menus.titles()[0], "Fichier");
+        // A title the catalogue does not cover stays English.
+        assert_eq!(menus.titles()[1], "Edit");
+        menus.toggle();
+        menus.handle(Key::Down);
+        let mut grid = Grid::new(80, 24);
+        menus.draw(&mut grid);
+        let drawn: String = (0..24)
+            .map(|row| (0..80).map(|c| grid.get(row, c).ch).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(drawn.contains("Fichier"), "{drawn}");
+        assert!(drawn.contains("Nouveau"), "{drawn}");
     }
 }

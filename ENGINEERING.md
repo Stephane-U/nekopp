@@ -12882,3 +12882,61 @@ changed crate, and the coverage test merely changed sides of the boundary.
 `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
 run. The feature reference and its PDF are untouched -- and so are the twenty-three
 localization files themselves.
+
+## The hundred-and-twenty-third pass: the terminal speaks the user's language
+
+Phase 3, next pass, and the first the terminal's user can see: `npp-tui` now reads
+its words through the catalogue that crossed to `nn-shared` in the pass before.
+The bar's thirteen titles, every row of every dropdown, the preference dialog's
+title, its seventeen labels and the words on their right -- `On`, `Never`, `Edit…`
+-- all come through one lookup, so a user who sets `language french.xml` in a
+terminal sees `Fichier` where the window beside it sees `Fichier`.
+
+Both widgets do the same thing with it, and it is worth naming because it is the
+whole of the change: a label is translated *where it is drawn and where it is
+measured*. A dropdown's width comes from its longest row, so a translated label
+that were drawn translated and measured in English would leave a French menu with
+its arrows and shortcut column in the wrong place -- wrong by exactly as much as
+"Largeur de tabulation" is longer than "Tab Width". `Menus` therefore asks `tr` in
+four places: the titles, the label width, the drawing, and the column the box is
+placed at, which is computed from the box before it. `Prefs` asks in three: the
+label column's width, the drawn label, and the value, where the word is what goes
+through the catalogue and the number keeps its unit.
+
+The Language row stopped being a placeholder. It steps the list the shared
+catalogue reports -- the twenty-three bundled files plus anything dropped in the
+configuration directory -- with English first and every entry under its *English*
+name, so a reader looking for Spanish finds it under `S` whatever it calls itself.
+The window's dialog is built the same way from the same list.
+
+When the language is read is a decision and not an accident. `apply_language` runs
+once at startup, before the first frame, and again when the preferences dialog
+closes -- not on every key. The window retranslates live while its picker is open;
+this dialog steps its rows with the arrow keys, and a list that rebuilt itself
+under the finger would move the entry being stepped towards. A file that will not
+parse leaves the terminal in English and says so on the status bar, which is what
+the window does for the same reason: a cosmetic fault must not cost the user the
+program.
+
+One derive had to go. `Prefs` was `Copy`, with a bool and an index in it; a
+catalogue is a `HashMap` and a list of languages is a `Vec`, so it is `Clone` now,
+and the field that made it `Copy` is the field that made it worth sharing.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical, which
+is what this pass is entitled to claim and no more -- `nn-tui` is not linked into
+the windowed binary, so the gate is re-run for the standing rule rather than for
+evidence.
+
+The terminal was driven through a pseudo terminal, twice with the same bytes and
+different settings. With `language french.xml` in the settings file, F9 and six
+Rights put `Fichier` at the left of the bar, and F9, six Rights, Down, Enter draw
+the box titled `Préférences` with `Thème` and `Largeur de tabulation` in it. With
+no `language` line the same bytes draw `Preferences`, `Theme` and `Tab Width`.
+
+`cargo test --offline --release`: 2,362 tests, 0 failed -- 2,359 plus three: a
+catalogue through the dialog's title, labels and words, a catalogue through the
+bar's titles and rows, and the Language row stepping a list that was handed to it.
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched.

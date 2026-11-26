@@ -26,6 +26,7 @@
 //! that quietly disappeared from one of them would be a worse answer than a row
 //! that says it does not apply.
 
+use nn_shared::i18n::{Catalog, Language};
 use nn_shared::prefs::{self, Row, ROWS};
 use nn_shared::settings::Settings;
 
@@ -34,7 +35,11 @@ use crate::palette::Tone;
 use crate::screen::Grid;
 
 /// The title on the box, and the keys along its bottom edge.
-const TITLE: &str = " Preferences ";
+///
+/// The title is the window's own word, so the catalogue carries it; the hint is
+/// this program's own line, with keys that do not open anything yet, so it stays
+/// in English until the two dialogs take the same keys and can share a sentence.
+const TITLE: &str = "Preferences";
 const HINT: &str = " Up/Down  Left/Right  Enter  Esc ";
 
 /// The rows a terminal cannot honour, and what it says instead of a value.
@@ -50,11 +55,17 @@ fn unhonoured(row: Row) -> Option<&'static str> {
     }
 }
 
-/// The dialog: whether it is up, and which row is lit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The dialog: whether it is up, which row is lit, and the words it reads them
+/// through.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Prefs {
     open: bool,
     selected: usize,
+    /// The catalogue the labels and values are read through, or `None` for
+    /// English.
+    catalog: Option<Catalog>,
+    /// The languages the Language row steps through, English first.
+    languages: Vec<(String, String)>,
 }
 
 impl Prefs {
@@ -63,6 +74,32 @@ impl Prefs {
         Prefs {
             open: false,
             selected: 0,
+            catalog: None,
+            languages: vec![(String::new(), "English".to_string())],
+        }
+    }
+
+    /// Swaps in a catalogue, or clears it back to English with `None`.
+    pub fn set_catalog(&mut self, catalog: Option<Catalog>) {
+        self.catalog = catalog;
+    }
+
+    /// Sets the languages the Language row offers, English first.
+    ///
+    /// The window's shape, built from the same list: `("", "English")` for the
+    /// untranslated one, then the English name of each installed file, so a
+    /// reader looking for Spanish finds it under `S` whatever it calls itself.
+    pub fn set_languages(&mut self, list: &[Language]) {
+        self.languages = std::iter::once((String::new(), "English".to_string()))
+            .chain(list.iter().map(|one| (one.file.clone(), one.english.clone())))
+            .collect();
+    }
+
+    /// The translation of `english`, or `english` itself.
+    fn tr<'a>(&'a self, english: &'a str) -> &'a str {
+        match &self.catalog {
+            Some(catalog) => catalog.tr(english),
+            None => english,
         }
     }
 
@@ -112,10 +149,10 @@ impl Prefs {
             // use into the file the window reads, so a key pressed here would
             // resize text somewhere else.
             Key::Left if unhonoured(row).is_none() => {
-                prefs::adjust(settings, row, -1, &languages());
+                prefs::adjust(settings, row, -1, &self.languages);
             }
             Key::Right | Key::Enter if unhonoured(row).is_none() => {
-                prefs::adjust(settings, row, 1, &languages());
+                prefs::adjust(settings, row, 1, &self.languages);
             }
             _ => return true,
         }
@@ -131,7 +168,7 @@ impl Prefs {
         let height = grid.height();
         let labels = Row::ALL
             .iter()
-            .map(|row| row.label().chars().count())
+            .map(|row| self.tr(row.label()).chars().count())
             .max()
             .unwrap_or(0);
         let widest = Row::ALL
@@ -163,8 +200,9 @@ impl Prefs {
         grid.put(top + box_height - 1, left, '└', Tone::MenuBorder);
         grid.put(top + box_height - 1, left + box_width - 1, '┘', Tone::MenuBorder);
 
-        // The title, written over the top edge.
-        grid.text(top, left + 2, TITLE, Tone::MenuHover);
+        // The title, written over the top edge with a space of padding each side.
+        let title = format!(" {} ", self.tr(TITLE));
+        grid.text(top, left + 1, &title, Tone::MenuHover);
         let hint_at = top + box_height - 1;
         let hint_column = left + box_width.saturating_sub(2 + HINT.chars().count());
         grid.text(hint_at, hint_column, HINT, Tone::MenuHover);
@@ -179,7 +217,7 @@ impl Prefs {
             for column in left + 1..left + box_width - 1 {
                 grid.put(at, column, ' ', tone);
             }
-            grid.text(at, left + 2, row.label(), tone);
+            grid.text(at, left + 2, self.tr(row.label()), tone);
             let value = self.value(settings, *row);
             let value_column = left + box_width - 2 - value.chars().count();
             grid.text(at, value_column, &value, tone);
@@ -187,21 +225,18 @@ impl Prefs {
     }
 
     /// What a row reads on the right: the shared answer, or why there is none.
+    ///
+    /// The words come through the catalogue -- `On`, `Never`, `Edit...` -- and
+    /// the numbers keep their units, because [`prefs::value_of`] is asked for the
+    /// word and not for the finished line.
     fn value(&self, settings: &Settings, row: Row) -> String {
         match unhonoured(row) {
-            Some(reason) => reason.to_string(),
-            None => prefs::value_of(settings, row, &languages(), &|text| text.to_string()),
+            Some(reason) => self.tr(reason).to_string(),
+            None => prefs::value_of(settings, row, &self.languages, &|text| {
+                self.tr(text).to_string()
+            }),
         }
     }
-}
-
-/// The languages the dialog can offer.
-///
-/// One, because the terminal has no language files yet: the list is the window's
-/// shape with the window's default in it, so the row reads `English` rather than
-/// blank and the list is not a special case when the reader arrives.
-fn languages() -> Vec<(String, String)> {
-    vec![(String::new(), "English".to_string())]
 }
 
 #[cfg(test)]
@@ -212,6 +247,31 @@ mod tests {
         let mut prefs = Prefs::new();
         prefs.open();
         prefs
+    }
+
+    /// What the dialog puts on an 80 by 24 grid, as text.
+    fn screen(prefs: &Prefs, settings: &Settings) -> String {
+        let mut grid = Grid::new(80, 24);
+        prefs.draw(&mut grid, settings);
+        (0..24)
+            .map(|row| (0..80).map(|c| grid.get(row, c).ch).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// A catalogue written in this editor's own schema: one file, no ids.
+    fn french() -> Catalog {
+        let xml = concat!(
+            "<NotepadPlus><Native-Langue name=\"Francais\" english=\"French\" ",
+            "filename=\"french.xml\"><Menu><Main>",
+            "<Item id=\"Theme\" name=\"Theme\"/>",
+            "<Item id=\"Tab Width\" name=\"Tabulacion\"/>",
+            "<Item id=\"On\" name=\"Oui\"/>",
+            "<Item id=\"Off\" name=\"Non\"/>",
+            "<Item id=\"Preferences\" name=\"Preferences (fr)\"/>",
+            "</Main></Menu></Native-Langue></NotepadPlus>",
+        );
+        Catalog::parse(None, xml).expect("a catalog")
     }
 
     #[test]
@@ -286,5 +346,46 @@ mod tests {
         for row in Row::ALL {
             assert!(!prefs.value(&settings, row).is_empty(), "{row:?}");
         }
+    }
+
+    #[test]
+    fn a_catalogue_translates_the_labels_and_the_words() {
+        let mut prefs = dialog();
+        prefs.set_catalog(Some(french()));
+        let settings = Settings::default();
+        let text = screen(&prefs, &settings);
+        // The box's title, the row's own label, and the word a switch offers.
+        assert!(text.contains("Preferences (fr)"), "{text}");
+        assert!(text.contains("Tabulacion"), "{text}");
+        assert!(text.contains("Oui"), "{text}");
+        // What the catalogue does not cover stays English rather than blank.
+        assert!(text.contains("Autosave"), "{text}");
+    }
+
+    #[test]
+    fn the_language_row_steps_through_what_is_installed() {
+        let mut prefs = dialog();
+        prefs.set_languages(&[
+            Language {
+                name: "Francais".to_string(),
+                english: "French".to_string(),
+                file: "french.xml".to_string(),
+            },
+            Language {
+                name: "Espanol".to_string(),
+                english: "Spanish".to_string(),
+                file: "spanish.xml".to_string(),
+            },
+        ]);
+        let mut settings = Settings::default();
+        assert_eq!(prefs.value(&settings, Row::Language), "English");
+        prefs.set_selected(15); // the Language row
+        prefs.handle(Key::Right, &mut settings);
+        assert_eq!(settings.language.as_deref(), Some("french.xml"));
+        assert_eq!(prefs.value(&settings, Row::Language), "French");
+        // And it stops at the end of the list rather than wrapping to English.
+        prefs.handle(Key::Right, &mut settings);
+        prefs.handle(Key::Right, &mut settings);
+        assert_eq!(settings.language.as_deref(), Some("spanish.xml"));
     }
 }

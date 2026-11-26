@@ -29,6 +29,7 @@ use std::path::Path;
 
 use nn_core::{CLikeLexer, ConfigLexer, Document, Editor, Highlighter, Lexer, Motion};
 use nn_shared::action::Action;
+use nn_shared::i18n::Catalog;
 use nn_shared::keymap::Keymap;
 use nn_shared::settings::Settings;
 use unicode_width::UnicodeWidthChar;
@@ -108,7 +109,7 @@ impl App {
         if !editor.doc.is_large() {
             highlighter.highlight_all(&mut editor.doc);
         }
-        App {
+        let mut app = App {
             editor,
             highlighter,
             scroll_line: 0,
@@ -119,7 +120,35 @@ impl App {
             message: None,
             quit_armed: false,
             quit: false,
-        }
+        };
+        // Before the first frame, so a terminal started twice reads the same way
+        // in the same language.
+        app.apply_language();
+        app
+    }
+
+    /// Loads the localization the settings name, and the list the dialog offers.
+    ///
+    /// A file that will not parse leaves the bar and the dialog in English and
+    /// says so: refusing to start over a translation would cost the user their
+    /// editor for a cosmetic fault. The window answers the same way for the same
+    /// reason.
+    fn apply_language(&mut self) {
+        let dir = nn_core::paths::config_file("localization");
+        let installed = Catalog::languages(dir.as_deref());
+        let catalog = match self.settings.language.as_deref() {
+            Some(file) => match Catalog::load(dir.as_deref(), file) {
+                Ok(catalog) => Some(catalog),
+                Err(error) => {
+                    self.say(&format!("language: {error}"), true);
+                    None
+                }
+            },
+            None => None,
+        };
+        self.prefs.set_languages(&installed);
+        self.prefs.set_catalog(catalog.clone());
+        self.menus.set_catalog(catalog);
     }
 
     /// Whether the loop should stop.
@@ -146,8 +175,12 @@ impl App {
             self.prefs.handle(key, &mut self.settings);
             if !self.prefs.is_open() {
                 // Closing writes: the dialog is the only thing that changes
-                // settings, so leaving is the moment they are worth keeping.
+                // settings, so leaving is the moment they are worth keeping. The
+                // language is re-read here rather than live, because a list that
+                // retranslates itself under the user's finger moves the entry
+                // they are stepping towards.
                 self.settings.save();
+                self.apply_language();
                 self.say("preferences saved", false);
             }
             return;
