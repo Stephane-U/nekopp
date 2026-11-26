@@ -16,12 +16,13 @@
 //! The themes a document can be drawn in: which ones exist, what they are called,
 //! the keyword each is stored as, and the forty-nine colours a theme is.
 //!
-//! Two halves, written in two places. [`ThemeChoice`] is the identity -- the
-//! variant, the label, the word in the settings file, the order the preference
-//! row steps through -- and [`Theme`] is the colours, which a terminal draws in
-//! true colour and a window feeds to a shader. A terminal that offered a
-//! different list of themes, or drew a different Tokyo Night, would be a second
-//! editor.
+//! Three pieces. [`ThemeChoice`] is the identity -- the variant, the label, the
+//! word in the settings file, the order the preference row steps through.
+//! [`Theme`] is forty-nine colours, which a terminal draws in true colour and a
+//! window feeds to a shader. And [`Slot`] is the sixteen of those a user may
+//! change by hand, with `record` and `effective_theme` turning a list of such
+//! changes into a theme. A terminal that offered a different list of themes, or
+//! honoured a user's colour edits differently, would be a second editor.
 //!
 //! The named palettes are a table of their own, [`crate::catalogue`], aligned by
 //! position with [`ThemeChoice::NAMES`]: entry `i` of the catalogue is the
@@ -1029,5 +1030,260 @@ mod theme_tests {
         assert_eq!(parse_hex("FF80"), None);
         assert_eq!(parse_hex("GGGGGG"), None);
         assert_eq!(parse_hex(""), None);
+    }
+}
+
+/// One colour the configurator can change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Slot {
+    Default,
+    Keyword,
+    Type,
+    String,
+    Comment,
+    Number,
+    Function,
+    Operator,
+    Preprocessor,
+    Background,
+    Gutter,
+    Foreground,
+    Selection,
+    Caret,
+    CurrentLine,
+    LineNumber,
+}
+
+impl Slot {
+    /// Every slot, in the order the dialog lists them.
+    pub const ALL: [Slot; 16] = [
+        Slot::Default,
+        Slot::Keyword,
+        Slot::Type,
+        Slot::String,
+        Slot::Comment,
+        Slot::Number,
+        Slot::Function,
+        Slot::Operator,
+        Slot::Preprocessor,
+        Slot::Background,
+        Slot::Gutter,
+        Slot::Foreground,
+        Slot::Selection,
+        Slot::Caret,
+        Slot::CurrentLine,
+        Slot::LineNumber,
+    ];
+
+    /// The label drawn on the left.
+    pub fn label(self) -> &'static str {
+        match self {
+            Slot::Default => "Default text",
+            Slot::Keyword => "Keyword",
+            Slot::Type => "Type",
+            Slot::String => "String",
+            Slot::Comment => "Comment",
+            Slot::Number => "Number",
+            Slot::Function => "Function",
+            Slot::Operator => "Operator",
+            Slot::Preprocessor => "Preprocessor",
+            Slot::Background => "Background",
+            Slot::Gutter => "Gutter",
+            Slot::Foreground => "Text",
+            Slot::Selection => "Selection",
+            Slot::Caret => "Caret",
+            Slot::CurrentLine => "Current line",
+            Slot::LineNumber => "Line number",
+        }
+    }
+
+    /// The keyword this slot is written as in the settings file.
+    ///
+    /// Stable: a user's `style` lines have to keep meaning the same thing across
+    /// versions, so these are not derived from the label.
+    pub fn key(self) -> &'static str {
+        match self {
+            Slot::Default => "default",
+            Slot::Keyword => "keyword",
+            Slot::Type => "type",
+            Slot::String => "string",
+            Slot::Comment => "comment",
+            Slot::Number => "number",
+            Slot::Function => "function",
+            Slot::Operator => "operator",
+            Slot::Preprocessor => "preprocessor",
+            Slot::Background => "background",
+            Slot::Gutter => "gutter",
+            Slot::Foreground => "foreground",
+            Slot::Selection => "selection",
+            Slot::Caret => "caret",
+            Slot::CurrentLine => "current_line",
+            Slot::LineNumber => "line_number",
+        }
+    }
+
+    /// Reads a key written by [`Slot::key`].
+    pub fn from_key(key: &str) -> Option<Slot> {
+        Slot::ALL.into_iter().find(|slot| slot.key() == key)
+    }
+
+    /// The colour this slot currently holds in `theme`.
+    pub fn get(self, theme: &Theme) -> Rgb {
+        match self {
+            Slot::Default => theme.syntax[0],
+            Slot::Keyword => theme.syntax[1],
+            Slot::Type => theme.syntax[2],
+            Slot::String => theme.syntax[3],
+            Slot::Comment => theme.syntax[4],
+            Slot::Number => theme.syntax[5],
+            Slot::Function => theme.syntax[6],
+            Slot::Operator => theme.syntax[7],
+            Slot::Preprocessor => theme.syntax[8],
+            Slot::Background => theme.background,
+            Slot::Gutter => theme.gutter_background,
+            Slot::Foreground => theme.foreground,
+            Slot::Selection => theme.selection,
+            Slot::Caret => theme.caret,
+            Slot::CurrentLine => theme.current_line,
+            Slot::LineNumber => theme.gutter_foreground,
+        }
+    }
+
+    /// Writes `color` into this slot of `theme`.
+    pub fn set(self, theme: &mut Theme, color: Rgb) {
+        match self {
+            Slot::Default => theme.syntax[0] = color,
+            Slot::Keyword => theme.syntax[1] = color,
+            Slot::Type => theme.syntax[2] = color,
+            Slot::String => theme.syntax[3] = color,
+            Slot::Comment => theme.syntax[4] = color,
+            Slot::Number => theme.syntax[5] = color,
+            Slot::Function => theme.syntax[6] = color,
+            Slot::Operator => theme.syntax[7] = color,
+            Slot::Preprocessor => theme.syntax[8] = color,
+            Slot::Background => theme.background = color,
+            Slot::Gutter => theme.gutter_background = color,
+            Slot::Foreground => theme.foreground = color,
+            Slot::Selection => theme.selection = color,
+            Slot::Caret => theme.caret = color,
+            Slot::CurrentLine => theme.current_line = color,
+            Slot::LineNumber => theme.gutter_foreground = color,
+        }
+    }
+}
+
+/// Records `slot`'s colour in `overrides`, replacing any earlier entry.
+///
+/// Kept sorted in dialog order so the settings file is stable and diffable, and
+/// so a slot can never appear twice — the last write wins, which is what a user
+/// stepping a colour expects.
+pub fn record(overrides: &mut Vec<(Slot, Rgb)>, slot: Slot, color: Rgb) {
+    overrides.retain(|(s, _)| *s != slot);
+    overrides.push((slot, color));
+    overrides.sort_by_key(|(s, _)| Slot::ALL.iter().position(|x| x == s).unwrap_or(0));
+}
+
+/// Builds the theme the editor should draw with.
+///
+/// The base palette is chosen first and the user's overrides go on top, so
+/// switching to another one of the twenty-one themes keeps their edits instead
+/// of discarding them. That is the whole reason the overrides are stored
+/// sparsely: they are a diff against a theme, not a theme.
+pub fn effective_theme(base: Theme, overrides: &[(Slot, Rgb)]) -> Theme {
+    let mut theme = base;
+    for (slot, color) in overrides {
+        slot.set(&mut theme, *color);
+    }
+    theme
+}
+
+#[cfg(test)]
+mod slot_tests {
+    use super::*;
+
+    #[test]
+    fn every_slot_reads_back_from_its_key() {
+        for slot in Slot::ALL {
+            assert_eq!(Slot::from_key(slot.key()), Some(slot), "{}", slot.key());
+        }
+    }
+
+    #[test]
+    fn the_keys_are_unique() {
+        let mut seen: Vec<&str> = Vec::new();
+        for slot in Slot::ALL {
+            assert!(!seen.contains(&slot.key()), "{} twice", slot.key());
+            seen.push(slot.key());
+        }
+    }
+
+    #[test]
+    fn every_slot_has_a_label() {
+        for slot in Slot::ALL {
+            assert!(!slot.label().is_empty());
+        }
+    }
+
+    #[test]
+    fn setting_a_slot_changes_only_that_slot() {
+        let mut theme = Theme::DARK;
+        let before = theme;
+        Slot::Keyword.set(&mut theme, Rgb::new(1, 2, 3));
+        assert_eq!(Slot::Keyword.get(&theme), Rgb::new(1, 2, 3));
+        assert_eq!(theme.background, before.background);
+        assert_eq!(theme.syntax[3], before.syntax[3]);
+    }
+
+    #[test]
+    fn every_slot_round_trips_through_the_theme() {
+        for slot in Slot::ALL {
+            let mut theme = Theme::DARK;
+            slot.set(&mut theme, Rgb::new(9, 8, 7));
+            assert_eq!(slot.get(&theme), Rgb::new(9, 8, 7), "{}", slot.key());
+        }
+    }
+
+    #[test]
+    fn recording_a_slot_replaces_the_earlier_value() {
+        let mut overrides = Vec::new();
+        record(&mut overrides, Slot::Caret, Rgb::new(1, 1, 1));
+        record(&mut overrides, Slot::Caret, Rgb::new(2, 2, 2));
+        assert_eq!(overrides, vec![(Slot::Caret, Rgb::new(2, 2, 2))]);
+    }
+
+    #[test]
+    fn recording_keeps_the_list_in_dialog_order() {
+        let mut overrides = Vec::new();
+        record(&mut overrides, Slot::LineNumber, Rgb::new(1, 1, 1));
+        record(&mut overrides, Slot::Keyword, Rgb::new(2, 2, 2));
+        record(&mut overrides, Slot::Background, Rgb::new(3, 3, 3));
+        assert_eq!(
+            overrides.iter().map(|(s, _)| *s).collect::<Vec<_>>(),
+            vec![Slot::Keyword, Slot::Background, Slot::LineNumber]
+        );
+    }
+
+    #[test]
+    fn overrides_apply_on_top_of_each_base() {
+        let overrides = [(Slot::Keyword, Rgb::new(1, 2, 3))];
+        let mut bases = vec![Theme::DARK, Theme::LIGHT];
+        bases.extend(crate::catalogue::CATALOGUE.iter().map(Theme::from_palette));
+        for base in bases {
+            let theme = effective_theme(base, &overrides);
+            assert_eq!(Slot::Keyword.get(&theme), Rgb::new(1, 2, 3));
+            assert_eq!(theme.background, base.background);
+        }
+    }
+
+    #[test]
+    fn no_overrides_is_the_base_theme() {
+        assert_eq!(
+            effective_theme(Theme::DARK, &[]).background,
+            Theme::DARK.background
+        );
+        assert_eq!(
+            effective_theme(Theme::LIGHT, &[]).background,
+            Theme::LIGHT.background
+        );
     }
 }

@@ -12636,3 +12636,36 @@ as the pass before: seven theme tests in `nn-shared`, three conversion tests in
 `nn-app`, none lost and none invented. `cargo clippy --offline --release
 --all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference and its
 PDF are untouched.
+
+## The hundred-and-seventeenth pass: the sixteen colours a user may change
+
+Phase 1, eighth pass: `Slot`, `record` and `effective_theme` left `styles.rs` for
+`nn-shared::theme`. A style slot is a promise about the theme -- "the keyword
+colour is here" -- and the sixteen of them are what the settings file writes its
+`style` lines against. A terminal that let its user recolour a keyword and wrote
+a different word into the same file would corrupt the window's settings, so the
+sixteen names and the way an override is folded into a theme are the same
+decisions in both front-ends.
+
+The move is the mirror of the two before it, and it is the reason those came
+first: `Slot::get` and `Slot::set` take a `&Theme` and a `Rgb`, and both of those
+already live in the shared crate. Without that, this pass would have had to take
+the theme along or invent a `SlotView` trait to bridge the two -- and a trait
+invented to move sixteen enum variants is a decision disguised as plumbing.
+
+What stayed is the dialog: swatches, glyph buffers, a caret, a rect to centre
+itself in. Nine of the file's tests left with the code they test -- the keys
+round-tripping, every slot reaching its own field and no other, `record` keeping
+the list in dialog order, an override landing on top of every one of the
+forty-nine palettes. A tenth stayed behind, because it opens the dialog and steps
+a swatch, which is a thing only a window does.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical. The
+argument is `menu_settings`, `prefs` and `light_prefs`: these are the dumps that
+draw a theme, and a slot that reached the wrong field would have recoloured one of
+them. `cargo test --offline --release`: 2,351 tests, 0 failed -- unchanged again,
+nine moved and none lost. `cargo clippy --offline --release --all-targets`: 0
+warnings. `cargo fmt` was not run. The feature reference and its PDF are
+untouched.

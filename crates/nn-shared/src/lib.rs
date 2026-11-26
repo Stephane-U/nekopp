@@ -46,9 +46,9 @@
 //! * [`keymap`] -- the chords: the default bindings, the parser for a `key` line
 //!   in the settings file, and the lookup both front-ends read before they do
 //!   anything else with a keypress.
-//! * [`theme`] -- the themes by name: fifty choices, their labels, their keys and
-//!   the order a preference row steps through them, with the colours left to the
-//!   front-end that can draw them.
+//! * [`theme`] -- the themes: the fifty choices with their labels and keys, the
+//!   forty-nine colours each resolves to, and the sixteen of those a user may
+//!   override by hand.
 //! * [`prefs`] -- the seventeen rows of the preferences dialog, in order, with
 //!   what each is called and whether it switches, steps or opens a dialog.
 //! * [`color`] -- the colour type itself: three bytes and their brightness, with
