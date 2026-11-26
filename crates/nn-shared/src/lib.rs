@@ -49,14 +49,17 @@
 //! * [`theme`] -- the themes by name: fifty choices, their labels, their keys and
 //!   the order a preference row steps through them, with the colours left to the
 //!   front-end that can draw them.
+//! * [`prefs`] -- the seventeen rows of the preferences dialog, in order, with
+//!   what each is called and whether it switches, steps or opens a dialog.
 //!
-//! The settings rows with their labels and choices, and the one dispatcher, come
-//! next; they are still in `nn-app` while the shape of what the terminal needs is
-//! being learned from the terminal. Translation stays there too for now, because
-//! a catalogue has to know which words are names rather than labels, and the
-//! names it checks against are still the app's list of themes.
+//! The values those rows hold, and the one dispatcher, come next; they are still
+//! in `nn-app` while the shape of what the terminal needs is being learned from
+//! the terminal. Translation stays there too for now, because a catalogue has to
+//! know which words are names rather than labels, and deciding that means
+//! reading a list of every name in the program.
 
 pub mod action;
 pub mod keymap;
+pub mod prefs;
 pub mod menu;
 pub mod theme;

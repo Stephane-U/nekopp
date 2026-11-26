@@ -67,113 +67,12 @@ const PICKER_FOOTER: &str = "Up/Down  Left/Right  Enter  Esc";
 const TITLE: &str = "Preferences";
 /// The hint line under the rows.
 const HINT: &str = "Up/Down  Left/Right  Enter open  Esc close";
-/// How many rows the dialog has.
-pub const ROWS: usize = 17;
-
-/// The settings the dialog edits, in row order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Row {
-    Theme,
-    FontSize,
-    UiScale,
-    TabWidth,
-    Wrap,
-    Minimap,
-    Toolbar,
-    FunctionList,
-    VolatileFind,
-    FloatingSearch,
-    Playground,
-    PlaygroundAfter,
-    Backup,
-    Autosave,
-    FileDialog,
-    Language,
-    Shortcuts,
-}
-
-impl Row {
-    /// Every row, top to bottom.
-    pub const ALL: [Row; ROWS] = [
-        Row::Theme,
-        Row::FontSize,
-        Row::UiScale,
-        Row::TabWidth,
-        Row::Wrap,
-        Row::Minimap,
-        Row::Toolbar,
-        Row::FunctionList,
-        Row::VolatileFind,
-        Row::FloatingSearch,
-        Row::Playground,
-        Row::PlaygroundAfter,
-        Row::Backup,
-        Row::Autosave,
-        Row::FileDialog,
-        Row::Language,
-        Row::Shortcuts,
-    ];
-
-    /// The label drawn on the left.
-    pub fn label(self) -> &'static str {
-        match self {
-            Row::Theme => "Theme",
-            Row::FontSize => "Font Size",
-            Row::UiScale => "Window Scale",
-            Row::TabWidth => "Tab Width",
-            Row::Wrap => "Word Wrap",
-            Row::Minimap => "Minimap",
-            Row::Toolbar => "Toolbar",
-            Row::FunctionList => "Function List",
-            Row::VolatileFind => "Volatile Find",
-            Row::FloatingSearch => "Floating Search",
-            Row::Playground => "Playground",
-            Row::PlaygroundAfter => "Playground After",
-            Row::Backup => "Backup on Save",
-            Row::Autosave => "Autosave",
-            Row::FileDialog => "File Dialog",
-            Row::Language => "Language",
-            Row::Shortcuts => "Shortcuts",
-        }
-    }
-
-    /// Whether the row is a switch rather than a number.
-    ///
-    /// The theme is not one: it has fifty values, and a switch would have to
-    /// pretend that "follow the desktop" is the off position.
-    pub fn is_switch(self) -> bool {
-        matches!(
-            self,
-            Row::Wrap
-                | Row::Minimap
-                | Row::Toolbar
-                | Row::FunctionList
-                | Row::VolatileFind
-                | Row::FloatingSearch
-                | Row::Playground
-                | Row::Backup
-                | Row::FileDialog
-        )
-    }
-
-    /// Whether the row opens another dialog rather than holding a value.
-    ///
-    /// An action row has nothing to step through, so Left and Right do nothing
-    /// on it and Enter is the only way in.
-    pub fn is_action(self) -> bool {
-        matches!(self, Row::Shortcuts)
-    }
-
-    /// Whether the row opens a list, rather than stepping through its values.
-    ///
-    /// The two rows that do are the two with more values than a user can hold in
-    /// their head: fifty themes and however many languages are installed.
-    /// Stepping through fifty values to find Tokyo Night is a dialog you cannot
-    /// use, and the same row with a list is a dialog you can.
-    pub fn opens_picker(self) -> bool {
-        matches!(self, Row::Theme | Row::Language)
-    }
-}
+// The rows themselves moved to `nn-shared` in the hundred-and-fourteenth pass:
+// which seventeen settings the dialog offers, what each is called and which of
+// them step rather than switch are the same decisions in a terminal, and a
+// second list would have drifted at the first new setting. What a row holds is
+// still the window's, and stays in this file.
+pub use nn_shared::prefs::{Row, ROWS};
 
 /// One row of the list a preferences row opens.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -12515,3 +12515,42 @@ three functions and the weaker of them was replaced by the stronger test above.
 `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
 run. The feature reference and its PDF are untouched -- the terminal is not
 shipped as a program yet, and nothing a user of the window can see has changed.
+
+## The hundred-and-fourteenth pass: the preference rows move too
+
+Phase 1, fifth pass: `Row` and `ROWS` left `nn-app` for `nn-shared::prefs`. The
+preferences dialog is one dialog drawn twice -- the same seventeen settings, in
+the same order, with the same words on them -- and its order is the part a user
+knows by heart. Tab Width is the fourth row. A terminal that listed its settings
+in a different order would be a second dialog with the same name, so the list
+goes where both can reach it.
+
+What moved is a hundred lines with no dependencies at all: the seventeen
+variants, `ALL` in the order the dialog draws them, the label each is shown with,
+and the three questions the keyboard asks of a row -- is this a switch, does it
+open another dialog, does it open a list rather than stepping. That last group is
+the reason the move is worth making now rather than folding it into the settings
+themselves: the *shape* of a row is what a front-end needs to decide what Left
+and Right and Enter do, and it is entirely independent of what the row holds. So
+the questions moved while the answers -- `Settings`, its defaults, its file
+format, the list of palettes a picker shows -- stayed behind, and the terminal can
+draw a dialog it can navigate before it can draw one it can fill in.
+
+Three tests came with the list, and one of them is new ground. `ALL` covers every
+row exactly once and is `ROWS` long, which is what stops a setting being added to
+the enum and forgotten in the order -- the failure a user would see is a row that
+cannot be reached. The labels are all different, where the window's own test only
+asked that they not be empty; two rows reading alike are two rows to try before
+you find the one you meant. And the three classifications are mutually exclusive,
+because the dialog reads them to decide what a keypress means, so a row that
+answered yes twice would be a key that does nothing.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical,
+`prefs` and `prefs_settings` and `light_prefs` among them -- the three dumps that
+draw this dialog, its rows and its labels, which is what says the words still come
+from the same list in the same order. `cargo test --offline --release`: 2,349
+tests, 0 failed, `nn-shared` now at forty of them and the window's untouched.
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched.
