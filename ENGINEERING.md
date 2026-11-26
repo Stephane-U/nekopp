@@ -12345,3 +12345,37 @@ they drive a `MenuBar` and check what it draws rather than what the builder
 returned. `cargo clippy --offline --release --all-targets`: 0 warnings.
 `cargo fmt` was not run. The feature reference and its PDF are untouched: no
 label, no position and no behaviour changed, which is what the hashes say.
+
+## The hundred-and-eleventh pass: the keys move too
+
+Phase 1, third pass: `keymap.rs` left `nn-app` for `nn-shared`. A chord is a
+decision -- this key means that command -- and the terminal front-end has to draw
+the same chords beside the same rows, so the table belongs beside the rows.
+
+The move cost one API change. `Keymap::parse_line` applies a `key <action>
+<chord>` line from the settings file and used to turn the action's name into an
+`Action` itself; the name can also be `theme_dracula`, which is a setting rather
+than a command, and the list of themes is not the keymap's to know. So `parse_line`
+now takes the resolver as a parameter, and the one production caller -- the
+settings reader -- passes the same `menu::action_from_name` it uses for everything
+else in the file. That keeps one resolver per front-end instead of one inside each
+piece of the crate, and it is what lets the keymap be shared without dragging the
+themes behind it.
+
+Like the two passes before it, this one's consumer arrives with phase 3 rather
+than now: nothing in the terminal shell looks a key up yet, because a terminal
+cannot send every chord the shared table lists -- `Ctrl+Shift+Q` and `Ctrl+Q` are
+the same byte on a legacy terminal -- and a shell with no menus has no shortcut
+column to fill. The claim this pass makes is narrower and checkable: the windowed
+program's behaviour is unchanged, and the table is now in the crate the terminal
+already depends on.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations, hashed before and after: all
+thirty-one identical, which is what proves the shortcut column still reads the
+same table through the re-export. `cargo test --offline --release`: 2,331 tests, 0
+failed -- `keymap`'s own twenty-nine moved with it, and the three that apply a
+settings line now pass `Action::from_name` as their resolver. `cargo clippy
+--offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. The
+feature reference and its PDF are untouched.

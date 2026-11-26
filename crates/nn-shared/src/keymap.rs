@@ -28,7 +28,7 @@
 //! nothing next to shaping a line, and a `HashMap` would need `Action` to be
 //! hashable for no measurable gain.
 
-use crate::menu::Action;
+use crate::action::Action;
 
 /// A key, without the modifiers held with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -503,8 +503,20 @@ impl Keymap {
     ///
     /// Returns false when the line names something this build does not know, so
     /// a file written by a newer version still loads the rest.
-    pub fn parse_line(&mut self, action: &str, chord: &str) -> bool {
-        let Some(action) = crate::menu::action_from_name(action) else {
+    ///
+    /// `resolve` turns the name into a command. It is the caller's because not
+    /// every name in a settings file is a command: `theme_dracula` names a
+    /// setting, and the list of themes belongs to the front-end that draws them.
+    /// Passing the resolver keeps that list out of this crate without keeping the
+    /// knowledge of it in two places -- there is one resolver per front-end, and
+    /// it is the same one that reads the rest of the settings file.
+    pub fn parse_line(
+        &mut self,
+        action: &str,
+        chord: &str,
+        resolve: impl Fn(&str) -> Option<Action>,
+    ) -> bool {
+        let Some(action) = resolve(action) else {
             return false;
         };
         let Some(chord) = Chord::parse(chord) else {
@@ -778,7 +790,7 @@ mod tests {
             assert_eq!(parts.next(), Some("key"));
             let action = parts.next().expect("action");
             let chord = parts.next().expect("chord");
-            assert!(parsed.parse_line(action, chord));
+            assert!(parsed.parse_line(action, chord, Action::from_name));
         }
         assert_eq!(parsed, keymap);
     }
@@ -786,15 +798,15 @@ mod tests {
     #[test]
     fn an_unknown_action_in_the_file_is_skipped() {
         let mut keymap = Keymap::default();
-        assert!(!keymap.parse_line("teleport", "Ctrl+T"));
-        assert!(!keymap.parse_line("save", "Ctrl+Banana"));
+        assert!(!keymap.parse_line("teleport", "Ctrl+T", Action::from_name));
+        assert!(!keymap.parse_line("save", "Ctrl+Banana", Action::from_name));
         assert_eq!(keymap, Keymap::default());
     }
 
     #[test]
     fn a_file_line_rebinds() {
         let mut keymap = Keymap::default();
-        assert!(keymap.parse_line("save", "Ctrl+Shift+S"));
+        assert!(keymap.parse_line("save", "Ctrl+Shift+S", Action::from_name));
         assert_eq!(keymap.lookup(&chord("Ctrl+Shift+S")), Some(Action::Save));
         assert_eq!(keymap.lookup(&chord("Ctrl+S")), None);
     }

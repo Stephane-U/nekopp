@@ -733,7 +733,11 @@ impl Settings {
                 "key" => {
                     // `key <action> <chord>`: the value holds both halves.
                     if let Some((action, chord)) = value.split_once(' ') {
-                        settings.keymap.parse_line(action.trim(), chord.trim());
+                        settings.keymap.parse_line(
+                            action.trim(),
+                            chord.trim(),
+                            crate::menu::action_from_name,
+                        );
                     }
                 }
                 _ => {}

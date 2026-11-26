@@ -41,7 +41,6 @@ pub mod i18n;
 pub mod icon;
 pub mod iconrender;
 pub mod icons;
-pub mod keymap;
 pub mod layout;
 pub mod links;
 pub mod menu;
@@ -100,6 +99,10 @@ pub use menu::{Action, BrowserKind, MatchMode, MenuBar, PluginMenu, Sort, Window
 pub use minimap::Minimap;
 pub use nppimport::{Export, Import};
 pub use palette::Palette;
+// The keymap moved to `nn-shared` in the hundred-and-eleventh pass: a chord is
+// a decision, and the terminal front-end has to show the same ones in the same
+// menu rows. Re-exported so `crate::keymap::Chord` keeps saying what it says.
+pub use nn_shared::keymap;
 // Both of these live in `nn-core`: the MCP server reads the same configuration
 // directory and runs the same plugins, and a second copy of either rule would be
 // a second way for the two binaries to disagree about where a plugin is.

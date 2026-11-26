@@ -43,6 +43,9 @@
 //!   the text-command table agree with.
 //! * [`menu`] -- the menus as a tree of rows: one builder per dropdown, each row
 //!   carrying its label, its shortcut column and the command it runs.
+//! * [`keymap`] -- the chords: the default bindings, the parser for a `key` line
+//!   in the settings file, and the lookup both front-ends read before they do
+//!   anything else with a keypress.
 //!
 //! The settings rows with their labels and choices, and the one dispatcher, come
 //! next; they are still in `nn-app` while the shape of what the terminal needs is
@@ -51,4 +54,5 @@
 //! names it checks against are still the app's list of themes.
 
 pub mod action;
+pub mod keymap;
 pub mod menu;
