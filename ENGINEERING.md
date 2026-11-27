@@ -13708,3 +13708,76 @@ Through a pseudo terminal on a 140-column screen, from a fresh home: opening
 `[+]` after the path in the bar and `Ln 2, Col 2` at the right, so the editor, its
 caret and its dirty mark all still answer through the tab.
 
+## The hundred-and-thirty-sixth pass: two documents you can walk between
+
+The last pass gave a document somewhere to live; this one fills it. `New` and
+`Open` now push a tab instead of refusing while the buffer in front is dirty, which
+is the window's rule and the one the tabs were built for, and `Close`, `Close All`,
+`Next Tab` and `Previous Tab` answer through the commands they always were. Nothing
+in the shell holds a document any more except `tabs`, so switching is one integer
+assignment: the scroll, the caret and the highlighter of the document left behind
+are where they were, because they belong to it.
+
+The chords are the window's, since the settings file is shared and a user who
+rebinds `Next Tab` should get the new key in both front-ends. `Next Tab` and
+`Previous Tab` are `Ctrl+PageDown` and `Ctrl+PageUp`, which a terminal sends as
+`ESC [ 6 ; 5 ~` and `ESC [ 5 ; 5 ~`: two sequences `keys.rs` did not know, now
+named `CtrlPageUp` and `CtrlPageDown` and turned back into the same `Chord` the
+keymap holds, so the lookup is the ordinary one. `Close` is `Ctrl+W`, which arrives
+as byte `0x17` and needed nothing at all. `Close All` is `Ctrl+Shift+W`, which does
+not arrive and cannot: a terminal sends the same `0x17` for Ctrl+W, Ctrl+Shift+W
+and Ctrl+Alt+W, so the chord is unreachable here, as `Ctrl+Shift+Q` and `Ctrl+H`
+already are. It is on the File menu, five rows past `Save As...`, which is the same
+road every other unreachable chord takes.
+
+Two things are decided rather than translated. A file that is already open is
+switched to instead of being opened twice -- two tabs on one file is two buffers
+writing over each other, and the last save would win with nothing said about it --
+and the name on the command line is now made absolute for the same reason the typed
+one is, so `notes.txt` at the shell and `notes.txt` typed into the prompt are known
+to be one file. Closing the last tab leaves a blank page rather than an empty strip,
+which is the window's rule too: an editor with no document has nowhere to type.
+
+What is missing is the strip, and the bar says so in its own way: while more than
+one document is open it carries the count after the path, `[2/3]`, which is the row
+the window draws as a tab strip. That is the one place this pass is visible, and it
+is deliberately crude -- it lands in the same place the `[+]` dirty mark does, and
+the next pass replaces both with a strip.
+
+The cost is nothing per keystroke. Switching tabs does not touch the document, the
+count is one small `format!` per frame while more than one is open, and the frame
+writer still diffs what it is given, so the measurement below -- one document, no
+count -- is unchanged byte for byte.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical; only
+`nn-tui` changed.
+
+`cargo test --offline --release`: 2,416 tests, 0 failed -- 2,412 plus four, from
+six new tests, one rewritten in place and one gone. The six: `New` giving a blank
+page in its own tab
+with the text before it kept, a second document opened over a dirty buffer without
+costing it the edit or the caret, the page chords walking and wrapping (and saying
+so when there is only one document), a file already open being switched to, then
+`Close` refusing a dirty buffer and keeping the neighbour once it is saved, and
+`Close All` naming the count that stopped it. The test that asserted the old
+refusal -- opening is refused while the document has unsaved changes -- is gone,
+because that is the rule this pass replaced; the one that asserted `New`'s refusal
+now asserts where the tab it makes lands. `keys.rs` reads the two new sequences in
+the test it already had for held modifiers. The keystroke measurement is unchanged
+at 15,554 bytes for the first paint and 306 for a keystroke.
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched.
+
+Through a pseudo terminal on 140 columns, from a fresh home, on a file holding
+`one`: Down and one character typed put an `X` on the second line, then F9, Down,
+Down, Enter and the prompt answered with `/tmp/tab-b.txt` drew `two` and `three`
+with `opened /tmp/tab-b.txt` in the bar. `Ctrl+PageUp` drew the first document
+again as `one` and `X`, its caret at `Ln 2, Col 2`, `[+]` after the path and `[1/2]`
+at the end of it. `Ctrl+W` closed the second document, saying
+`closed /tmp/tab-b.txt` and leaving the first with its edit. The File menu's
+`Close All`, with a character typed into the second buffer, said
+`unsaved changes in 1 document: Ctrl+S saves them first` and closed nothing; with
+both saved it said `closed 2 documents` and left one blank page.
+

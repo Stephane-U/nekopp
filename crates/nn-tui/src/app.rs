@@ -199,8 +199,11 @@ impl App {
         // `Document::open` rather than `from_file`, because the name on the
         // command line means what it means in the File menu: a file that is not
         // there is a blank page for it, and its first save creates the file.
+        // Absolute for the reason the typed path is: `notes.txt` and
+        // `./notes.txt` are one file, and a second tab on it would be a second
+        // buffer writing over the first.
         let doc = match path {
-            Some(path) => Document::open(path)?,
+            Some(path) => Document::open(absolute(path))?,
             None => Document::new(),
         };
         Ok(App::with_document(doc))
@@ -467,6 +470,7 @@ impl App {
             // to nothing does nothing: typing the control character it stands
             // for would be the one answer nobody wants.
             Key::Ctrl(_) => {}
+            Key::CtrlPageUp | Key::CtrlPageDown => {}
             Key::Function(_) => {}
         }
     }
@@ -480,6 +484,19 @@ impl App {
     fn chord_action(&self, key: Key) -> Option<Action> {
         let chord = match key {
             Key::Ctrl(ch) => Chord::from_char(ch, true, false, false),
+            // The two chords that carry a modifier a letter cannot: a terminal
+            // sends `Ctrl+PageDown` as a sequence, so the pair is named here and
+            // looked up like any other binding.
+            Key::CtrlPageUp | Key::CtrlPageDown => Chord {
+                ctrl: true,
+                shift: false,
+                alt: false,
+                key: if key == Key::CtrlPageUp {
+                    KeyName::PageUp
+                } else {
+                    KeyName::PageDown
+                },
+            },
             Key::Function(number) => Chord {
                 ctrl: false,
                 shift: false,
@@ -525,10 +542,20 @@ impl App {
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
             Action::Open => self.prompt.open(PromptKind::Open),
             Action::New => self.new_document(),
+            Action::CloseTab => self.close_document(),
+            Action::CloseAll => self.close_all(),
+            Action::NextTab => self.cycle_document(true),
+            Action::PrevTab => self.cycle_document(false),
             Action::Reload => self.reload(),
             Action::SaveAs => self.prompt.open(PromptKind::SaveAs),
-            Action::FindNext => self.find.step(&mut self.tabs[self.active].editor, true),
-            Action::FindPrev => self.find.step(&mut self.tabs[self.active].editor, false),
+            // Two fields, for the reason the find bar's own handling gives: the
+            // step borrows the editor while it walks the matches.
+            Action::FindNext => {
+                self.find.step(&mut self.tabs[self.active].editor, true)
+            }
+            Action::FindPrev => {
+                self.find.step(&mut self.tabs[self.active].editor, false)
+            }
             Action::Exit => self.ask_to_quit(),
             // The rest of the editing commands are one table over in the engine:
             // upper case, indent, sort, comment, and thirty more. They take the
@@ -599,18 +626,94 @@ impl App {
         }
     }
 
-    /// Starts a blank document with no name.
+    /// Starts a blank document with no name, in a tab of its own.
     ///
-    /// Refused while the document in front has unsaved changes, for the same
-    /// reason `Open` is: one document, so a new one would be an edit lost without
-    /// a word. The window pushes a tab and loses nothing; this refusal is the
-    /// price of one buffer, and it goes when the tabs arrive.
+    /// The window pushes a tab here, and now so does the shell: the buffer in
+    /// front keeps its unsaved changes, which is what tab 135 was for. Nothing is
+    /// said about it because the bar already is -- the path becomes `[No Name]`
+    /// and the count beside it goes up by one.
     fn new_document(&mut self) {
+        self.tabs.push(Tab::new(Document::new()));
+        self.active = self.tabs.len() - 1;
+    }
+
+    /// Moves to the next or the previous document, wrapping around.
+    ///
+    /// The window says nothing here either, and it can afford to: the strip is
+    /// on screen and the new tab is the one drawn in front. The terminal's answer
+    /// is the bar's, which names the file that is now in front and the count it
+    /// sits in, so a message would only repeat it. With one document there is
+    /// nowhere to go and saying so is better than a chord that looks broken.
+    fn cycle_document(&mut self, forward: bool) {
+        let count = self.tabs.len();
+        if count <= 1 {
+            self.say("only one document is open", true);
+            return;
+        }
+        self.active = if forward {
+            (self.active + 1) % count
+        } else {
+            (self.active + count - 1) % count
+        };
+    }
+
+    /// Closes the document in front, keeping at least one open.
+    ///
+    /// The window's `close_tab`, one document at a time. A dirty buffer stops it
+    /// with the sentence every other command here gives -- there is no save
+    /// prompt to fall back on -- and closing the last tab leaves a blank page
+    /// rather than an empty strip: an editor with no document has nowhere to
+    /// type.
+    fn close_document(&mut self) {
         if self.editor().doc.is_dirty() {
             self.say("unsaved changes: Ctrl+S saves them first", true);
             return;
         }
+        if self.tabs.len() == 1 {
+            self.load(Document::new());
+            self.say("closed the last document", false);
+            return;
+        }
+        let closed = self
+            .editor()
+            .doc
+            .path()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "[No Name]".to_string());
+        self.tabs.remove(self.active);
+        if self.active >= self.tabs.len() {
+            self.active = self.tabs.len() - 1;
+        }
+        self.say(&format!("closed {closed}"), false);
+    }
+
+    /// Closes every document, and says how many stopped it if any did.
+    ///
+    /// The window refuses the whole command when one document is dirty and names
+    /// the count that is; that is the only answer that cannot lose an edit
+    /// quietly, and it is what this says too.
+    fn close_all(&mut self) {
+        let dirty = self
+            .tabs
+            .iter()
+            .filter(|tab| tab.editor.doc.is_dirty())
+            .count();
+        if dirty > 0 {
+            let documents = if dirty == 1 { "document" } else { "documents" };
+            self.say(
+                &format!(
+                    "unsaved changes in {dirty} {documents}: \
+                     Ctrl+S saves them first"
+                ),
+                true,
+            );
+            return;
+        }
+        let closed = self.tabs.len();
+        self.tabs.truncate(1);
+        self.active = 0;
         self.load(Document::new());
+        self.say(&format!("closed {closed} documents"), false);
     }
 
     /// Reads the document's file again, dropping what was typed since.
@@ -648,14 +751,17 @@ impl App {
         }
     }
 
-    /// Opens `typed`, which is a path as the reader typed it.
+    /// Opens `typed` in a tab of its own, or moves to the tab that has it.
     ///
     /// Made absolute, because a relative name means a different file the next
     /// time the shell is started from somewhere else -- the window learned that
-    /// and `nn_core::paths::absolute` is what it learned it into. Refused while
-    /// the document in front has unsaved changes: this shell has one document,
-    /// and opening another would throw them away. The window opens a second tab
-    /// instead, which is the pass that lifts this.
+    /// and `nn_core::paths::absolute` is what it learned it into. Nothing is
+    /// refused on account of the buffer in front: that is the window's rule too,
+    /// and it is what the tabs are for.
+    ///
+    /// A file that is already open is switched to rather than opened twice, of
+    /// course: two tabs on one file would be two buffers writing over each other,
+    /// with the last save winning and nothing said about it.
     ///
     /// A name that is not there opens a blank page for it rather than an error,
     /// which is `Document::open`'s rule and the window's: `npp notes.txt` in a
@@ -666,14 +772,20 @@ impl App {
             self.say("open: type a path", true);
             return;
         }
-        if self.editor().doc.is_dirty() {
-            self.say("unsaved changes: Ctrl+S saves them first", true);
+        let path = absolute(Path::new(typed));
+        if let Some(index) = self
+            .tabs
+            .iter()
+            .position(|tab| tab.editor.doc.path() == Some(path.as_path()))
+        {
+            self.active = index;
+            self.say(&format!("already open: {}", path.display()), false);
             return;
         }
-        let path = absolute(Path::new(typed));
         match Document::open(&path) {
             Ok(doc) => {
-                self.load(doc);
+                self.tabs.push(Tab::new(doc));
+                self.active = self.tabs.len() - 1;
                 self.say(&format!("opened {}", path.display()), false);
             }
             Err(error) => self.say(&format!("cannot open {}: {error}", path.display()), true),
@@ -1242,6 +1354,14 @@ impl App {
         if self.tab().editor.doc.is_dirty() {
             left.push_str(" [+]");
         }
+        // Where this document sits among the open ones. The window says the same
+        // thing by drawing a strip of tabs, which is a row this shell does not
+        // have yet: the bar is the only place the count can land until it does,
+        // and a reader who has just opened a second file needs to see that the
+        // first one is still there.
+        if self.tabs.len() > 1 {
+            left.push_str(&format!(" [{}/{}]", self.active + 1, self.tabs.len()));
+        }
         let tone = match &self.message {
             Some(message) => {
                 left = message.text.clone();
@@ -1308,6 +1428,12 @@ mod tests {
     use crate::screen::Frame;
     use nn_shared::theme::ThemeChoice;
 
+    /// The caret, as a line and a column.
+    fn caret(app: &App) -> (usize, usize) {
+        let editor = &app.tabs[app.active].editor;
+        (editor.caret_line(), editor.caret_column())
+    }
+
     /// An app on `text`, with the default settings rather than the ones on the
     /// machine that runs the tests.
     ///
@@ -1315,12 +1441,6 @@ mod tests {
     /// theme, and a test that read them would pass where it was written and fail
     /// on the next machine. `Ctrl+Q` in this crate's tests means what it means in
     /// a fresh installation.
-    /// The caret, as a line and a column.
-    fn caret(app: &App) -> (usize, usize) {
-        let editor = &app.tabs[app.active].editor;
-        (editor.caret_line(), editor.caret_column())
-    }
-
     fn app(text: &str) -> App {
         let mut app = App::with_document(Document::from_text(text));
         *app.settings_mut() = Settings::default();
@@ -1901,21 +2021,6 @@ mod tests {
     }
 
     #[test]
-    fn opening_is_refused_while_the_document_has_unsaved_changes() {
-        let path = temp("refused.txt");
-        std::fs::write(&path, "one\n").expect("write");
-        let mut app = app("first\n");
-        app.handle(Key::Char('!'));
-        prompt(&mut app, Action::Open, &path.display().to_string());
-        let message = app.message().unwrap_or_default();
-        assert!(message.contains("unsaved"), "{message}");
-        let text = app.tab().editor.doc.text();
-        assert_eq!(text.as_str(), "!first\n", "it opened anyway");
-        assert_eq!(app.tab().editor.doc.path(), None);
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[test]
     fn a_name_that_is_not_there_opens_a_blank_page_for_it() {
         let path = temp("not-yet.txt");
         let _ = std::fs::remove_file(&path);
@@ -1968,21 +2073,150 @@ mod tests {
     }
 
     #[test]
-    fn new_gives_a_blank_page_and_refuses_while_dirty() {
+    fn new_gives_a_blank_page_in_a_tab_of_its_own() {
         let path = temp("new.txt");
         std::fs::write(&path, "one\n").expect("write");
         let mut app = App::open(Some(&path)).expect("open");
         app.run(Action::New);
         assert_eq!(app.tab().editor.doc.path(), None);
         assert_eq!(app.tab().editor.doc.text().as_str(), "");
+        // The file that was open is still open, with its own text: that is what
+        // the window's `New` does and what this now does too.
+        assert_eq!(app.tabs.len(), 2);
+        assert_eq!(app.tabs[0].editor.doc.text().as_str(), "one\n");
         let rows = drawn(&mut app, 40, 4);
-        assert!(rows[3].trim_start().starts_with("[No Name]"), "{:?}", rows);
-        // Typing makes it dirty, and a new document would be that edit lost.
+        assert!(
+            rows[3].trim_start().starts_with("[No Name] [2/2]"),
+            "{:?}",
+            rows
+        );
+        // A second `New` is a third tab, and the first two keep what they had --
+        // including the character typed into the second one.
         app.handle(Key::Char('x'));
         app.run(Action::New);
-        assert_eq!(app.tab().editor.doc.text().as_str(), "x");
-        assert!(app.message().unwrap_or_default().contains("unsaved"));
+        assert_eq!(app.tabs.len(), 3);
+        assert_eq!(app.tabs[1].editor.doc.text().as_str(), "x");
+        assert!(app.tabs[1].editor.doc.is_dirty());
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_second_document_does_not_cost_the_first_its_changes() {
+        let first = temp("tab-first.txt");
+        let second = temp("tab-second.txt");
+        std::fs::write(&first, "one\n").expect("write");
+        std::fs::write(&second, "two\n").expect("write");
+        let mut app = App::open(Some(&first)).expect("open");
+        app.handle(Key::Char('X'));
+        // Opening while the buffer is dirty used to be refused; a tab is the
+        // answer that loses nothing, and it is the window's.
+        prompt(&mut app, Action::Open, &second.display().to_string());
+        assert_eq!(app.tabs.len(), 2);
+        assert_eq!(app.tab().editor.doc.text().as_str(), "two\n");
+        assert_eq!(app.tabs[0].editor.doc.text().as_str(), "Xone\n");
+        assert!(app.tabs[0].editor.doc.is_dirty());
+        // `Ctrl+PageUp` goes back, and the edit and the caret are both there.
+        app.handle(Key::CtrlPageUp);
+        assert_eq!(app.tab().editor.doc.text().as_str(), "Xone\n");
+        assert_eq!(caret(&app), (0, 1));
+        let rows = drawn(&mut app, 100, 4);
+        assert!(rows[3].contains("[1/2]"), "{:?}", rows);
+        let _ = std::fs::remove_file(&first);
+        let _ = std::fs::remove_file(&second);
+    }
+
+    #[test]
+    fn the_page_chords_walk_the_documents_and_wrap() {
+        let mut app = app("one\ntwo\n");
+        // One document is nowhere to go, and a chord that looks broken is worse
+        // than a sentence.
+        app.handle(Key::CtrlPageDown);
+        assert_eq!(app.tabs.len(), 1);
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.contains("only one document"), "{message}");
+        app.run(Action::New);
+        app.handle(Key::CtrlPageDown);
+        assert_eq!(app.active, 0, "two tabs wrap from the second to the first");
+        app.handle(Key::CtrlPageDown);
+        assert_eq!(app.active, 1);
+        app.handle(Key::CtrlPageUp);
+        assert_eq!(app.active, 0);
+        // The chords are the window's, so the arrow-and-page pair is also on the
+        // View menu, and the menu answers them through the same command.
+        app.run(Action::PrevTab);
+        assert_eq!(app.active, 1);
+    }
+
+    #[test]
+    fn opening_a_file_that_is_already_open_switches_to_it() {
+        let first = temp("again-first.txt");
+        let second = temp("again-second.txt");
+        std::fs::write(&first, "one\n").expect("write");
+        std::fs::write(&second, "two\n").expect("write");
+        let mut app = App::open(Some(&first)).expect("open");
+        prompt(&mut app, Action::Open, &second.display().to_string());
+        assert_eq!(app.tabs.len(), 2);
+        // The same file again: no third tab, and the one that has it comes
+        // forward rather than a second buffer writing over the first.
+        prompt(&mut app, Action::Open, &first.display().to_string());
+        assert_eq!(app.tabs.len(), 2);
+        assert_eq!(app.active, 0);
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.starts_with("already open:"), "{message}");
+        let _ = std::fs::remove_file(&first);
+        let _ = std::fs::remove_file(&second);
+    }
+
+    #[test]
+    fn closing_a_document_refuses_unsaved_work_and_keeps_the_rest() {
+        let first = temp("close-first.txt");
+        let second = temp("close-second.txt");
+        std::fs::write(&first, "one\n").expect("write");
+        std::fs::write(&second, "two\n").expect("write");
+        let mut app = App::open(Some(&first)).expect("open");
+        prompt(&mut app, Action::Open, &second.display().to_string());
+        // A dirty buffer is refused: there is no save prompt behind it.
+        app.handle(Key::Char('!'));
+        app.run(Action::CloseTab);
+        assert_eq!(app.tabs.len(), 2);
+        assert!(app.message().unwrap_or_default().contains("unsaved"));
+        // Saved, it goes, and the neighbour takes its place.
+        app.run(Action::Save);
+        app.run(Action::CloseTab);
+        assert_eq!(app.tabs.len(), 1);
+        assert_eq!(app.tab().editor.doc.text().as_str(), "one\n");
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.starts_with("closed "), "{message}");
+        // The last one leaves a blank page rather than an empty strip.
+        app.run(Action::CloseTab);
+        assert_eq!(app.tabs.len(), 1);
+        assert_eq!(app.tab().editor.doc.path(), None);
+        assert_eq!(app.tab().editor.doc.text().as_str(), "");
+        let _ = std::fs::remove_file(&first);
+        let _ = std::fs::remove_file(&second);
+    }
+
+    #[test]
+    fn close_all_stops_on_unsaved_work_and_collapses_otherwise() {
+        let written = temp("close-all.txt");
+        std::fs::write(&written, "one\n").expect("write");
+        let mut app = app("plain\n");
+        prompt(&mut app, Action::Open, &written.display().to_string());
+        app.handle(Key::Char('x'));
+        app.run(Action::CloseAll);
+        assert_eq!(app.tabs.len(), 2, "one dirty buffer stops the whole command");
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.contains("unsaved changes in 1 document"), "{message}");
+        // Saved, the command goes ahead and leaves one blank page behind: the
+        // window keeps a tab open for the same reason, an editor with no
+        // document has nowhere to type.
+        app.run(Action::Save);
+        app.run(Action::CloseAll);
+        assert_eq!(app.tabs.len(), 1);
+        assert_eq!(app.tab().editor.doc.path(), None);
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.contains("closed 2 documents"), "{message}");
+        let _ = std::fs::remove_file(&written);
     }
 
     #[test]

@@ -49,6 +49,16 @@ pub enum Key {
     DocEnd,
     PageUp,
     PageDown,
+    /// `Ctrl+PageUp` and `Ctrl+PageDown`: the previous and the next document.
+    ///
+    /// Sent as `ESC [ 5 ; 5 ~` and `ESC [ 6 ; 5 ~`, which is what a terminal
+    /// that understands the modifier does with them. `Ctrl+Tab` would be the
+    /// chord a window user reaches for and it cannot arrive at all: a terminal
+    /// sends the same `0x09` for it as for `Tab`, which in an editor is the
+    /// indent. The window binds these two as well, so the hands that know them
+    /// need not learn anything new.
+    CtrlPageUp,
+    CtrlPageDown,
     /// `Ctrl+Left` and `Ctrl+Right`: by the word.
     WordLeft,
     WordRight,
@@ -144,6 +154,8 @@ fn sequence(bytes: &[u8]) -> Option<(Key, usize)> {
         (b'~', "3") => Key::Delete,
         (b'~', "5") => Key::PageUp,
         (b'~', "6") => Key::PageDown,
+        (b'~', "5;5") => Key::CtrlPageUp,
+        (b'~', "6;5") => Key::CtrlPageDown,
         (b'~', "1") | (b'~', "7") => Key::LineStart,
         (b'~', "4") | (b'~', "8") => Key::LineEnd,
         // The rest of the function keys, as `ESC [ N ~` with N counting from
@@ -213,6 +225,9 @@ mod tests {
         assert_eq!(one(b"\x1b[1;5D"), (Key::WordLeft, 6));
         assert_eq!(one(b"\x1b[1;5H"), (Key::DocStart, 6));
         assert_eq!(one(b"\x1b[1;5F"), (Key::DocEnd, 6));
+        // The two the window uses to move between documents.
+        assert_eq!(one(b"\x1b[5;5~"), (Key::CtrlPageUp, 6));
+        assert_eq!(one(b"\x1b[6;5~"), (Key::CtrlPageDown, 6));
     }
 
     #[test]
