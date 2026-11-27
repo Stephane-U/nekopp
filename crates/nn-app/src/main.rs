@@ -49,12 +49,13 @@ use nn_core::backup::BackupMode;
 use nn_core::fold::BraceFolder;
 use nn_core::run::{RunCommand, RunContext};
 use nn_core::{
-    arg_range, call_at, file_stamp, lines, now_secs, params_of, path_prefix, prefix_range,
+    file_stamp, lines, now_secs, path_prefix, prefix_range,
     scan_symbols, split_query,
     CLikeLexer, ConfigLexer, DiskChange, Document, Editor, Encoding, EolMode, FindInFiles,
     Highlighter, Lexer, Macro, Motion, PlainLexer, Projects, Step, Tree, Typed, UdlSet, MAX_CANDIDATES,
 };
 use nn_shared::completion::{function_items, path_items, pooled_items, word_items};
+use nn_shared::hint::hint_at;
 use nn_shared::results::{files_noun, hits_noun};
 use winit::platform::startup_notify::{EventLoopExtStartupNotify, WindowAttributesExtStartupNotify};
 use winit::platform::x11::WindowAttributesExtX11;
@@ -4152,28 +4153,21 @@ impl State {
     /// would be noise, and Notepad++'s own "on input" setting exists because of
     /// exactly that.
     fn follow_param_hint(&mut self) {
+        // A large file is refused before the document is copied: the hint is a
+        // convenience, and reading a hundred megabytes per keystroke is not.
         if self.tab().editor.doc.is_large() {
             self.param_hint.close();
             return;
         }
         let text = self.tab().editor.doc.text();
         let caret = self.tab().editor.caret();
-        let Some(call) = call_at(&text, caret) else {
+        let Some(hint) = hint_at(&text, caret) else {
             self.param_hint.close();
             return;
         };
-        let Some(params) = params_of(&text, &call.name) else {
-            self.param_hint.close();
-            return;
-        };
-        let signature = format!("{}({params})", call.name);
-        // The active argument is highlighted inside the signature, so its range
-        // shifts by the name and the opening parenthesis.
-        let offset = call.name.len() + 1;
-        let active = arg_range(&params, call.arg).map(|r| offset + r.start..offset + r.end);
         let (x, y) = self.view.caret_point(&mut self.tabs[self.active].editor);
         let line_height = self.view.line_height();
-        self.param_hint.show(signature, active, (x, y + line_height));
+        self.param_hint.show(hint, (x, y + line_height));
     }
 
     /// Shows or hides the function list and reflows the text column.

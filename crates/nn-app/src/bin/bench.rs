@@ -921,7 +921,10 @@ fn main() {
             let active = nn_core::arg_range(&params, call.arg)
                 .map(|r| offset + r.start..offset + r.end);
             let (x, y) = view.caret_point(&mut editor);
-            param_hint.show(signature, active, (x, y + view.line_height()));
+            param_hint.show(
+                nn_shared::hint::Hint { signature, active },
+                (x, y + view.line_height()),
+            );
         }
     }
 

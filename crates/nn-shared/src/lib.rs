@@ -54,6 +54,11 @@
 //! * [`settings`] -- the settings file: the struct, its defaults, the parser and
 //!   the writer, plus the values a row can hold -- the tab strip's three
 //!   arrangements, the two file dialogs, the window scale.
+//! * [`completion`] -- the completion list's decisions: the four modes, what a
+//!   row inserts, the cursor and its scroll, and the builders that turn a
+//!   prefix into rows.
+//! * [`hint`] -- the parameter hint: the signature of the call the caret is
+//!   inside, which argument is lit, and the stepping that walks them.
 //! * [`color`] -- the colour type itself: three bytes and their brightness, with
 //!   the conversion to linear values left to the front-end with a shader.
 //! * [`i18n`] -- the translations: the bundled catalogues, the parser for a
@@ -70,6 +75,7 @@ pub mod action;
 pub mod catalogue;
 pub mod color;
 pub mod completion;
+pub mod hint;
 pub mod i18n;
 pub mod keymap;
 pub mod prefs;

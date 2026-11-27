@@ -36,6 +36,7 @@ use nn_shared::action::Action;
 use nn_shared::completion::{
     function_items, path_items, pooled_items, word_items, CompletionMode,
 };
+use nn_shared::hint::hint_at;
 use nn_shared::i18n::Catalog;
 use nn_shared::keymap::{Chord, KeyName, Keymap};
 use nn_shared::results::hits_noun;
@@ -48,6 +49,7 @@ use crate::complete::{Completion, Step as CompleteStep};
 use crate::find::Find;
 use crate::keys::Key;
 use crate::menus::Menus;
+use crate::paramhint::ParamHint;
 use crate::palette::{self, Palette, Tone};
 use crate::prefs::Prefs;
 use crate::prompt::{Kind as PromptKind, Prompt};
@@ -233,6 +235,9 @@ pub struct App {
     /// The completion list, which shares its rows and its cursor with the
     /// window's through `nn-shared`.
     complete: Completion,
+    /// The parameter hint, which shares the signature and the lit argument with
+    /// the window through `nn-shared`.
+    hint: ParamHint,
     settings: Settings,
     /// The chords, read out of the settings.
     ///
@@ -308,6 +313,7 @@ impl App {
             results: Results::new(),
             prompt: Prompt::new(),
             complete: Completion::new(),
+            hint: ParamHint::new(),
             settings: Settings::load(),
             keymap: Keymap::default(),
             palette: Palette::of(&nn_shared::theme::Theme::DARK),
@@ -710,6 +716,12 @@ impl App {
             Key::CtrlPageUp | Key::CtrlPageDown => {}
             Key::Function(_) => {}
         }
+        // Typing the opening parenthesis of a call is the moment the signature
+        // becomes useful, and it is the only moment the hint appears unasked; an
+        // open one follows the caret so it cannot outlive the call.
+        if key == Key::Char('(') || self.hint.is_open() {
+            self.follow_hint();
+        }
     }
 
     /// The action a keystroke is bound to, if it is bound to one.
@@ -789,6 +801,15 @@ impl App {
             Action::CompleteDocument => self.open_completion(CompletionMode::Document),
             Action::CompleteFunction => self.open_completion(CompletionMode::Function),
             Action::CompletePath => self.open_completion(CompletionMode::Path),
+            Action::ParamHint => {
+                if self.hint.is_open() {
+                    self.hint.close();
+                } else {
+                    self.follow_hint();
+                }
+            }
+            Action::ParamHintPrev => self.hint.step(-1),
+            Action::ParamHintNext => self.hint.step(1),
             Action::Preferences => self.prefs.open(),
             Action::ToggleWrap => self.toggle_wrap(),
             Action::Find => self.find.open(&self.tabs[self.active].editor),
@@ -834,6 +855,37 @@ impl App {
                 let label = other.label();
                 self.say(&format!("{label}: not in the terminal yet"), true);
             }
+        }
+        // An open hint follows whatever the command did to the caret; a closed
+        // one stays closed, so it never appears on its own while you are typing.
+        // The three rows that work the hint keep the highlight they were given:
+        // they are the one place the lit argument is allowed to disagree with the
+        // caret, and recomputing here would put it straight back.
+        let stepped = matches!(
+            action,
+            Action::ParamHint | Action::ParamHintPrev | Action::ParamHintNext
+        );
+        if !stepped && self.hint.is_open() {
+            self.follow_hint();
+        }
+    }
+
+    /// Shows the signature of the call the caret is inside, or hides the hint.
+    ///
+    /// A large file is refused before the document is copied: the hint is a
+    /// convenience, and reading a hundred megabytes per keystroke is not.
+    fn follow_hint(&mut self) {
+        if self.editor().doc.is_large() {
+            self.hint.close();
+            return;
+        }
+        let (text, caret) = {
+            let editor = &self.tabs[self.active].editor;
+            (editor.doc.text(), editor.caret())
+        };
+        match hint_at(&text, caret) {
+            Some(hint) => self.hint.show(hint),
+            None => self.hint.close(),
         }
     }
 
@@ -1676,6 +1728,7 @@ impl App {
         // caret rather than a mode, so a dropdown or the preferences dialog
         // still covers it.
         if let Some(cell) = caret_cell {
+            self.hint.draw(grid, cell);
             self.complete.draw(grid, cell);
         }
         // The menus last: a dropdown is an overlay, and the bar takes the top
@@ -2173,6 +2226,50 @@ mod tests {
         assert!(!app.complete.is_open());
         assert_eq!(app.tab().editor.doc.text(), "alpha\nal\n");
         assert_eq!(caret(&app), (1, 2));
+    }
+
+    #[test]
+    fn typing_an_open_parenthesis_shows_the_signature_of_the_call() {
+        let mut app = app("fn save(path: &Path) {}\n");
+        app.tabs[0].editor.goto_position(1, 0);
+        for ch in "save(".chars() {
+            app.handle(Key::Char(ch));
+        }
+        assert!(app.hint.is_open(), "the parenthesis asked for the signature");
+        assert_eq!(app.hint.text(), "save(path: &Path)");
+        // And it is on the screen, under the caret's row.
+        let rows = drawn(&mut app, 40, 8);
+        assert!(
+            rows.iter().any(|row| row.contains("save(path: &Path)")),
+            "{rows:?}"
+        );
+        // The caret is in the first argument, which is the lit one.
+        assert_eq!(app.hint.active(), Some(5..16));
+        // Typing past the closing parenthesis leaves the call, so the hint goes.
+        app.handle(Key::Char(')'));
+        assert!(!app.hint.is_open());
+    }
+
+    #[test]
+    fn the_menu_rows_step_the_lit_argument_without_moving_the_caret() {
+        let mut app = app("fn save(a: u8, b: u8) {}\n");
+        app.tabs[0].editor.goto_position(1, 0);
+        for ch in "save(".chars() {
+            app.handle(Key::Char(ch));
+        }
+        assert!(app.hint.is_open());
+        let before = caret(&app);
+        app.run(Action::ParamHintNext);
+        assert_eq!(caret(&app), before, "the highlight walks, the caret does not");
+        assert_eq!(app.hint.active(), Some(12..17));
+        // And back again, wrapping as it does in the window.
+        app.run(Action::ParamHintPrev);
+        assert_eq!(app.hint.active(), Some(5..10));
+        // The hint row is a toggle: it puts the hint away and brings it back.
+        app.run(Action::ParamHint);
+        assert!(!app.hint.is_open());
+        app.run(Action::ParamHint);
+        assert!(app.hint.is_open());
     }
 
     #[test]
@@ -3427,6 +3524,25 @@ mod tests {
         assert!(
             box_bytes < paint,
             "the box cost {box_bytes} bytes of a {paint}-byte screen"
+        );
+
+        // And the parameter hint, which is three rows: one of signature between
+        // two of border. Same band, same rule.
+        typing.complete.close();
+        typing.draw(frame.grid());
+        frame.render();
+        typing.hint.show(nn_shared::hint::Hint {
+            signature: "save(path: &Path, force: bool)".to_string(),
+            active: Some(5..16),
+        });
+        let start = std::time::Instant::now();
+        typing.draw(frame.grid());
+        let hint_bytes = frame.render().len();
+        let hint_micros = start.elapsed().as_nanos() as f64 / 1000.0;
+        println!("opening the parameter hint {hint_bytes} bytes in {hint_micros:.1} us");
+        assert!(
+            hint_bytes < paint,
+            "the hint cost {hint_bytes} bytes of a {paint}-byte screen"
         );
 
         // With wrapping on a vertical move walks rows, and counting the rows a

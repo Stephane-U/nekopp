@@ -14226,3 +14226,81 @@ with the box under the caret's column, one row below the line. `Enter` replaced 
 fragment and left `1 open ./main.rs` on the screen, the menu gone and the caret
 after the name.
 
+## The hundred-and-forty-third pass: the parameter hint
+
+The hint that names the call you are inside and lights the argument the caret is in
+has been in the window since the first hundred passes. It was, like the completion
+list, two things in one file: a shape -- a floating line of glyphs, flipped above
+the caret near the bottom edge, the lit run in the theme's accent -- and a set of
+decisions that a terminal would need exactly as they are. The decisions are now
+`nn-shared/src/hint.rs`: the type that holds a signature and one range inside it,
+the function that reads the call at the caret and composes both, and the stepping
+that walks the arguments with `Ctrl+Shift+Down` and `Ctrl+Shift+Up`.
+
+What moved is small and all of it was arithmetic worth having in one place. The
+signature is the document's, not the typing's: `save(` while the reader is inside
+`save(path: &Path, force: bool)` shows the declaration, and the highlight is a byte
+range *inside* that string, which is why it shifts by the name and the opening
+parenthesis. The stepping recovers the argument boundaries from the signature rather
+than storing them, so a hint that was stepped away from the caret and then re-shown
+starts again from what the document says. Two rules fell out of writing its tests
+and went in: a signature with no arguments has nothing to step through, so `now()`
+does not put a highlight on a range of width nought; and the boundaries are trimmed,
+so the space after a comma is not part of the argument a reader is being shown.
+
+The terminal's half is `crates/nn-tui/src/paramhint.rs`, three rows of cells: a
+border, and one row of signature with the lit argument in the caret's tone. It
+appears where the window's appears -- when a `(` is typed after a name the document
+declares, which is the only moment it is useful unasked -- follows the caret while
+it is open, and goes the moment the caret leaves the call. The three rows of the
+Auto-Completion menu work here too: the toggle, and the two stepping commands. They
+are the one place the lit argument is allowed to disagree with the caret, so a
+command has to be able to say "do not recompute me": the shell refreshes an open
+hint after every command except those three, and after every key that types or
+moves.
+
+`follow_param_hint` in the window is four lines now, and the widget holds a `Hint`
+instead of a string and a range. Its two stepping tests were the shared ones wearing
+a popup and went; what is left of them is the test that the widget passes the step
+on and the test that a closed hint ignores it, which are the widget's own rules.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical. The
+move of the hint's decisions into `nn-shared` changed nothing the window draws.
+
+`cargo test --offline --release`: 2,476 tests, 0 failed. Five are `nn-shared`'s: the
+call under the caret giving the declaration's signature with the second argument
+lit, a name the document does not declare saying nothing, the highlight walking and
+wrapping both ways with an unplaced highlight starting from the first argument, a
+nested comma not splitting an argument, and a signature with no arguments having
+nothing to step through. Eight are the terminal box's, drawn into a grid and read
+back: nothing when closed, an empty signature leaving it closed, the border and the
+one row, the lit run and the tone either side of it, a highlight past the cut not
+being drawn, the flip above the caret with the status row left clear, the box pulled
+back from the right edge, and the stepping that moves the tone with it. Two are the
+shell's: typing `(` opening the hint with the first argument lit and typing `)`
+closing it, and the menu's stepping rows moving the highlight while the caret stays
+put, then the toggle putting the hint away and bringing it back. `nn-app` lost the
+two that were duplicates and gained one.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched.
+
+The keystroke is unchanged at 15,554 bytes for the first paint and 306 for one. The
+hint costs 491 bytes and 21.3 us -- the smallest of the three overlays, which is
+what three rows should cost against the completion box's 1,362 and the search list's
+1,476.
+
+Through a pseudo terminal on a file holding `fn save(path: &Path, force: bool) {}`,
+with `End` and a new line and `save(` typed: the screen read
+
+   2 save(
+   3     ┌────────────────────────────────┐
+   4     │ save(path: &Path, force: bool) │
+   5     └────────────────────────────────┘
+
+with the box under the caret. Typing `, t` moved the caret into the second argument
+and the box with it, and typing `)` left the call: the box was gone on the next
+frame.
+

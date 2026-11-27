@@ -23,12 +23,11 @@
 //! The list is capped at ten rows and scrolls with the selection, so a prefix
 //! that matches two hundred words still shows a box you can read.
 
-use std::ops::Range;
-
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 
 use nn_shared::completion::{Candidates, VISIBLE_ROWS};
+use nn_shared::hint::Hint;
 
 use crate::quad::QuadRenderer;
 use crate::theme::{Rgb, Theme, ToGpu};
@@ -325,9 +324,8 @@ impl CompletionPopup {
 /// point: on `save(path, |)` the hint says which of the two arguments you are
 /// on without you counting commas.
 pub struct ParamHint {
-    text: String,
-    /// Byte range of the active argument inside `text`.
-    active: Option<Range<usize>>,
+    /// The signature and the argument lit in it, decided in `nn-shared`.
+    hint: Hint,
     anchor: (f32, f32),
     viewport: f32,
     open: bool,
@@ -345,8 +343,7 @@ impl ParamHint {
     /// Builds a closed hint.
     pub fn new(metrics: Metrics, family: Family<'static>, char_width: f32) -> Self {
         Self {
-            text: String::new(),
-            active: None,
+            hint: Hint::default(),
             anchor: (0.0, 0.0),
             viewport: 0.0,
             open: false,
@@ -378,11 +375,10 @@ impl ParamHint {
         self.viewport = height;
     }
 
-    /// Shows `text` with `active` picked out, top-left at `anchor`.
-    pub fn show(&mut self, text: String, active: Option<Range<usize>>, anchor: (f32, f32)) {
-        self.open = !text.is_empty();
-        self.text = text;
-        self.active = active;
+    /// Shows `hint`, top-left at `anchor`.
+    pub fn show(&mut self, hint: Hint, anchor: (f32, f32)) {
+        self.open = !hint.signature.is_empty();
+        self.hint = hint;
         self.anchor = anchor;
         self.shaped.1 = 0;
     }
@@ -390,8 +386,7 @@ impl ParamHint {
     /// Hides the hint.
     pub fn close(&mut self) {
         self.open = false;
-        self.text.clear();
-        self.active = None;
+        self.hint = Hint::default();
         self.shaped.1 = 0;
     }
 
@@ -402,54 +397,20 @@ impl ParamHint {
 
     /// The signature being shown.
     pub fn text(&self) -> &str {
-        &self.text
+        &self.hint.signature
     }
 
     /// Moves the highlight `delta` arguments along, wrapping at the ends.
     ///
     /// Notepad++'s Ctrl+Shift+Down/Up walk the parameter list without moving the
     /// caret, so the highlight has to be able to disagree with the caret until
-    /// the next keystroke recomputes it. The argument boundaries are recovered
-    /// from the signature rather than stored, because the signature is the only
-    /// thing that survives a re-show.
+    /// the next keystroke recomputes it. The rule, the boundaries and the wrap
+    /// are `nn_shared::hint`'s, because the terminal steps the same list.
     pub fn move_selection(&mut self, delta: isize) {
-        if !self.open || delta == 0 {
+        if !self.open {
             return;
         }
-        let Some(open) = self.text.find('(') else {
-            return;
-        };
-        let Some(close) = self.text.rfind(')') else {
-            return;
-        };
-        if close <= open {
-            return;
-        }
-        let params = &self.text[open + 1..close];
-        let mut ranges = Vec::new();
-        for index in 0.. {
-            match nn_core::arg_range(params, index) {
-                Some(range) => ranges.push(range),
-                None => break,
-            }
-        }
-        if ranges.is_empty() {
-            return;
-        }
-        // Which argument the highlight is on now. A signature with no highlight
-        // yet starts from the first, so the first press moves to the second.
-        let current = self
-            .active
-            .as_ref()
-            .and_then(|active| {
-                let at = active.start.checked_sub(open + 1)?;
-                ranges.iter().position(|r| at >= r.start && at <= r.end)
-            })
-            .unwrap_or(0);
-        let count = ranges.len() as isize;
-        let next = (current as isize + delta).rem_euclid(count) as usize;
-        let range = ranges[next].clone();
-        self.active = Some(open + 1 + range.start..open + 1 + range.end);
+        self.hint.step(delta);
         self.shaped.1 = 0;
     }
 
@@ -466,7 +427,7 @@ impl ParamHint {
 
     /// The width the hint occupies.
     pub fn width(&self) -> f32 {
-        let columns = self.text.chars().count() as f32;
+        let columns = self.hint.signature.chars().count() as f32;
         let scale = crate::renderer::scale_of(self.metrics);
         (columns * self.char_width + PADDING * 2.0).clamp(MIN_WIDTH * scale, MAX_WIDTH * scale)
     }
@@ -493,13 +454,13 @@ impl ParamHint {
         let columns = ((self.width() - PADDING * 2.0) / self.char_width)
             .max(4.0)
             .round() as usize;
-        let key = (self.text.clone(), columns, theme.toggle_on);
+        let key = (self.hint.signature.clone(), columns, theme.toggle_on);
         if key == self.shaped {
             return;
         }
         self.shaped = key;
 
-        let shown = truncate(&self.text, columns);
+        let shown = truncate(&self.hint.signature, columns);
         let default = Attrs::new()
             .family(self.family)
             .color(theme.menu_text.to_cosmic());
@@ -507,7 +468,7 @@ impl ParamHint {
             .family(self.family)
             .color(theme.toggle_on.to_cosmic());
         let mut spans: Vec<(&str, Attrs)> = Vec::with_capacity(3);
-        match &self.active {
+        match &self.hint.active {
             Some(range) if range.end <= shown.len() => {
                 spans.push((&shown[..range.start], default.clone()));
                 spans.push((&shown[range.clone()], active));
@@ -598,35 +559,29 @@ mod tests {
     }
 
     #[test]
-    fn the_parameter_highlight_walks_the_argument_list() {
+    fn showing_a_signature_lights_the_argument_the_caret_is_in() {
         let mut h = hint();
-        // "foo(a, b, c)": the arguments start at byte 4, 7 and 10.
-        h.show("foo(a, b, c)".into(), Some(4..5), (0.0, 0.0));
+        h.show(
+            Hint {
+                signature: "foo(a, b, c)".into(),
+                active: Some(4..5),
+            },
+            (0.0, 0.0),
+        );
+        assert!(h.is_open());
+        assert_eq!(h.text(), "foo(a, b, c)");
+        // The stepping itself is `nn-shared`'s; the widget has to pass it on and
+        // earn the new highlight without a second rule of its own.
         h.move_selection(1);
-        assert_eq!(h.active, Some(7..8));
-        h.move_selection(1);
-        assert_eq!(h.active, Some(10..11));
-        // Wraps at the end, and back again at the start.
-        h.move_selection(1);
-        assert_eq!(h.active, Some(4..5));
-        h.move_selection(-1);
-        assert_eq!(h.active, Some(10..11));
-    }
-
-    #[test]
-    fn a_nested_comma_does_not_split_an_argument() {
-        let mut h = hint();
-        // The comma inside `f(x, y)` belongs to the first argument.
-        h.show("g(f(x, y), z)".into(), Some(3..10), (0.0, 0.0));
-        h.move_selection(1);
-        assert_eq!(h.active, Some(11..12));
+        assert_eq!(h.hint.active, Some(7..8));
     }
 
     #[test]
     fn moving_the_highlight_on_a_closed_hint_does_nothing() {
         let mut h = hint();
         h.move_selection(1);
-        assert_eq!(h.active, None);
+        assert!(!h.is_open());
+        assert_eq!(h.text(), "");
     }
 
     #[test]
@@ -748,6 +703,15 @@ mod tests {
         assert_eq!(popup.item_at(20.0, 418.0 + 6.0 + 5.0, 20.0), Some(0));
     }
 
+    /// A hint showing `signature` with nothing lit, which is what the view tests
+    /// are about: the box, not the argument.
+    fn hint_of(signature: &str) -> Hint {
+        Hint {
+            signature: signature.to_string(),
+            active: None,
+        }
+    }
+
     fn hint() -> ParamHint {
         ParamHint::new(Metrics::new(15.0, 20.0), Family::Monospace, 8.0)
     }
@@ -762,7 +726,13 @@ mod tests {
     #[test]
     fn showing_a_signature_opens_the_hint() {
         let mut h = hint();
-        h.show("save(path: &Path)".to_string(), Some(5..9), (10.0, 20.0));
+        h.show(
+            Hint {
+                signature: "save(path: &Path)".into(),
+                active: Some(5..9),
+            },
+            (10.0, 20.0),
+        );
         assert!(h.is_open());
         assert_eq!(h.text(), "save(path: &Path)");
     }
@@ -770,14 +740,14 @@ mod tests {
     #[test]
     fn showing_nothing_leaves_the_hint_closed() {
         let mut h = hint();
-        h.show(String::new(), None, (0.0, 0.0));
+        h.show(Hint::default(), (0.0, 0.0));
         assert!(!h.is_open());
     }
 
     #[test]
     fn closing_hides_the_hint() {
         let mut h = hint();
-        h.show("save()".to_string(), None, (0.0, 0.0));
+        h.show(hint_of("save()"), (0.0, 0.0));
         h.close();
         assert!(!h.is_open());
         assert_eq!(h.text(), "");
@@ -786,16 +756,16 @@ mod tests {
     #[test]
     fn the_hint_is_one_line_plus_its_padding() {
         let mut h = hint();
-        h.show("save()".to_string(), None, (0.0, 0.0));
+        h.show(hint_of("save()"), (0.0, 0.0));
         assert_eq!(h.height(20.0), 20.0 + PADDING * 2.0);
     }
 
     #[test]
     fn the_hint_width_follows_the_signature() {
         let mut h = hint();
-        h.show("a".to_string(), None, (0.0, 0.0));
+        h.show(hint_of("a"), (0.0, 0.0));
         assert_eq!(h.width(), MIN_WIDTH);
-        h.show("x".repeat(200), None, (0.0, 0.0));
+        h.show(hint_of(&"x".repeat(200)), (0.0, 0.0));
         assert_eq!(h.width(), MAX_WIDTH);
     }
 
@@ -803,7 +773,7 @@ mod tests {
     fn the_hint_flips_above_the_caret_when_it_would_not_fit_below() {
         let mut h = hint();
         h.set_viewport(500.0);
-        h.show("save()".to_string(), None, (10.0, 490.0));
+        h.show(hint_of("save()"), (10.0, 490.0));
         // One row plus padding is 32 px, so 490 + 32 > 500 and the box moves up
         // to 490 - 32 = 458. The frame's top edge is what the quad covers.
         assert_eq!(h.top(20.0), 458.0);
@@ -813,7 +783,7 @@ mod tests {
     fn the_hint_stays_below_the_caret_when_it_fits() {
         let mut h = hint();
         h.set_viewport(500.0);
-        h.show("save()".to_string(), None, (10.0, 100.0));
+        h.show(hint_of("save()"), (10.0, 100.0));
         assert_eq!(h.top(20.0), 100.0);
     }
 
