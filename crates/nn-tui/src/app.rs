@@ -34,6 +34,7 @@ use nn_shared::keymap::{Chord, KeyName, Keymap};
 use nn_shared::settings::Settings;
 use unicode_width::UnicodeWidthChar;
 
+use crate::find::Find;
 use crate::keys::Key;
 use crate::menus::Menus;
 use crate::palette::{self, Palette, Tone};
@@ -42,17 +43,26 @@ use crate::screen::Grid;
 
 /// How the window is divided up, worked out once per frame.
 ///
-/// The bar is the last row, so the number of rows of text and the row the bar is
-/// drawn on are the same number: one field rather than two that would have to
-/// agree.
+/// The bar is the last row, and the find bar -- when it is up -- takes the one
+/// above it. The row the text starts losing rows at is therefore one field: the
+/// number of rows of text is the row the first strip is drawn on.
 #[derive(Debug, Clone, Copy)]
 struct Layout {
     /// Columns the line numbers take.
     gutter: usize,
     /// Columns left for the text.
     text_cols: usize,
-    /// The row the bar is drawn on, and therefore how many rows are above it.
+    /// The row the find bar is drawn on, while it is up.
+    find_row: Option<usize>,
+    /// The row the bar is drawn on.
     status_row: usize,
+}
+
+impl Layout {
+    /// The rows the document has, which is every row above the first strip.
+    fn text_rows(self) -> usize {
+        self.find_row.unwrap_or(self.status_row)
+    }
 }
 
 /// A message for the bar, and whether it is bad news.
@@ -79,6 +89,9 @@ pub struct App {
     /// terminal started twice behave the same way: what the dialog wrote last
     /// time is already in force when the first frame is drawn.
     prefs: Prefs,
+    /// The find bar and its pattern, which outlives the bar so `F3` works after
+    /// it closes.
+    find: Find,
     settings: Settings,
     /// The chords, read out of the settings.
     ///
@@ -122,6 +135,7 @@ impl App {
             scroll_col: 0,
             menus: Menus::new(&Keymap::default()),
             prefs: Prefs::new(),
+            find: Find::new(),
             settings: Settings::load(),
             keymap: Keymap::default(),
             palette: Palette::of(&nn_shared::theme::Theme::DARK),
@@ -192,6 +206,7 @@ impl App {
         };
         self.prefs.set_languages(&installed);
         self.prefs.set_catalog(catalog.clone());
+        self.find.set_catalog(catalog.clone());
         self.menus.set_catalog(catalog);
     }
 
@@ -247,6 +262,13 @@ impl App {
             return;
         }
         self.message = None;
+        // The find bar owns the keys it understands while it is up and hands the
+        // rest back, so `Ctrl+S` saves and `Ctrl+Q` quits with a pattern half
+        // typed: a bar that swallowed every chord would be a mode, and this one
+        // is a row.
+        if self.find.is_open() && self.find.handle(key, &mut self.editor) {
+            return;
+        }
         // Ctrl+Q leaves, and it has to: the window binds `exit` to Ctrl+Shift+Q,
         // which a terminal cannot send -- Ctrl and Shift and a letter is not one
         // of the bytes a keyboard puts on the wire. A shell that could only be
@@ -365,6 +387,9 @@ impl App {
             Action::MoveLineDown => self.edit(|ed| ed.move_lines(false)),
             Action::DeleteLine => self.edit(|ed| ed.delete_lines()),
             Action::Preferences => self.prefs.open(),
+            Action::Find => self.find.open(&self.editor),
+            Action::FindNext => self.find.step(&mut self.editor, true),
+            Action::FindPrev => self.find.step(&mut self.editor, false),
             Action::Exit => self.ask_to_quit(),
             // The rest of the editing commands are one table over in the engine:
             // upper case, indent, sort, comment, and thirty more. They take the
@@ -487,9 +512,10 @@ impl App {
         let layout = Layout {
             gutter,
             text_cols: width - gutter,
+            find_row: self.find.is_open().then(|| height.saturating_sub(2)),
             status_row: height - 1,
         };
-        let text_rows = layout.status_row;
+        let text_rows = layout.text_rows();
         let status_row = layout.status_row;
 
         // The core moves by a screenful on Page Up and Page Down, and it takes
@@ -550,6 +576,9 @@ impl App {
                     grid.put(row, column, ' ', Tone::Caret);
                 }
             }
+        }
+        if let Some(row) = layout.find_row {
+            self.find.draw(grid, row, width);
         }
         self.draw_status(grid, status_row, width);
         // The menus last: a dropdown is an overlay, and the bar takes the top
@@ -899,9 +928,57 @@ mod tests {
     }
 
     #[test]
+    fn the_find_bar_takes_a_row_and_walks_the_matches() {
+        let mut app = app("one two one\n");
+        // Ctrl+F is `find` in the default keymap, as it is in the window.
+        app.handle(Key::Ctrl('f'));
+        for ch in "one".chars() {
+            app.handle(Key::Char(ch));
+        }
+        // Typing went into the bar, not into the document.
+        assert_eq!(app.editor.doc.text(), "one two one\n");
+        let rows = drawn(&mut app, 40, 5);
+        // The bar is the row above the status bar, and the text lost the row.
+        assert!(rows[3].starts_with("Find: one"), "{:?}", rows);
+        assert!(rows[3].ends_with("0/2 "), "{:?}", rows);
+        assert!(rows[4].contains("Ln 1, Col 1"), "{:?}", rows);
+        app.handle(Key::Enter);
+        let rows = drawn(&mut app, 40, 5);
+        assert!(rows[3].ends_with("1/2 "), "{:?}", rows);
+        // Escape closes and leaves the match selected, and the text gets its row
+        // back: the row the bar was on is a line of the document again.
+        app.handle(Key::Escape);
+        let rows = drawn(&mut app, 40, 5);
+        assert!(!rows[3].contains("Find:"), "{:?}", rows);
+        assert!(rows[4].contains("Ln 1, Col 4"), "{:?}", rows);
+    }
+
+    #[test]
+    fn f3_walks_the_matches_after_the_bar_has_closed() {
+        let mut app = app("one two one\n");
+        app.run(Action::Find);
+        for ch in "one".chars() {
+            app.handle(Key::Char(ch));
+        }
+        app.handle(Key::Escape);
+        assert!(!app.find.is_open());
+        // The caret is still where the search left it: at the start, having
+        // never stepped anywhere.
+        app.handle(Key::Function(3));
+        assert_eq!(app.editor.selection_start(), 0);
+        app.handle(Key::Function(3));
+        assert_eq!(app.editor.selection_start(), 8);
+        // A chord the bar does not want is the shell's, even with the bar up.
+        app.run(Action::Find);
+        app.handle(Key::Ctrl('s'));
+        assert!(app.message().unwrap_or_default().contains("no file name"));
+    }
+
+    #[test]
     fn a_command_the_shell_has_not_got_says_so() {
         let mut app = app("x\n");
-        app.run(Action::Find);
+        // The find bar has arrived; replace and find-in-files have not.
+        app.run(Action::Replace);
         let message = app.message().unwrap_or_default();
         assert!(message.contains("not in the terminal yet"), "{message}");
     }

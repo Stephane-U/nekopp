@@ -13123,3 +13123,82 @@ the text commands over a selection, the line commands moving and deleting, and a
 command the shell has not got still saying so. `cargo clippy --offline --release
 --all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference and its
 PDF are untouched.
+
+## The hundred-and-twenty-seventh pass: the find bar
+
+Phase 3, next pass, and the first of phase 4's widgets to arrive early: the shell
+can search. `crates/nn-tui/src/find.rs` is a module of its own, the way the menus
+and the preferences dialog are, and it holds the pattern, the two marks that change
+what a pattern finds, the hits and which hit the bar is standing on.
+
+The windowed bar carries eleven chips on a row of their own. A terminal row is a
+much smaller thing, so this one keeps the two marks that decide what a search
+*finds* -- match case and whole word -- and leaves regex, extended, wrap, in
+selection, direction, bookmarks and the eight buttons to the passes that bring
+replace and find-in-files with them. What it does keep is the window's wording for
+the count, `3/17` and `no match`, so the two front-ends say the same thing about
+the same pattern rather than each inventing a sentence.
+
+The keys are Midnight Commander's, because a terminal has no mouse to click a chip
+with: Tab moves between the field and the two marks, Space or Enter flips the mark
+the focus is standing on, Enter or Down in the field walks the matches forward and
+Up walks them back, and Escape closes. A mark is a thing you stand on and press,
+which is the same rule the preference dialog follows one pass earlier. There is no
+`Alt` in the key parser and inventing one for two marks would have been the tail
+wagging the dog.
+
+The marks and the counter are pinned to the right edge, the field takes what is
+left, and the counter keeps a fixed nine cells whatever it says, so that a count
+going from `0/3` to `no match` does not shove the marks about while a pattern is
+being typed. A pattern longer than the room keeps its head and loses its tail; the
+column a terminal would wrap on is never written.
+
+Closing is not cancelling: Escape drops the hits and keeps the pattern and the
+selection, so the caret stays on the match the last Enter walked to and `F3` works
+afterwards. Dropping the hits on close is what makes `F3` honest -- it searches the
+document as it is now rather than as it was when the bar was up, which matters
+because the shell does not track edits against a hit list.
+
+The performance rule is the interesting part, and it is the one this project would
+want written down even if nothing else were. A search is a pass over the whole
+document, so a keystroke that runs one is a keystroke a reader feels in a large
+file. `refresh` therefore searches on every letter only while the document is small
+-- the same `is_large` the highlighter and the window use -- and otherwise marks
+the hits stale and waits for Enter -- or `F3` once the bar has closed -- to force
+the pass. The bar says `press Enter` in that state rather than `no match`, because
+saying "no match" before searching would be a claim it has not earned. The hits are
+capped at ten thousand: a one-letter pattern in a large file matches everywhere,
+and the count is there to tell a reader whether to keep typing, not to number them
+all.
+
+The bar also hands back the keys it does not want, which is what keeps it a row
+rather than a mode: `Ctrl+S` saves and `Ctrl+Q` quits with a pattern half typed,
+and a keystroke it ignores reaches the shell exactly as if the bar were not there.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical; only
+`nn-tui` changed.
+
+Driven through a pseudo terminal, no X server involved. `Ctrl+F` drew `Find:`, the
+caret block, `Aa`, `W` and the counter; typing `alpha` in a two-match file made it
+read `0/2`; Enter selected the first match with the bar still up and the counter
+went to `1/2` (the stream carries the one changed digit, `39;139H1`, which is the
+diff writer doing its job); a second Enter put the selection on the third line and
+the bar read `2/2` with the status line `Ln 3, Col 11`. Escape repainted row
+thirty-nine from the bar to text -- the document got its row back -- and `F3` then
+stepped to the first match on its own. In a file of `Alpha alpha ALPHA`, Tab moved
+the focus onto `Aa` (the mark redrawn in the caret's colours and nothing else
+written) and Space flipped it: the count went from `0/3` to `0/1`, one cell. Tab
+again and Space on `W` with the pattern `alph` gave `no match`, which is what the
+whole-word rule means there. Tab never edited the document: the file was saved
+afterwards and had not gained a space.
+
+`cargo test --offline --release`: 2,384 tests, 0 failed -- 2,377 plus seven: a
+pattern counted and walked with wrap in both directions, the two marks changing
+what is found, Escape closing on the match and `F3` then searching afresh, an empty
+pattern counting nothing and a chord going back to the shell, the marks and the
+counter holding their columns as a pattern outgrows the room, the bar taking a row
+from the text and giving it back, and `F3` walking matches with the bar closed
+while `Ctrl+S` still saves. `cargo clippy --offline --release --all-targets`: 0
+warnings. `cargo fmt` was not run. The feature reference and its PDF are untouched.

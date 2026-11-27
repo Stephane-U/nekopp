@@ -26,6 +26,7 @@
 //! been resized is noticed while the editor is idle rather than at the next key.
 
 mod app;
+mod find;
 mod keys;
 mod menus;
 mod palette;
@@ -154,6 +155,7 @@ fn help() -> String {
          \n\
          Keys:\n\
          \x20 F9       the menus, and every command they offer\n\
+         \x20 Ctrl+F   the find bar; Enter walks the matches\n\
          \x20 Ctrl+Q   quit; twice when there are unsaved changes\n\
          \x20 Arrows, Home, End, Page Up, Page Down\n\
          \x20 Shift with an arrow extends the selection\n\
