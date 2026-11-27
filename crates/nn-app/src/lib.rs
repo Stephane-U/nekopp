@@ -29,6 +29,11 @@ pub mod charset;
 pub mod chrome;
 pub mod cli;
 pub mod complete;
+// The completion list's decisions -- when it opens, how the cursor wraps, what
+// a word row inserts -- moved to `nn-shared::completion` in the hundred-and-
+// forty-first pass, because the terminal front-end shows the same list over the
+// same words. Re-exported so `nn_app::CompletionMode` keeps saying what it says.
+pub use nn_shared::completion::{CompletionMode, Item};
 pub mod context;
 pub mod desktop;
 pub mod findbar;
@@ -88,7 +93,7 @@ pub use changelog::{ChangeHistory, Row as ChangeRow};
 pub use charset::CharPanel;
 pub use chrome::{Chrome, Mode};
 pub use cli::Args;
-pub use complete::{CompletionMode, CompletionPopup, Item, ParamHint};
+pub use complete::{CompletionPopup, ParamHint};
 pub use context::{ContextMenu, Entry};
 pub use findbar::{Button, Chip, Field, FindBar, Hit};
 pub use finddialog::{DialogHit, FindDialog, Tab as FindTab};

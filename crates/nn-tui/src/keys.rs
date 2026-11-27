@@ -87,6 +87,10 @@ pub fn parse(bytes: &[u8]) -> Option<(Key, usize)> {
         0x1b => sequence(bytes),
         b'\r' | b'\n' => Some((Key::Enter, 1)),
         b'\t' => Some((Key::Tab, 1)),
+        // A keyboard sends `Ctrl+Space` as NUL, which is why the range below
+        // starts at one: it is `Ctrl+@` to a terminal and the completion chord to
+        // every editor that has one.
+        0x00 => Some((Key::Ctrl(' '), 1)),
         0x7f | 0x08 => Some((Key::Backspace, 1)),
         0x01..=0x1a => {
             let letter = (b'a' + first - 1) as char;

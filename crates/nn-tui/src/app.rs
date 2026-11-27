@@ -29,9 +29,11 @@ use std::path::{Path, PathBuf};
 
 use nn_core::paths::absolute;
 use nn_core::{
-    split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles, Highlighter, Lexer, Motion,
+    prefix_range, split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles, Highlighter,
+    Lexer, Motion, MAX_CANDIDATES,
 };
 use nn_shared::action::Action;
+use nn_shared::completion::{function_items, pooled_items, word_items, CompletionMode};
 use nn_shared::i18n::Catalog;
 use nn_shared::keymap::{Chord, KeyName, Keymap};
 use nn_shared::results::hits_noun;
@@ -40,6 +42,7 @@ use nn_shared::settings::Settings;
 use nn_shared::tabcolour::TabColour;
 use unicode_width::UnicodeWidthChar;
 
+use crate::complete::{Completion, Step as CompleteStep};
 use crate::find::Find;
 use crate::keys::Key;
 use crate::menus::Menus;
@@ -71,6 +74,14 @@ struct Layout {
     bar_row: Option<usize>,
     /// The row the bar is drawn on.
     status_row: usize,
+}
+
+/// What drawing one line gave the frame: how many rows it took, and the cell
+/// the caret was drawn on, when the caret is on that line at all.
+#[derive(Debug, Clone, Copy)]
+struct Drawn {
+    rows: usize,
+    caret: Option<(usize, usize)>,
 }
 
 impl Layout {
@@ -217,6 +228,9 @@ pub struct App {
     results: Results,
     /// The one-line prompt, when a command needs a line typed before it runs.
     prompt: Prompt,
+    /// The completion list, which shares its rows and its cursor with the
+    /// window's through `nn-shared`.
+    complete: Completion,
     settings: Settings,
     /// The chords, read out of the settings.
     ///
@@ -291,6 +305,7 @@ impl App {
             find: Find::new(),
             results: Results::new(),
             prompt: Prompt::new(),
+            complete: Completion::new(),
             settings: Settings::load(),
             keymap: Keymap::default(),
             palette: Palette::of(&nn_shared::theme::Theme::DARK),
@@ -543,6 +558,7 @@ impl App {
         // focus has already moved, so nothing else happens on that press.
         if matches!(key, Key::Function(9) | Key::Function(10)) {
             self.message = None;
+            self.complete.close();
             self.menus.toggle();
             return;
         }
@@ -584,6 +600,29 @@ impl App {
                 self.refresh_all();
             }
             return;
+        }
+        // The completion list takes the five keys that walk or take a row and
+        // hands the rest back, which is the window's rule: a list that swallowed
+        // every chord would be a mode, and this one is a box over the text. A
+        // letter it would refilter on is typed first, so the box narrows on the
+        // keystroke rather than a keystroke late.
+        if self.complete.is_open() {
+            match self.complete.handle(key) {
+                CompleteStep::Moved | CompleteStep::Closed => return,
+                CompleteStep::Accepted => {
+                    self.accept_completion();
+                    return;
+                }
+                CompleteStep::Typed(ch) => {
+                    let line = self.editor().caret_line();
+                    self.editor().insert(&ch.to_string());
+                    self.refresh_from(line);
+                    let mode = self.complete.mode();
+                    self.open_completion(mode);
+                    return;
+                }
+                CompleteStep::Passed => {}
+            }
         }
         // The results list takes the keys that walk a list and hands the rest
         // back, for the reason the find bar does: a chord has to keep working
@@ -679,6 +718,15 @@ impl App {
     /// away from a user who had bound it by accident.
     fn chord_action(&self, key: Key) -> Option<Action> {
         let chord = match key {
+            // A space is the one key whose chord is not spelled as a character:
+            // the keymap says `Space`, and folding the two spellings together
+            // here is what lets `Ctrl+Space` reach word completion.
+            Key::Ctrl(' ') => Chord {
+                ctrl: true,
+                shift: false,
+                alt: false,
+                key: KeyName::Space,
+            },
             Key::Ctrl(ch) => Chord::from_char(ch, true, false, false),
             // The two chords that carry a modifier a letter cannot: a terminal
             // sends `Ctrl+PageDown` as a sequence, so the pair is named here and
@@ -713,6 +761,10 @@ impl App {
     /// shell's own work list.
     fn run(&mut self, action: Action) {
         self.message = None;
+        // A command can change the document under the box, move to another tab
+        // or open a dialog that owns the keyboard, so the list goes first; the
+        // three completion commands open a fresh one on the line after.
+        self.complete.close();
         match action {
             Action::Save => self.save(),
             Action::Undo => {
@@ -731,6 +783,9 @@ impl App {
             Action::MoveLineUp => self.edit(|ed| ed.move_lines(true)),
             Action::MoveLineDown => self.edit(|ed| ed.move_lines(false)),
             Action::DeleteLine => self.edit(|ed| ed.delete_lines()),
+            Action::CompleteWord => self.open_completion(CompletionMode::Word),
+            Action::CompleteDocument => self.open_completion(CompletionMode::Document),
+            Action::CompleteFunction => self.open_completion(CompletionMode::Function),
             Action::Preferences => self.prefs.open(),
             Action::ToggleWrap => self.toggle_wrap(),
             Action::Find => self.find.open(&self.tabs[self.active].editor),
@@ -1227,6 +1282,94 @@ impl App {
         tab.highlighter.highlight_from(&mut tab.editor.doc, line);
     }
 
+    /// Fills the completion list for `mode`, and keeps it closed when there is
+    /// nothing to offer.
+    ///
+    /// Every mode but path completion copies the document, which a large file
+    /// cannot afford per keystroke, so the chord says so rather than doing
+    /// nothing. The words, the cap and the rows themselves come from
+    /// `nn-shared`, which is where the window's list comes from too; the anchor
+    /// is the frame's business, and it is worked out where the frame is drawn.
+    fn open_completion(&mut self, mode: CompletionMode) {
+        if self.editor().doc.is_large() {
+            self.complete.close();
+            self.say("Completion is off for large files", true);
+            return;
+        }
+        let (text, caret) = {
+            let editor = &self.tabs[self.active].editor;
+            (editor.doc.text(), editor.caret())
+        };
+        let items = match mode {
+            CompletionMode::Word => word_items(&text, caret, MAX_CANDIDATES),
+            CompletionMode::Document => {
+                // Every open document, large ones skipped and the pool capped:
+                // document completion is a convenience, and copying a hundred
+                // megabytes of text per keystroke would make it a liability.
+                const MAX_POOL_BYTES: usize = 4 * 1024 * 1024;
+                let mut texts: Vec<String> = Vec::new();
+                let mut total = 0usize;
+                for tab in &self.tabs {
+                    if tab.editor.doc.is_large() {
+                        continue;
+                    }
+                    let text = tab.editor.doc.text();
+                    total += text.len();
+                    texts.push(text);
+                    if total >= MAX_POOL_BYTES {
+                        break;
+                    }
+                }
+                let pool: Vec<&str> = texts.iter().map(String::as_str).collect();
+                pooled_items(&text, caret, &pool, MAX_CANDIDATES)
+            }
+            CompletionMode::Function => function_items(&text, caret, MAX_CANDIDATES),
+            // Path completion reads the filesystem through the window's own
+            // listing, which the terminal does not have yet: the chord says it is
+            // missing rather than offering the words of the document under the
+            // name of a path.
+            CompletionMode::Path => Vec::new(),
+        };
+        if items.is_empty() {
+            self.complete.close();
+            return;
+        }
+        self.complete.show(mode, items);
+    }
+
+    /// Replaces the word before the caret with the row under the cursor.
+    ///
+    /// The insertion is not the label: a function row shows its signature but
+    /// inserts `name()`, and the caret then steps back between the parentheses.
+    /// The prefix is replaced through the editor, so undo, the highlight and the
+    /// caret all see one edit.
+    fn accept_completion(&mut self) {
+        let Some(item) = self.complete.selected().cloned() else {
+            self.complete.close();
+            return;
+        };
+        let (text, caret) = {
+            let editor = &self.tabs[self.active].editor;
+            (editor.doc.text(), editor.caret())
+        };
+        let Some(range) = prefix_range(&text, caret) else {
+            self.complete.close();
+            return;
+        };
+        let doc = &self.tabs[self.active].editor.doc;
+        let start = doc.byte_to_char(range.start);
+        let end = doc.byte_to_char(range.end);
+        let line = self.tabs[self.active].editor.caret_line();
+        self.complete.close();
+        let editor = self.editor();
+        editor.select_range(start..end);
+        editor.insert(&item.insert);
+        for _ in 0..item.back {
+            editor.move_caret(Motion::CharLeft, false);
+        }
+        self.refresh_from(line);
+    }
+
     /// Re-lexes everything: undo and redo can have changed any line.
     fn refresh_all(&mut self) {
         if self.editor().doc.is_large() {
@@ -1478,6 +1621,10 @@ impl App {
         let mut row = layout.top;
         let mut line = self.tab_mut().scroll_line;
         let mut skip = if wrap { self.tab_mut().scroll_seg } else { 0 };
+        // Where the caret ended up on the screen, which is where the completion
+        // list hangs from: only the line the caret is on can answer that, and
+        // only once it has been drawn.
+        let mut caret_cell = None;
         while row < layout.bottom() && line < self.editor().doc.len_lines() {
             if skip == 0 {
                 // A line wears its number on its first row, and a continuation
@@ -1485,7 +1632,11 @@ impl App {
                 // several with the same number.
                 self.draw_gutter(grid, row, line, layout.gutter, caret_line);
             }
-            row += self.draw_line(grid, row, line, layout, caret, &selection, skip, wrap);
+            let drawn = self.draw_line(grid, row, line, layout, caret, &selection, skip, wrap);
+            if drawn.caret.is_some() {
+                caret_cell = drawn.caret;
+            }
+            row += drawn.rows;
             line += 1;
             skip = 0;
         }
@@ -1504,6 +1655,13 @@ impl App {
             }
         }
         self.draw_status(grid, status_row, width);
+        // The completion list over the text: it is the answer to a chord the
+        // reader pressed and it has to be readable, but it is a box beside the
+        // caret rather than a mode, so a dropdown or the preferences dialog
+        // still covers it.
+        if let Some(cell) = caret_cell {
+            self.complete.draw(grid, cell);
+        }
         // The menus last: a dropdown is an overlay, and the bar takes the top
         // row only while it is up. Midnight Commander's bar behaves the same
         // way, which is where a terminal user expects to find it.
@@ -1684,10 +1842,11 @@ impl App {
         selection: &std::ops::Range<usize>,
         skip: usize,
         wrap: bool,
-    ) -> usize {
+    ) -> Drawn {
         let line_start = self.tab().editor.doc.line_to_char(line);
         let mut display = 0usize;
         let mut used = 1usize;
+        let mut caret_cell = None;
         for (index, ch) in self.tab().editor.doc.line_chars(line).enumerate() {
             if ch == '\n' || ch == '\r' {
                 break;
@@ -1696,7 +1855,8 @@ impl App {
             let at = display;
             display = advance(display, ch, self.settings.tab_width);
             let char_index = line_start + index;
-            let tone = if char_index == caret {
+            let here = char_index == caret;
+            let tone = if here {
                 Tone::Caret
             } else if selection.contains(&char_index) {
                 Tone::Selection
@@ -1721,16 +1881,22 @@ impl App {
                     CellAt::Put(at_row, column) => {
                         grid.put(at_row, column, drawn, tone);
                         used = used.max(at_row - row + 1);
+                        if here {
+                            caret_cell = Some((at_row, column));
+                        }
                     }
                     CellAt::Past => {
                         // Nothing after this fits. With wrapping on that is the
                         // bottom of the screen, and every row left belongs to
                         // this line; with it off it is the right-hand edge, and
                         // the line is as tall as it ever was.
-                        return if wrap {
-                            layout.bottom().saturating_sub(row).max(1)
-                        } else {
-                            used
+                        return Drawn {
+                            rows: if wrap {
+                                layout.bottom().saturating_sub(row).max(1)
+                            } else {
+                                used
+                            },
+                            caret: caret_cell,
                         };
                     }
                 }
@@ -1744,18 +1910,25 @@ impl App {
                 CellAt::Put(at_row, column) => {
                     grid.put(at_row, column, ' ', Tone::Caret);
                     used = used.max(at_row - row + 1);
+                    caret_cell = Some((at_row, column));
                 }
                 CellAt::Hidden => {}
                 CellAt::Past => {
-                    return if wrap {
-                        layout.bottom().saturating_sub(row).max(1)
-                    } else {
-                        used
+                    return Drawn {
+                        rows: if wrap {
+                            layout.bottom().saturating_sub(row).max(1)
+                        } else {
+                            used
+                        },
+                        caret: caret_cell,
                     };
                 }
             }
         }
-        used
+        Drawn {
+            rows: used,
+            caret: caret_cell,
+        }
     }
 
     /// How many characters `line` holds, without its terminator.
@@ -1914,6 +2087,76 @@ mod tests {
         // The line number is there, in the gutter.
         assert!(rows[0].starts_with("1 "), "{:?}", rows);
         assert!(rows[0].trim_end().ends_with("hello"), "{:?}", rows);
+    }
+
+    #[test]
+    fn ctrl_space_lists_the_words_of_the_document_and_enter_takes_one() {
+        // A new line under a document that already says `alpha`, which is the
+        // case completion exists for.
+        let mut app = app("alpha beta\n\n");
+        app.tabs[0].editor.goto_position(1, 0);
+        for ch in "alph".chars() {
+            app.handle(Key::Char(ch));
+        }
+        app.handle(Key::Ctrl(' '));
+        assert!(app.complete.is_open(), "the chord opened the list");
+        assert_eq!(
+            app.complete.selected().map(|item| item.label.as_str()),
+            Some("alpha")
+        );
+        // The box is drawn over the text, under the caret's row and column.
+        let rows = drawn(&mut app, 30, 10);
+        assert!(rows[2].contains('┌'), "{rows:?}");
+        assert!(rows[2].contains('┐'), "{rows:?}");
+        assert!(rows[3].contains("alpha"), "{rows:?}");
+        app.handle(Key::Enter);
+        assert!(!app.complete.is_open());
+        assert_eq!(app.tab().editor.doc.text(), "alpha beta\nalpha\n");
+        assert_eq!(caret(&app), (1, 5));
+    }
+
+    #[test]
+    fn a_letter_narrows_the_open_list_and_a_space_ends_it() {
+        let mut app = app("alpha alpine beta\n\n");
+        app.tabs[0].editor.goto_position(1, 0);
+        for ch in "al".chars() {
+            app.handle(Key::Char(ch));
+        }
+        app.handle(Key::Ctrl(' '));
+        let names: Vec<&str> = app
+            .complete
+            .items()
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect();
+        assert_eq!(names, ["alpha", "alpine"]);
+        // Typing `p` keeps both: they start with `alp`.
+        app.handle(Key::Char('p'));
+        assert!(app.complete.is_open());
+        assert_eq!(app.complete.len(), 2);
+        // A space is not a word character: the list goes and the space is typed.
+        app.handle(Key::Char(' '));
+        assert!(!app.complete.is_open());
+        assert_eq!(app.tab().editor.doc.text(), "alpha alpine beta\nalp \n");
+    }
+
+    #[test]
+    fn escape_puts_the_list_away_and_leaves_the_word_alone() {
+        // A prefix that matches nothing opens no box and says nothing.
+        let mut blank = app("alpha\n");
+        blank.handle(Key::Ctrl(' '));
+        assert!(!blank.complete.is_open());
+        let mut app = app("alpha\n\n");
+        app.tabs[0].editor.goto_position(1, 0);
+        for ch in "al".chars() {
+            app.handle(Key::Char(ch));
+        }
+        app.handle(Key::Ctrl(' '));
+        assert!(app.complete.is_open());
+        app.handle(Key::Escape);
+        assert!(!app.complete.is_open());
+        assert_eq!(app.tab().editor.doc.text(), "alpha\nal\n");
+        assert_eq!(caret(&app), (1, 2));
     }
 
     #[test]
@@ -3117,6 +3360,28 @@ mod tests {
         let list_micros = start.elapsed().as_nanos() as f64 / 1000.0;
         println!("opening the results list {list} bytes in {list_micros:.1} us");
         assert!(list < paint, "the list cost {list} bytes of a {paint}-byte screen");
+
+        // The third shape: a completion box beside the caret. Same discipline --
+        // the box repaints the rows inside its own frame, so a chord that offers
+        // ten candidates costs a band of the screen and not a screen.
+        let words: String = (0..200).map(|n| format!("value_{n} ")).collect();
+        let mut typing = App::with_document(Document::from_text(&words));
+        *typing.settings_mut() = Settings::default();
+        typing.apply_settings();
+        typing.tabs[0].editor.goto_position(0, 6);
+        typing.draw(frame.grid());
+        frame.render();
+        typing.handle(Key::Ctrl(' '));
+        assert!(typing.complete.is_open(), "the box is what is being measured");
+        let start = std::time::Instant::now();
+        typing.draw(frame.grid());
+        let box_bytes = frame.render().len();
+        let box_micros = start.elapsed().as_nanos() as f64 / 1000.0;
+        println!("opening the completion list {box_bytes} bytes in {box_micros:.1} us");
+        assert!(
+            box_bytes < paint,
+            "the box cost {box_bytes} bytes of a {paint}-byte screen"
+        );
 
         // With wrapping on a vertical move walks rows, and counting the rows a
         // line takes is a pass over that line. That is the same order as the

@@ -60,6 +60,8 @@
 //!   localization file, and the language list a dialog offers.
 //! * [`results`] -- what a list of search hits says about itself: how a row is
 //!   written, where it is cut, and how many results in how many files.
+//! * [`completion`] -- the completion list: which words are offered for a
+//!   prefix, what accepting a row inserts, and how the cursor wraps.
 //!
 //! The one dispatcher comes next; it is still in `nn-app` while the shape of what
 //! the terminal needs is being learned from the terminal.
@@ -67,6 +69,7 @@
 pub mod action;
 pub mod catalogue;
 pub mod color;
+pub mod completion;
 pub mod i18n;
 pub mod keymap;
 pub mod prefs;

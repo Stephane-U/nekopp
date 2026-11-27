@@ -14057,3 +14057,102 @@ with the bar saying `searched /tmp/t140dir: 2 hits`. `Down` then `Enter` opened
 `2 results in the list`, and `Next Search Result` instead opened the first hit with
 the list down: `one.txt:2 (1/2)` and the status bar at `Ln 2, Col 1`.
 
+## The hundred-and-forty-first pass: word completion in the terminal
+
+`Ctrl+Space` has been in the shared keymap since the hundred-and-eleventh pass and
+this shell has answered it with "not in the terminal yet" ever since. It answers it
+now, and the first half of the work was not drawing anything: it was taking the list
+apart and finding out which half of it a terminal could not do without.
+
+What a completion list decides is one thing in both front-ends -- which words are
+offered, how far the cursor steps back after an insert, how many rows show at once,
+where the cursor wraps, and which keys refilter. None of that is a shaped glyph, and
+all of it was sitting inside the window's popup next to the shaping. So
+`nn-shared/src/completion.rs` now owns the mode, the row, the list's own state and
+the three builders (`word_items`, `pooled_items`, `function_items`), and the
+window's `CompletionPopup` holds a `Candidates` and delegates to it. What stayed in
+`nn-app` is what a box of pixels needs and a box of cells does not: the width in
+pixels, the featured glyph shaping, the click on a row. `fill_completion` went from
+eighty lines of four modes to three; `pooled_words` became `completion_pool` and
+returns the documents rather than their words, because the shared builder does the
+collecting.
+
+Six of the window's tests turned out to be the shared tests wearing a popup, and two
+more read fields the popup no longer has, so those eight went: the shared crate says
+the same things about the same code, and one sentence in two places is the drift
+this pass was for. `nn-app` keeps the tests that are about its own box -- the height
+cap, the width, `item_at`, the flip above the caret.
+
+The terminal's half is `crates/nn-tui/src/complete.rs`, and it is an overlay rather
+than a fixture: a border of cells, a row per candidate, the lit row in the tone the
+menus use, the box as wide as its longest label and never narrower than eight cells,
+hanging under the caret and flipping above it when there is no room. It never covers
+the status row: the bar is the one line on the screen that says what the file is,
+and nothing the reader can scroll covers it. Where the caret is on the screen was
+not something the frame knew -- `draw_line` answered how many rows a line took and
+nothing else -- so it now answers `Drawn { rows, caret }` and the frame carries the
+caret's cell to the box.
+
+The keys are the window's, one for one. `Up` and `Down` wrap at both ends, `Enter`
+and `Tab` take the row under the cursor, `Escape` puts the list away and hands the
+key on to nobody, and a character the mode refilters on is typed into the document
+first and then narrows the list -- which is what makes typing past a match work
+without a chord to dismiss it. Anything else closes the list and belongs to the
+editor, because an arrow that moved the caret with a box still hanging under it
+would be pointing at the wrong word. Every command closes the list before it runs,
+and so does the menu bar, so a dropdown is never drawn over a box that is about to
+mean something else.
+
+`Ctrl+Space` could not arrive at all until this pass: a keyboard sends it as NUL,
+and the key parser started its control range at one. The byte now parses as `Ctrl('
+')`, and the chord lookup folds that onto `KeyName::Space`, because the keymap
+spells a chord with the key's name rather than with a character and `Ctrl+ ` and
+`Ctrl+Space` have to be the same binding.
+
+Path completion is the one mode left out. Its listing is the window's own -- a
+directory walk through `nn-app::paths` -- and offering the document's words under
+the name of a path would be worse than the menu row saying it is missing, which it
+still does. Large files get the window's refusal in the window's words.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical. The
+move of the list's decisions into `nn-shared` changed nothing the window draws.
+
+`cargo test --offline --release`: 2,460 tests, 0 failed. Twelve are `nn-shared`'s
+new ones -- a closed list opening on rows, the wrap at both ends, the scroll keeping
+the cursor on screen, `set_selected` and its bounds, closing, what a word row and a
+function row insert, the four labels and the two refilter rules, and the four
+builders. Eleven are the terminal box's, drawn into a grid and read back: nothing
+when closed, a border with a row per candidate, the width following the longest
+label and the floor under it, the lit row, the flip above the caret, the status row
+left clear, the box kept inside the right edge, a long label cut with a mark, only
+the visible rows drawn, the wrap and the handing back of every other key, and a
+refilter putting the cursor back at the top. Three are the shell's: the chord
+opening the list on a half-typed word and `Enter` completing it, a letter narrowing
+the list and a space ending it with the space typed, and `Escape` putting it away
+without touching the word. `nn-app` lost the eight that were duplicates.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched.
+
+The keystroke is unchanged at 15,554 bytes for the first paint and 306 for a
+keystroke, 50.4 us. Putting the completion box up -- ten rows beside the caret, over
+a document of two hundred words -- costs 1,362 bytes and 26.3 us, against the search
+list's 1,476 and 57.7: a box this size repaints a band of the screen, which is what
+a chord is allowed to cost.
+
+Through a pseudo terminal, `/tmp/c1.txt` holding `alpha beta gamma` with the caret
+at the end: `End`, a new line, `al`, and `Ctrl+Space`, the one keystroke the driver
+had to be taught. The screen read
+
+   1 alpha beta gamma
+   2 al
+   3   ┌───────┐
+   4   │ alpha │
+   5   └───────┘
+
+with the box under the caret's column and one row below it. `Enter` replaced `al`
+with `alpha`, put the box away and left the file as it was on disk, which is the
+proof that the insert goes through the editor and not around it.
+

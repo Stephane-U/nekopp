@@ -50,11 +50,12 @@ use nn_core::backup::BackupMode;
 use nn_core::fold::BraceFolder;
 use nn_core::run::{RunCommand, RunContext};
 use nn_core::{
-    arg_range, call_at, collect_words, collect_words_many, file_stamp, lines, matching_words,
-    now_secs, params_of, path_prefix, prefix_range, scan_functions, scan_symbols, split_query,
+    arg_range, call_at, file_stamp, lines, now_secs, params_of, path_prefix, prefix_range,
+    scan_symbols, split_query,
     CLikeLexer, ConfigLexer, DiskChange, Document, Editor, Encoding, EolMode, FindInFiles,
     Highlighter, Lexer, Macro, Motion, PlainLexer, Projects, Step, Tree, Typed, UdlSet, MAX_CANDIDATES,
 };
+use nn_shared::completion::{function_items, pooled_items, word_items};
 use nn_shared::results::{files_noun, hits_noun};
 use winit::platform::startup_notify::{EventLoopExtStartupNotify, WindowAttributesExtStartupNotify};
 use winit::platform::x11::WindowAttributesExtX11;
@@ -4042,50 +4043,13 @@ impl State {
         let text = self.tab().editor.doc.text();
         let caret = self.tab().editor.caret();
         let items = match mode {
-            CompletionMode::Word => {
-                let Some(range) = prefix_range(&text, caret) else {
-                    return false;
-                };
-                let prefix = &text[range];
-                let words = collect_words(&text, 20_000);
-                matching_words(prefix, &words, MAX_CANDIDATES)
-                    .into_iter()
-                    .map(Item::word)
-                    .collect()
-            }
+            CompletionMode::Word => word_items(&text, caret, MAX_CANDIDATES),
             CompletionMode::Document => {
-                let Some(range) = prefix_range(&text, caret) else {
-                    return false;
-                };
-                let prefix = &text[range];
-                let words = self.pooled_words();
-                matching_words(prefix, &words, MAX_CANDIDATES)
-                    .into_iter()
-                    .map(Item::word)
-                    .collect()
+                let pool = self.completion_pool();
+                let refs: Vec<&str> = pool.iter().map(String::as_str).collect();
+                pooled_items(&text, caret, &refs, MAX_CANDIDATES)
             }
-            CompletionMode::Function => {
-                let Some(range) = prefix_range(&text, caret) else {
-                    return false;
-                };
-                let prefix = text[range].to_lowercase();
-                let mut seen: Vec<String> = Vec::new();
-                let mut items: Vec<Item> = Vec::new();
-                for function in scan_functions(&text) {
-                    if function.name.to_lowercase() == prefix
-                        || !function.name.to_lowercase().starts_with(&prefix)
-                        || seen.contains(&function.name)
-                    {
-                        continue;
-                    }
-                    seen.push(function.name.clone());
-                    items.push(Item::function(&function.name, &function.params));
-                    if items.len() >= MAX_CANDIDATES {
-                        break;
-                    }
-                }
-                items
-            }
+            CompletionMode::Function => function_items(&text, caret, MAX_CANDIDATES),
             CompletionMode::Path => {
                 let Some(range) = path_prefix(&text, caret) else {
                     return false;
@@ -4119,12 +4083,12 @@ impl State {
         true
     }
 
-    /// The words of every open document, for document completion.
+    /// The text of every open document, for document completion.
     ///
     /// Large documents are skipped and the pool stops growing at a few megabytes:
     /// document completion is a convenience, and copying a hundred megabytes of
     /// text on every keystroke would make it a liability.
-    fn pooled_words(&self) -> Vec<String> {
+    fn completion_pool(&self) -> Vec<String> {
         const MAX_POOL_BYTES: usize = 4 * 1024 * 1024;
         let mut texts: Vec<String> = Vec::new();
         let mut total = 0usize;
@@ -4139,8 +4103,7 @@ impl State {
                 break;
             }
         }
-        let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-        collect_words_many(&refs, 20_000)
+        texts
     }
 
     /// Re-filters the open popup after a character was typed.

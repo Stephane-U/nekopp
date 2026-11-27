@@ -28,11 +28,11 @@ use std::ops::Range;
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 
+use nn_shared::completion::{Candidates, VISIBLE_ROWS};
+
 use crate::quad::QuadRenderer;
 use crate::theme::{Rgb, Theme, ToGpu};
 
-/// The most rows the popup shows at once.
-pub const VISIBLE_ROWS: usize = 10;
 /// The narrowest and widest the popup gets, in pixels.
 const MIN_WIDTH: f32 = 120.0;
 /// Wide enough for a full signature: `set_caret_from_point(&mut self, x: f32,
@@ -42,99 +42,19 @@ const MAX_WIDTH: f32 = 560.0;
 /// Padding inside the frame.
 const PADDING: f32 = 6.0;
 
-/// Which of the three completion modes the popup is serving.
-///
-/// The popup itself does not care: it shows rows and reports which one is
-/// highlighted. The mode lives here rather than in `main.rs` because it decides
-/// what a keystroke refilters against, and that decision is worth a test.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum CompletionMode {
-    /// Words already in the active document.
-    Word,
-    /// Words from every open document.
-    Document,
-    /// Function declarations in the active document.
-    Function,
-    /// Filesystem paths.
-    Path,
-}
-
-impl CompletionMode {
-    /// The word the status bar uses while the popup is up.
-    pub fn label(self) -> &'static str {
-        match self {
-            CompletionMode::Word => "Word completion",
-            CompletionMode::Document => "Document completion",
-            CompletionMode::Function => "Function completion",
-            CompletionMode::Path => "Path completion",
-        }
-    }
-
-    /// Whether typing a word character should refilter the list.
-    ///
-    /// Path completion refilters on every character, because a filename can hold
-    /// dots and dashes that are not word characters. The other three only
-    /// refilter on word characters: typing `(` after a half-typed word means you
-    /// are done with the word, not that the word grew.
-    pub fn refilters_on(self, c: char) -> bool {
-        match self {
-            CompletionMode::Path => !c.is_whitespace(),
-            _ => c.is_alphanumeric() || c == '_',
-        }
-    }
-}
-
-/// One row of the completion list.
-///
-/// A row is not a string because the three completion modes disagree about what
-/// accepting one means. Word completion inserts the word it shows. Function
-/// completion shows `save(path: &Path)` but inserts `save()` and leaves the
-/// caret between the parentheses, because the parameters are a reminder, not
-/// text you asked for. Keeping the label and the insertion apart is what lets
-/// one popup serve all three.
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Item {
-    /// What the row shows.
-    pub label: String,
-    /// What accepting the row inserts.
-    pub insert: String,
-    /// How far to move the caret back after inserting.
-    pub back: usize,
-}
-
-impl Item {
-    /// A row that inserts exactly what it shows.
-    pub fn word(text: impl Into<String>) -> Self {
-        let text = text.into();
-        Self {
-            label: text.clone(),
-            insert: text,
-            back: 0,
-        }
-    }
-
-    /// A row for a function: shows the signature, inserts the call.
-    pub fn function(name: &str, params: &str) -> Self {
-        Self {
-            label: format!("{name}({params})"),
-            insert: format!("{name}()"),
-            back: 1,
-        }
-    }
-}
+/// The mode and the row come from `nn-shared`, which is where the decisions the
+/// two front-ends must agree on live; the re-export keeps every caller in this
+/// crate -- and `nn_app`'s own root -- spelled the way it was.
+pub use nn_shared::completion::{CompletionMode, Item};
 
 /// The floating completion list.
 pub struct CompletionPopup {
-    items: Vec<Item>,
-    /// Index into `items` of the highlighted row.
-    selected: usize,
-    /// Index of the first visible row.
-    scroll: usize,
+    /// The rows, the cursor and the scroll, which both front-ends share.
+    list: Candidates,
     /// Top-left corner in window pixels, before the flip.
     anchor: (f32, f32),
     /// Window height, so the popup can flip above the caret near the bottom.
     viewport: f32,
-    open: bool,
     body: Buffer,
     body_shaped: String,
     /// What the body was shaped for: (item count, scroll, width in chars).
@@ -150,12 +70,9 @@ impl CompletionPopup {
     /// Builds a closed popup.
     pub fn new(metrics: Metrics, family: Family<'static>, char_width: f32) -> Self {
         Self {
-            items: Vec::new(),
-            selected: 0,
-            scroll: 0,
+            list: Candidates::new(),
             anchor: (0.0, 0.0),
             viewport: 0.0,
-            open: false,
             body: Buffer::new_empty(metrics),
             body_shaped: String::new(),
             shaped_key: (usize::MAX, usize::MAX, usize::MAX),
@@ -199,83 +116,58 @@ impl CompletionPopup {
 
     /// Shows `items` with the top-left corner at `anchor`. An empty list closes.
     pub fn show(&mut self, items: Vec<Item>, anchor: (f32, f32)) {
-        self.open = !items.is_empty();
-        self.items = items;
-        self.selected = 0;
-        self.scroll = 0;
+        self.list.show(items);
         self.anchor = anchor;
         self.shaped_key = (usize::MAX, usize::MAX, usize::MAX);
     }
 
     /// Hides the popup and drops the list.
     pub fn close(&mut self) {
-        self.open = false;
-        self.items.clear();
-        self.selected = 0;
-        self.scroll = 0;
+        self.list.close();
         self.body_shaped.clear();
         self.shaped_key = (usize::MAX, usize::MAX, usize::MAX);
     }
 
     /// Whether the popup is showing.
     pub fn is_open(&self) -> bool {
-        self.open
+        self.list.is_open()
     }
 
     /// The highlighted row, for the accept handler.
     pub fn selected(&self) -> Option<&Item> {
-        self.items.get(self.selected)
+        self.list.selected()
     }
 
     /// The label of the highlighted row, for tests and for the status bar.
     pub fn selected_label(&self) -> Option<&str> {
-        self.selected().map(|item| item.label.as_str())
+        self.list.selected_label()
     }
 
     /// The number of candidates.
     pub fn len(&self) -> usize {
-        self.items.len()
+        self.list.len()
     }
 
     /// Whether there is nothing to show.
     pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
+        self.list.is_empty()
     }
 
     /// Moves the highlight by `delta` rows, wrapping at both ends.
-    ///
-    /// Wrapping rather than clamping: `Up` on the first row should reach the
-    /// last one, which is what every completion list does.
     pub fn move_selection(&mut self, delta: isize) {
-        if self.items.is_empty() {
-            return;
-        }
-        let n = self.items.len() as isize;
-        self.selected = (((self.selected as isize + delta) % n + n) % n) as usize;
-        self.scroll_to_selection();
+        self.list.move_selection(delta);
     }
 
     /// Highlights `index`, for a click on the list.
     pub fn set_selected(&mut self, index: usize) {
-        if index < self.items.len() {
-            self.selected = index;
-            self.scroll_to_selection();
-        }
-    }
-
-    /// Keeps the highlighted row inside the visible window.
-    fn scroll_to_selection(&mut self) {
-        if self.selected < self.scroll {
-            self.scroll = self.selected;
-        } else if self.selected >= self.scroll + VISIBLE_ROWS {
-            self.scroll = self.selected + 1 - VISIBLE_ROWS;
-        }
+        self.list.set_selected(index);
     }
 
     /// The width the popup occupies.
     pub fn width(&self) -> f32 {
         let longest = self
-            .items
+            .list
+            .items()
             .iter()
             .map(|item| item.label.chars().count())
             .max()
@@ -286,16 +178,16 @@ impl CompletionPopup {
 
     /// The height the popup occupies.
     pub fn height(&self, line_height: f32) -> f32 {
-        if !self.open {
+        if !self.list.is_open() {
             return 0.0;
         }
-        let rows = self.items.len().min(VISIBLE_ROWS) as f32;
+        let rows = self.list.len().min(VISIBLE_ROWS) as f32;
         rows * line_height + PADDING * 2.0
     }
 
     /// The item index under `(x, y)` in window pixels.
     pub fn item_at(&self, x: f32, y: f32, line_height: f32) -> Option<usize> {
-        if !self.open {
+        if !self.list.is_open() {
             return None;
         }
         let (left, _) = self.anchor;
@@ -307,20 +199,20 @@ impl CompletionPopup {
         if row >= VISIBLE_ROWS {
             return None;
         }
-        let index = self.scroll + row;
-        (index < self.items.len()).then_some(index)
+        let index = self.list.scroll() + row;
+        (index < self.list.len()).then_some(index)
     }
 
     /// Highlights the item under `(x, y)`, if any.
     pub fn hover(&mut self, x: f32, y: f32, line_height: f32) {
         if let Some(index) = self.item_at(x, y, line_height) {
-            self.selected = index;
+            self.list.set_selected(index);
         }
     }
 
     /// Rebuilds the shaped rows if anything they depend on changed.
     pub fn prepare(&mut self, font_system: &mut FontSystem) {
-        if !self.open {
+        if !self.list.is_open() {
             return;
         }
         // Rounded, not truncated: `width()` is `columns * char_width + padding`,
@@ -329,20 +221,23 @@ impl CompletionPopup {
         let columns = ((self.width() - PADDING * 2.0) / self.char_width)
             .max(4.0)
             .round() as usize;
-        let key = (self.items.len(), self.scroll, columns);
+        let key = (self.list.len(), self.list.scroll(), columns);
         if key == self.shaped_key {
             return;
         }
         self.shaped_key = key;
 
-        let visible = self.items.len().min(VISIBLE_ROWS);
+        let visible = self.list.len().min(VISIBLE_ROWS);
         let mut text = String::with_capacity(visible * (columns + 1));
-        for row in 0..visible {
-            if row > 0 {
+        for offset in 0..visible {
+            if offset > 0 {
                 text.push('\n');
             }
-            let item = &self.items[self.scroll + row];
-            text.push_str(&truncate(&item.label, columns));
+            let index = self.list.scroll() + offset;
+            match self.list.item(index) {
+                Some(item) => text.push_str(&truncate(&item.label, columns)),
+                None => break,
+            }
         }
         if text == self.body_shaped {
             return;
@@ -359,7 +254,7 @@ impl CompletionPopup {
 
     /// Queues the frame and the highlighted row.
     pub fn push_quads(&self, quads: &mut QuadRenderer, line_height: f32, theme: &Theme) {
-        if !self.open {
+        if !self.list.is_open() {
             return;
         }
         let (left, _) = self.anchor;
@@ -380,8 +275,9 @@ impl CompletionPopup {
         quads.push(left, top, 1.0, height, border);
         quads.push(left + width - 1.0, top, 1.0, height, border);
 
-        let row = self.selected.wrapping_sub(self.scroll);
-        if row < VISIBLE_ROWS && self.selected < self.items.len() {
+        let selected = self.list.selected_index();
+        let row = selected.wrapping_sub(self.list.scroll());
+        if row < VISIBLE_ROWS && selected < self.list.len() {
             quads.push(
                 left + 1.0,
                 top + PADDING + row as f32 * line_height,
@@ -394,7 +290,7 @@ impl CompletionPopup {
 
     /// The text areas of the visible rows.
     pub fn text_areas<'a>(&'a self, line_height: f32, theme: &Theme) -> Vec<TextArea<'a>> {
-        if !self.open {
+        if !self.list.is_open() {
             return Vec::new();
         }
         let (left, _) = self.anchor;
@@ -783,31 +679,6 @@ mod tests {
     }
 
     #[test]
-    fn the_selection_scrolls_into_view() {
-        let mut p = popup();
-        p.show(items(30), (0.0, 0.0));
-        for _ in 0..VISIBLE_ROWS {
-            p.move_selection(1);
-        }
-        assert_eq!(p.selected, VISIBLE_ROWS);
-        assert_eq!(p.scroll, 1);
-    }
-
-    #[test]
-    fn scrolling_back_up_follows_the_selection() {
-        let mut p = popup();
-        p.show(items(30), (0.0, 0.0));
-        for _ in 0..15 {
-            p.move_selection(1);
-        }
-        for _ in 0..15 {
-            p.move_selection(-1);
-        }
-        assert_eq!(p.selected, 0);
-        assert_eq!(p.scroll, 0);
-    }
-
-    #[test]
     fn item_at_maps_a_row_to_an_item() {
         let mut p = popup();
         p.show(items(5), (100.0, 50.0));
@@ -875,56 +746,6 @@ mod tests {
         // Two rows plus padding is 52 px, so 470 + 52 > 500 and the box moves
         // up to 470 - 52 = 418.
         assert_eq!(popup.item_at(20.0, 418.0 + 6.0 + 5.0, 20.0), Some(0));
-    }
-
-    #[test]
-    fn a_word_row_inserts_what_it_shows() {
-        let item = Item::word("document");
-        assert_eq!(item.label, "document");
-        assert_eq!(item.insert, "document");
-        assert_eq!(item.back, 0);
-    }
-
-    #[test]
-    fn a_function_row_shows_the_signature_and_inserts_the_call() {
-        let item = Item::function("save", "path: &Path");
-        assert_eq!(item.label, "save(path: &Path)");
-        assert_eq!(item.insert, "save()");
-        assert_eq!(item.back, 1);
-    }
-
-    #[test]
-    fn a_function_with_no_parameters_still_inserts_parentheses() {
-        let item = Item::function("new", "");
-        assert_eq!(item.label, "new()");
-        assert_eq!(item.insert, "new()");
-    }
-
-    #[test]
-    fn every_mode_has_a_label() {
-        for mode in [
-            CompletionMode::Word,
-            CompletionMode::Document,
-            CompletionMode::Function,
-            CompletionMode::Path,
-        ] {
-            assert!(!mode.label().is_empty());
-        }
-    }
-
-    #[test]
-    fn word_modes_refilter_on_word_characters_only() {
-        assert!(CompletionMode::Word.refilters_on('a'));
-        assert!(CompletionMode::Word.refilters_on('_'));
-        assert!(!CompletionMode::Word.refilters_on('('));
-        assert!(!CompletionMode::Word.refilters_on(' '));
-    }
-
-    #[test]
-    fn path_mode_refilters_on_punctuation() {
-        assert!(CompletionMode::Path.refilters_on('.'));
-        assert!(CompletionMode::Path.refilters_on('-'));
-        assert!(!CompletionMode::Path.refilters_on(' '));
     }
 
     fn hint() -> ParamHint {

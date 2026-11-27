@@ -26,6 +26,7 @@
 //! been resized is noticed while the editor is idle rather than at the next key.
 
 mod app;
+mod complete;
 mod find;
 mod keys;
 mod menus;
