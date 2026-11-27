@@ -47,6 +47,8 @@ pub enum Kind {
     GotoLine,
     /// A pattern to search the files around the document for.
     FindInFiles,
+    /// A folder to show as the workspace tree.
+    Workspace,
 }
 
 impl Kind {
@@ -59,6 +61,7 @@ impl Kind {
             Kind::SaveAs => "Save as:",
             Kind::GotoLine => "Go to line:",
             Kind::FindInFiles => "Find in files:",
+            Kind::Workspace => "Folder:",
         }
     }
 }
@@ -289,6 +292,7 @@ mod tests {
             (Kind::Open, "Open:"),
             (Kind::SaveAs, "Save as:"),
             (Kind::GotoLine, "Go to line:"),
+            (Kind::Workspace, "Folder:"),
         ] {
             prompt.open(kind);
             assert!(drawn(&prompt, 20).starts_with(label));

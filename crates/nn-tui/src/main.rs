@@ -38,6 +38,7 @@ mod results;
 mod screen;
 mod symbols;
 mod term;
+mod workspace;
 
 use std::path::PathBuf;
 use std::sync::Mutex;

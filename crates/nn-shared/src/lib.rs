@@ -86,3 +86,4 @@ pub mod symbols;
 pub mod menu;
 pub mod tabcolour;
 pub mod theme;
+pub mod workspace;

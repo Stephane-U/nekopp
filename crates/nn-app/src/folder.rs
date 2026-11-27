@@ -33,6 +33,7 @@
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 use nn_core::Tree;
+use nn_shared::workspace::{row, title};
 
 use crate::quad::QuadRenderer;
 use crate::theme::{Theme, ToGpu};
@@ -388,12 +389,7 @@ impl FolderPanel {
     /// to be clicked. A caret marks it while it has the keyboard, which is the
     /// only affordance a text field drawn as text can offer.
     fn header_line(&self) -> String {
-        let count = self.tree.file_count();
-        let title = if self.tree.is_truncated() {
-            format!("{} ({count}+ files)", self.title)
-        } else {
-            format!("{} ({count} files)", self.title)
-        };
+        let title = title(&self.title, &self.tree);
         let filter = if self.filter_focus {
             format!("Filter: {}_", self.filter)
         } else if self.filter.is_empty() {
@@ -414,18 +410,7 @@ impl FolderPanel {
         let Some(entry) = rows.get(index) else {
             return String::new();
         };
-        let indent = "  ".repeat(entry.depth as usize);
-        let marker = if entry.dir {
-            if self.tree.is_expanded(&entry.path) {
-                "- "
-            } else {
-                "+ "
-            }
-        } else {
-            "  "
-        };
-        let text = format!("{indent}{marker}{}", entry.name);
-        truncate(&text, columns)
+        row(entry, self.tree.is_expanded(&entry.path), columns)
     }
 
     /// Queues the panel background and its right border.
@@ -499,16 +484,6 @@ impl FolderPanel {
             },
         ]
     }
-}
-
-/// Cuts `text` to `columns` characters, marking the cut with an ellipsis.
-fn truncate(text: &str, columns: usize) -> String {
-    if text.chars().count() <= columns {
-        return text.to_string();
-    }
-    let mut out: String = text.chars().take(columns.saturating_sub(1)).collect();
-    out.push('…');
-    out
 }
 
 #[cfg(test)]
@@ -599,16 +574,6 @@ mod tests {
     }
 
     #[test]
-    fn a_truncated_scan_says_so() {
-        let mut panel = panel();
-        let mut tree = Tree::default();
-        tree.set_roots(&[PathBuf::from("/w")]);
-        panel.show(tree, "x");
-        // A hand-built tree is never truncated, so the header is the plain one.
-        assert!(panel.header_line().contains("(0 files)"));
-    }
-
-    #[test]
     fn row_at_maps_a_row_to_an_index() {
         let mut panel = panel();
         panel.show(tree(), "x");
@@ -678,11 +643,5 @@ mod tests {
         panel.show(tree(), "x");
         let text = panel.row_text(0, 40);
         assert_eq!(text, "- w");
-    }
-
-    #[test]
-    fn truncate_marks_the_cut() {
-        assert_eq!(truncate("short", 10), "short");
-        assert_eq!(truncate("abcdef", 4), "abc…");
     }
 }

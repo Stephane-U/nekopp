@@ -14390,3 +14390,91 @@ with the nested row indented, and three `Down`s and `Enter` put the caret on lin
 62 -- `pub struct Symbol {` -- with the bar reading `Symbol:62 (4/69)` and the
 list gone. On a file holding one line of prose the same command left the list
 shut and the bar read `no symbols in this document`.
+
+## The hundred-and-forty-fifth pass: the workspace panel, docked on the left
+
+The window has shown a folder tree down the left edge since the first hundred
+passes: one widget for "Folder as Workspace" and for the project panels, because
+the difference between them is the title and where the roots come from. Two of
+the things that panel says have moved to `nn-shared/src/workspace.rs` -- the line
+above the rows, `Folder as Workspace (12 files)`, and the row itself, indented one
+step per level with `-` on an open folder, `+` on a closed one and a pair of
+spaces where a file has neither. The window's `header_line` and `row_text` call
+into it now, and its own `truncate` and the two tests that wore it went with the
+move.
+
+Sharing the title fixed a plural on the way: the window said `(1 files)`. It now
+says `(1 file)`, which is what the results list and the function list have said
+all along.
+
+The terminal's half is `crates/nn-tui/src/workspace.rs`, and it is a dock on the
+left edge rather than a third list above the status bar. A file tree is read
+top-down and wants height; the bottom edge already belongs to the search results
+and to the function list, which are bands of eight rows apiece, and a tree in one
+of those would be a peephole. A third of the width, and never more than the
+window's own column aims to be, which is twenty-eight columns.
+
+What differs between the two front-ends is the pointer. The window acts on a row
+with a click and keeps the keyboard with the text. A terminal has no click on the
+text to hand the keyboard back, so the tree walks itself while it is up -- as
+every list in this shell does -- and `Enter` opens the row under the cursor: a
+folder opens or closes where it stands and the tree stays up, because the reader
+is still walking it; a file is opened in a tab of its own and the dock goes,
+because arriving somewhere has to give the arrows back.
+
+The dock is counted before the gutter rather than beside it: `Layout` gained a
+`dock` field, and `gutter` still means the column the text starts at, so the
+caret arithmetic, the wrapping and the viewport are the code they were. With the
+dock down -- which is every frame until the command is used -- the layout is
+identical to the one before it, which is what the screenshots say.
+
+The way in is the window's: `View > Folder as Workspace` toggles the folder the
+document in front lives in, and `File > Open Folder as Workspace...` asks for a
+path, refusing a file with `<path> is not a folder` rather than showing an empty
+tree. The prompt grew the kind it needed for the second one, `Folder:`, in the
+window's words.
+
+One part of the panel did not come across: the filter box. It is a text field
+that needs the keyboard, which in a terminal means a focus the shell does not
+have and a mode it does not want. The tree shows every row the scan found --
+capped at ten thousand entries, as the window's is -- and the filter is a gap to
+be filled by a pass that decides how a terminal focuses a field, not by this one.
+
+### Verified
+
+`cargo test --offline --release`: 2,502 tests, 0 failed. Three are `nn-shared`'s:
+a folder row carrying `-` or `+` and a file row carrying neither, a long name cut
+with a mark, and the title counting files with the noun agreeing. Six are the
+dock's, drawn into a grid and read back: a closed dock drawing nothing, the
+header and the rows in tree order with folders first, the marker following a
+folder opened where it stands, `Enter` on a row being a choice and `Escape`
+taking the dock down with the tree, the cursor walking between both ends and a
+letter belonging to the document, and the rows scrolling so the cursor stays on
+screen. Three are the shell's: the dock taking the left edge with the document
+starting after it, a folder row opening where it stands and a file row opening a
+tab and putting the dock away, and a folder chosen from the prompt, refused when
+it is not one. `nn-app` lost the two whose subject had moved.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: both commands were already
+listed there.
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical,
+which is the point of the dock being nought columns wide until it is asked for.
+
+The terminal's keystroke is unchanged at 15,554 bytes for the first paint and 306
+for one, in 48.0 us.
+
+Through a pseudo terminal on a folder holding `main.rs`, `notes.txt` and
+`sub/deep.txt`, `View > Folder as Workspace` drew
+
+     1  Folder as Workspace (3 fil…1 fn main() {
+     2  - p145dir                 │2 }
+     3    + sub                   │3
+     4      main.rs               │
+     5      notes.txt             │
+
+with the document where it was, one dock to the right. `Down` and `Enter` opened
+`sub` where it stood and the tree grew a row; `Down` and `Enter` on `deep.txt`
+opened it in a second tab, took the dock down and left the bar reading
+`opened /tmp/p145dir/sub/deep.txt`.

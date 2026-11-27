@@ -31,7 +31,7 @@ use nn_core::paths::absolute;
 use nn_core::symbols::scan;
 use nn_core::{
     path_prefix, prefix_range, split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles,
-    Highlighter, Lexer, Motion, MAX_CANDIDATES,
+    Highlighter, Lexer, Motion, Tree, MAX_CANDIDATES,
 };
 use nn_shared::action::Action;
 use nn_shared::completion::{
@@ -57,6 +57,7 @@ use crate::prompt::{Kind as PromptKind, Prompt};
 use crate::results::{Results, Step};
 use crate::screen::Grid;
 use crate::symbols::Symbols;
+use crate::workspace::Workspace;
 
 /// How the window is divided up, worked out once per frame.
 ///
@@ -72,6 +73,9 @@ struct Layout {
     gutter: usize,
     /// Columns left for the text.
     text_cols: usize,
+    /// Columns the workspace panel takes at the left edge, nought when it is
+    /// down. The gutter is counted after it: `gutter` is where the text starts.
+    dock: usize,
     /// The list above the status bar -- the search results, or the function
     /// list, whichever is up, and never both: the row it starts on, and how many
     /// rows it has, its header included.
@@ -239,6 +243,12 @@ pub struct App {
     /// the same keys but hold different things, and the frame gives the slot
     /// above the status bar to whichever is open.
     symbols: Symbols,
+    /// The folder tree down the left edge.
+    ///
+    /// A dock of its own rather than a third list in the slot above the status
+    /// bar: a tree wants height, and it wants the left edge, which is where the
+    /// window puts it.
+    workspace: Workspace,
     /// The one-line prompt, when a command needs a line typed before it runs.
     prompt: Prompt,
     /// The completion list, which shares its rows and its cursor with the
@@ -321,6 +331,7 @@ impl App {
             find: Find::new(),
             results: Results::new(),
             symbols: Symbols::new(),
+            workspace: Workspace::new(),
             prompt: Prompt::new(),
             complete: Completion::new(),
             hint: ParamHint::new(),
@@ -671,6 +682,20 @@ impl App {
                 }
             }
         }
+        // The workspace tree walks itself while it is up, and it goes last: a
+        // list over the bottom of the screen is a picker with the keyboard, and
+        // the tree is a dock that can wait. `Enter` opens the row under the
+        // cursor -- a folder where it stands, a file in a tab of its own.
+        if self.workspace.is_open() {
+            match self.workspace.handle(key) {
+                Step::No => {}
+                Step::Moved | Step::Closed => return,
+                Step::Chosen(index) => {
+                    self.choose_workspace_row(index);
+                    return;
+                }
+            }
+        }
         // Ctrl+Q leaves, and it has to: the window binds `exit` to Ctrl+Shift+Q,
         // which a terminal cannot send -- Ctrl and Shift and a letter is not one
         // of the bytes a keyboard puts on the wire. A shell that could only be
@@ -840,6 +865,8 @@ impl App {
             Action::FindInFiles => self.prompt.open(PromptKind::FindInFiles),
             Action::SearchResultsWindow => self.search_results_window(),
             Action::ToggleFunctionList => self.toggle_function_list(),
+            Action::FolderAsWorkspace => self.toggle_workspace(),
+            Action::OpenFolderAsWorkspace => self.prompt.open(PromptKind::Workspace),
             Action::NextSearchResult => self.step_hit(true),
             Action::PrevSearchResult => self.step_hit(false),
             Action::Replace => self.find.open_replace(&self.tabs[self.active].editor),
@@ -969,6 +996,7 @@ impl App {
             PromptKind::Open => self.open_path(text.trim()),
             PromptKind::SaveAs => self.save_as(text.trim()),
             PromptKind::FindInFiles => self.find_in_files(text.trim()),
+            PromptKind::Workspace => self.adopt_workspace(text.trim()),
         }
     }
 
@@ -1269,6 +1297,73 @@ impl App {
             self.results.hits().len()
         );
         self.say(&message, false);
+    }
+
+    /// Shows the folder the document is in as a tree, or takes the dock down.
+    ///
+    /// The window's command and the window's starting folder: the one the
+    /// document in front lives in, and this shell's working directory for a
+    /// buffer that has no file yet.
+    fn toggle_workspace(&mut self) {
+        if self.workspace.is_open() {
+            self.workspace.close();
+            return;
+        }
+        let root = self.workspace_root();
+        let tree = Tree::scan(&[root]);
+        self.workspace.show(tree, "Folder as Workspace");
+    }
+
+    /// The folder a workspace command starts from.
+    fn workspace_root(&self) -> PathBuf {
+        self.tab()
+            .editor
+            .doc
+            .path()
+            .and_then(|path| path.parent())
+            .map(Path::to_path_buf)
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("/"))
+    }
+
+    /// Shows a typed folder as the workspace tree.
+    ///
+    /// A path that is not a folder is refused in the bar rather than shown as an
+    /// empty tree, which is what the window says and what keeps an empty panel
+    /// from looking like an empty folder.
+    fn adopt_workspace(&mut self, typed: &str) {
+        if typed.is_empty() {
+            self.say("folder: type a path", true);
+            return;
+        }
+        let path = absolute(Path::new(typed));
+        if !path.is_dir() {
+            let message = format!("{} is not a folder", path.display());
+            self.say(&message, true);
+            return;
+        }
+        let tree = Tree::scan(std::slice::from_ref(&path));
+        self.workspace.show(tree, "Folder as Workspace");
+        self.say(&format!("workspace: {}", path.display()), false);
+    }
+
+    /// Opens the row the tree's cursor is standing on.
+    ///
+    /// A folder opens or closes where it stands and the tree stays up, because
+    /// the reader is still walking it. A file is opened and the dock goes: on a
+    /// terminal the tree holds the arrows while it is up, so arriving somewhere
+    /// has to hand them back. The window keeps its panel because a click on the
+    /// text is a way to hand them back that a terminal does not have.
+    fn choose_workspace_row(&mut self, index: usize) {
+        let Some(path) = self.workspace.path_at(index) else {
+            return;
+        };
+        if self.workspace.is_dir_at(index) {
+            self.workspace.tree_mut().toggle(&path);
+            return;
+        }
+        self.workspace.close();
+        self.open_path(&path.display().to_string());
     }
 
     /// Shows what the document in front declares, or puts the list away.
@@ -1660,7 +1755,18 @@ impl App {
         if width == 0 || height == 0 {
             return;
         }
-        let gutter = self.gutter_width().min(width);
+        // The dock is counted first, because the gutter is counted after it: a
+        // line number sits beside the text, and the tree sits beside the line
+        // number. A third of the screen, and never more than the window's own
+        // column aims to be -- a tree is read for the names on it, and a
+        // terminal that gave it half its width would have given the document
+        // nothing.
+        let dock = if self.workspace.is_open() {
+            (width / 3).min(28)
+        } else {
+            0
+        };
+        let gutter = (dock + self.gutter_width()).min(width);
         // The strip is drawn only when there is more than one document to name,
         // which is the window's rule, and only on a screen tall enough to spare
         // the row: two documents and two rows is a shell with nowhere to type.
@@ -1690,6 +1796,7 @@ impl App {
             top: usize::from(strip),
             gutter,
             text_cols: width - gutter,
+            dock,
             list: (results_rows > 0).then(|| (block_top + find_rows, results_rows)),
             bar_row: (find_rows > 0).then_some(block_top),
             status_row: height - 1,
@@ -1771,7 +1878,7 @@ impl App {
                 // A line wears its number on its first row, and a continuation
                 // row has none: the strip reads as one line rather than as
                 // several with the same number.
-                self.draw_gutter(grid, row, line, layout.gutter, caret_line);
+                self.draw_gutter(grid, row, line, layout.dock, layout.gutter, caret_line);
             }
             let drawn = self.draw_line(grid, row, line, layout, caret, &selection, skip, wrap);
             if drawn.caret.is_some() {
@@ -1784,6 +1891,10 @@ impl App {
         self.tab_mut().visible_until = line;
         if strip {
             self.draw_strip(grid, 0, width);
+        }
+        if layout.dock > 0 {
+            let rows = layout.bottom().saturating_sub(layout.top);
+            self.workspace.draw(grid, layout.top, rows, layout.dock);
         }
         if let Some((top, rows)) = layout.list {
             if self.symbols.is_open() {
@@ -1880,8 +1991,16 @@ impl App {
     }
 
     /// Puts the line number, right-aligned, at the left of `row`.
-    fn draw_gutter(&self, grid: &mut Grid, row: usize, line: usize, gutter: usize, caret: usize) {
-        if gutter == 0 {
+    fn draw_gutter(
+        &self,
+        grid: &mut Grid,
+        row: usize,
+        line: usize,
+        left: usize,
+        gutter: usize,
+        caret: usize,
+    ) {
+        if gutter <= left + 1 {
             return;
         }
         let tone = if line == caret {
@@ -1889,8 +2008,8 @@ impl App {
         } else {
             Tone::Gutter
         };
-        let number = format!("{:>width$}", line + 1, width = gutter - 1);
-        grid.text(row, 0, &number, tone);
+        let number = format!("{:>width$}", line + 1, width = gutter - left - 1);
+        grid.text(row, left, &number, tone);
         grid.put(row, gutter - 1, ' ', tone);
     }
 
@@ -3042,6 +3161,113 @@ mod tests {
         app.run(Action::ToggleFunctionList);
         app.run(Action::ToggleFunctionList);
         assert!(!app.symbols.is_open());
+    }
+
+    /// Where `needle` starts in `row`, counted in characters rather than bytes.
+    ///
+    /// A row is a string of cells, and the border glyph and the ellipsis are
+    /// three bytes each: a byte offset would name a column no reader has.
+    fn column_of(row: &str, needle: &str) -> Option<usize> {
+        let bytes = row.find(needle)?;
+        Some(row.get(..bytes)?.chars().count())
+    }
+
+    /// A folder holding two files, for the workspace tests.
+    fn workspace_folder(name: &str) -> PathBuf {
+        let dir = temp(&format!("workspace-{name}"));
+        std::fs::create_dir_all(dir.join("sub")).expect("mkdir");
+        std::fs::write(dir.join("one.txt"), "the document\n").expect("write");
+        std::fs::write(dir.join("two.txt"), "the other one\n").expect("write");
+        std::fs::write(dir.join("sub/deep.txt"), "deeper\n").expect("write");
+        dir
+    }
+
+    /// Presses `Down` until the tree's cursor is on the row named `name`.
+    fn walk_to(app: &mut App, name: &str) {
+        let count = app.workspace.row_count();
+        for index in 0..count {
+            let here = app
+                .workspace
+                .path_at(index)
+                .and_then(|path| path.file_name().map(|n| n.to_string_lossy().into_owned()));
+            if here.as_deref() == Some(name) {
+                for _ in 0..index {
+                    app.handle(Key::Down);
+                }
+                return;
+            }
+        }
+        panic!("no row called {name} in {} rows", count);
+    }
+
+    #[test]
+    fn the_workspace_dock_lists_the_folder_beside_the_text() {
+        let dir = workspace_folder("dock");
+        let mut app = App::open(Some(&dir.join("one.txt"))).expect("open");
+        app.run(Action::FolderAsWorkspace);
+        assert!(app.workspace.is_open());
+        let rows = drawn(&mut app, 60, 12);
+        // The dock takes a third of the width, its header says what the panel
+        // is, and its last column is the border rather than a row of the tree.
+        let dock = 60 / 3;
+        // The title is cut to the column the dock got, as the window's is cut
+        // to its own column: on a third of a terminal there is no room for the
+        // count and the name both.
+        assert!(rows[0].contains("Folder as"), "{rows:?}");
+        assert!(rows[0].chars().nth(dock - 1) == Some('│'), "{rows:?}");
+        assert!(rows.iter().any(|row| row.contains("two.txt")), "{rows:?}");
+        // The document starts after the dock and its line number, and it is the
+        // document the whole time: the dock takes columns, not the screen.
+        let text = rows
+            .iter()
+            .position(|row| row.contains("the document"))
+            .unwrap_or_else(|| panic!("no text: {rows:?}"));
+        assert_eq!(column_of(&rows[text], "the document"), Some(dock + 2), "{rows:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_folder_row_opens_where_it_stands_and_a_file_row_opens_a_tab() {
+        let dir = workspace_folder("rows");
+        let mut app = App::open(Some(&dir.join("one.txt"))).expect("open");
+        app.run(Action::FolderAsWorkspace);
+        // A folder nobody has opened yet, one level in: `Enter` opens it, and
+        // the dock stays up because the reader is still walking it.
+        walk_to(&mut app, "sub");
+        let before = app.workspace.row_count();
+        app.handle(Key::Enter);
+        assert!(app.workspace.is_open(), "the dock went away");
+        assert!(app.workspace.row_count() > before, "the folder stayed shut");
+        // A file is opened in a tab of its own, and the dock goes: on a terminal
+        // the tree holds the arrows while it is up.
+        walk_to(&mut app, "two.txt");
+        app.handle(Key::Enter);
+        assert!(!app.workspace.is_open(), "the dock stayed up");
+        assert_eq!(app.tabs.len(), 2);
+        assert_eq!(app.tab().editor.doc.path(), Some(dir.join("two.txt").as_path()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_folder_can_be_chosen_from_the_prompt() {
+        let dir = workspace_folder("prompt");
+        let mut app = app("just text\n");
+        prompt(&mut app, Action::OpenFolderAsWorkspace, &dir.display().to_string());
+        assert!(app.workspace.is_open());
+        assert_eq!(
+            app.message(),
+            Some(&*format!("workspace: {}", dir.display()))
+        );
+        // A path that is not a folder is refused rather than shown as an empty
+        // tree, which is what the window says.
+        let file = dir.join("one.txt");
+        prompt(&mut app, Action::OpenFolderAsWorkspace, &file.display().to_string());
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.ends_with("is not a folder"), "{message}");
+        // And the command that shows the document's folder closes it again.
+        app.run(Action::FolderAsWorkspace);
+        assert!(!app.workspace.is_open(), "the dock stayed up");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
