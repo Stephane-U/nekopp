@@ -39,6 +39,7 @@ use crate::keys::Key;
 use crate::menus::Menus;
 use crate::palette::{self, Palette, Tone};
 use crate::prefs::Prefs;
+use crate::prompt::{Kind as PromptKind, Prompt};
 use crate::screen::Grid;
 
 /// How the window is divided up, worked out once per frame.
@@ -52,8 +53,9 @@ struct Layout {
     gutter: usize,
     /// Columns left for the text.
     text_cols: usize,
-    /// The row the find bar is drawn on, while it is up.
-    find_row: Option<usize>,
+    /// The first row of the strip above the status line, while anything is up:
+    /// the prompt, or the find bar with its replacement row.
+    bar_row: Option<usize>,
     /// The row the bar is drawn on.
     status_row: usize,
 }
@@ -61,7 +63,7 @@ struct Layout {
 impl Layout {
     /// The rows the document has, which is every row above the first strip.
     fn text_rows(self) -> usize {
-        self.find_row.unwrap_or(self.status_row)
+        self.bar_row.unwrap_or(self.status_row)
     }
 }
 
@@ -136,6 +138,8 @@ pub struct App {
     /// The find bar and its pattern, which outlives the bar so `F3` works after
     /// it closes.
     find: Find,
+    /// The one-line prompt, when a command needs a line typed before it runs.
+    prompt: Prompt,
     settings: Settings,
     /// The chords, read out of the settings.
     ///
@@ -185,6 +189,7 @@ impl App {
             menus: Menus::new(&Keymap::default()),
             prefs: Prefs::new(),
             find: Find::new(),
+            prompt: Prompt::new(),
             settings: Settings::load(),
             keymap: Keymap::default(),
             palette: Palette::of(&nn_shared::theme::Theme::DARK),
@@ -256,6 +261,7 @@ impl App {
         self.prefs.set_languages(&installed);
         self.prefs.set_catalog(catalog.clone());
         self.find.set_catalog(catalog.clone());
+        self.prompt.set_catalog(catalog.clone());
         self.menus.set_catalog(catalog);
     }
 
@@ -308,6 +314,13 @@ impl App {
         if matches!(key, Key::Function(9) | Key::Function(10)) {
             self.message = None;
             self.menus.toggle();
+            return;
+        }
+        // The prompt is modal, as the window's is: a letter belongs to the field
+        // rather than to the document behind it, and a key the field has no use
+        // for is dropped rather than handed on.
+        if self.prompt.is_open() {
+            self.prompt.handle(key, &mut self.editor);
             return;
         }
         self.message = None;
@@ -454,6 +467,7 @@ impl App {
             Action::ToggleWrap => self.toggle_wrap(),
             Action::Find => self.find.open(&self.editor),
             Action::Replace => self.find.open_replace(&self.editor),
+            Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
             Action::FindNext => self.find.step(&mut self.editor, true),
             Action::FindPrev => self.find.step(&mut self.editor, false),
             Action::Exit => self.ask_to_quit(),
@@ -718,10 +732,15 @@ impl App {
         let layout = Layout {
             gutter,
             text_cols: width - gutter,
-            find_row: {
-                // The bar sits above the status row and takes as many rows as it
-                // has: one for the pattern, two once the replacement is up.
-                let rows = self.find.rows();
+            bar_row: {
+                // The strip above the status row belongs to one widget at a time:
+                // the prompt while it is up, otherwise the find bar, which takes
+                // one row for the pattern and two once the replacement is up.
+                let rows = if self.prompt.is_open() {
+                    1
+                } else {
+                    self.find.rows()
+                };
                 (rows > 0).then(|| height.saturating_sub(1 + rows))
             },
             status_row: height - 1,
@@ -806,8 +825,12 @@ impl App {
             skip = 0;
         }
         self.visible_until = line;
-        if let Some(row) = layout.find_row {
-            self.find.draw(grid, row, width);
+        if let Some(row) = layout.bar_row {
+            if self.prompt.is_open() {
+                self.prompt.draw(grid, row, width);
+            } else {
+                self.find.draw(grid, row, width);
+            }
         }
         self.draw_status(grid, status_row, width);
         // The menus last: a dropdown is an overlay, and the bar takes the top
@@ -1514,6 +1537,33 @@ mod tests {
         app.run(Action::Find);
         app.handle(Key::Ctrl('s'));
         assert!(app.message().unwrap_or_default().contains("no file name"));
+    }
+
+    #[test]
+    fn ctrl_g_asks_for_a_line_and_moves_the_caret_there() {
+        let text: String = (1..=30).map(|n| format!("line {n}\n")).collect();
+        let mut app = app(&text);
+        app.handle(Key::Ctrl('g'));
+        let rows = drawn(&mut app, 40, 8);
+        // The prompt takes the row above the status line, as the window's does.
+        assert!(rows[6].starts_with("Go to line:"), "{:?}", rows);
+        assert!(rows[7].contains("Ln 1, Col 1"), "{:?}", rows);
+        // A chord dropped on the prompt does not leave: the field is modal.
+        app.handle(Key::Ctrl('q'));
+        assert!(!app.take_quit(), "a chord left with the prompt up");
+        for ch in "12".chars() {
+            app.handle(Key::Char(ch));
+        }
+        let rows = drawn(&mut app, 40, 8);
+        assert!(rows[6].starts_with("Go to line: 12"), "{:?}", rows);
+        app.handle(Key::Enter);
+        let rows = drawn(&mut app, 40, 8);
+        assert!(!rows[6].starts_with("Go to line:"), "{:?}", rows);
+        assert!(rows[7].contains("Ln 12, Col 1"), "{:?}", rows);
+        // And the line the caret arrived on is on the screen, the view having
+        // scrolled the least that would show it. The prompt's row went back to
+        // the document when it closed, so the frame holds seven lines again.
+        assert!(rows[6].contains("line 12"), "{:?}", rows);
     }
 
     #[test]

@@ -31,6 +31,7 @@ mod keys;
 mod menus;
 mod palette;
 mod prefs;
+mod prompt;
 mod screen;
 mod term;
 

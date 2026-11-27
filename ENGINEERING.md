@@ -13464,3 +13464,64 @@ replaced. The keystroke measurement is unchanged at 15,554 bytes for the first
 paint and 306 for a keystroke, and a Down across wrapped rows still costs about
 ten microseconds. `cargo clippy --offline --release --all-targets`: 0 warnings.
 `cargo fmt` was not run. The feature reference and its PDF are untouched.
+
+## The hundred-and-thirty-second pass: Go to line, and the field it opens in
+
+The window has one prompt widget and every command that wants a line typed before
+it runs goes through it: a label, the text after the label, a caret. The shell had
+none, so `Go to line` -- the one command it is missing whose whole answer is a
+number -- was the reason to build one. The label is a table entry and the field is
+the same field for every entry, because `Open`, `Save As` and `Find in Files` want
+the same row with a different question in front of it; those arrive as rows of the
+same list rather than as three more widgets.
+
+`Ctrl+G` gets there, and it does arrive: `0x07` is what a keyboard sends for it and
+this parser reads that byte as Ctrl and a letter, which is why this chord is one
+the quirks list does not have to excuse, unlike `Ctrl+H` for replace and `Ctrl+Alt`
+for wrap. The field takes the editing keys -- a character where the caret stands,
+Backspace, Delete, Left, Right, Home, End -- and it is modal while it is up, as the
+window's is: a letter belongs to the prompt rather than to the document behind it,
+and a chord is dropped rather than passed on, so `Ctrl+Q` cannot leave from under a
+half-typed line number.
+
+Enter runs what was typed and Escape leaves without running anything. The number
+is counted from one, as the status bar counts, and clamped by the editor at both
+ends: `99` in a thirty-line file arrives on its last line, `0` on the first, and a
+word arrives nowhere -- the window runs nothing for a line number that is not a
+number, and the shell keeps that silence rather than improving on it, because two
+front-ends that disagree about when to be quiet are two front-ends to learn twice.
+
+One row, one owner. The strip above the status line used to belong to the find bar
+and nothing else, so `Layout` called it `find_row`; it is now `bar_row`, and its
+owner is the prompt while the prompt is up and the find bar otherwise. That is the
+whole of the layout change, and it is why a frame with a prompt up shows one line
+fewer of the document and gets it back when the prompt closes.
+
+Nothing here costs a keystroke anything: the field edits a `String` of three
+characters, no search runs, no line is re-lexed, and the row that was already
+being painted carries a different label. The next pass that wants a whole
+document pass -- find in files -- will be the one to watch, not this one.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical;
+only `nn-tui` changed.
+
+Driven through a pseudo terminal on a 140-column screen, from a fresh home, over a
+file of thirty numbered lines. `Ctrl+G` drew `Go to line:` on the row above the
+status line with the status still reading `Ln 1, Col 1`; `12` appeared after the
+label as it was typed; Enter closed the prompt, moved the status to `Ln 12, Col
+1`, and line 12 was drawn as `12 line 12` -- and the prompt's row went back to
+the document. A fresh run with Escape instead of Enter left `Ln 1, Col 1`; typing
+`abc` and pressing Enter left it there too; `99` arrived at `Ln 31, Col 1`, which
+is the empty line a file ending in a newline has at its end.
+
+`cargo test --offline --release`: 2,406 tests, 0 failed -- 2,400 plus six: a line
+number counted from one, a number past the end arriving on the last line, a word
+and an Escape running nothing, the field's editing keys with a chord dropped
+rather than passed on, the label and the caret holding their places on the row,
+and the shell opening the prompt on `Ctrl+G` and putting the caret on the line
+named.
+The keystroke measurement is unchanged at 15,554 bytes for the first paint and 306
+for a keystroke. `cargo clippy --offline --release --all-targets`: 0 warnings.
+`cargo fmt` was not run. The feature reference and its PDF are untouched.
