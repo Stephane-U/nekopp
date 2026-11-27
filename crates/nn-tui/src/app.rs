@@ -28,6 +28,7 @@
 use std::path::{Path, PathBuf};
 
 use nn_core::paths::absolute;
+use nn_core::symbols::scan;
 use nn_core::{
     path_prefix, prefix_range, split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles,
     Highlighter, Lexer, Motion, MAX_CANDIDATES,
@@ -55,6 +56,7 @@ use crate::prefs::Prefs;
 use crate::prompt::{Kind as PromptKind, Prompt};
 use crate::results::{Results, Step};
 use crate::screen::Grid;
+use crate::symbols::Symbols;
 
 /// How the window is divided up, worked out once per frame.
 ///
@@ -70,9 +72,10 @@ struct Layout {
     gutter: usize,
     /// Columns left for the text.
     text_cols: usize,
-    /// The results list above the status bar: the row it starts on, and how many
+    /// The list above the status bar -- the search results, or the function
+    /// list, whichever is up, and never both: the row it starts on, and how many
     /// rows it has, its header included.
-    results: Option<(usize, usize)>,
+    list: Option<(usize, usize)>,
     /// The first row of the strip above the status line, while anything is up:
     /// the prompt, or the find bar with its replacement row.
     bar_row: Option<usize>,
@@ -89,13 +92,13 @@ struct Drawn {
 }
 
 impl Layout {
-    /// The first row below the text: the find bar, the results list, or the bar.
+    /// The first row below the text: the find bar, the list, or the bar.
     ///
     /// Whichever of them starts highest, because the three stack upwards from the
     /// status row and the text stops at the first of them.
     fn bottom(self) -> usize {
         let bar = self.bar_row.unwrap_or(self.status_row);
-        match self.results {
+        match self.list {
             Some((top, _)) => top.min(bar),
             None => bar,
         }
@@ -230,6 +233,12 @@ pub struct App {
     /// Outlives the list itself, which is what lets `Search Results Window`
     /// bring back the search that was made rather than an empty panel.
     results: Results,
+    /// What the document in front declares, and where its cursor stands.
+    ///
+    /// A list of its own rather than a second use of `results`: the two answer
+    /// the same keys but hold different things, and the frame gives the slot
+    /// above the status bar to whichever is open.
+    symbols: Symbols,
     /// The one-line prompt, when a command needs a line typed before it runs.
     prompt: Prompt,
     /// The completion list, which shares its rows and its cursor with the
@@ -311,6 +320,7 @@ impl App {
             prefs: Prefs::new(),
             find: Find::new(),
             results: Results::new(),
+            symbols: Symbols::new(),
             prompt: Prompt::new(),
             complete: Completion::new(),
             hint: ParamHint::new(),
@@ -647,6 +657,20 @@ impl App {
                 }
             }
         }
+        // The function list answers the same keys the results list does, and
+        // hands back the ones it has no use for, for the same reason. `Enter`
+        // goes to the symbol and takes the list away: in a terminal a list of
+        // this kind is a picker, and the reader is done with it.
+        if self.symbols.is_open() {
+            match self.symbols.handle(key) {
+                Step::No => {}
+                Step::Moved | Step::Closed => return,
+                Step::Chosen(index) => {
+                    self.goto_symbol(index);
+                    return;
+                }
+            }
+        }
         // Ctrl+Q leaves, and it has to: the window binds `exit` to Ctrl+Shift+Q,
         // which a terminal cannot send -- Ctrl and Shift and a letter is not one
         // of the bytes a keyboard puts on the wire. A shell that could only be
@@ -815,6 +839,7 @@ impl App {
             Action::Find => self.find.open(&self.tabs[self.active].editor),
             Action::FindInFiles => self.prompt.open(PromptKind::FindInFiles),
             Action::SearchResultsWindow => self.search_results_window(),
+            Action::ToggleFunctionList => self.toggle_function_list(),
             Action::NextSearchResult => self.step_hit(true),
             Action::PrevSearchResult => self.step_hit(false),
             Action::Replace => self.find.open_replace(&self.tabs[self.active].editor),
@@ -1179,6 +1204,7 @@ impl App {
                     hits_noun(hits.len())
                 );
                 self.results.set_hits(hits);
+                self.symbols.close();
                 self.say(&message, false);
             }
             // The window says the same thing, on the desk it prints to.
@@ -1242,6 +1268,49 @@ impl App {
             self.results.position(),
             self.results.hits().len()
         );
+        self.say(&message, false);
+    }
+
+    /// Shows what the document in front declares, or puts the list away.
+    ///
+    /// The window's command, and the window's rule for a document the scan finds
+    /// nothing in: no symbols means no list. The shell says so in the bar,
+    /// because a terminal has no column to be visibly absent.
+    ///
+    /// Opening it puts the results list away, and a search does the same to it
+    /// in turn: the two share the rows over the status bar, and a frame that
+    /// showed both would leave the document a few rows of its own.
+    fn toggle_function_list(&mut self) {
+        if self.symbols.is_open() {
+            self.symbols.close();
+            return;
+        }
+        let symbols = scan(&self.editor().doc.text());
+        self.symbols.set_symbols(symbols);
+        if !self.symbols.is_open() {
+            self.say("no symbols in this document", true);
+            return;
+        }
+        self.results.close();
+    }
+
+    /// Puts the caret on the line a symbol is declared on, and closes the list.
+    ///
+    /// The line's first column, which is where the window puts it when a row of
+    /// its own column is clicked. The bar says which row of how many, the way it
+    /// does for a hit: a list that vanishes on a keypress leaves nothing to say
+    /// where the reader landed.
+    fn goto_symbol(&mut self, index: usize) {
+        let Some((line, name)) = self.symbols.symbol(index).map(|symbol| {
+            (symbol.line, symbol.name.clone())
+        }) else {
+            return;
+        };
+        let position = self.symbols.position();
+        let count = self.symbols.symbols().len();
+        self.editor().goto_position(line, 0);
+        self.symbols.close();
+        let message = format!("{name}:{} ({position}/{count})", line + 1);
         self.say(&message, false);
     }
 
@@ -1611,13 +1680,17 @@ impl App {
             self.find.rows()
         };
         let room = height.saturating_sub(find_rows + 1) / 2;
-        let results_rows = self.results.screen_rows(room);
+        let results_rows = if self.symbols.is_open() {
+            self.symbols.screen_rows(room)
+        } else {
+            self.results.screen_rows(room)
+        };
         let block_top = height.saturating_sub(1 + find_rows + results_rows);
         let layout = Layout {
             top: usize::from(strip),
             gutter,
             text_cols: width - gutter,
-            results: (results_rows > 0).then(|| (block_top + find_rows, results_rows)),
+            list: (results_rows > 0).then(|| (block_top + find_rows, results_rows)),
             bar_row: (find_rows > 0).then_some(block_top),
             status_row: height - 1,
         };
@@ -1712,8 +1785,12 @@ impl App {
         if strip {
             self.draw_strip(grid, 0, width);
         }
-        if let Some((top, rows)) = layout.results {
-            self.results.draw(grid, top, rows, width);
+        if let Some((top, rows)) = layout.list {
+            if self.symbols.is_open() {
+                self.symbols.draw(grid, top, rows, width);
+            } else {
+                self.results.draw(grid, top, rows, width);
+            }
         }
         if let Some(row) = layout.bar_row {
             if self.prompt.is_open() {
@@ -2897,10 +2974,92 @@ mod tests {
     #[test]
     fn a_command_the_shell_has_not_got_says_so() {
         let mut app = app("x\n");
-        // The searches have arrived; the function list has not.
-        app.run(Action::ToggleFunctionList);
+        // The searches and the function list have arrived; the document map
+        // has not.
+        app.run(Action::DocumentMap);
         let message = app.message().unwrap_or_default();
         assert!(message.contains("not in the terminal yet"), "{message}");
+    }
+
+    /// A document with four declarations, one of them nested.
+    fn declarations() -> App {
+        app(concat!(
+            "fn main() {\n",
+            "    let x = 1;\n",
+            "}\n",
+            "fn helper() {\n",
+            "}\n",
+            "impl Thing {\n",
+            "    fn method(&self) {\n",
+            "    }\n",
+            "}\n",
+        ))
+    }
+
+    #[test]
+    fn the_function_list_lists_what_the_document_declares() {
+        let mut app = declarations();
+        app.run(Action::ToggleFunctionList);
+        assert!(app.symbols.is_open());
+        let rows = drawn(&mut app, 60, 16);
+        let header = rows
+            .iter()
+            .position(|row| row.trim() == "4 symbols")
+            .unwrap_or_else(|| panic!("no header: {rows:?}"));
+        // One row per declaration, in the order they are declared, and the
+        // nested one indented: the window's rows and the window's indent,
+        // because both read them from `nn-shared`.
+        assert_eq!(rows[header + 1].trim_end(), " main");
+        assert_eq!(rows[header + 2].trim_end(), " helper");
+        assert_eq!(rows[header + 3].trim_end(), " Thing");
+        assert_eq!(rows[header + 4].trim_end(), "   method");
+        // The document keeps the rows above the list.
+        assert!(rows[0].contains("fn main"), "{rows:?}");
+    }
+
+    #[test]
+    fn a_row_of_the_function_list_puts_the_caret_on_the_declaration() {
+        let mut app = declarations();
+        app.run(Action::ToggleFunctionList);
+        app.handle(Key::Down);
+        app.handle(Key::Down);
+        app.handle(Key::Enter);
+        // The third row is the `impl`, which is declared on the sixth line.
+        assert!(!app.symbols.is_open(), "the list stayed on screen");
+        assert_eq!(app.tab().editor.caret_line(), 5);
+        assert_eq!(app.tab().editor.caret_column(), 0);
+        assert_eq!(app.message(), Some("Thing:6 (3/4)"));
+    }
+
+    #[test]
+    fn a_document_with_nothing_to_list_says_so_and_opens_nothing() {
+        let mut app = app("just text\n");
+        app.run(Action::ToggleFunctionList);
+        assert!(!app.symbols.is_open());
+        assert_eq!(app.message(), Some("no symbols in this document"));
+        // The command on an open list puts it away, as the window's toggle does.
+        let mut app = declarations();
+        app.run(Action::ToggleFunctionList);
+        app.run(Action::ToggleFunctionList);
+        assert!(!app.symbols.is_open());
+    }
+
+    #[test]
+    fn the_two_lists_share_the_rows_above_the_status_bar() {
+        let mut app = declarations();
+        app.results.set_hits(vec![nn_core::Hit {
+            path: PathBuf::from("/tmp/notes.txt"),
+            line: 0,
+            column: 0,
+            text: "a hit".to_string(),
+            tab: None,
+        }]);
+        app.run(Action::ToggleFunctionList);
+        assert!(app.symbols.is_open());
+        assert!(!app.results.is_open(), "both lists claimed the rows");
+        let rows = drawn(&mut app, 60, 16);
+        assert!(rows.iter().any(|row| row.trim() == "4 symbols"), "{rows:?}");
+        assert!(!rows.iter().any(|row| row.contains("1 result")), "{rows:?}");
     }
 
     #[test]
@@ -3503,6 +3662,26 @@ mod tests {
         let list_micros = start.elapsed().as_nanos() as f64 / 1000.0;
         println!("opening the results list {list} bytes in {list_micros:.1} us");
         assert!(list < paint, "the list cost {list} bytes of a {paint}-byte screen");
+
+        // And the function list's shape: one row per declaration, over a
+        // document that declares five hundred of them. The scan runs once, on
+        // the command -- no keystroke pays for it -- and the frame that puts the
+        // rows up repaints the band they cover.
+        let declarations: String = (0..500).map(|n| format!("fn value_{n}() {{}}\n")).collect();
+        let mut listing = App::with_document(Document::from_text(&declarations));
+        *listing.settings_mut() = Settings::default();
+        listing.apply_settings();
+        let mut listed = Frame::new(120, 40);
+        listing.draw(listed.grid());
+        let before = listed.render().len();
+        let start = std::time::Instant::now();
+        listing.run(Action::ToggleFunctionList);
+        assert!(listing.symbols.is_open(), "the scan found nothing to list");
+        listing.draw(listed.grid());
+        let rows = listed.render().len();
+        let rows_micros = start.elapsed().as_nanos() as f64 / 1000.0;
+        println!("opening the function list {rows} bytes in {rows_micros:.1} us");
+        assert!(rows < before, "the list cost {rows} bytes of a {before}-byte screen");
 
         // The third shape: a completion box beside the caret. Same discipline --
         // the box repaints the rows inside its own frame, so a chord that offers

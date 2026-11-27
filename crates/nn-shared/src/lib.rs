@@ -82,6 +82,7 @@ pub mod prefs;
 pub mod results;
 pub mod session;
 pub mod settings;
+pub mod symbols;
 pub mod menu;
 pub mod tabcolour;
 pub mod theme;

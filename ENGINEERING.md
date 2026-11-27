@@ -14304,3 +14304,89 @@ with the box under the caret. Typing `, t` moved the caret into the second argum
 and the box with it, and typing `)` left the call: the box was gone on the next
 frame.
 
+
+## The hundred-and-forty-fourth pass: the function list
+
+The window has listed a document's declarations in a column down the right edge
+since the first hundred passes. Two of the things that column says were worth
+sharing before a terminal could say them: the header above the rows -- `No
+symbols`, `1 symbol`, `12 symbols` -- and the row itself, a name indented one
+step when the scan found it nested and cut with an ellipsis when it does not fit
+the column. Both are now `nn-shared/src/symbols.rs`, and the window's `row_text`
+and `set_symbols` call into it, so an indent or a plural cannot come to mean one
+thing in the window and another in the terminal.
+
+The terminal's half is `crates/nn-tui/src/symbols.rs`, and it is a list over the
+bottom of the screen rather than a column down the right edge. The window docks
+the column because its rows can be clicked: the pointer is how a reader says
+which declaration they want. A terminal has no pointer, so a column of rows that
+cannot be picked would be a picture of the document's outline and nothing more.
+The same rows in the same words as a list you walk are the same information with
+the one verb a keyboard has: `Enter` puts the caret on the declaration's line and
+puts the list away, `Escape` puts it away, and `View > Function List` opens it
+again. The four answers a keystroke can get are the results list's `Step`,
+because the shell handles the two lists in the same arms and two enums saying the
+same four things would drift.
+
+The two lists share the rows above the status bar, one at a time: opening the
+function list closes the search results, and a new search closes the function
+list. The layout field that used to be `results` is `list` for that reason. A
+frame that showed both would leave the document a few rows of its own, and a
+terminal is not the place to spend them.
+
+What is listed is the document as it was when the command ran. That is the
+results list's rule too, and it is the performance rule: keeping the rows current
+would mean scanning the document on every keystroke that changes it, to redraw a
+box nobody asked to keep. The scan takes about a hundred microseconds on five
+hundred declarations, which is cheap once per command and not cheap per
+character. The window's column does follow its document, but it is redrawn into a
+frame that repaints anyway, which a terminal's is not.
+
+A document the scan finds nothing in leaves the list shut, which is the window's
+rule as well, and the bar says `no symbols in this document`, because a terminal
+has no column to be visibly absent.
+
+### Verified
+
+`cargo test --offline --release`: 2,492 tests, 0 failed. Three are `nn-shared`'s:
+a nested symbol indented one step and no further, a name cut with a mark counted
+from the indent, and the header naming nought and counting the rest. Ten are the
+terminal list's, drawn into a grid and read back: a fresh scan opening the list
+with no symbols leaving it shut, the header's plural, the indent, the cursor
+walking with `Enter` choosing and `Escape` closing, `Enter` on an empty list not
+being a choice, the list capped by the screen and by its own eight rows, the
+cursor kept on screen while the rows scroll under it, a page moving by what the
+frame gave, the lit row, and a long row cut rather than spilling. Four are the
+shell's: the rows in declaration order with the nested one indented, a row
+putting the caret on its line with the bar reading `Symbol:62 (4/69)`, a document
+with nothing to list saying so, and the two lists taking the one slot in turn.
+`nn-app` lost the test of its own `truncate`, which went to `nn-shared` with the
+copy it tested.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: the command was already
+listed there.
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical,
+which is what the window's share of this pass should cost -- the same strings,
+read from one crate over.
+
+The terminal's keystroke is unchanged at 15,554 bytes for the first paint and 306
+for one, in 49.3 us. The function list costs 1,476 bytes to put up -- the band the
+results list takes -- and 152.1 us, of which most is the scan, run once on the
+command and by no keystroke.
+
+Through a pseudo terminal on `crates/nn-core/src/symbols.rs`, `View > Function
+List` drew
+
+     31   69 symbols
+     32  Kind
+     33  Kind
+     34    label
+     35  Symbol
+     36  QUALIFIERS
+
+with the nested row indented, and three `Down`s and `Enter` put the caret on line
+62 -- `pub struct Symbol {` -- with the bar reading `Symbol:62 (4/69)` and the
+list gone. On a file holding one line of prose the same command left the list
+shut and the bar read `no symbols in this document`.

@@ -30,6 +30,7 @@
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 use nn_core::Symbol;
+use nn_shared::symbols::{header, row};
 
 use crate::quad::QuadRenderer;
 use crate::theme::{Theme, ToGpu};
@@ -106,11 +107,7 @@ impl FunctionList {
 
     /// Replaces the symbol list. An empty list closes the panel.
     pub fn set_symbols(&mut self, symbols: Vec<Symbol>) {
-        self.header_text = match symbols.len() {
-            0 => "No symbols".to_string(),
-            1 => "1 symbol".to_string(),
-            n => format!("{n} symbols"),
-        };
+        self.header_text = header(symbols.len());
         self.symbols = symbols;
         self.scroll = 0;
         self.open = !self.symbols.is_empty();
@@ -220,17 +217,14 @@ impl FunctionList {
 
     /// The display text of symbol `index`, cut to `columns`.
     ///
-    /// Indented one step for anything nested, and no further. The scan knows
-    /// indentation, not scope, so a method inside an `impl` and a closure inside
-    /// that method both read as "nested" — which is true, and a two-level tree
-    /// that claims more than that would be lying.
+    /// Shaped by `nn-shared`, which is where the terminal's list reads the same
+    /// row from: one wording for both, so an indent or a cut cannot come to mean
+    /// two different things in two programs.
     fn row_text(&self, index: usize, columns: usize) -> String {
-        let Some(symbol) = self.symbols.get(index) else {
-            return String::new();
-        };
-        let indent = if symbol.depth > 0 { "  " } else { "" };
-        let text = format!("{indent}{}", symbol.name);
-        truncate(&text, columns)
+        match self.symbols.get(index) {
+            Some(symbol) => row(symbol, columns),
+            None => String::new(),
+        }
     }
 
     /// Queues the panel background and its left border.
@@ -290,16 +284,6 @@ impl FunctionList {
             },
         ]
     }
-}
-
-/// Cuts `text` to `columns` characters, marking the cut with an ellipsis.
-fn truncate(text: &str, columns: usize) -> String {
-    if text.chars().count() <= columns {
-        return text.to_string();
-    }
-    let mut out: String = text.chars().take(columns.saturating_sub(1)).collect();
-    out.push('…');
-    out
 }
 
 #[cfg(test)]
@@ -416,11 +400,5 @@ mod tests {
         assert!(!p.is_open());
         assert!(p.symbols().is_empty());
         assert_eq!(p.width(8.0), 0.0);
-    }
-
-    #[test]
-    fn truncate_marks_the_cut() {
-        assert_eq!(truncate("abcdef", 4), "abc…");
-        assert_eq!(truncate("abc", 4), "abc");
     }
 }

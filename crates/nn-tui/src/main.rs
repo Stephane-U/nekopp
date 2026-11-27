@@ -36,6 +36,7 @@ mod prefs;
 mod prompt;
 mod results;
 mod screen;
+mod symbols;
 mod term;
 
 use std::path::PathBuf;
