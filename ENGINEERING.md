@@ -13394,3 +13394,73 @@ and then 409. Run against the guard removed, the same test fails with 38, so it 
 the guard it is testing. `cargo clippy --offline --release --all-targets`: 0
 warnings. `cargo fmt` was not run. The feature reference and its PDF are
 untouched.
+
+## The hundred-and-thirty-first pass: the replacement and its two commands
+
+The find bar grew a second row: the replacement, and the two commands the window
+puts beside it. `Ctrl+H` is what opens it in the window and what opens it here,
+except that a terminal does not deliver that key -- `0x08` is what a keyboard puts
+on the wire for it, and this shell's parser has read that byte as Backspace since
+the first pass, as every terminal editor does. So the road is the menu, Search's
+`Replace...` row, which is the fifth entry in the quirks list: a chord the window
+has and the terminal cannot send, with a menu row that reaches the same command.
+
+The row holds a field and two words. Tab reads down the bar -- the pattern's row
+first, then the replacement's, because that is the order they are drawn in -- so
+it walks Query, the two marks, the replacement, `Replace`, `Replace All` and back
+round. A mark has always been a thing you stand on and press, and a command is the
+same thing with a word instead of a letter: Space or Enter presses it, and while
+Tab stands on one the whole word is drawn in the caret's colours. The words are
+the window's, and they are measured where they are drawn rather than assumed to be
+seven and eleven cells wide, because a translation is free to be longer; a window
+too narrow for them keeps the field and drops the two commands instead of writing
+them over each other.
+
+Enter is what the focus is standing on, which is the window's own rule: in the
+pattern field it walks on, in the replacement field it replaces the match under
+the caret and walks on, on a command it presses it. `Ctrl+R` does the same from
+anywhere on the bar, because the window answers that chord inside its bar too and
+a terminal can send it. Two of the window's three commands are here: `Replace`
+and `Replace All` have somewhere to stand, and `Replace All in All Opened
+Documents` has not, since this shell has one document rather than a strip of tabs.
+That one arrives with the tabs.
+
+`Replace All` deliberately ignores the count's ceiling. The bar stops counting at
+ten thousand matches because a count is there to tell a reader whether to keep
+typing; a command that says it replaced everything and stopped at the ten
+thousandth match would be lying, so it asks the document for every match and
+hands them to the editor as one list. The editor records one edit for the whole
+list, which is what makes a single `Ctrl+Z` take the whole replacement back --
+and why `Replace All` over a large file is one undo group, not a thousand.
+
+The bar edits through the editor rather than through the shell, so the shell would
+never have heard about it: the frame would have kept the colours of the text that
+was replaced. One flag and one line close that hole -- `take_replaced`, read at
+the one place that hands a key to the bar -- and the line is re-lexed next frame.
+`Replace` costs one pass over the document per press, because it recounts the
+matches afterwards; the window's does the same, and it is a pass the reader asked
+for by pressing. Typing in either field still searches nothing.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical;
+only `nn-tui` changed.
+
+Driven through a pseudo terminal on a 140-column screen, from a fresh home, over a
+file holding `one two one` and `three one`. F9, Right twice to Search, Down onto
+its first row, eight Downs to `Replace...`, Enter: the bar took two rows, the
+document gave one up, and the frame read `Find:` above `Replace:` with the two
+commands at the right-hand end of the second row. Typing `one` counted `0/3`. Tab
+three times, `1`, Enter: line 1 became `1 two one`, and the counter moved on to
+`1/2`. A second Enter: `1 two 1`. A fresh run to `Replace All` -- Tab twice more,
+Enter -- left `1 two 1` and `three 1` with the counter saying `no match`.
+
+`cargo test --offline --release`: 2,400 tests, 0 failed -- 2,394 plus six: the
+replace row and the order Tab walks it, Enter replacing the match under the caret
+and moving on, `Replace` and `Ctrl+R` doing the same, `Replace All` as one undo
+step, the second row drawn under the first with the commands measured against the
+right edge, and the shell growing the bar by a row and redrawing the line it
+replaced. The keystroke measurement is unchanged at 15,554 bytes for the first
+paint and 306 for a keystroke, and a Down across wrapped rows still costs about
+ten microseconds. `cargo clippy --offline --release --all-targets`: 0 warnings.
+`cargo fmt` was not run. The feature reference and its PDF are untouched.

@@ -18,17 +18,25 @@
 //! The windowed bar carries eleven chips on a row of their own, because it has
 //! the width for them. A terminal row is a much smaller thing, so this bar keeps
 //! the two marks that change what a search *finds* -- match case and whole word
-//! -- and leaves the rest of the window's options to the passes that bring regex,
-//! replace and find-in-files with them. Tab moves between the three things on the
-//! row, Space or Enter flips a mark, Escape closes: a mark is a thing you stand
-//! on and press, which is how Midnight Commander's dialogs answer the same
-//! question.
+//! -- and leaves the rest of the window's options to the passes that bring regex
+//! and find-in-files with them. Tab moves between the things on the row, Space or
+//! Enter flips a mark, Escape closes: a mark is a thing you stand on and press,
+//! which is how Midnight Commander's dialogs answer the same question.
+//!
+//! `Ctrl+H` adds a second row: the replacement, and the two commands the window
+//! puts beside it, `Replace` and `Replace All`. They are reached the same way the
+//! marks are -- Tab stands on one, Space or Enter presses it -- because a
+//! terminal has no buttons to click and a word you stand on is the nearest thing
+//! to one. Enter in the replacement field replaces the match under the caret and
+//! walks on, which is what it does in the window, and `Ctrl+R` does the same from
+//! anywhere on the bar.
 //!
 //! The count is the window's own, `3/17` or `no match`, so that the two
 //! front-ends say the same thing about the same pattern.
 
 use std::ops::Range;
 
+use nn_core::search::{Search, SearchOptions};
 use nn_core::Editor;
 use nn_shared::i18n::Catalog;
 
@@ -42,7 +50,8 @@ use crate::screen::Grid;
 /// there to tell a reader whether to keep typing, not to number them all.
 const MAX_HITS: usize = 10_000;
 
-/// The three things Tab moves between.
+/// The things Tab moves between: the pattern and its two marks on the first row,
+/// the replacement and its two commands on the second.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Focus {
     /// The pattern field.
@@ -51,12 +60,22 @@ enum Focus {
     Case,
     /// Whole word.
     Word,
+    /// The replacement field, on the second row.
+    Replacement,
+    /// The `Replace` command.
+    Replace,
+    /// The `Replace All` command.
+    ReplaceAll,
 }
 
 /// The bar, its pattern, and the hits that pattern has in the document.
 pub struct Find {
     open: bool,
+    /// Whether the replacement row is up, which is what `Ctrl+H` opens.
+    replace: bool,
     query: String,
+    /// The text a replacement writes, kept across openings like the pattern.
+    replacement: String,
     match_case: bool,
     whole_word: bool,
     focus: Focus,
@@ -64,6 +83,11 @@ pub struct Find {
     hits: Vec<Range<usize>>,
     /// Which of `hits` the bar last stepped onto.
     current: Option<usize>,
+    /// Set when the last key handled replaced something.
+    ///
+    /// The bar edits through the editor rather than through the shell, so nothing
+    /// else would re-lex the lines it changed; the shell reads this and does.
+    replaced: bool,
     /// Set when `hits` no longer describe the pattern or the document.
     ///
     /// Typing in a large file only marks this, rather than searching again on
@@ -78,12 +102,15 @@ impl Find {
     pub fn new() -> Self {
         Find {
             open: false,
+            replace: false,
             query: String::new(),
+            replacement: String::new(),
             match_case: false,
             whole_word: false,
             focus: Focus::Query,
             hits: Vec::new(),
             current: None,
+            replaced: false,
             stale: true,
             catalog: None,
         }
@@ -92,6 +119,27 @@ impl Find {
     /// Whether the bar is up, and the text area owes it a row.
     pub fn is_open(&self) -> bool {
         self.open
+    }
+
+    /// How many rows the bar takes: the pattern, and the replacement when the
+    /// replace row is up.
+    pub fn rows(&self) -> usize {
+        if !self.open {
+            0
+        } else if self.replace {
+            2
+        } else {
+            1
+        }
+    }
+
+    /// Whether the key just handled edited the document. Reading clears it.
+    ///
+    /// The bar replaces through the editor rather than through the shell, so the
+    /// shell would otherwise never hear that the lines under it changed and would
+    /// leave the frame painted with the colours of the text it replaced.
+    pub fn take_replaced(&mut self) -> bool {
+        std::mem::take(&mut self.replaced)
     }
 
     /// The words the bar draws, in the language the settings name.
@@ -113,6 +161,19 @@ impl Find {
     /// have to retype is a search you were better off not dismissing.
     pub fn open(&mut self, editor: &Editor) {
         self.open = true;
+        self.replace = false;
+        self.focus = Focus::Query;
+        self.refresh(editor, true);
+    }
+
+    /// Opens the bar with the replacement row up, keeping both texts.
+    ///
+    /// `Ctrl+H` is the window's chord for the same thing, and it opens a row here
+    /// rather than the window's dialog because a terminal has no dialog to open:
+    /// the two front-ends offer the same command, each in the shape it has.
+    pub fn open_replace(&mut self, editor: &Editor) {
+        self.open = true;
+        self.replace = true;
         self.focus = Focus::Query;
         self.refresh(editor, true);
     }
@@ -136,53 +197,184 @@ impl Find {
     /// `Ctrl+Q` quits with the bar up: a bar that swallowed every chord would be
     /// a mode, and this one is a row.
     pub fn handle(&mut self, key: Key, editor: &mut Editor) -> bool {
-        // Escape, Tab and the stepping keys mean the same thing wherever the
+        // Escape, Tab, the arrows and `Ctrl+R` mean the same thing wherever the
         // focus is, so they are answered before it is looked at.
+        self.replaced = false;
         match key {
             Key::Escape => {
                 self.close();
                 return true;
             }
             Key::Tab => {
-                self.focus = match self.focus {
-                    Focus::Query => Focus::Case,
-                    Focus::Case => Focus::Word,
-                    Focus::Word => Focus::Query,
-                };
+                self.focus = self.next_focus();
                 return true;
             }
-            Key::Enter | Key::Down if self.focus == Focus::Query => {
+            // The window answers this chord inside its bar with "replace the
+            // match under the caret", and a terminal can send it: one letter,
+            // and the keymap binds nothing to it.
+            Key::Ctrl('r') => {
+                self.replace_current(editor);
+                return true;
+            }
+            // The arrows walk the matches wherever the focus stands, because a
+            // bar that is up owns the caret: leaving one to the shell would move
+            // the caret out from under the bar.
+            Key::Down => {
                 self.step(editor, true);
                 return true;
             }
-            Key::Up if self.focus == Focus::Query => {
+            Key::Up => {
                 self.step(editor, false);
                 return true;
             }
-            // Standing on a mark, Enter and Space are the same press.
-            Key::Enter | Key::Char(' ') if self.focus != Focus::Query => {
+            // Enter acts on what the focus is standing on, which is the window's
+            // rule too: in the pattern field it walks on, in the replacement
+            // field it replaces, and on a mark or a command it presses it.
+            Key::Enter if self.focus == Focus::Query => {
+                self.step(editor, true);
+                return true;
+            }
+            // Standing on a mark or a command, Enter and Space are the same
+            // press. A field is not one: there a space is a space.
+            Key::Enter | Key::Char(' ') if matches!(self.focus, Focus::Case | Focus::Word) => {
                 self.flip(editor);
+                return true;
+            }
+            Key::Enter | Key::Char(' ') if self.focus == Focus::Replace => {
+                self.replace_current(editor);
+                return true;
+            }
+            Key::Enter | Key::Char(' ') if self.focus == Focus::ReplaceAll => {
+                self.replace_all(editor);
+                return true;
+            }
+            Key::Enter if self.focus == Focus::Replacement => {
+                self.replace_current(editor);
                 return true;
             }
             _ => {}
         }
-        if self.focus != Focus::Query {
-            // A letter is not a mark: on a mark, the keys that are not one of
-            // the above are the shell's again.
-            return false;
-        }
-        match key {
-            Key::Char(ch) => {
-                self.query.push(ch);
-                self.retyped(editor);
-                true
-            }
-            Key::Backspace => {
-                self.query.pop();
-                self.retyped(editor);
-                true
-            }
+        match self.focus {
+            Focus::Query => match key {
+                Key::Char(ch) => {
+                    self.query.push(ch);
+                    self.retyped(editor);
+                    true
+                }
+                Key::Backspace => {
+                    self.query.pop();
+                    self.retyped(editor);
+                    true
+                }
+                _ => false,
+            },
+            Focus::Replacement => match key {
+                Key::Char(ch) => {
+                    self.replacement.push(ch);
+                    true
+                }
+                Key::Backspace => {
+                    self.replacement.pop();
+                    true
+                }
+                _ => false,
+            },
+            // A mark and a command are not fields: every other key is the
+            // shell's again.
             _ => false,
+        }
+    }
+
+    /// Where Tab goes next.
+    ///
+    /// The order is the order the controls are drawn in -- the pattern and its
+    /// two marks along the first row, then the replacement and its two commands
+    /// along the second -- so Tab reads down the bar rather than jumping about.
+    fn next_focus(&self) -> Focus {
+        match self.focus {
+            Focus::Query => Focus::Case,
+            Focus::Case => Focus::Word,
+            Focus::Word if self.replace => Focus::Replacement,
+            Focus::Word => Focus::Query,
+            Focus::Replacement => Focus::Replace,
+            Focus::Replace => Focus::ReplaceAll,
+            Focus::ReplaceAll => Focus::Query,
+        }
+    }
+
+    /// Replaces the match the bar is standing on, and walks on to the next one.
+    ///
+    /// The window's Replace button does the same: the edit is one undo step, and
+    /// the search carries on from where the replacement left the caret rather
+    /// than from the match that no longer exists. A bar the reader typed into and
+    /// reached straight for Replace has stepped to nothing yet, so this steps
+    /// first -- the match the first Enter would have chosen.
+    fn replace_current(&mut self, editor: &mut Editor) {
+        if self.current.is_none() {
+            self.step(editor, true);
+        }
+        let Some(hit) = self.current.and_then(|index| self.hits.get(index).cloned()) else {
+            return;
+        };
+        let replacement = self.expand(editor, hit.clone());
+        editor.select_range(hit);
+        editor.insert(&replacement);
+        self.replaced = true;
+        self.refresh(editor, true);
+        self.step(editor, true);
+    }
+
+    /// Replaces every match in the document, as one undo step.
+    ///
+    /// Every match rather than the count's ten thousand: a count may stop where
+    /// the reader has seen enough, but a command that says it replaced everything
+    /// and stopped at the ten-thousandth would be lying.
+    fn replace_all(&mut self, editor: &mut Editor) {
+        let Some(search) = self.search() else {
+            return;
+        };
+        let hits = search.find_all(&editor.doc);
+        if hits.is_empty() {
+            return;
+        }
+        let edits: Vec<(Range<usize>, String)> = hits
+            .into_iter()
+            .map(|hit| {
+                let text = search.expand(&editor.doc, hit.clone(), &self.replacement);
+                (hit, text)
+            })
+            .collect();
+        editor.replace_ranges(&edits);
+        self.replaced = true;
+        self.refresh(editor, true);
+    }
+
+    /// The pattern as a search, or `None` when there is no pattern yet.
+    ///
+    /// One matcher for the replacement, so that the text written can never be
+    /// expanded against a pattern that matched something else -- which is what
+    /// makes this the place regex arrives: the modes above are the literal ones,
+    /// and a mode added here is a mode the count and the replacement both get.
+    fn search(&self) -> Option<Search> {
+        if self.query.is_empty() {
+            return None;
+        }
+        Search::new(
+            &self.query,
+            SearchOptions {
+                case_sensitive: self.match_case,
+                whole_word: self.whole_word,
+                ..SearchOptions::default()
+            },
+        )
+        .ok()
+    }
+
+    /// The text a replacement writes in place of `hit`.
+    fn expand(&self, editor: &Editor, hit: Range<usize>) -> String {
+        match self.search() {
+            Some(search) => search.expand(&editor.doc, hit, &self.replacement),
+            None => self.replacement.clone(),
         }
     }
 
@@ -191,7 +383,7 @@ impl Find {
         match self.focus {
             Focus::Case => self.match_case = !self.match_case,
             Focus::Word => self.whole_word = !self.whole_word,
-            Focus::Query => return,
+            _ => return,
         }
         // The marks decide what matches, so the count in the bar is now wrong.
         self.retyped(editor);
@@ -273,12 +465,61 @@ impl Find {
         (format!("{n}/{}", self.hits.len()), false)
     }
 
-    /// Draws the bar on `row`, edge to edge.
+    /// Draws the bar's rows from `row` down: the pattern, and the replacement
+    /// when the replace row is up.
+    pub fn draw(&self, grid: &mut Grid, row: usize, width: usize) {
+        self.draw_find_row(grid, row, width);
+        if self.replace {
+            self.draw_replace_row(grid, row + 1, width);
+        }
+    }
+
+    /// Draws the replacement row: its field, and its two commands on the right.
+    ///
+    /// The commands are measured rather than assumed, because their words are
+    /// translated: a language whose `Replace All` is twice as long still ends on
+    /// the last column but one, and the field gives up the room instead.
+    fn draw_replace_row(&self, grid: &mut Grid, row: usize, width: usize) {
+        for column in 0..width {
+            grid.put(row, column, ' ', Tone::StatusBar);
+        }
+        let label = self.tr("Replace:");
+        let at = grid.text(row, 0, label, Tone::StatusBar) + 1;
+        let all_label = self.tr("Replace All");
+        let replace_label = self.tr("Replace");
+        let all_at = width.saturating_sub(1 + all_label.chars().count());
+        let replace_at = all_at.saturating_sub(BUTTON_GAP + replace_label.chars().count());
+        let field_end = replace_at.saturating_sub(1).max(at);
+        let room = field_end.saturating_sub(at);
+        let field: String = self.replacement.chars().take(room).collect();
+        grid.text(row, at, &field, Tone::StatusBar);
+        if self.focus == Focus::Replacement {
+            let column = at + field.chars().count();
+            if column < field_end {
+                grid.put(row, column, ' ', Tone::Caret);
+            }
+        }
+        // A window too narrow for the labels keeps the field and drops the two
+        // commands rather than writing them over the text they belong beside.
+        if replace_at >= at && all_at >= replace_at + replace_label.chars().count() {
+            self.draw_button(grid, row, replace_at, replace_label, self.focus == Focus::Replace);
+            self.draw_button(grid, row, all_at, all_label, self.focus == Focus::ReplaceAll);
+        }
+    }
+
+    /// One of the replacement row's commands: the whole word in the caret's
+    /// colours while Tab is standing on it.
+    fn draw_button(&self, grid: &mut Grid, row: usize, at: usize, label: &str, focused: bool) {
+        let tone = if focused { Tone::Caret } else { Tone::MenuHover };
+        grid.text(row, at, label, tone);
+    }
+
+    /// Draws the pattern's row on `row`, edge to edge.
     ///
     /// The pattern takes what is left after the two marks and the count, which
     /// are pinned to the right: a long pattern loses its tail rather than the
     /// number that says whether the search found anything.
-    pub fn draw(&self, grid: &mut Grid, row: usize, width: usize) {
+    fn draw_find_row(&self, grid: &mut Grid, row: usize, width: usize) {
         for column in 0..width {
             grid.put(row, column, ' ', Tone::StatusBar);
         }
@@ -339,6 +580,9 @@ impl Find {
         grid.text(row, at, mark, tone);
     }
 }
+
+/// The columns between the two commands on the replacement row.
+const BUTTON_GAP: usize = 2;
 
 /// The cells the two marks take up: `Aa`, a space, `W`, and the space that
 /// separates them from the pattern.
@@ -489,10 +733,133 @@ mod tests {
         assert!(row.ends_with(" no match "), "{row:?}");
     }
 
+    #[test]
+    fn ctrl_h_opens_the_replace_row_and_tab_walks_its_controls() {
+        let editor = editor("one\n");
+        let mut bar = Find::new();
+        assert_eq!(bar.rows(), 0, "a closed bar takes no rows");
+        bar.open_replace(&editor);
+        assert_eq!(bar.rows(), 2, "the replacement is a row of its own");
+        // Tab reads down the bar: the pattern's row, then the replacement's.
+        let mut order = Vec::new();
+        for _ in 0..6 {
+            bar.focus = bar.next_focus();
+            order.push(bar.focus);
+        }
+        assert_eq!(
+            order,
+            vec![
+                Focus::Case,
+                Focus::Word,
+                Focus::Replacement,
+                Focus::Replace,
+                Focus::ReplaceAll,
+                Focus::Query,
+            ]
+        );
+        // Find mode closes the row again, and keeps what was typed in it.
+        bar.open(&editor);
+        assert_eq!(bar.rows(), 1);
+        assert_eq!(bar.next_focus(), Focus::Case);
+    }
+
+    #[test]
+    fn enter_in_the_replacement_field_replaces_the_match_and_walks_on() {
+        let mut editor = editor("one two one\n");
+        let mut bar = Find::new();
+        bar.open_replace(&editor);
+        type_in(&mut bar, &mut editor, "one");
+        // Nothing has been stepped to yet, so the first press replaces the match
+        // the first Enter would have chosen.
+        bar.focus = Focus::Replacement;
+        type_in(&mut bar, &mut editor, "1");
+        assert!(bar.handle(Key::Enter, &mut editor));
+        assert_eq!(editor.doc.text().as_str(), "1 two one\n");
+        assert!(bar.replaced, "the shell was not told the document changed");
+        // And it has walked on to the match that is left.
+        assert_eq!(editor.selection_start(), 6);
+        assert!(bar.handle(Key::Enter, &mut editor));
+        assert_eq!(editor.doc.text().as_str(), "1 two 1\n");
+        // A space is a space in this field, a press in the pattern's marks.
+        bar.handle(Key::Char(' '), &mut editor);
+        assert_eq!(bar.replacement, "1 ");
+        assert_eq!(bar.count().0, "no match");
+    }
+
+    #[test]
+    fn the_replace_command_and_ctrl_r_replace_one_match() {
+        let mut editor = editor("a b a b\n");
+        let mut bar = Find::new();
+        bar.open_replace(&editor);
+        type_in(&mut bar, &mut editor, "a");
+        bar.focus = Focus::Replacement;
+        type_in(&mut bar, &mut editor, "x");
+        bar.focus = Focus::Replace;
+        assert!(bar.handle(Key::Char(' '), &mut editor), "Space presses it");
+        assert_eq!(editor.doc.text().as_str(), "x b a b\n");
+        // Ctrl+R is the window's own chord for the same thing, from any focus.
+        assert!(bar.handle(Key::Ctrl('r'), &mut editor));
+        assert_eq!(editor.doc.text().as_str(), "x b x b\n");
+    }
+
+    #[test]
+    fn replace_all_replaces_every_match_as_one_undo_step() {
+        let mut editor = editor("one two one\nthree one\n");
+        let mut bar = Find::new();
+        bar.open_replace(&editor);
+        type_in(&mut bar, &mut editor, "one");
+        bar.focus = Focus::Replacement;
+        type_in(&mut bar, &mut editor, "1");
+        bar.handle(Key::Tab, &mut editor);
+        assert_eq!(bar.focus, Focus::Replace);
+        bar.handle(Key::Tab, &mut editor);
+        assert_eq!(bar.focus, Focus::ReplaceAll);
+        assert!(bar.handle(Key::Enter, &mut editor));
+        assert_eq!(editor.doc.text().as_str(), "1 two 1\nthree 1\n");
+        assert_eq!(bar.count().0, "no match", "the pattern is gone now");
+        assert!(editor.undo());
+        assert_eq!(editor.doc.text().as_str(), "one two one\nthree one\n");
+    }
+
+    #[test]
+    fn the_replacement_row_is_drawn_under_the_find_row() {
+        let mut editor = editor("one one\n");
+        let mut bar = Find::new();
+        bar.open_replace(&editor);
+        type_in(&mut bar, &mut editor, "one");
+        bar.focus = Focus::Replacement;
+        type_in(&mut bar, &mut editor, "abc");
+        let rows = drawn_rows(&bar, 40, 2);
+        assert!(rows[0].starts_with("Find: one"), "{:?}", rows);
+        assert!(rows[1].starts_with("Replace: abc"), "{:?}", rows);
+        // The two commands are pinned to the right, one column from the edge,
+        // and the field gives up its room to them rather than the other way
+        // round.
+        assert_eq!(&rows[1][19..26], "Replace", "{:?}", rows[1]);
+        assert_eq!(&rows[1][28..39], "Replace All", "{:?}", rows[1]);
+        // Standing on a command lights the whole word, and nothing else moves.
+        bar.focus = Focus::ReplaceAll;
+        let rows = drawn_rows(&bar, 40, 2);
+        assert_eq!(&rows[1][28..39], "Replace All", "{:?}", rows[1]);
+        // A window too narrow for the labels keeps the field's label alone.
+        let narrow = drawn_rows(&bar, 20, 2);
+        assert!(narrow[1].starts_with("Replace:"), "{:?}", narrow);
+        assert!(!narrow[1].contains("Replace All"), "{:?}", narrow);
+    }
+
     /// The bar's row, as a string.
     fn drawn(bar: &Find, width: usize) -> String {
         let mut grid = Grid::new(width, 1);
         bar.draw(&mut grid, 0, width);
         (0..width).map(|column| grid.get(0, column).ch).collect()
+    }
+
+    /// The bar's rows, as strings.
+    fn drawn_rows(bar: &Find, width: usize, rows: usize) -> Vec<String> {
+        let mut grid = Grid::new(width, rows);
+        bar.draw(&mut grid, 0, width);
+        (0..rows)
+            .map(|row| (0..width).map(|column| grid.get(row, column).ch).collect())
+            .collect()
     }
 }

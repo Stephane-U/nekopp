@@ -326,6 +326,11 @@ impl App {
         // typed: a bar that swallowed every chord would be a mode, and this one
         // is a row.
         if self.find.is_open() && self.find.handle(key, &mut self.editor) {
+            // The bar replaces through the editor rather than through the shell,
+            // so this is the only place that hears the document changed.
+            if self.find.take_replaced() {
+                self.refresh_all();
+            }
             return;
         }
         // Ctrl+Q leaves, and it has to: the window binds `exit` to Ctrl+Shift+Q,
@@ -448,6 +453,7 @@ impl App {
             Action::Preferences => self.prefs.open(),
             Action::ToggleWrap => self.toggle_wrap(),
             Action::Find => self.find.open(&self.editor),
+            Action::Replace => self.find.open_replace(&self.editor),
             Action::FindNext => self.find.step(&mut self.editor, true),
             Action::FindPrev => self.find.step(&mut self.editor, false),
             Action::Exit => self.ask_to_quit(),
@@ -712,7 +718,12 @@ impl App {
         let layout = Layout {
             gutter,
             text_cols: width - gutter,
-            find_row: self.find.is_open().then(|| height.saturating_sub(2)),
+            find_row: {
+                // The bar sits above the status row and takes as many rows as it
+                // has: one for the pattern, two once the replacement is up.
+                let rows = self.find.rows();
+                (rows > 0).then(|| height.saturating_sub(1 + rows))
+            },
             status_row: height - 1,
         };
         let text_rows = layout.text_rows();
@@ -1506,6 +1517,39 @@ mod tests {
     }
 
     #[test]
+    fn ctrl_h_adds_the_replacement_row_and_enter_replaces() {
+        let mut app = app("one two one\n");
+        let rows = drawn(&mut app, 40, 6);
+        assert!(!rows[3].contains("Find:"), "{:?}", rows);
+        app.run(Action::Replace);
+        let rows = drawn(&mut app, 40, 6);
+        // The bar takes the two rows above the status line, and the document
+        // gives up one to make room for the second.
+        assert!(rows[3].contains("Find:"), "{:?}", rows);
+        assert!(rows[4].starts_with("Replace:"), "{:?}", rows);
+        assert!(rows[5].contains("Ln 1, Col 1"), "{:?}", rows);
+        for ch in "one".chars() {
+            app.handle(Key::Char(ch));
+        }
+        // Tab three times: the two marks, then the replacement field.
+        for _ in 0..3 {
+            app.handle(Key::Tab);
+        }
+        app.handle(Key::Char('1'));
+        app.handle(Key::Enter);
+        assert_eq!(app.editor.doc.text().as_str(), "1 two one\n");
+        // The shell heard the bar's edit: the line is drawn again with the new
+        // text on it, not with the one it replaced.
+        let rows = drawn(&mut app, 40, 6);
+        assert!(rows[0].contains("1 two one"), "{:?}", rows);
+        // And the whole replacement is one press of undo.
+        app.handle(Key::Escape);
+        app.handle(Key::Ctrl('z'));
+        let rows = drawn(&mut app, 40, 6);
+        assert!(rows[0].contains("one two one"), "{:?}", rows);
+    }
+
+    #[test]
     fn the_find_bar_keeps_its_arrows_while_lines_wrap() {
         // A pattern with two matches on one long line: Down in the bar means the
         // match after, not the row below, even though the document wraps.
@@ -1533,8 +1577,8 @@ mod tests {
     #[test]
     fn a_command_the_shell_has_not_got_says_so() {
         let mut app = app("x\n");
-        // The find bar has arrived; replace and find-in-files have not.
-        app.run(Action::Replace);
+        // Find and replace have arrived; find in files has not.
+        app.run(Action::FindInFiles);
         let message = app.message().unwrap_or_default();
         assert!(message.contains("not in the terminal yet"), "{message}");
     }
