@@ -13905,3 +13905,70 @@ the same two names as the File menu's first two rows; selecting `tab-b.txt` drew
 ` tab-a.txt  tab-b.txt` with `two` and `three` in the tab it opened, and `Clear
 Recent` said `the recent list is empty`.
 
+## The hundred-and-thirty-ninth pass: the tabs that were open, reopened
+
+The last pass left the shell reading the session's recent list and carrying the
+window's tab lines through untouched. That was honest when the shell had nothing to
+reopen; now it has a strip, so it can do what the window does -- and once it does,
+carrying the lines through untouched is the wrong thing, because a strip of two
+documents that closed to an empty `tabs` would cost the next start both of them.
+
+So the shell reopens what the session remembers, on the window's rule, exactly: only
+when the command line named no file -- `npp notes.txt` means that file and nothing
+else -- a file that has been moved or deleted since the last run is skipped rather
+than reported, the caret goes back to the line and column it was on, and a session
+that restores nothing leaves the blank page the shell was built with. The index of
+the tab in front is clamped to the tabs that survived, so a session written when
+four were open still puts the right one in front when two have been deleted. One
+rule is added to the window's, and it is the shell's own: two tabs on one file are
+refused, because `open_path` refuses them for the reason that has not changed -- two
+buffers writing over one file with the last save winning and nothing said.
+
+The write side is the mirror of it, and it is where the two front-ends have to agree
+about something neither owns alone. The shell writes its own tabs, in strip order,
+with the caret each one has, and skips the buffers that have never been saved, for
+the window's reason. But it cannot write a pin or a colour, because it cannot set
+either; writing `0 none` for every tab would repaint the window's tabs the next time
+the window starts. Those two fields are therefore read back out of the copy that was
+loaded at startup, path by path, so a tab that came from the window goes back to it
+as it was. What that leaves is a file that remembers the last front-end to quit,
+which is what a single shared session file can honestly mean: both front-ends are
+places the editor can be, and it reopens the last one.
+
+Nothing here touches a frame. The tabs are reopened once, before the first one; the
+session is built once, after the last one; the lookup is per tab at exit, not per
+cell. The strip's own layout, the gutter, the palette and the bar's arithmetic are
+untouched, which is what the byte-for-byte comparison over the thirty-one flag
+combinations says.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical.
+
+`cargo test --offline --release`: 2,422 tests, 0 failed -- 2,420 plus two. The first
+loads a session with two live tabs and one that has been deleted, and asserts that
+the two come back in order, that the missing one is skipped rather than reported,
+that the caret of the first is on its third line and second character, and that the
+index of the tab in front counts only the tabs that survived; a session whose only
+file is gone leaves the blank page. The second opens two files, puts a new buffer in
+front of them, and asserts that what gets written is the two files, where they
+stand, with the caret of the second one at column two, and that the front is the tab
+that had it before the blank one -- and then that a pin and a colour on one of them,
+put into the loaded copy by hand, survive into the written session while the other
+tab still says `0 none`.
+
+The keystroke measurement is unchanged at 15,554 bytes for the first paint and 306
+for a keystroke, 48.6 us. `cargo clippy --offline --release --all-targets`: 0
+warnings. `cargo fmt` was not run. The feature reference and its PDF are untouched.
+
+Through a pseudo terminal with a fresh home and a session file the window might have
+written -- `tab2 2 1 1 yellow /tmp/rst-a.txt`, `tab2 0 0 0 none /tmp/rst-b.txt`,
+`active 1` -- starting with no argument drew the strip as ` rst-a.txt  rst-b.txt `
+with the second one lit, drew `rst-b.txt`'s single line, and the bar read
+`/tmp/rst-b.txt Ln 1, Col 1`. `Ctrl+PageUp` moved to the other tab and the bar read
+`Ln 3, Col 2`, which is where the session said its caret was. Quitting with `Ctrl+Q`
+wrote the file back byte for byte, pin and colour included. Starting from a session
+holding only `rst-b.txt`, opening `rst-a.txt` from the File menu and pressing Down
+twice before quitting wrote `recent /tmp/rst-a.txt`,
+`tab2 0 0 0 none /tmp/rst-b.txt`, `tab2 2 0 0 none /tmp/rst-a.txt`, `active 1`.
+

@@ -32,8 +32,9 @@ use nn_core::{CLikeLexer, ConfigLexer, Document, Editor, Highlighter, Lexer, Mot
 use nn_shared::action::Action;
 use nn_shared::i18n::Catalog;
 use nn_shared::keymap::{Chord, KeyName, Keymap};
-use nn_shared::session::Session;
+use nn_shared::session::{Session, SessionTab};
 use nn_shared::settings::Settings;
+use nn_shared::tabcolour::TabColour;
 use unicode_width::UnicodeWidthChar;
 
 use crate::find::Find;
@@ -178,12 +179,13 @@ pub struct App {
     /// rebuilt for a new recent list without reading the language off the disk
     /// again.
     catalog: Option<Catalog>,
-    /// The recent files and the tabs the window had open, which is the file both
-    /// front-ends share.
+    /// The recent files and the open tabs, which is the file both front-ends
+    /// share.
     ///
     /// Read at startup and written at exit, which is when the window writes it
-    /// too. The tabs in it are carried through untouched: they are the window's,
-    /// and this shell has nothing of its own to say about them yet.
+    /// too. The copy read at startup is where the tabs come from, and where the
+    /// pins and the colours come from on the way out: a tab the window left
+    /// pinned or painted goes back to it as it was.
     session: Session,
     /// The preferences dialog, and the settings it edits.
     ///
@@ -227,16 +229,21 @@ impl App {
             None => Document::new(),
         };
         let mut app = App::with_document(doc);
-        // The recent list and the window's tabs, read once. Writing happens at
-        // exit, which is when the window writes it too -- so a shell that is
-        // killed rather than quit loses the same thing the window would.
+        // The recent list and the tabs, read once. Writing happens at exit,
+        // which is when the window writes it too -- so a shell that is killed
+        // rather than quit loses the same thing the window would.
         app.session = Session::load();
-        // The file the command line named is a recent one, as it is in the
-        // window: it is the last file this shell was asked to open. A name that
-        // is not on the disk is skipped by `record_recent`, because a buffer for
-        // a file that has never been written is not somewhere the user has been.
-        if let Some(path) = path {
-            app.record_recent(&absolute(path));
+        match path {
+            // The file the command line named is a recent one, as it is in the
+            // window: it is the last file this shell was asked to open. A name
+            // that is not on the disk is skipped by `record_recent`, because a
+            // buffer for a file that has never been written is not somewhere the
+            // user has been.
+            Some(path) => app.record_recent(&absolute(path)),
+            // Naming a file means that file and nothing else, which is the
+            // window's rule: the session's tabs are reopened only when the
+            // command line asked for none.
+            None => app.restore_tabs(),
         }
         app.rebuild_menus();
         Ok(app)
@@ -244,11 +251,11 @@ impl App {
 
     /// Writes the session, for the loop that is leaving.
     ///
-    /// Not called on every open: the file belongs to both front-ends and holds
-    /// the window's open tabs as well, so it is written once, when this shell is
-    /// done, out of the copy it read at startup.
+    /// Not called on every open: the file belongs to both front-ends, so it is
+    /// written once, when this shell is done, out of the copy it read at startup
+    /// with the tabs it has now.
     pub fn save_session(&self) {
-        self.session.save();
+        self.session_now().save();
     }
 
     /// Wraps a document that is already in memory.
@@ -394,6 +401,78 @@ impl App {
         }
         self.session.push_recent(path);
         self.rebuild_menus();
+    }
+
+    /// Reopens the tabs the session remembers, and puts the one that was in
+    /// front back in front.
+    ///
+    /// The window's rule, one for one. A file that has been moved or deleted
+    /// since the last run is skipped rather than reported -- a session is a
+    /// convenience, and refusing to start over a stale entry would cost more
+    /// than the tab it lost -- and a session that restores nothing leaves the
+    /// blank page the shell was built with.
+    fn restore_tabs(&mut self) {
+        let mut tabs: Vec<Tab> = Vec::new();
+        for saved in &self.session.tabs {
+            // Two tabs on one file would be two buffers writing over each other,
+            // which is what `open_path` refuses; a session written by hand, or by
+            // two front-ends at once, should not get past that either.
+            if tabs
+                .iter()
+                .any(|tab| tab.editor.doc.path() == Some(saved.path.as_path()))
+            {
+                continue;
+            }
+            // `from_file` rather than `open`: a file that is gone is skipped, and
+            // a name that was never written is not a tab to reopen.
+            let Ok(doc) = Document::from_file(&saved.path) else {
+                continue;
+            };
+            let mut tab = Tab::new(doc);
+            // The caret goes back where it was, in the units the core counts in:
+            // a zero-based line, and a column of characters.
+            tab.editor.goto_position(saved.line, saved.column);
+            tabs.push(tab);
+        }
+        if tabs.is_empty() {
+            return;
+        }
+        self.active = self.session.active.min(tabs.len() - 1);
+        self.tabs = tabs;
+    }
+
+    /// The session as it stands: every tab with a file, and the index that was
+    /// in front.
+    ///
+    /// A buffer that has never been saved has no file to reopen, so it is not
+    /// written; the window skips the same ones for the same reason. The pins and
+    /// the colours are taken from the copy read at startup, because this shell
+    /// has no way to set them and dropping them would repaint the window's tabs
+    /// the next time it starts.
+    fn session_now(&self) -> Session {
+        let mut session = self.session.clone();
+        session.tabs.clear();
+        let mut active = 0;
+        let mut kept = 0;
+        for (index, tab) in self.tabs.iter().enumerate() {
+            let Some(path) = tab.editor.doc.path() else {
+                continue;
+            };
+            if index <= self.active {
+                active = kept;
+            }
+            kept += 1;
+            let before = self.session.tabs.iter().find(|saved| saved.path == path);
+            session.tabs.push(SessionTab {
+                path: path.to_path_buf(),
+                line: tab.editor.caret_line(),
+                column: tab.editor.caret_column(),
+                pinned: before.is_some_and(|saved| saved.pinned),
+                colour: before.map_or(TabColour::None, |saved| saved.colour),
+            });
+        }
+        session.active = active.min(session.tabs.len().saturating_sub(1));
+        session
     }
 
     /// Whether the loop should stop.
@@ -2402,8 +2481,8 @@ mod tests {
         app.handle(Key::Escape);
         prompt(&mut app, Action::Open, &path.display().to_string());
         assert_eq!(app.session.recent.first(), Some(&path));
-        // The window's tab list is carried through untouched: this shell has
-        // nothing of its own to say about it yet.
+        // The copy read at startup is untouched by an open: what gets written is
+        // `session_now`, which is the tabs this shell has at exit.
         assert!(app.session.tabs.is_empty());
         // And the bar's File menu now carries the row, above `Reload from Disk`.
         app.handle(Key::Function(9));
@@ -2441,6 +2520,111 @@ mod tests {
         app.run(Action::ClearRecent);
         assert!(app.session.recent.is_empty());
         assert_eq!(app.message(), Some("the recent list is empty"));
+        let _ = std::fs::remove_file(&first);
+        let _ = std::fs::remove_file(&second);
+    }
+
+    #[test]
+    fn the_tabs_a_session_remembers_come_back_in_order_with_their_carets() {
+        let first = temp("restore-a.txt");
+        let second = temp("restore-b.txt");
+        std::fs::write(&first, "one\ntwo\nthree\n").expect("write");
+        std::fs::write(&second, "four\n").expect("write");
+        let mut restored = app("");
+        restored.session = Session {
+            recent: Vec::new(),
+            tabs: vec![
+                SessionTab {
+                    path: first.clone(),
+                    line: 2,
+                    column: 1,
+                    pinned: true,
+                    colour: TabColour::Yellow,
+                },
+                // A file that is gone is skipped, and the tabs after it still
+                // open: a stale entry is a convenience lost, not an error.
+                SessionTab {
+                    path: temp("restore-gone.txt"),
+                    line: 0,
+                    column: 0,
+                    pinned: false,
+                    colour: TabColour::None,
+                },
+                SessionTab {
+                    path: second.clone(),
+                    line: 0,
+                    column: 0,
+                    pinned: false,
+                    colour: TabColour::None,
+                },
+            ],
+            active: 2,
+        };
+        restored.restore_tabs();
+        assert_eq!(restored.tabs.len(), 2, "the missing file is skipped");
+        assert_eq!(restored.tabs[0].editor.doc.path(), Some(first.as_path()));
+        assert_eq!(restored.tabs[1].editor.doc.path(), Some(second.as_path()));
+        // The caret is where the session left it: the third line, second
+        // character.
+        assert_eq!(restored.tabs[0].editor.caret_line(), 2);
+        assert_eq!(restored.tabs[0].editor.caret_column(), 1);
+        // The index counts the tabs that survived, not the ones that did not.
+        assert_eq!(restored.active, 1);
+        assert_eq!(restored.tab().editor.doc.path(), Some(second.as_path()));
+        // A session that restores nothing leaves the blank page in place.
+        let mut empty = app("");
+        empty.session = Session {
+            tabs: vec![SessionTab {
+                path: temp("restore-gone-too.txt"),
+                line: 0,
+                column: 0,
+                pinned: false,
+                colour: TabColour::None,
+            }],
+            active: 0,
+            ..Session::default()
+        };
+        empty.restore_tabs();
+        assert_eq!(empty.tabs.len(), 1);
+        assert_eq!(empty.tab().editor.doc.path(), None);
+        let _ = std::fs::remove_file(&first);
+        let _ = std::fs::remove_file(&second);
+    }
+
+    #[test]
+    fn what_the_shell_writes_is_the_tabs_it_has_where_they_stand() {
+        let first = temp("now-a.txt");
+        let second = temp("now-b.txt");
+        std::fs::write(&first, "one\n").expect("write");
+        std::fs::write(&second, "two\n").expect("write");
+        let mut app = App::open(Some(&first)).expect("open");
+        prompt(&mut app, Action::Open, &second.display().to_string());
+        app.tabs[1].editor.goto_position(0, 2);
+        // A buffer with no file has nothing to reopen, so it is not written --
+        // and the tab that was in front before it keeps the front.
+        app.run(Action::New);
+        let session = app.session_now();
+        assert_eq!(session.tabs.len(), 2, "the unnamed buffer is skipped");
+        assert_eq!(session.tabs[0].path, first);
+        assert_eq!(session.tabs[1].path, second);
+        assert_eq!(session.tabs[1].column, 2);
+        assert_eq!(session.active, 1);
+        // A pin and a colour the window set survive the trip through a shell
+        // that cannot set either: they are read back out of the copy it loaded.
+        app.session.tabs = vec![SessionTab {
+            path: first.clone(),
+            line: 0,
+            column: 0,
+            pinned: true,
+            colour: TabColour::Purple,
+        }];
+        let session = app.session_now();
+        assert!(session.tabs[0].pinned);
+        assert_eq!(session.tabs[0].colour, TabColour::Purple);
+        assert!(!session.tabs[1].pinned);
+        assert_eq!(session.tabs[1].colour, TabColour::None);
+        // The recent list is the copy read at startup, kept whole.
+        assert_eq!(session.recent, app.session.recent);
         let _ = std::fs::remove_file(&first);
         let _ = std::fs::remove_file(&second);
     }
