@@ -109,6 +109,22 @@ pub struct App {
     /// the screen, which is a question the line number alone cannot answer once
     /// one line can take several rows.
     visible_until: usize,
+    /// The columns the text area had in the last frame.
+    ///
+    /// Kept because a vertical move is a move between rows while wrapping is on,
+    /// and the rows depend on the column count -- which a keystroke needs before
+    /// there is a frame to ask.
+    view_cols: usize,
+    /// The rows of text the last frame had, which is what a page is.
+    view_rows: usize,
+    /// The column within a wrapped row that a run of vertical moves aims at.
+    ///
+    /// The core remembers a character column for the moves it makes, which is the
+    /// right unit while a line is a row. With wrapping on the column that has to
+    /// survive is the position inside the row -- `desired_col` in the core's
+    /// sense would be a different place on every row -- so the shell keeps its
+    /// own, and keeps it only across a run of vertical moves.
+    desired_row: Option<usize>,
     /// The bar and its dropdowns, with the shared tree behind them.
     menus: Menus,
     /// The preferences dialog, and the settings it edits.
@@ -163,6 +179,9 @@ impl App {
             scroll_col: 0,
             scroll_seg: 0,
             visible_until: 0,
+            view_cols: 0,
+            view_rows: 0,
+            desired_row: None,
             menus: Menus::new(&Keymap::default()),
             prefs: Prefs::new(),
             find: Find::new(),
@@ -292,6 +311,16 @@ impl App {
             return;
         }
         self.message = None;
+        // The remembered row survives a run of vertical moves and nothing else.
+        if !matches!(
+            key,
+            Key::Up | Key::Down | Key::ExtendUp | Key::ExtendDown | Key::PageUp | Key::PageDown
+        ) {
+            self.desired_row = None;
+        }
+        if self.move_by_rows(key) {
+            return;
+        }
         // The find bar owns the keys it understands while it is up and hands the
         // rest back, so `Ctrl+S` saves and `Ctrl+Q` quits with a pattern half
         // typed: a bar that swallowed every chord would be a mode, and this one
@@ -538,6 +567,115 @@ impl App {
         }
     }
 
+    /// Moves the caret by rows instead of by lines, while wrapping is on.
+    ///
+    /// Answers whether it took the key. With wrapping off, or with several
+    /// carets, the core's own motion is the right one and this says so by
+    /// declining: a stack of carets walks a block in parallel there, and a row
+    /// motion written for one caret would have to answer what happens to the
+    /// others.
+    ///
+    /// A row is `view_cols` cells of a line, so a line taller than the window is
+    /// walked a row at a time, and stepping past its last row arrives on the
+    /// first row of the line below. What survives a run of these moves is the
+    /// column *inside* the row, which is the only column that means the same
+    /// thing on the next row: the remembered one is clamped to a short row and
+    /// not lost, so passing through a short line does not pull the caret left for
+    /// good.
+    fn move_by_rows(&mut self, key: Key) -> bool {
+        if !self.settings.wrap || self.view_cols == 0 || self.editor.selections.len() > 1 {
+            return false;
+        }
+        let (delta, extend) = match key {
+            Key::Up => (-1isize, false),
+            Key::Down => (1, false),
+            Key::ExtendUp => (-1, true),
+            Key::ExtendDown => (1, true),
+            Key::PageUp => (-(self.view_rows as isize), false),
+            Key::PageDown => (self.view_rows as isize, false),
+            _ => return false,
+        };
+        let cols = self.view_cols;
+        let line = self.editor.caret_line();
+        let display = self.display_column(line, self.editor.caret_column());
+        let row_col = *self.desired_row.get_or_insert(display % cols);
+        let mut at = (line, display / cols);
+        // How many rows the line the caret is on takes, counted once per line it
+        // crosses: a page walks every row of a tall line, and counting a line of
+        // a hundred thousand characters again for each of those rows is the kind
+        // of cost a keypress should not have.
+        let mut rows = self.row_count(at.0);
+        for _ in 0..delta.unsigned_abs() {
+            match self.row_neighbour(at.0, at.1, rows, delta > 0) {
+                Some(next) => {
+                    if next.0 != at.0 {
+                        rows = self.row_count(next.0);
+                    }
+                    at = next;
+                }
+                // The first or the last row of the document: the move stays
+                // where it is rather than wrapping round.
+                None => break,
+            }
+        }
+        let width = self.display_column(at.0, self.line_length(at.0));
+        let target = (at.1 * cols + row_col).min(width);
+        let position = self.editor.doc.line_to_char(at.0) + self.char_at_display(at.0, target);
+        if extend {
+            self.editor.selections.primary_mut().extend_to(position);
+        } else {
+            self.editor.selections.set_caret(position);
+        }
+        true
+    }
+
+    /// The row above or below `segment` of a line of `rows` rows, or `None` at
+    /// the document's ends.
+    fn row_neighbour(
+        &self,
+        line: usize,
+        segment: usize,
+        rows: usize,
+        down: bool,
+    ) -> Option<(usize, usize)> {
+        if down {
+            if segment + 1 < rows {
+                Some((line, segment + 1))
+            } else {
+                (line + 1 < self.editor.doc.len_lines()).then_some((line + 1, 0))
+            }
+        } else if segment > 0 {
+            Some((line, segment - 1))
+        } else if line > 0 {
+            Some((line - 1, self.row_count(line - 1) - 1))
+        } else {
+            None
+        }
+    }
+
+    /// How many rows `line` takes once wrapped, which is at least one.
+    ///
+    /// Counted in cells, not characters: a tab stands for the stop it jumps to
+    /// and a wide glyph for two columns, which is what the drawing does and
+    /// therefore what the rows are.
+    fn row_count(&self, line: usize) -> usize {
+        let width = self.display_column(line, self.line_length(line));
+        width.div_ceil(self.view_cols.max(1)).max(1)
+    }
+
+    /// The character of `line` that stands at display column `target`, or the
+    /// one past its last character.
+    fn char_at_display(&self, line: usize, target: usize) -> usize {
+        let mut display = 0usize;
+        for (index, ch) in self.editor.doc.line_chars(line).enumerate() {
+            if ch == '\n' || ch == '\r' || display >= target {
+                return index;
+            }
+            display = advance(display, ch, self.settings.tab_width);
+        }
+        self.line_length(line)
+    }
+
     /// How many columns the line numbers take, with their trailing space.
     fn gutter_width(&self) -> usize {
         let digits = self.editor.doc.len_lines().to_string().len();
@@ -612,6 +750,8 @@ impl App {
             self.visible_until = self.scroll_line + text_rows;
         }
 
+        self.view_cols = layout.text_cols;
+        self.view_rows = text_rows;
         let caret = self.editor.caret();
         let selection = self.editor.selection_start()..self.editor.selection_end();
 
@@ -945,6 +1085,18 @@ mod tests {
         app
     }
 
+    /// Where the caret is drawn, if it is drawn at all.
+    fn caret_cell(grid: &Grid) -> Option<(usize, usize)> {
+        for row in 0..grid.height() {
+            for column in 0..grid.width() {
+                if grid.get(row, column).tone == Tone::Caret {
+                    return Some((row, column));
+                }
+            }
+        }
+        None
+    }
+
     fn drawn(app: &mut App, width: usize, height: usize) -> Vec<String> {
         let mut grid = Grid::new(width, height);
         app.draw(&mut grid);
@@ -1031,6 +1183,105 @@ mod tests {
     }
 
     #[test]
+    fn down_walks_the_rows_of_one_wrapped_line() {
+        // Twelve columns and a one-line document: a gutter of two, ten columns of
+        // text, and twenty-five characters in three rows.
+        let mut app = app("0123456789ABCDEFGHIJKLMNO");
+        app.settings_mut().wrap = true;
+        let mut grid = Grid::new(12, 4);
+        app.draw(&mut grid);
+        app.handle(Key::Down);
+        assert_eq!(app.editor.caret_column(), 10);
+        app.handle(Key::Down);
+        assert_eq!(app.editor.caret_column(), 20);
+        // The third row is five characters long, and the caret arrives at the
+        // start of it: a row move keeps the column inside the row, which is zero.
+        app.handle(Key::Down);
+        assert_eq!(app.editor.caret_column(), 20);
+        // Which is also the last row of the document: one more Down stays put.
+        app.handle(Key::Down);
+        assert_eq!(app.editor.caret_column(), 20);
+        // And Up walks back, arriving on the same two columns.
+        app.handle(Key::Up);
+        assert_eq!(app.editor.caret_column(), 10);
+        app.handle(Key::Up);
+        assert_eq!(app.editor.caret_column(), 0);
+        app.handle(Key::Up);
+        assert_eq!(app.editor.caret_column(), 0);
+    }
+
+    #[test]
+    fn the_column_inside_the_row_survives_a_short_line() {
+        let text = "0123456789ABCDEFGHIJKLMNO\nab\n0123456789ABCDEFGHIJKLMNO\n";
+        let mut app = app(text);
+        app.settings_mut().wrap = true;
+        let mut grid = Grid::new(12, 4);
+        app.draw(&mut grid);
+        app.editor.goto_position(0, 3);
+        app.draw(&mut grid);
+        // Down the rows of the same line: three more cells along, ten in.
+        app.handle(Key::Down);
+        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (0, 13));
+        app.handle(Key::Down);
+        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (0, 23));
+        // Down onto `ab`: the remembered column is three, the line has two.
+        app.handle(Key::Down);
+        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (1, 2));
+        // And the memory is not the clamp: the next line gets its own row read
+        // from the column that was asked for, not from the two cells it gave.
+        app.handle(Key::Down);
+        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (2, 3));
+    }
+
+    #[test]
+    fn up_from_the_first_row_arrives_on_the_last_row_of_the_line_above() {
+        let mut app = app("0123456789ABCDEF\nabcdefghij\n");
+        app.settings_mut().wrap = true;
+        let mut grid = Grid::new(12, 4);
+        app.draw(&mut grid);
+        app.editor.goto_position(1, 2);
+        app.draw(&mut grid);
+        // The line above takes two rows, so Up lands on its second row, two cells
+        // in -- not at the end of its first.
+        app.handle(Key::Up);
+        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (0, 12));
+    }
+
+    #[test]
+    fn a_page_moves_a_screenful_of_rows_and_a_tab_covers_its_cells() {
+        // Four rows of text, so a page is four rows: three tabs' worth of cells
+        // is six, and the document is five lines of four tabs.
+        let mut app = app("\t\t\t\t\n\t\t\t\t\n\t\t\t\t\n\t\t\t\t\n\t\t\t\t\n");
+        app.settings_mut().wrap = true;
+        let mut grid = Grid::new(12, 5);
+        app.draw(&mut grid);
+        // A tab reaches the next stop of four, so a line of four is sixteen cells
+        // and two rows of ten.
+        app.handle(Key::PageDown);
+        assert_eq!(app.editor.caret_line(), 2, "a page of four rows is two lines");
+        app.handle(Key::PageDown);
+        assert_eq!(app.editor.caret_line(), 4);
+        app.handle(Key::PageUp);
+        assert_eq!(app.editor.caret_line(), 2);
+    }
+
+    #[test]
+    fn with_wrapping_off_a_vertical_move_is_still_a_line() {
+        let mut app = app("0123456789ABCDEFGHIJ\nab\n0123456789ABCDEFGHIJ\n");
+        let mut grid = Grid::new(12, 4);
+        app.draw(&mut grid);
+        app.editor.goto_position(0, 3);
+        app.draw(&mut grid);
+        // The second line holds two characters, the third none of the first
+        // line's tail: the core's motion clamps to each line and remembers the
+        // column, and nothing here interfered with it.
+        app.handle(Key::Down);
+        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (1, 2));
+        app.handle(Key::Down);
+        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (2, 3));
+    }
+
+    #[test]
     fn walking_down_a_wrapped_document_brings_the_caret_with_it() {
         // Twelve columns leave ten of text, and every line is sixty characters:
         // each one is six rows tall, so the screen -- four rows of text -- does
@@ -1045,34 +1296,20 @@ mod tests {
         for _ in 0..12 {
             app.handle(Key::Down);
             app.draw(&mut grid);
+            assert!(caret_cell(&grid).is_some(), "the caret left the screen");
         }
-        assert_eq!(app.editor.caret_line(), 12);
-        let mut caret = None;
-        for row in 0..4 {
-            for column in 0..12 {
-                if grid.get(row, column).tone == Tone::Caret {
-                    caret = Some((row, column));
-                }
-            }
-        }
-        // A blank cell rather than a character: the caret is at the start of a
-        // line, and every row of it that the screen has is the one it is on.
-        assert!(caret.is_some(), "the caret left the screen");
-        // And the same walk back up finds it again.
-        for _ in 0..6 {
+        // Twelve rows down is one and a half lines of six rows, so the caret is
+        // on the second line -- where a line motion would have put it on the
+        // thirteenth.
+        assert_eq!(app.editor.caret_line(), 1);
+        // And the same walk back up returns it to where it started, which is what
+        // makes the two motions inverses of one another.
+        for _ in 0..12 {
             app.handle(Key::Up);
             app.draw(&mut grid);
+            assert!(caret_cell(&grid).is_some(), "the caret left the screen");
         }
-        assert_eq!(app.editor.caret_line(), 6);
-        let mut back = None;
-        for row in 0..4 {
-            for column in 0..12 {
-                if grid.get(row, column).tone == Tone::Caret {
-                    back = Some((row, column));
-                }
-            }
-        }
-        assert!(back.is_some(), "the caret left the screen going back up");
+        assert_eq!(app.editor.caret(), 0);
     }
 
     #[test]
@@ -1349,6 +1586,30 @@ mod tests {
         );
         assert!(median < 600, "a keystroke cost {median} bytes");
         assert!(micros < 5_000.0, "a keystroke took {micros} us");
+
+        // With wrapping on a vertical move walks rows, and counting the rows a
+        // line takes is a pass over that line. That is the same order as the
+        // line the move used to walk, but it is a pass per line crossed, so the
+        // number is measured rather than assumed to have stayed put.
+        let long: String = (0..100).map(|_| "0123456789".repeat(30) + "\n").collect();
+        let mut wrapped = App::with_document(Document::from_text(&long));
+        *wrapped.settings_mut() = Settings {
+            wrap: true,
+            ..Settings::default()
+        };
+        wrapped.apply_settings();
+        let mut frame = Frame::new(120, 40);
+        wrapped.draw(frame.grid());
+        let mut moves = Vec::new();
+        for _ in 0..100 {
+            let start = std::time::Instant::now();
+            wrapped.handle(Key::Down);
+            moves.push(start.elapsed().as_nanos() as u64);
+        }
+        moves.sort_unstable();
+        let wrapped_micros = moves[moves.len() / 2] as f64 / 1000.0;
+        println!("a Down across wrapped rows takes {wrapped_micros:.1} us");
+        assert!(wrapped_micros < 1_000.0, "a wrapped Down took {wrapped_micros} us");
     }
 
     #[test]

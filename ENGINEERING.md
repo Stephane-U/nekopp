@@ -13289,3 +13289,75 @@ every line is six rows tall. The keystroke measurement still prints 15,554 bytes
 for the first paint, 306 for a keystroke, in 69 microseconds. `cargo clippy
 --offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. The
 feature reference and its PDF are untouched.
+
+## The hundred-and-twenty-ninth pass: a row at a time
+
+The last pass ended on a note it could not answer: Up and Down moved by document
+line, so with wrapping on a Down left a long line at its first continuation row
+instead of walking down through the rest of it, and a page moved a screenful of
+lines that might be three screens tall. This pass takes the note up.
+
+The motion stayed in the shell, which is the opposite of what the note guessed.
+The note said it belonged to `nn-core`, where both front-ends would get it, and
+the reason it does not is a disagreement about what a row is. The document's row
+model counts characters -- `set_wrap`, `row_of_line`, `segments_of_line` all
+divide a character index by a width -- while the terminal's drawing counts cells,
+and a cell is not a character: a tab covers one to eight of them, a wide glyph
+two. A motion written against character rows would put the caret a row away from
+where it is drawn in any file holding a tab, and the window has the same
+disagreement from the other side, because its rows come from the shaper. So the
+document keeps its character rows, the shell walks rows of cells, and the two do
+not meet until the document's model counts display columns -- a change to make in
+`nn-core` on the day both front-ends can be moved together, not one of them now.
+
+The walk is `move_by_rows`, and it is deliberately short. It takes the caret's
+line and the row inside it, steps one row, crosses a line boundary at either end,
+and lands on the display column it was aiming for; `char_at_display` answers
+which character stands at a display column, and `row_count` how many rows a line
+takes once its tabs are expanded. The column it aims for is `desired_row`, which
+is a single number on `App` that a run of vertical moves keeps and every other
+key clears: Down, Down, Up therefore comes back to the column it started on,
+rather than drifting left every time a short line interrupts the run. A page is
+the same walk repeated once per row of the text area -- not once per line, which
+is what it used to be and what a page has to mean when a line is three rows tall.
+With wrapping off, and with more than one caret, the key goes to the core's own
+motion, because there a row is a line and there is nothing to compute.
+
+Counting the rows of a line is a pass over that line, which is the cost this pass
+had to watch. The count is taken once per line the walk crosses, not once per row
+it steps, so a page down a document of three-hundred-character lines counts
+thirteen lines rather than thirty-nine, and a Down inside one line counts that
+line twice
+-- once to find the row it is in, once for the move. The keystroke measurement in
+the tests grew a second number for it: 15,554 bytes for the first paint and 306
+for a keystroke, unchanged, and a Down across wrapped rows in 8.6 microseconds
+against the 48.5 a keystroke's own redraw takes -- a fifth of a frame, which is
+the same order the line-based motion had. The bound that remains is worth saying
+out loud: a Down on a line of a million characters costs a pass over that line,
+exactly as the window's shaper does when it lays the same line out. Making that
+go away is the same engine change as making the rows display columns, and it will
+arrive with it.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical;
+only `nn-tui` changed.
+
+Driven through a pseudo terminal, on a 140-column screen, over a document holding
+one 300-character line above a short one, from a fresh home with wrapping on. At
+the start the status read `Ln 1, Col 1`; one Down put the caret on the second row
+of the line, `Ln 1, Col 139`, with the digit 8 of the line under the caret block;
+a second Down, `Ln 1, Col 277`, on the third row; a third, `Ln 2, Col 1`, on the
+line below; two Downs and an Up, `Ln 1, Col 139`, the column it had before. Thirty
+lines of three hundred characters: Page Down read `Ln 14` with line 14 at the top
+of the gutter, Page Down again `Ln 27`, Page Up back to `Ln 1, Col 1`. With
+wrapping off the same Down was the core's and moved a line.
+
+`cargo test --offline --release`: 2,393 tests, 0 failed -- 2,388 plus five: a
+walk down the rows of one wrapped line, the column inside a row surviving a short
+line, an Up from a line's first row arriving on its last row, a page walking rows
+and a tab covering its cells, and a vertical move still being a line with wrapping
+off; the sixth test to change is the keystroke measurement, which now measures a
+wrapped Down as well. `cargo clippy --offline --release --all-targets`: 0
+warnings. `cargo fmt` was not run. The feature reference and its PDF are
+untouched.
