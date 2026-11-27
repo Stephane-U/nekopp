@@ -14156,3 +14156,73 @@ with the box under the caret's column and one row below it. `Enter` replaced `al
 with `alpha`, put the box away and left the file as it was on disk, which is the
 proof that the insert goes through the editor and not around it.
 
+## The hundred-and-forty-second pass: path completion, and what a fragment is
+
+The fourth completion mode is the one that reads something other than the document:
+a directory. It is also the one the terminal could not have until the last pass
+existed, because the list it needs is the list the window draws -- names, a
+separator on a directory, the directory part the fragment already carried spliced
+back in front of the chosen name. That composition is now `path_items` in
+`nn-shared/src/completion.rs`, and both front-ends call it with the one thing only
+they know: the directory of the document in front, which is what makes `src/ma` in
+`/home/me/project/main.rs` mean `/home/me/project/src` rather than a path relative
+to wherever the program was started.
+
+The window's `fill_completion` lost its last long arm and is now four one-line calls
+with one base directory worked out for the path case. The terminal gained the mode
+in the place the other three already were, plus two details that are not
+bookkeeping. The large-file guard skips path completion, because the guard exists to
+stop the shell copying a hundred megabytes of text per keystroke and a directory
+listing is not the document. And accepting a path row replaces a *path* fragment
+rather than a word: `path_prefix` walks back over dots and dashes and slashes until
+a space or a quote, where `prefix_range` would stop at the first character that is
+not a word character and leave `./ma` half-replaced.
+
+What a path fragment is at all turned out to be worth writing down, because the
+first version of the shared test asked for a completion of `ma` and got nothing.
+`path_prefix` insists on a separator: a bare word is a word, word completion offers
+those, and a path completion that fired on every half-typed word would push a list
+under the caret while somebody was writing prose. So the list appears for `./ma`,
+`src/ma` and `../ma`, and stays shut for `ma` -- which is also why the document in
+the terminal's own test opens on `open ./ma`.
+
+The chord is the one thing a terminal cannot deliver. `Ctrl+Alt+Space` reaches the
+window as a chord and would reach a terminal as an escape byte with a NUL behind it,
+which this parser does not fold into a modifier; `Ctrl+Space` arrived only last pass
+because a keyboard sends it as a plain NUL. The way in here is the menu, `Edit` then
+`Auto-Completion` then `Path Completion`, which shows the same chord beside it --
+the row is there and the keys are the row's to say, not this shell's to hide.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical.
+
+`cargo test --offline --release`: 2,462 tests, 0 failed. One is `nn-shared`'s: a
+scratch directory listed by `./ma` with the fragment kept in the insert, a directory
+row carrying its separator, `src/m` resolved against the document rather than the
+working directory, a bare word offering nothing, and a directory that is not there
+being a closed list rather than a failure. One is the terminal's: the same round
+trip through `App::run`, with the row taken by `Enter` and the line ending as `open
+./main.rs`.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: the completion list itself is
+a hundred-and-forty-first feature and this pass only reaches the fourth mode of it.
+
+The keystroke is unchanged at 15,554 bytes for the first paint and 306 for one. The
+completion box is 1,362 bytes and 32.8 us on the same machine, the search list 1,476
+and 79.6 -- the timings move with the machine and the byte counts do not.
+
+Through a pseudo terminal on `/tmp/p142dir/notes.txt` holding `open ./ma`, with
+`main.rs` beside it: `End`, then `F9`, `Right` to Edit, `Down` to `Auto-Completion`,
+`Right` and five `Down`s to `Path Completion`, and the screen read
+
+   1 open ./ma
+   2          ┌─────────┐
+   3          │ main.rs │
+   4          └─────────┘
+
+with the box under the caret's column, one row below the line. `Enter` replaced the
+fragment and left `1 open ./main.rs` on the screen, the menu gone and the caret
+after the name.
+

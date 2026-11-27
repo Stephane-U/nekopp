@@ -27,7 +27,12 @@
 //! the caret, ask the engine for candidates, turn them into rows -- and the
 //! list's own state, which is a cursor and a scroll offset.
 
-use nn_core::{collect_words, collect_words_many, matching_words, prefix_range, scan_functions};
+use std::path::Path;
+
+use nn_core::paths::{complete_path, resolve_dir, split_fragment};
+use nn_core::{
+    collect_words, collect_words_many, matching_words, path_prefix, prefix_range, scan_functions,
+};
 
 /// The most rows the list shows at once.
 ///
@@ -287,6 +292,30 @@ pub fn function_items(text: &str, caret: usize, limit: usize) -> Vec<Item> {
     items
 }
 
+/// The rows path completion offers for the fragment before `caret`.
+///
+/// `base` is the directory a relative fragment is measured from, which only the
+/// front-end knows: both pass the directory of the document in front, so `src/ma`
+/// in `/home/me/project/main.rs` lists `/home/me/project/src`. A directory row
+/// carries its separator in the label, so taking one leaves the caret where the
+/// next step of the path starts rather than at the end of a word.
+pub fn path_items(text: &str, caret: usize, base: Option<&Path>, limit: usize) -> Vec<Item> {
+    let Some(range) = path_prefix(text, caret) else {
+        return Vec::new();
+    };
+    let fragment = text.get(range).unwrap_or_default();
+    let (dir, stem) = split_fragment(fragment);
+    let resolved = resolve_dir(base, dir);
+    complete_path(&resolved, stem, limit)
+        .into_iter()
+        .map(|name| Item {
+            label: name.clone(),
+            insert: format!("{dir}{name}"),
+            back: 0,
+        })
+        .collect()
+}
+
 /// The rows for `prefix` out of `words`, as list rows.
 fn matching_items(prefix: &str, words: &[String], limit: usize) -> Vec<Item> {
     matching_words(prefix, words, limit)
@@ -466,6 +495,80 @@ mod tests {
         // `save` is what is typed, so it is not offered; `saved` is.
         assert_eq!(labels, vec!["saved(path: &Path)"]);
         assert_eq!(items[0].insert, "saved()");
+    }
+
+    /// A scratch directory that removes itself, so the path test does not leak.
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("npp-completion-{name}"));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("scratch directory");
+            Self(dir)
+        }
+
+        fn file(&self, name: &str) {
+            std::fs::write(self.0.join(name), b"x").expect("scratch file");
+        }
+
+        fn dir(&self, name: &str) {
+            std::fs::create_dir_all(self.0.join(name)).expect("scratch subdirectory");
+        }
+
+        /// A file inside a subdirectory, which is what a path fragment with a
+        /// directory part in it is listing.
+        fn file_in(&self, dir: &str, name: &str) {
+            let dir = self.0.join(dir);
+            std::fs::create_dir_all(&dir).expect("scratch subdirectory");
+            std::fs::write(dir.join(name), b"x").expect("scratch file");
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn path_completion_lists_the_directory_and_splices_the_step_back_in() {
+        let scratch = Scratch::new("paths");
+        scratch.file("main.rs");
+        scratch.file("other.txt");
+        scratch.dir("src");
+        scratch.file_in("src", "mod.rs");
+
+        // A fragment has to carry a separator to be a path at all -- a bare word
+        // is a word, and word completion is what offers those.
+        assert!(path_items("open ma", 7, Some(&scratch.0), 200).is_empty());
+
+        // With one, the row is the name and the insert is the name behind the
+        // directory part the fragment already had.
+        let text = "open ./ma";
+        let items = path_items(text, text.len(), Some(&scratch.0), 200);
+        let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+        assert_eq!(labels, vec!["main.rs"]);
+        assert_eq!(items[0].insert, "./main.rs");
+        assert_eq!(items[0].back, 0);
+
+        // A directory carries its separator in the label and in the insert, so
+        // taking it leaves the caret ready for the next step of the path.
+        let text = "open ./sr";
+        let items = path_items(text, text.len(), Some(&scratch.0), 200);
+        assert_eq!(items[0].label, "src/");
+        assert_eq!(items[0].insert, "./src/");
+
+        // And a fragment with a directory part in it is resolved against the
+        // document rather than against the working directory of the process.
+        let text = "open src/m";
+        let items = path_items(text, text.len(), Some(&scratch.0), 200);
+        assert_eq!(items[0].label, "mod.rs");
+        assert_eq!(items[0].insert, "src/mod.rs");
+
+        // A directory that is not there is a closed list rather than a failure.
+        let missing = scratch.0.join("nowhere/");
+        assert!(path_items("open nowhere/x", 14, Some(&missing), 200).is_empty());
     }
 
     #[test]

@@ -29,7 +29,7 @@ use nn_app::{
     CompletionPopup, ContextMenu,
     DocumentPeeker, EditorView, Entry, FileDialog,
     FindBar, FindDialog, FolderPanel, FunctionList, Gpu, Import,
-    Item, KeyName, Keymap, MatchMode, MenuBar, Mode, Palette, PaneRef, ParamHint, PluginList,
+    KeyName, Keymap, MatchMode, MenuBar, Mode, Palette, PaneRef, ParamHint, PluginList,
     PluginMenu, PluginRow, Plugins, Playground, Preferences,
     PrintPreview,
     PromptBar,
@@ -45,7 +45,6 @@ use nn_app::renderer::UiMetrics;
 use nn_app::layout::{self, Rect};
 use nn_app::nppimport;
 use nn_app::themes;
-use nn_app::paths::{complete_path, resolve_dir, split_fragment};
 use nn_core::backup::BackupMode;
 use nn_core::fold::BraceFolder;
 use nn_core::run::{RunCommand, RunContext};
@@ -55,7 +54,7 @@ use nn_core::{
     CLikeLexer, ConfigLexer, DiskChange, Document, Editor, Encoding, EolMode, FindInFiles,
     Highlighter, Lexer, Macro, Motion, PlainLexer, Projects, Step, Tree, Typed, UdlSet, MAX_CANDIDATES,
 };
-use nn_shared::completion::{function_items, pooled_items, word_items};
+use nn_shared::completion::{function_items, path_items, pooled_items, word_items};
 use nn_shared::results::{files_noun, hits_noun};
 use winit::platform::startup_notify::{EventLoopExtStartupNotify, WindowAttributesExtStartupNotify};
 use winit::platform::x11::WindowAttributesExtX11;
@@ -4051,11 +4050,6 @@ impl State {
             }
             CompletionMode::Function => function_items(&text, caret, MAX_CANDIDATES),
             CompletionMode::Path => {
-                let Some(range) = path_prefix(&text, caret) else {
-                    return false;
-                };
-                let fragment = text[range].to_string();
-                let (dir, stem) = split_fragment(&fragment);
                 let base = self
                     .tab()
                     .editor
@@ -4063,15 +4057,7 @@ impl State {
                     .path()
                     .and_then(|path| path.parent())
                     .map(std::path::Path::to_path_buf);
-                let resolved = resolve_dir(base.as_deref(), dir);
-                complete_path(&resolved, stem, MAX_CANDIDATES)
-                    .into_iter()
-                    .map(|name| Item {
-                        label: name.clone(),
-                        insert: format!("{dir}{name}"),
-                        back: 0,
-                    })
-                    .collect()
+                path_items(&text, caret, base.as_deref(), MAX_CANDIDATES)
             }
         };
         if items.is_empty() {

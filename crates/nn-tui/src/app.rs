@@ -29,11 +29,13 @@ use std::path::{Path, PathBuf};
 
 use nn_core::paths::absolute;
 use nn_core::{
-    prefix_range, split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles, Highlighter,
-    Lexer, Motion, MAX_CANDIDATES,
+    path_prefix, prefix_range, split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles,
+    Highlighter, Lexer, Motion, MAX_CANDIDATES,
 };
 use nn_shared::action::Action;
-use nn_shared::completion::{function_items, pooled_items, word_items, CompletionMode};
+use nn_shared::completion::{
+    function_items, path_items, pooled_items, word_items, CompletionMode,
+};
 use nn_shared::i18n::Catalog;
 use nn_shared::keymap::{Chord, KeyName, Keymap};
 use nn_shared::results::hits_noun;
@@ -786,6 +788,7 @@ impl App {
             Action::CompleteWord => self.open_completion(CompletionMode::Word),
             Action::CompleteDocument => self.open_completion(CompletionMode::Document),
             Action::CompleteFunction => self.open_completion(CompletionMode::Function),
+            Action::CompletePath => self.open_completion(CompletionMode::Path),
             Action::Preferences => self.prefs.open(),
             Action::ToggleWrap => self.toggle_wrap(),
             Action::Find => self.find.open(&self.tabs[self.active].editor),
@@ -1291,7 +1294,9 @@ impl App {
     /// `nn-shared`, which is where the window's list comes from too; the anchor
     /// is the frame's business, and it is worked out where the frame is drawn.
     fn open_completion(&mut self, mode: CompletionMode) {
-        if self.editor().doc.is_large() {
+        // Every mode but path completion copies the document, which a large file
+        // cannot afford per keystroke; a directory listing is not the document.
+        if mode != CompletionMode::Path && self.editor().doc.is_large() {
             self.complete.close();
             self.say("Completion is off for large files", true);
             return;
@@ -1324,11 +1329,16 @@ impl App {
                 pooled_items(&text, caret, &pool, MAX_CANDIDATES)
             }
             CompletionMode::Function => function_items(&text, caret, MAX_CANDIDATES),
-            // Path completion reads the filesystem through the window's own
-            // listing, which the terminal does not have yet: the chord says it is
-            // missing rather than offering the words of the document under the
-            // name of a path.
-            CompletionMode::Path => Vec::new(),
+            CompletionMode::Path => {
+                let base = self
+                    .tab()
+                    .editor
+                    .doc
+                    .path()
+                    .and_then(|path| path.parent())
+                    .map(std::path::Path::to_path_buf);
+                path_items(&text, caret, base.as_deref(), MAX_CANDIDATES)
+            }
         };
         if items.is_empty() {
             self.complete.close();
@@ -1352,7 +1362,13 @@ impl App {
             let editor = &self.tabs[self.active].editor;
             (editor.doc.text(), editor.caret())
         };
-        let Some(range) = prefix_range(&text, caret) else {
+        // A path fragment can hold dots and dashes and a slash, so it is read by
+        // the path rule; the three word modes extend the word before the caret.
+        let range = match self.complete.mode() {
+            CompletionMode::Path => path_prefix(&text, caret),
+            _ => prefix_range(&text, caret),
+        };
+        let Some(range) = range else {
             self.complete.close();
             return;
         };
@@ -2157,6 +2173,36 @@ mod tests {
         assert!(!app.complete.is_open());
         assert_eq!(app.tab().editor.doc.text(), "alpha\nal\n");
         assert_eq!(caret(&app), (1, 2));
+    }
+
+    #[test]
+    fn path_completion_lists_the_documents_own_directory() {
+        // A document in a scratch directory with a file beside it: a relative
+        // fragment is measured from the document, not from where the shell was
+        // started, which is what makes the row usable.
+        let dir = temp("complete-path");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(dir.join("main.rs"), "x\n").expect("write");
+        let path = dir.join("notes.txt");
+        std::fs::write(&path, "open ./ma\n").expect("write");
+        let mut app = App::open(Some(&path)).expect("open");
+        app.handle(Key::LineEnd);
+        app.run(Action::CompletePath);
+        assert!(app.complete.is_open(), "a directory row was offered");
+        assert_eq!(
+            app.complete.selected().map(|item| item.label.as_str()),
+            Some("main.rs")
+        );
+        app.handle(Key::Enter);
+        assert!(!app.complete.is_open());
+        assert_eq!(app.tab().editor.doc.text(), "open ./main.rs\n");
+        // A caret with nothing before it on the line offers nothing, and says
+        // nothing: an empty list is a closed list.
+        let mut plain = App::open(Some(&path)).expect("open");
+        plain.tabs[0].editor.goto_position(0, 4);
+        plain.run(Action::CompletePath);
+        assert!(!plain.complete.is_open());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
