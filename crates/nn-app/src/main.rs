@@ -55,6 +55,7 @@ use nn_core::{
     CLikeLexer, ConfigLexer, DiskChange, Document, Editor, Encoding, EolMode, FindInFiles,
     Highlighter, Lexer, Macro, Motion, PlainLexer, Projects, Step, Tree, Typed, UdlSet, MAX_CANDIDATES,
 };
+use nn_shared::results::{files_noun, hits_noun};
 use winit::platform::startup_notify::{EventLoopExtStartupNotify, WindowAttributesExtStartupNotify};
 use winit::platform::x11::WindowAttributesExtX11;
 use winit::{
@@ -516,24 +517,6 @@ enum ReadScope {
     Current,
     /// Every open document.
     All,
-}
-
-/// "1 hit" or "3 hits", for a search results header.
-fn hits_noun(count: usize) -> String {
-    if count == 1 {
-        "1 hit".to_string()
-    } else {
-        format!("{count} hits")
-    }
-}
-
-/// "1 file" or "3 files", for a search results header.
-fn files_noun(count: usize) -> String {
-    if count == 1 {
-        "1 file".to_string()
-    } else {
-        format!("{count} files")
-    }
 }
 
 /// Percent-encodes `text` for use as a query string value.

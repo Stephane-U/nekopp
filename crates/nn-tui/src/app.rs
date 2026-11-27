@@ -25,13 +25,16 @@
 //! of the layout can be tested without a terminal: the tests here open
 //! documents, press keys and read cells back.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nn_core::paths::absolute;
-use nn_core::{CLikeLexer, ConfigLexer, Document, Editor, Highlighter, Lexer, Motion};
+use nn_core::{
+    split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles, Highlighter, Lexer, Motion,
+};
 use nn_shared::action::Action;
 use nn_shared::i18n::Catalog;
 use nn_shared::keymap::{Chord, KeyName, Keymap};
+use nn_shared::results::hits_noun;
 use nn_shared::session::{Session, SessionTab};
 use nn_shared::settings::Settings;
 use nn_shared::tabcolour::TabColour;
@@ -43,6 +46,7 @@ use crate::menus::Menus;
 use crate::palette::{self, Palette, Tone};
 use crate::prefs::Prefs;
 use crate::prompt::{Kind as PromptKind, Prompt};
+use crate::results::{Results, Step};
 use crate::screen::Grid;
 
 /// How the window is divided up, worked out once per frame.
@@ -59,6 +63,9 @@ struct Layout {
     gutter: usize,
     /// Columns left for the text.
     text_cols: usize,
+    /// The results list above the status bar: the row it starts on, and how many
+    /// rows it has, its header included.
+    results: Option<(usize, usize)>,
     /// The first row of the strip above the status line, while anything is up:
     /// the prompt, or the find bar with its replacement row.
     bar_row: Option<usize>,
@@ -67,9 +74,16 @@ struct Layout {
 }
 
 impl Layout {
-    /// The first row below the text: the find bar, the prompt, or the bar.
+    /// The first row below the text: the find bar, the results list, or the bar.
+    ///
+    /// Whichever of them starts highest, because the three stack upwards from the
+    /// status row and the text stops at the first of them.
     fn bottom(self) -> usize {
-        self.bar_row.unwrap_or(self.status_row)
+        let bar = self.bar_row.unwrap_or(self.status_row);
+        match self.results {
+            Some((top, _)) => top.min(bar),
+            None => bar,
+        }
     }
 
     /// The rows the document has, which is every row between the two.
@@ -196,6 +210,11 @@ pub struct App {
     /// The find bar and its pattern, which outlives the bar so `F3` works after
     /// it closes.
     find: Find,
+    /// The results of the last Find in Files, and where its cursor stands.
+    ///
+    /// Outlives the list itself, which is what lets `Search Results Window`
+    /// bring back the search that was made rather than an empty panel.
+    results: Results,
     /// The one-line prompt, when a command needs a line typed before it runs.
     prompt: Prompt,
     settings: Settings,
@@ -270,6 +289,7 @@ impl App {
             session: Session::default(),
             prefs: Prefs::new(),
             find: Find::new(),
+            results: Results::new(),
             prompt: Prompt::new(),
             settings: Settings::load(),
             keymap: Keymap::default(),
@@ -565,6 +585,21 @@ impl App {
             }
             return;
         }
+        // The results list takes the keys that walk a list and hands the rest
+        // back, for the reason the find bar does: a chord has to keep working
+        // with the panel up.
+        if self.results.is_open() {
+            match self.results.handle(key) {
+                Step::No => {}
+                Step::Moved => return,
+                Step::Closed => return,
+                Step::Chosen(index) => {
+                    self.open_hit(index);
+                    self.results.close();
+                    return;
+                }
+            }
+        }
         // Ctrl+Q leaves, and it has to: the window binds `exit` to Ctrl+Shift+Q,
         // which a terminal cannot send -- Ctrl and Shift and a letter is not one
         // of the bytes a keyboard puts on the wire. A shell that could only be
@@ -699,6 +734,10 @@ impl App {
             Action::Preferences => self.prefs.open(),
             Action::ToggleWrap => self.toggle_wrap(),
             Action::Find => self.find.open(&self.tabs[self.active].editor),
+            Action::FindInFiles => self.prompt.open(PromptKind::FindInFiles),
+            Action::SearchResultsWindow => self.search_results_window(),
+            Action::NextSearchResult => self.step_hit(true),
+            Action::PrevSearchResult => self.step_hit(false),
             Action::Replace => self.find.open_replace(&self.tabs[self.active].editor),
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
             Action::Open => self.prompt.open(PromptKind::Open),
@@ -794,6 +833,7 @@ impl App {
             }
             PromptKind::Open => self.open_path(text.trim()),
             PromptKind::SaveAs => self.save_as(text.trim()),
+            PromptKind::FindInFiles => self.find_in_files(text.trim()),
         }
     }
 
@@ -944,24 +984,155 @@ impl App {
             return;
         }
         let path = absolute(Path::new(typed));
+        let already = self.has_tab(&path);
+        if !self.show_file(&path) {
+            return;
+        }
+        let message = if already {
+            format!("already open: {}", path.display())
+        } else {
+            format!("opened {}", path.display())
+        };
+        self.say(&message, false);
+    }
+
+    /// Whether a tab already has `path`.
+    fn has_tab(&self, path: &Path) -> bool {
+        self.tabs
+            .iter()
+            .any(|tab| tab.editor.doc.path() == Some(path))
+    }
+
+    /// Puts the tab holding `path` in front, opening it when no tab has it.
+    ///
+    /// The half of `Open` that a hit in the results list needs too: it moves to
+    /// the document and says nothing when it works, because what the bar says
+    /// afterwards belongs to the command that asked. A file that cannot be read
+    /// is reported here rather than by the caller, so the two commands cannot
+    /// word the same failure differently.
+    fn show_file(&mut self, path: &Path) -> bool {
         if let Some(index) = self
             .tabs
             .iter()
-            .position(|tab| tab.editor.doc.path() == Some(path.as_path()))
+            .position(|tab| tab.editor.doc.path() == Some(path))
         {
             self.active = index;
-            self.say(&format!("already open: {}", path.display()), false);
-            return;
+            return true;
         }
-        match Document::open(&path) {
+        match Document::open(path) {
             Ok(doc) => {
                 self.tabs.push(Tab::new(doc));
                 self.active = self.tabs.len() - 1;
-                self.record_recent(&path);
-                self.say(&format!("opened {}", path.display()), false);
+                self.record_recent(path);
+                true
             }
-            Err(error) => self.say(&format!("cannot open {}: {error}", path.display()), true),
+            Err(error) => {
+                self.say(&format!("cannot open {}: {error}", path.display()), true);
+                false
+            }
         }
+    }
+
+    /// The folder a Find in Files search runs over by default.
+    ///
+    /// The one holding the file in front, because "find in files" means "find in
+    /// the files around this one", and the working directory for a buffer that
+    /// has never been saved -- the window's rule, word for word.
+    fn default_search_dir(&self) -> PathBuf {
+        self.tab()
+            .editor
+            .doc
+            .path()
+            .and_then(|path| path.parent())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+    }
+
+    /// Searches the files around the document, and lists what it found.
+    ///
+    /// One field and one optional suffix: `pattern in directory` is the whole of
+    /// the prompt's syntax, because it is `nn_core::split_query`'s and therefore
+    /// the window's. The walk is synchronous here as it is there: the hit cap
+    /// means the common case is over in a few milliseconds, and the alternative
+    /// is a thread, a channel and a way to cancel, for the case where it is not.
+    fn find_in_files(&mut self, typed: &str) {
+        let (pattern, directory) = split_query(typed, self.default_search_dir());
+        if pattern.is_empty() {
+            self.say("find in files: type a pattern", true);
+            return;
+        }
+        match FindInFiles::new(&pattern, &directory).run() {
+            Ok(hits) => {
+                let message = format!(
+                    "searched {}: {}",
+                    directory.display(),
+                    hits_noun(hits.len())
+                );
+                self.results.set_hits(hits);
+                self.say(&message, false);
+            }
+            // The window says the same thing, on the desk it prints to.
+            Err(error) => self.say(&format!("bad pattern: {error}"), true),
+        }
+    }
+
+    /// Brings the results list back, or says there is nothing to show.
+    ///
+    /// The list leaves the screen when a hit is chosen, because in a terminal it
+    /// is a picker; this is how it comes back, with the search that was made
+    /// rather than a new one.
+    fn search_results_window(&mut self) {
+        if !self.results.reopen() {
+            self.say("no search results yet", true);
+            return;
+        }
+        let message = format!("{} results in the list", self.results.hits().len());
+        self.say(&message, false);
+    }
+
+    /// Steps to the next or the previous hit, wrapping, and opens it.
+    ///
+    /// Stepping does not open the list: reading the matches in the document is
+    /// one thing, and a row of results over it would be in the way of it.
+    fn step_hit(&mut self, forward: bool) {
+        match self.results.advance(forward) {
+            Some(index) => self.open_hit(index),
+            None => self.say("no search results yet", true),
+        }
+    }
+
+    /// Opens the file a hit points at, and puts the caret where the match is.
+    ///
+    /// The caret goes to the column as well as the line, which is what makes a
+    /// hit a place to stand rather than a line to search again.
+    fn open_hit(&mut self, index: usize) {
+        let Some(hit) = self.results.hit(index).cloned() else {
+            return;
+        };
+        match hit.tab {
+            // A hit from a buffer names its tab and may have no path at all, so
+            // the switch is what "open" means; this shell makes no such hits yet,
+            // but `Hit` says a search may, and a second tab on one file would be
+            // the bug `open_path` exists to prevent.
+            Some(tab) if tab < self.tabs.len() => self.active = tab,
+            _ => {
+                if !self.show_file(&hit.path) {
+                    return;
+                }
+            }
+        }
+        self.editor().goto_position(hit.line, hit.column);
+        let name = match hit.path.file_name() {
+            Some(name) => name.to_string_lossy().into_owned(),
+            None => hit.path.display().to_string(),
+        };
+        let message = format!(
+            "{name}:{} ({}/{})",
+            hit.line + 1,
+            self.results.position(),
+            self.results.hits().len()
+        );
+        self.say(&message, false);
     }
 
     /// Writes the document to `typed` and adopts that path.
@@ -1214,21 +1385,29 @@ impl App {
         // which is the window's rule, and only on a screen tall enough to spare
         // the row: two documents and two rows is a shell with nowhere to type.
         let strip = self.tabs.len() > 1 && height >= 3;
+        // The bottom of the screen, counted upwards: the results list sits on the
+        // status row and the prompt or the find bar sits above it. A list is a
+        // convenience over the document, so it never takes more than half the
+        // rows the text could have had.
+        //
+        // Which of the two is up decides where the block starts, and they are not
+        // the same question: the bar row is the prompt's or the find bar's, and a
+        // list on its own must not claim it -- the find bar would be drawn over
+        // the list's header.
+        let find_rows = if self.prompt.is_open() {
+            1
+        } else {
+            self.find.rows()
+        };
+        let room = height.saturating_sub(find_rows + 1) / 2;
+        let results_rows = self.results.screen_rows(room);
+        let block_top = height.saturating_sub(1 + find_rows + results_rows);
         let layout = Layout {
             top: usize::from(strip),
             gutter,
             text_cols: width - gutter,
-            bar_row: {
-                // The strip above the status row belongs to one widget at a time:
-                // the prompt while it is up, otherwise the find bar, which takes
-                // one row for the pattern and two once the replacement is up.
-                let rows = if self.prompt.is_open() {
-                    1
-                } else {
-                    self.find.rows()
-                };
-                (rows > 0).then(|| height.saturating_sub(1 + rows))
-            },
+            results: (results_rows > 0).then(|| (block_top + find_rows, results_rows)),
+            bar_row: (find_rows > 0).then_some(block_top),
             status_row: height - 1,
         };
         let text_rows = layout.text_rows();
@@ -1313,6 +1492,9 @@ impl App {
         self.tab_mut().visible_until = line;
         if strip {
             self.draw_strip(grid, 0, width);
+        }
+        if let Some((top, rows)) = layout.results {
+            self.results.draw(grid, top, rows, width);
         }
         if let Some(row) = layout.bar_row {
             if self.prompt.is_open() {
@@ -2195,11 +2377,142 @@ mod tests {
         assert_eq!(app.tab().editor.selection_start(), 409);
     }
 
+    /// A folder of two files that share the word `needle`, for the searches.
+    ///
+    /// Named per test rather than once: the tests of one binary are threads of
+    /// one process, so a shared folder would be removed by whichever test
+    /// finished first while the others were still searching it.
+    fn search_folder(name: &str) -> std::path::PathBuf {
+        let dir = temp(&format!("search-{name}"));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(dir.join("one.txt"), "nothing\nneedle here\n").expect("write");
+        std::fs::write(dir.join("two.txt"), "needle again\n").expect("write");
+        dir
+    }
+
+    #[test]
+    fn find_in_files_lists_what_it_found_and_says_where_it_looked() {
+        let dir = search_folder("find_in_files_lists_what_it_found_and_says_where_it_looked");
+        let mut app = App::open(Some(&dir.join("one.txt"))).expect("open");
+        prompt(&mut app, Action::FindInFiles, "needle");
+        // The folder holding the document is the one searched, which is what the
+        // bar says and what makes the panel's short rows readable.
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.starts_with("searched "), "{message}");
+        assert!(message.ends_with(": 2 hits"), "{message}");
+        assert!(app.results.is_open());
+        let rows = drawn(&mut app, 60, 12);
+        let header = rows
+            .iter()
+            .position(|row| row.contains("2 results in 2 files"))
+            .unwrap_or_else(|| panic!("no header: {rows:?}"));
+        // Header first, then one row per hit, and the row names the file and
+        // counts the line from one.
+        assert!(rows[header + 1].contains("one.txt:2: needle here"), "{rows:?}");
+        assert!(rows[header + 2].contains("two.txt:1: needle again"), "{rows:?}");
+        // The document keeps the rows above the list.
+        assert!(rows[0].contains("nothing"), "{rows:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_suffix_scopes_the_search_to_another_folder() {
+        let dir = search_folder("the_suffix_scopes_the_search_to_another_folder");
+        // A document outside the folder, and the pattern saying where to look:
+        // the prompt's whole syntax, and the window's.
+        let other = temp("search-elsewhere.txt");
+        std::fs::write(&other, "no needle here\n").expect("write");
+        let mut app = App::open(Some(&other)).expect("open");
+        let typed = format!("needle in {}", dir.display());
+        prompt(&mut app, Action::FindInFiles, &typed);
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.contains(&dir.display().to_string()), "{message}");
+        assert!(message.ends_with(": 2 hits"), "{message}");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_file(&other);
+    }
+
+    #[test]
+    fn a_hit_is_opened_where_the_match_is_and_puts_the_list_away() {
+        let dir = search_folder("a_hit_is_opened_where_the_match_is_and_puts_the_list_away");
+        let mut app = App::open(Some(&dir.join("one.txt"))).expect("open");
+        prompt(&mut app, Action::FindInFiles, "needle");
+        // The second row is the match in the other file: Enter opens it in a tab
+        // of its own -- not a second one for a file already open -- and puts the
+        // caret on the match.
+        app.handle(Key::Down);
+        app.handle(Key::Enter);
+        assert!(!app.results.is_open(), "the list stayed on screen");
+        assert_eq!(app.tabs.len(), 2);
+        assert_eq!(app.tab().editor.doc.path(), Some(dir.join("two.txt").as_path()));
+        assert_eq!(app.tab().editor.caret_line(), 0);
+        assert_eq!(app.tab().editor.caret_column(), 0);
+        let message = app.message().unwrap_or_default().to_string();
+        assert_eq!(message, "two.txt:1 (2/2)");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn next_and_previous_search_result_walk_the_hits_and_wrap() {
+        let dir = search_folder("next_and_previous_search_result_walk_the_hits_and_wrap");
+        let mut app = App::open(Some(&dir.join("one.txt"))).expect("open");
+        // Nothing to step through before a search, and the bar says so.
+        app.run(Action::NextSearchResult);
+        assert_eq!(app.message(), Some("no search results yet"));
+        prompt(&mut app, Action::FindInFiles, "needle");
+        app.handle(Key::Escape);
+        assert!(!app.results.is_open());
+        // The first step opens the first hit, the window's rule; the list stays
+        // down while stepping, because reading the matches is what this is for.
+        app.run(Action::NextSearchResult);
+        assert_eq!(app.message(), Some("one.txt:2 (1/2)"));
+        assert_eq!(app.tab().editor.caret_line(), 1);
+        app.run(Action::NextSearchResult);
+        assert_eq!(app.message(), Some("two.txt:1 (2/2)"));
+        // Wrapping at both ends, and Previous from the second hit is the first.
+        app.run(Action::NextSearchResult);
+        assert_eq!(app.message(), Some("one.txt:2 (1/2)"));
+        app.run(Action::PrevSearchResult);
+        assert_eq!(app.message(), Some("two.txt:1 (2/2)"));
+        assert!(!app.results.is_open(), "stepping opened the list");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_results_list_comes_back_from_the_menu_with_the_same_search() {
+        let dir = search_folder("the_results_list_comes_back_from_the_menu_with_the_same_search");
+        let mut app = App::open(Some(&dir.join("one.txt"))).expect("open");
+        app.run(Action::SearchResultsWindow);
+        assert_eq!(app.message(), Some("no search results yet"));
+        prompt(&mut app, Action::FindInFiles, "needle");
+        app.handle(Key::Escape);
+        app.run(Action::SearchResultsWindow);
+        assert_eq!(app.message(), Some("2 results in the list"));
+        assert!(app.results.is_open());
+        let rows = drawn(&mut app, 60, 12);
+        assert!(rows.iter().any(|row| row.contains("2 results in 2 files")), "{rows:?}");
+        // Escape closes it again, which is the only way out of a list that is not
+        // modal: the arrows move its cursor while it is up.
+        app.handle(Key::Escape);
+        assert!(!app.results.is_open());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_empty_pattern_is_refused_on_the_bar() {
+        let mut app = app("x\n");
+        // Whitespace is trimmed before the search, so a field of spaces is an
+        // empty pattern: walked, it would match every line of every file.
+        prompt(&mut app, Action::FindInFiles, "   ");
+        assert_eq!(app.message(), Some("find in files: type a pattern"));
+        assert!(!app.results.is_open());
+    }
+
     #[test]
     fn a_command_the_shell_has_not_got_says_so() {
         let mut app = app("x\n");
-        // Find and replace have arrived; find in files has not.
-        app.run(Action::FindInFiles);
+        // The searches have arrived; the function list has not.
+        app.run(Action::ToggleFunctionList);
         let message = app.message().unwrap_or_default();
         assert!(message.contains("not in the terminal yet"), "{message}");
     }
@@ -2783,6 +3096,27 @@ mod tests {
         );
         assert!(median < 600, "a keystroke cost {median} bytes");
         assert!(micros < 5_000.0, "a keystroke took {micros} us");
+
+        // The other shape the shell takes: eight rows of search results over the
+        // document. The list repaints its own rows and nothing else, so the cost
+        // of putting it up is a band of the screen rather than a screen.
+        app.results.set_hits(
+            (0..8)
+                .map(|line| nn_core::Hit {
+                    path: PathBuf::from("/tmp/notes.txt"),
+                    line,
+                    column: 0,
+                    text: format!("the line the search found, number {line}"),
+                    tab: None,
+                })
+                .collect(),
+        );
+        let start = std::time::Instant::now();
+        app.draw(frame.grid());
+        let list = frame.render().len();
+        let list_micros = start.elapsed().as_nanos() as f64 / 1000.0;
+        println!("opening the results list {list} bytes in {list_micros:.1} us");
+        assert!(list < paint, "the list cost {list} bytes of a {paint}-byte screen");
 
         // With wrapping on a vertical move walks rows, and counting the rows a
         // line takes is a pass over that line. That is the same order as the

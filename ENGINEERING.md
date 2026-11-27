@@ -13972,3 +13972,88 @@ holding only `rst-b.txt`, opening `rst-a.txt` from the File menu and pressing Do
 twice before quitting wrote `recent /tmp/rst-a.txt`,
 `tab2 0 0 0 none /tmp/rst-b.txt`, `tab2 2 0 0 none /tmp/rst-a.txt`, `active 1`.
 
+## The hundred-and-fortieth pass: find in files, and a list of what it found
+
+The Search menu has offered `Find in Files...` since the tree was written, and until
+now the shell answered it with "not in the terminal yet". It answers it now, and the
+shape of the answer is the window's down to the wording, because the pieces were
+already there: `nn_core::FindInFiles` walks the tree, and `nn_core::split_query` is
+the prompt's whole syntax -- one field, one optional ` in directory` suffix that is
+only taken when it names a real directory, so a pattern containing " in " still
+searches for itself. The folder searched by default is the one holding the file in
+front, and the working directory for a buffer that has never been saved, which is
+the window's rule and the reason a hit's row can name the file rather than the path.
+
+The list is where the two front-ends had to agree about words, so the words moved:
+`nn-shared/src/results.rs` now owns how a row is written (`name:line: text`, the
+text trimmed, the line counted from one), where it is cut (an ellipsis, counted in
+characters rather than bytes, because a cut through a multi-byte character would
+corrupt the one thing a row exists to say), how many files a run of hits came from,
+and the plain header -- "No results", "1 result in 1 file", "3 results in 2 files".
+The window's panel calls it, its `row_text` became one line, and its private
+`truncate` and its `count_files` went with the move, along with the two noun helpers
+that had been sitting at the bottom of `nn-app/src/main.rs` since the panel arrived.
+The terminal's panel calls the same functions, which is what makes the two say the
+same thing without anyone having to remember to.
+
+What differs is what a terminal can afford. The list is a picker there rather than a
+fixture: eight rows of hits and a header, drawn on the status row with the prompt or
+the find bar above it, and never more than half the rows the text could have had --
+the reader asked to see the matches, not to lose the file. `Enter` opens the hit at
+its line *and* its column and puts the list away; `Escape` puts it away and keeps
+the hits, which is what lets `Search Results Window` bring back the search that was
+made rather than an empty panel. `Next Search Result` and `Previous Search Result`
+walk the same list with the window's arithmetic, one for one: a list nobody has
+stepped through answers with its first hit going forward and its last going back,
+the walk wraps at both ends, and stepping does not open the list, because reading
+the matches in the document is what the command is for.
+
+One thing had to be got wrong before it was got right, and it is worth recording
+because the layout had never had two things below the text at once. The bar row used
+to be "the row the prompt or the find bar draws on", and it was `Some` whenever
+anything was up. A list on its own made the arithmetic non-zero, so the find bar was
+drawn on the list's header -- a closed bar, claiming a row it did not need. The row
+is now the prompt's or the find bar's alone, the list has a top of its own, and the
+text stops at whichever of the two starts higher.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical -- the
+move of the row and header words into `nn-shared` changed nothing the window draws.
+
+`cargo test --offline --release`: 2,442 tests, 0 failed. Of the twenty new ones,
+five are `nn-shared`'s: the cut and its mark, characters rather than bytes, the
+nouns, the summary, and one file reached twice counting once. Ten are the panel's
+own, drawn into a grid and read back as text: the header counting results and files,
+a row naming its file and counting its line from one, a closed list taking no room,
+the cap at eight rows and at what a short screen can spare, the cursor walking and
+staying
+on screen, a page moving by what the frame showed, `Enter` choosing, `Escape`
+closing and the hits outliving it, the lit row, and a long row cut rather than
+spilling. Six are the shell's: the search listing what it found and saying where it
+looked, the suffix scoping the search elsewhere, a hit opening in its own tab at the
+match and putting the list away, the two search-result commands walking and wrapping
+without opening the list, the list coming back from the menu with the same search,
+and an empty pattern refused. One existing test lost its example and took
+`ToggleFunctionList` instead, since Find in Files is no longer a command this shell
+has not got. `nn-app` lost the one test whose function moved to `nn-shared`.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched.
+
+The keystroke is unchanged at 15,554 bytes for the first paint and 306 for a
+keystroke, 49.4 us. Putting the list up -- the frame that draws eight rows of hits
+over the document -- costs 1,476 bytes and 57.0 us, which is a band of the screen
+rather than a screen, and the test asserts it stays under a first paint so it cannot
+drift into one.
+
+Through a pseudo terminal, on `/tmp/t140dir/one.txt` with a second file beside it:
+the Search menu's `Find in Files...`, the pattern `needle`, and the screen read
+` 2 results in 2 files`, ` one.txt:2: needle here`, ` two.txt:1: needle again`,
+with the bar saying `searched /tmp/t140dir: 2 hits`. `Down` then `Enter` opened
+`two.txt` in a second tab -- the strip drew ` one.txt  two.txt` -- with
+`1 needle again` under it and the bar saying `two.txt:1 (2/2)`. `Escape` then
+`Search Results Window` from the menu brought the same two rows back under
+`2 results in the list`, and `Next Search Result` instead opened the first hit with
+the list down: `one.txt:2 (1/2)` and the status bar at `Ln 2, Col 1`.
+

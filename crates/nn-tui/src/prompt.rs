@@ -19,8 +19,8 @@
 //! command that wants a line typed before it runs: a label, the text after it,
 //! and a caret. `Go to line:` is the one this pass brings, because it is the only
 //! command the shell is missing whose answer is a single number; `Open`, `Save
-//! As` and `Find in Files` will be rows of the same list rather than three more
-//! widgets, which is why the label is a table and the field is not.
+//! As` and `Find in Files` turned out to be rows of the same list rather than
+//! three more widgets, which is why the label is a table and the field is not.
 //!
 //! It is modal while it is up, as the window's is: a letter belongs to the
 //! prompt rather than to the document behind it, so a mistyped chord cannot edit
@@ -45,6 +45,8 @@ pub enum Kind {
     SaveAs,
     /// A line number, counted from one.
     GotoLine,
+    /// A pattern to search the files around the document for.
+    FindInFiles,
 }
 
 impl Kind {
@@ -56,6 +58,7 @@ impl Kind {
             Kind::Open => "Open:",
             Kind::SaveAs => "Save as:",
             Kind::GotoLine => "Go to line:",
+            Kind::FindInFiles => "Find in files:",
         }
     }
 }

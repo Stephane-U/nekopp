@@ -30,6 +30,7 @@
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 use nn_core::Hit;
+use nn_shared::results::{row, summary};
 
 use crate::quad::QuadRenderer;
 use crate::theme::{Theme, ToGpu};
@@ -111,14 +112,11 @@ impl ResultsPanel {
     /// `Search "x" (3 hits in 1 file)`, which is Notepad++'s wording. An empty
     /// header falls back to the plain count.
     pub fn set_hits_named(&mut self, hits: Vec<Hit>, header: String) {
-        let files = self.count_files(&hits);
-        let noun = if files == 1 { "file" } else { "files" };
+        // The plain count is `nn-shared`'s, so the terminal's panel says the same
+        // thing over the same list; a caller with something more to say -- which
+        // search this was, and how many files it looked in -- passes its own.
         self.header_text = if header.is_empty() {
-            match hits.len() {
-                0 => "No results".to_string(),
-                1 => format!("1 result in {files} {noun}"),
-                n => format!("{n} results in {files} {noun}"),
-            }
+            summary(&hits)
         } else {
             header
         };
@@ -126,13 +124,6 @@ impl ResultsPanel {
         self.scroll = 0;
         self.open = true;
         self.shaped_key = (usize::MAX, usize::MAX, usize::MAX);
-    }
-
-    fn count_files(&self, hits: &[Hit]) -> usize {
-        let mut paths: Vec<&std::path::Path> = hits.iter().map(|h| h.path.as_path()).collect();
-        paths.sort();
-        paths.dedup();
-        paths.len()
     }
 
     /// Closes the panel and drops the results.
@@ -234,18 +225,12 @@ impl ResultsPanel {
         }
     }
 
-    /// The display text of hit `index`, truncated to `columns`.
+    /// The display text of hit `index`, cut to `columns`.
     fn row_text(&self, index: usize, columns: usize) -> String {
-        let Some(hit) = self.hits.get(index) else {
-            return String::new();
-        };
-        let name = hit
-            .path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("?");
-        let text = format!("{}:{}: {}", name, hit.line + 1, hit.text.trim());
-        truncate(&text, columns)
+        match self.hits.get(index) {
+            Some(hit) => row(hit, columns),
+            None => String::new(),
+        }
     }
 
     /// Queues the panel background, its top border, and the row highlight.
@@ -318,16 +303,6 @@ impl ResultsPanel {
     pub fn metrics(&self) -> Metrics {
         self.metrics
     }
-}
-
-/// Cuts `text` to `columns` characters, marking the cut with an ellipsis.
-fn truncate(text: &str, columns: usize) -> String {
-    if text.chars().count() <= columns {
-        return text.to_string();
-    }
-    let mut out: String = text.chars().take(columns.saturating_sub(1)).collect();
-    out.push('…');
-    out
 }
 
 #[cfg(test)]
@@ -436,12 +411,6 @@ mod tests {
         assert!(!p.is_open());
         assert!(p.hits().is_empty());
         assert_eq!(p.height(20.0), 0.0);
-    }
-
-    #[test]
-    fn truncate_marks_the_cut() {
-        assert_eq!(truncate("abcdef", 4), "abc…");
-        assert_eq!(truncate("abc", 4), "abc");
     }
 
     #[test]

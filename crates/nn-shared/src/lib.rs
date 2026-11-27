@@ -58,6 +58,8 @@
 //!   the conversion to linear values left to the front-end with a shader.
 //! * [`i18n`] -- the translations: the bundled catalogues, the parser for a
 //!   localization file, and the language list a dialog offers.
+//! * [`results`] -- what a list of search hits says about itself: how a row is
+//!   written, where it is cut, and how many results in how many files.
 //!
 //! The one dispatcher comes next; it is still in `nn-app` while the shape of what
 //! the terminal needs is being learned from the terminal.
@@ -68,6 +70,7 @@ pub mod color;
 pub mod i18n;
 pub mod keymap;
 pub mod prefs;
+pub mod results;
 pub mod session;
 pub mod settings;
 pub mod menu;

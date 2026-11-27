@@ -32,6 +32,7 @@ mod menus;
 mod palette;
 mod prefs;
 mod prompt;
+mod results;
 mod screen;
 mod term;
 
