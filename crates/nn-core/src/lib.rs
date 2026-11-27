@@ -79,7 +79,7 @@ pub use lines::{Case, SortKey, SortOptions, SortOrder};
 pub use ops::{Command as OpCommand, Error as OpError, Options as OpOptions, Param as OpParam};
 pub use plugin::{Bridge, DocumentHost, Inventory, Outcome, Plugins};
 pub use project::{Project, Projects, MAX_PROJECTS};
-pub use recorder::{Macro, Step};
+pub use recorder::{Macro, Step, MAX_REPEAT};
 pub use run::{
     expand as expand_run, missing_program, program_of, RunCommand, RunContext, RunList,
     MACROS as RUN_MACROS,

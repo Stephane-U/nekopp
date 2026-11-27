@@ -14478,3 +14478,66 @@ with the document where it was, one dock to the right. `Down` and `Enter` opened
 `sub` where it stood and the tree grew a row; `Down` and `Enter` on `deep.txt`
 opened it in a second tab, took the dock down and left the bar reading
 `opened /tmp/p145dir/sub/deep.txt`.
+
+## The hundred-and-forty-sixth pass: the macro recorder
+
+The window has recorded macros since before the terminal existed, and the engine
+behind them was never the window's: `nn_core::recorder` holds the ten editor calls
+a recording is made of and replays them through the same `Editor` methods the
+keyboard uses. What the terminal lacked was the wiring, which is this pass.
+
+The record is taken where the editor is called, not where the key is read. Each
+arm of the shell's key match that reaches the editor now records the call it is
+about to make -- an insert carries the text it will insert, including the
+newline and the indent an `Enter` produces, so a replay edits what happened
+rather than what the key was called. The same goes for the three chords that are
+edits: `Undo`, `Redo` and `Select All` are recorded in the command table, so a
+macro recorded with the chords replays with them. A command that goes through the
+text table -- indent, sort, duplicate a line -- is not one of the recorder's ten
+steps in either front-end, and that gap is `nn_core`'s enum rather than this
+shell's.
+
+The cap on "Run a Macro Multiple Times" moved from `main.rs` to
+`nn_core::recorder::MAX_REPEAT`: a thousand plays is a promise about a recording,
+and a recording made in one front-end can be played in the other, so the number
+belongs beside the thing it protects. The window reads it now instead of holding
+its own copy.
+
+Three of the Macro menu's five rows work here: `Start Recording`, which is also
+the toggle the window binds, `Stop Recording`, which says `not recording` when
+there is nothing to stop, and `Playback`. `Run a Macro Multiple Times...` opens
+the prompt's new `Play macro times:` kind and clamps its answer to the shared
+cap. `Save Current Recorded Macro...` does not: the window saves a recording as a
+`Run` menu entry, and this shell has no Run menu to run it from, so the row keeps
+saying `not in the terminal yet` rather than saving something dead.
+
+While a recording is running the bar says `REC 3` in front of the line and column
+-- the window's indicator, in the window's place and words. Nothing else on a
+terminal screen shows that the shell is listening, which is what makes it worth
+the six columns.
+
+### Verified
+
+`cargo test --offline --release`: 2,507 tests, 0 failed, five of them the shell's:
+typing two characters and replaying them where the caret stands, a recording
+catching what `Enter`, an arrow and a delete did -- the steps themselves, compared
+one by one -- the bar counting `REC 1` while a recording runs and saying
+`macro recorded, 1 steps` after, playback and stop both refusing when there is
+nothing recorded, and three plays from the prompt leaving `zzzz`. `nn-core`
+gained no test: the cap is a number, and the recorder's own tests already cover
+the replay.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: the Macro menu is the same
+menu, now with rows that answer.
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical. The
+window's share of this pass is one constant read from one crate over.
+
+The terminal's keystroke is unchanged at 15,554 bytes for the first paint and 306
+for one: recording is one `Vec::push` behind an `if`, and it does not run at all
+when nothing is being recorded.
+
+Through a pseudo terminal on a file holding `x`: `Macro > Start Recording`, `abc`
+typed, and the bar read `REC 3  Ln 1, Col 4  UTF-8  LF`; `Stop Recording` and
+then `Playback` left the line as `abcabcx`.

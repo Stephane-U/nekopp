@@ -27,6 +27,15 @@
 
 use crate::editor::{Editor, Motion};
 
+/// The most times a recording is played, for "Run a Macro Multiple Times".
+///
+/// A cap rather than a warning: a macro that types a character and is played a
+/// million times would freeze a front-end with no way to stop it, and a number
+/// that large is a typo rather than an intention. It lives here rather than in
+/// either front-end because both ask the same question and the same answer
+/// keeps a macro recorded in one from freezing the other.
+pub const MAX_REPEAT: usize = 1000;
+
 /// One recorded editor call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Step {

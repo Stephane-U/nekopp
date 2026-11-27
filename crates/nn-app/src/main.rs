@@ -52,7 +52,8 @@ use nn_core::{
     file_stamp, lines, now_secs, path_prefix, prefix_range,
     scan_symbols, split_query,
     CLikeLexer, ConfigLexer, DiskChange, Document, Editor, Encoding, EolMode, FindInFiles,
-    Highlighter, Lexer, Macro, Motion, PlainLexer, Projects, Step, Tree, Typed, UdlSet, MAX_CANDIDATES,
+    Highlighter, Lexer, Macro, Motion, PlainLexer, Projects, Step, Tree, Typed, UdlSet,
+    MAX_CANDIDATES, MAX_REPEAT,
 };
 use nn_shared::completion::{function_items, path_items, pooled_items, word_items};
 use nn_shared::hint::hint_at;
@@ -132,13 +133,6 @@ const PLAYGROUND_SEED: u64 = 0x5EED_1CA7_2D0B_90F1;
 /// to recover from a copy you did not mean to make, few enough that the popup is
 /// a glance rather than a list to read.
 const CLIPBOARD_HISTORY: usize = 10;
-
-/// The most times "Run a Macro Multiple Times" will play a recording.
-///
-/// A cap rather than a warning: a macro that types a character played a million
-/// times would freeze the window with no way to stop it, and a number that large
-/// is a typo rather than an intention.
-const MAX_MACRO_REPEAT: usize = 1000;
 
 /// Where verbose backups are written.
 ///
@@ -7566,7 +7560,7 @@ impl State {
                 .set_message(Some("Nothing recorded to play".into()));
             return;
         }
-        let times = times.clamp(1, MAX_MACRO_REPEAT);
+        let times = times.clamp(1, MAX_REPEAT);
         for _ in 0..times {
             self.play_macro();
         }

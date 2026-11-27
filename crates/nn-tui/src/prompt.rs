@@ -49,6 +49,8 @@ pub enum Kind {
     FindInFiles,
     /// A folder to show as the workspace tree.
     Workspace,
+    /// How many times to play the recorded macro.
+    MacroRepeat,
 }
 
 impl Kind {
@@ -62,6 +64,7 @@ impl Kind {
             Kind::GotoLine => "Go to line:",
             Kind::FindInFiles => "Find in files:",
             Kind::Workspace => "Folder:",
+            Kind::MacroRepeat => "Play macro times:",
         }
     }
 }
@@ -293,6 +296,7 @@ mod tests {
             (Kind::SaveAs, "Save as:"),
             (Kind::GotoLine, "Go to line:"),
             (Kind::Workspace, "Folder:"),
+            (Kind::MacroRepeat, "Play macro times:"),
         ] {
             prompt.open(kind);
             assert!(drawn(&prompt, 20).starts_with(label));

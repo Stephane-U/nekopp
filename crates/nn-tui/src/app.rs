@@ -31,7 +31,7 @@ use nn_core::paths::absolute;
 use nn_core::symbols::scan;
 use nn_core::{
     path_prefix, prefix_range, split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles,
-    Highlighter, Lexer, Motion, Tree, MAX_CANDIDATES,
+    Highlighter, Lexer, Macro, Motion, Step as Recorded, Tree, MAX_CANDIDATES, MAX_REPEAT,
 };
 use nn_shared::action::Action;
 use nn_shared::completion::{
@@ -243,6 +243,11 @@ pub struct App {
     /// the same keys but hold different things, and the frame gives the slot
     /// above the status bar to whichever is open.
     symbols: Symbols,
+    /// The recorded keystrokes, and whether one is being recorded.
+    ///
+    /// `nn_core`'s, and the same type the window holds: a recording is a list of
+    /// editor calls, so a macro made here replays there and the other way round.
+    recorder: Macro,
     /// The folder tree down the left edge.
     ///
     /// A dock of its own rather than a third list in the slot above the status
@@ -331,6 +336,7 @@ impl App {
             find: Find::new(),
             results: Results::new(),
             symbols: Symbols::new(),
+            recorder: Macro::new(),
             workspace: Workspace::new(),
             prompt: Prompt::new(),
             complete: Completion::new(),
@@ -717,42 +723,52 @@ impl App {
         let line = self.editor().caret_line();
         match key {
             Key::Char(ch) => {
-                self.editor().insert(&ch.to_string());
+                let text = ch.to_string();
+                self.record(Recorded::Insert(text.clone()));
+                self.editor().insert(&text);
                 self.refresh_from(line);
             }
             Key::Enter => {
-                let indent = self.editor().auto_indent();
-                self.editor().insert(&format!("\n{indent}"));
+                // The indent is part of what was typed, because that is what
+                // the editor inserted: replaying the newline alone would replay
+                // a different edit than the one that happened.
+                let text = format!("\n{}", self.editor().auto_indent());
+                self.record(Recorded::Insert(text.clone()));
+                self.editor().insert(&text);
                 self.refresh_from(line);
             }
             Key::Tab => {
-                self.editor().insert("    ");
+                let text = "    ".to_string();
+                self.record(Recorded::Insert(text.clone()));
+                self.editor().insert(&text);
                 self.refresh_from(line);
             }
             Key::Backspace => {
+                self.record(Recorded::Backspace);
                 self.editor().backspace();
                 self.refresh_from(line);
             }
             Key::Delete => {
+                self.record(Recorded::Delete);
                 self.editor().delete_forward();
                 self.refresh_from(line);
             }
-            Key::Up => self.editor().move_caret(Motion::LineUp, false),
-            Key::Down => self.editor().move_caret(Motion::LineDown, false),
-            Key::Left => self.editor().move_caret(Motion::CharLeft, false),
-            Key::Right => self.editor().move_caret(Motion::CharRight, false),
-            Key::ExtendUp => self.editor().move_caret(Motion::LineUp, true),
-            Key::ExtendDown => self.editor().move_caret(Motion::LineDown, true),
-            Key::ExtendLeft => self.editor().move_caret(Motion::CharLeft, true),
-            Key::ExtendRight => self.editor().move_caret(Motion::CharRight, true),
-            Key::WordLeft => self.editor().move_caret(Motion::WordLeft, false),
-            Key::WordRight => self.editor().move_caret(Motion::WordRight, false),
-            Key::LineStart => self.editor().move_caret(Motion::LineStart, false),
-            Key::LineEnd => self.editor().move_caret(Motion::LineEnd, false),
-            Key::DocStart => self.editor().move_caret(Motion::DocStart, false),
-            Key::DocEnd => self.editor().move_caret(Motion::DocEnd, false),
-            Key::PageUp => self.editor().move_caret(Motion::PageUp, false),
-            Key::PageDown => self.editor().move_caret(Motion::PageDown, false),
+            Key::Up => self.moved(Motion::LineUp, false),
+            Key::Down => self.moved(Motion::LineDown, false),
+            Key::Left => self.moved(Motion::CharLeft, false),
+            Key::Right => self.moved(Motion::CharRight, false),
+            Key::ExtendUp => self.moved(Motion::LineUp, true),
+            Key::ExtendDown => self.moved(Motion::LineDown, true),
+            Key::ExtendLeft => self.moved(Motion::CharLeft, true),
+            Key::ExtendRight => self.moved(Motion::CharRight, true),
+            Key::WordLeft => self.moved(Motion::WordLeft, false),
+            Key::WordRight => self.moved(Motion::WordRight, false),
+            Key::LineStart => self.moved(Motion::LineStart, false),
+            Key::LineEnd => self.moved(Motion::LineEnd, false),
+            Key::DocStart => self.moved(Motion::DocStart, false),
+            Key::DocEnd => self.moved(Motion::DocEnd, false),
+            Key::PageUp => self.moved(Motion::PageUp, false),
+            Key::PageDown => self.moved(Motion::PageDown, false),
             Key::Escape => {
                 self.quit_armed = false;
                 self.editor().clear_extra_carets();
@@ -830,17 +846,29 @@ impl App {
         self.complete.close();
         match action {
             Action::Save => self.save(),
+            // The three commands the recorder has a step for are recorded where
+            // the keys that type are, so a macro recorded with the chords
+            // replays what happened rather than what the keys spelled.
             Action::Undo => {
+                self.record(Recorded::Undo);
                 if self.editor().undo() {
                     self.refresh_all();
                 }
             }
             Action::Redo => {
+                self.record(Recorded::Redo);
                 if self.editor().redo() {
                     self.refresh_all();
                 }
             }
-            Action::SelectAll => self.editor().select_all(),
+            Action::SelectAll => {
+                self.record(Recorded::SelectAll);
+                self.editor().select_all();
+            }
+            Action::ToggleRecording => self.toggle_recording(),
+            Action::StopRecording => self.stop_recording(),
+            Action::PlayMacro => self.play_macro(),
+            Action::RunMacroMultiple => self.prompt.open(PromptKind::MacroRepeat),
             Action::SelectLine => self.editor().select_line(),
             Action::DuplicateLine => self.edit(|ed| ed.duplicate_lines()),
             Action::MoveLineUp => self.edit(|ed| ed.move_lines(true)),
@@ -997,6 +1025,7 @@ impl App {
             PromptKind::SaveAs => self.save_as(text.trim()),
             PromptKind::FindInFiles => self.find_in_files(text.trim()),
             PromptKind::Workspace => self.adopt_workspace(text.trim()),
+            PromptKind::MacroRepeat => self.run_macro_multiple(text.trim()),
         }
     }
 
@@ -1297,6 +1326,92 @@ impl App {
             self.results.hits().len()
         );
         self.say(&message, false);
+    }
+
+    /// Records `step`, if a recording is running.
+    ///
+    /// One line at each place the shell calls the editor, which is the same
+    /// place the window records: a step is an editor call and not a keypress, so
+    /// a macro means what it did whoever pressed it.
+    fn record(&mut self, step: Recorded) {
+        self.recorder.record(step);
+    }
+
+    /// Moves the caret, recording the motion on the way.
+    fn moved(&mut self, motion: Motion, extend: bool) {
+        self.record(Recorded::Move(motion, extend));
+        self.editor().move_caret(motion, extend);
+    }
+
+    /// Starts a recording, or stops the one running.
+    ///
+    /// The window's toggle, one for one: the Macro menu's `Start Recording`
+    /// stops a recording that is already running, and `Stop Recording` says
+    /// there is nothing to stop when there is not.
+    fn toggle_recording(&mut self) {
+        if self.recorder.is_recording() {
+            self.stop_recording();
+            return;
+        }
+        self.recorder.start();
+        self.say("recording a macro", false);
+    }
+
+    /// Stops the recorder, saying how much it caught.
+    fn stop_recording(&mut self) {
+        if !self.recorder.is_recording() {
+            self.say("not recording", true);
+            return;
+        }
+        self.recorder.stop();
+        let message = format!("macro recorded, {} steps", self.recorder.len());
+        self.say(&message, false);
+    }
+
+    /// Replays the recorded macro against the document in front.
+    ///
+    /// The steps go through the same `Editor` calls the keyboard does, so a
+    /// macro cannot do anything a person could not, and the highlighter is
+    /// re-run from the first of the two lines the caret stood on -- a playback
+    /// can move it either way.
+    fn play_macro(&mut self) {
+        if self.recorder.is_empty() {
+            self.say("no macro recorded", true);
+            return;
+        }
+        let steps = self.recorder.len();
+        let from = {
+            let tab = &mut self.tabs[self.active];
+            let before = tab.editor.caret_line();
+            self.recorder.play(&mut tab.editor);
+            let after = tab.editor.caret_line();
+            tab.editor.ensure_caret_visible();
+            before.min(after)
+        };
+        self.refresh_from(from);
+        let message = format!("macro played, {steps} steps");
+        self.say(&message, false);
+    }
+
+    /// Plays the recorded macro a number of times.
+    ///
+    /// The count is clamped rather than refused, and to `nn_core`'s cap rather
+    /// than a number of this shell's: the window makes the same promise about
+    /// the same recording.
+    fn run_macro_multiple(&mut self, typed: &str) {
+        let Ok(times) = typed.parse::<usize>() else {
+            self.say("play macro times: type a number", true);
+            return;
+        };
+        if self.recorder.is_empty() {
+            self.say("no macro recorded", true);
+            return;
+        }
+        let times = times.clamp(1, MAX_REPEAT);
+        for _ in 0..times {
+            self.play_macro();
+        }
+        self.say(&format!("macro played {times} time(s)"), false);
     }
 
     /// Shows the folder the document is in as a tree, or takes the dock down.
@@ -2228,8 +2343,16 @@ impl App {
         };
         let line = self.tab().editor.caret_line() + 1;
         let column = self.tab().editor.caret_column() + 1;
+        // The recording indicator, in the window's words and in front of the
+        // labels the window puts after it: a recording is the one state the bar
+        // has to announce, because nothing else on the screen shows it.
+        let rec = if self.recorder.is_recording() {
+            format!("REC {}  ", self.recorder.len())
+        } else {
+            String::new()
+        };
         let right = format!(
-            "Ln {}, Col {}  {}  {} ",
+            "{rec}Ln {}, Col {}  {}  {} ",
             line,
             column,
             self.tab().editor.doc.encoding().name(),
@@ -3170,6 +3293,81 @@ mod tests {
     fn column_of(row: &str, needle: &str) -> Option<usize> {
         let bytes = row.find(needle)?;
         Some(row.get(..bytes)?.chars().count())
+    }
+
+    #[test]
+    fn a_recording_replays_the_edits_it_caught() {
+        let mut app = app("x\n");
+        app.run(Action::ToggleRecording);
+        app.handle(Key::Char('a'));
+        app.handle(Key::Char('b'));
+        app.run(Action::ToggleRecording);
+        assert_eq!(app.message(), Some("macro recorded, 2 steps"));
+        assert_eq!(app.tab().editor.doc.text(), "abx\n");
+        // The caret is where the typing left it, so the replay lands there: the
+        // steps are editor calls, not keys.
+        app.run(Action::PlayMacro);
+        assert_eq!(app.message(), Some("macro played, 2 steps"));
+        assert_eq!(app.tab().editor.doc.text(), "ababx\n");
+    }
+
+    #[test]
+    fn a_recording_catches_what_enter_and_the_arrows_did() {
+        let mut app = app("ab\n");
+        app.run(Action::ToggleRecording);
+        app.handle(Key::Enter);
+        app.handle(Key::Right);
+        app.handle(Key::Backspace);
+        app.run(Action::ToggleRecording);
+        // A newline with the auto-indent it carried, a motion and a delete.
+        assert_eq!(app.recorder.len(), 3);
+        assert_eq!(
+            app.recorder.steps(),
+            &[
+                Recorded::Insert("\n".to_string()),
+                Recorded::Move(Motion::CharRight, false),
+                Recorded::Backspace,
+            ]
+        );
+    }
+
+    #[test]
+    fn the_bar_says_rec_and_counts_the_steps_it_caught() {
+        let mut app = app("x\n");
+        app.run(Action::ToggleRecording);
+        app.handle(Key::Char('a'));
+        let rows = drawn(&mut app, 80, 4);
+        assert!(rows[3].contains("REC 1"), "{:?}", rows[3]);
+        // Stopped, the count goes and the bar says what was caught.
+        app.run(Action::StopRecording);
+        let rows = drawn(&mut app, 80, 4);
+        assert!(!rows[3].contains("REC"), "{:?}", rows[3]);
+        assert!(rows[3].contains("macro recorded, 1 steps"), "{:?}", rows[3]);
+    }
+
+    #[test]
+    fn a_macro_nobody_recorded_says_so() {
+        let mut app = app("x\n");
+        app.run(Action::PlayMacro);
+        assert_eq!(app.message(), Some("no macro recorded"));
+        // Stopping a recording that is not running is a refusal too.
+        app.run(Action::StopRecording);
+        assert_eq!(app.message(), Some("not recording"));
+        assert!(app.recorder.steps().is_empty());
+    }
+
+    #[test]
+    fn a_macro_can_be_played_several_times_from_the_prompt() {
+        let mut app = app("\n");
+        app.run(Action::ToggleRecording);
+        app.handle(Key::Char('z'));
+        app.run(Action::StopRecording);
+        prompt(&mut app, Action::RunMacroMultiple, "3");
+        assert_eq!(app.message(), Some("macro played 3 time(s)"));
+        assert_eq!(app.tab().editor.doc.text(), "zzzz\n");
+        // A count that is not a number is refused in the bar rather than played.
+        prompt(&mut app, Action::RunMacroMultiple, "many");
+        assert_eq!(app.message(), Some("play macro times: type a number"));
     }
 
     /// A folder holding two files, for the workspace tests.
