@@ -13202,3 +13202,90 @@ counter holding their columns as a pattern outgrows the room, the bar taking a r
 from the text and giving it back, and `F3` walking matches with the bar closed
 while `Ctrl+S` still saves. `cargo clippy --offline --release --all-targets`: 0
 warnings. `cargo fmt` was not run. The feature reference and its PDF are untouched.
+
+## The hundred-and-twenty-eighth pass: the setting that says long lines wrap
+
+Phase 3, next pass, and the last of the settings the screen was not honouring.
+`settings.wrap` has been in the file, in the preferences dialog and in the View
+menu since the settings were extracted; the terminal drew a line as one row and
+cut whatever did not fit at the right-hand edge, whatever the setting said.
+
+A line now takes as many rows as it needs. The number is written on its first
+row and no other, so the strip reads as one line rather than as several wearing
+the same number, and a continuation row keeps the text strip's tone. The caret
+is a cell, and a line is one cell wider for it: a line that fills its rows
+exactly gets one more for the block that follows its last character, which is
+the case where the block would otherwise fall off the bottom.
+
+The state that had to grow is the scroll. `scroll_line` was the whole of it
+while a line was a row: the top of the screen was a line, and the caret was on
+it or below it. That is no longer true -- the top of the screen can be the
+middle of a line -- so two fields came with the change. `scroll_seg` names the
+segments of the top line above the screen, which is what holds a caret sitting
+deeper in a line than the window is tall. `visible_until` remembers the first
+line the last frame had no room for, because with wrapping on the row a line
+lands on is the sum of every line before it, and adding that sum up per frame is
+a walk over the document that the frame before this one has already done. A
+caret that leaves the bottom moves the view by the one line the last frame ran
+out of; a caret that jumps ten thousand lines puts its own line at the top.
+
+The row arithmetic is one function, `cell_of`, answering where a display column
+goes: a segment and a remainder with wrapping on, a subtraction against
+`scroll_col` with it off. Both the drawing and the caret block ask it, so there
+is no second opinion about where a character is. With wrapping off nothing about
+the picture changed -- the same cells, the same bytes, the same 306-byte
+keystroke in 69 microseconds that pass 126 measured -- which is what the switch
+being off has to mean.
+
+A tab is drawn cell by cell already, and that turned out to matter here: a tab
+can straddle the column a wrapped row ends on, and a run of cells that is placed
+on its own crosses the boundary the way the rest of the line does. A wide glyph
+sitting exactly on the boundary is dropped instead of being torn in two, which
+is what the terminal's own last column does with one.
+
+`Action::ToggleWrap` is no longer one of the commands the shell says it has not
+got: it flips the setting, writes it, and puts the scroll back to the caret's
+line. Two roads reach it -- the View menu's Word wrap row, and the preferences
+dialog's Wrap row, which has been there since pass 121. A third would be the
+chord the settings bind to it, `Ctrl+Alt+W`, and that is the one a terminal
+cannot send: this parser reads a control byte as Ctrl and a letter, and Ctrl,
+Alt and a letter do not fit in the bytes a keyboard puts on the wire. That is
+the fourth entry in the quirks list, and it is the reason the note below drives
+the menu rather than the chord.
+
+One thing was deliberately left to a later pass, and it belongs to the engine
+rather than to this shell. Up and Down still move by document line, and Page Up
+and Page Down by `viewport.height` lines, because those are `nn-core`'s motions
+and the window shares them. With wrapping on that means Down leaves a long line
+at its first continuation row rather than walking down through the rest of it.
+Moving by visual row needs the goal column kept across a wrapped motion, which
+is engine work that both front-ends get -- the window's own wrapped motion comes
+from the shaper, so there is nothing there to reuse -- and it is a pass of its
+own. The shell says so in the note rather than guessing at half of it.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical;
+only `nn-tui` changed.
+
+Driven through a pseudo terminal. A document holding one 300-character line and
+a short one was opened in a fresh home and on a 140-column screen: with the
+setting off the long line was cut at the edge and the short line was one row
+below it; F9, three Rights, eleven Downs, Enter on View's Word wrap wrote `wrap
+on` to the settings file, said `long lines wrap`, and the next frame drew the
+same line as three rows. LineEnd on it put the caret block on the third row at
+column 27 -- the twenty-fifth column of the text area, which is where the 301st
+character of the line falls -- with the status reading `Ln 1, Col 301`; with
+wrapping off the same key scrolled the line sideways and put the block against
+the right-hand edge instead. The preferences dialog's Wrap row reached the same
+setting and wrote the same line. Thirty lines of three hundred characters with
+twenty Downs after them drew no panic and no lost caret.
+
+`cargo test --offline --release`: 2,388 tests, 0 failed -- 2,384 plus four: a
+long line wrapping onto the row below and being cut when the setting is off, a
+wrapped row carrying the caret and the tone of its text, a line taller than the
+window scrolling to hold the caret, and a walk down and back up a document where
+every line is six rows tall. The keystroke measurement still prints 15,554 bytes
+for the first paint, 306 for a keystroke, in 69 microseconds. `cargo clippy
+--offline --release --all-targets`: 0 warnings. `cargo fmt` was not run. The
+feature reference and its PDF are untouched.

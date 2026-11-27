@@ -65,6 +65,19 @@ impl Layout {
     }
 }
 
+/// Where a cell of a line landed, once the wrapping and the scrolling had their
+/// say about it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CellAt {
+    /// Drawn at this row and column.
+    Put(usize, usize),
+    /// Off the top of the screen, or scrolled off to the left.
+    Hidden,
+    /// Past the bottom of the screen, or past its right-hand edge: so is
+    /// everything after it on this line.
+    Past,
+}
+
 /// A message for the bar, and whether it is bad news.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Message {
@@ -80,7 +93,22 @@ pub struct App {
     /// The first line on screen.
     scroll_line: usize,
     /// The first display column of the text area on screen.
+    ///
+    /// Always zero while wrapping is on: a wrapped line has no second half off
+    /// to the right, so there is nothing to scroll towards.
     scroll_col: usize,
+    /// With wrapping on, the segments of [`App::scroll_line`] above the screen.
+    ///
+    /// A line taller than the window is the one case the line number cannot
+    /// describe the top of the screen on its own, and the caret can sit deeper
+    /// in such a line than the window is tall.
+    scroll_seg: usize,
+    /// The first line the last frame did not have room for.
+    ///
+    /// The next frame uses it to decide how far to follow a caret that has left
+    /// the screen, which is a question the line number alone cannot answer once
+    /// one line can take several rows.
+    visible_until: usize,
     /// The bar and its dropdowns, with the shared tree behind them.
     menus: Menus,
     /// The preferences dialog, and the settings it edits.
@@ -133,6 +161,8 @@ impl App {
             highlighter,
             scroll_line: 0,
             scroll_col: 0,
+            scroll_seg: 0,
+            visible_until: 0,
             menus: Menus::new(&Keymap::default()),
             prefs: Prefs::new(),
             find: Find::new(),
@@ -387,6 +417,7 @@ impl App {
             Action::MoveLineDown => self.edit(|ed| ed.move_lines(false)),
             Action::DeleteLine => self.edit(|ed| ed.delete_lines()),
             Action::Preferences => self.prefs.open(),
+            Action::ToggleWrap => self.toggle_wrap(),
             Action::Find => self.find.open(&self.editor),
             Action::FindNext => self.find.step(&mut self.editor, true),
             Action::FindPrev => self.find.step(&mut self.editor, false),
@@ -401,6 +432,30 @@ impl App {
                 self.say(&format!("{label}: not in the terminal yet"), true);
             }
         }
+    }
+
+    /// Turns wrapping on or off, and says which it now is.
+    ///
+    /// The setting is written as well as applied, because the terminal has no
+    /// other way to remember it: closing the program is the only thing that
+    /// happens between one run and the next. The scroll is put back to the start
+    /// of the caret's line, which is where a reader who has just changed the
+    /// shape of every row expects to find themself.
+    fn toggle_wrap(&mut self) {
+        self.settings.wrap = !self.settings.wrap;
+        self.settings.save();
+        self.scroll_col = 0;
+        self.scroll_seg = 0;
+        self.visible_until = 0;
+        self.scroll_line = self.editor.caret_line();
+        self.say(
+            if self.settings.wrap {
+                "long lines wrap"
+            } else {
+                "long lines are cut at the edge"
+            },
+            false,
+        );
     }
 
     /// Writes the document back, and says what happened.
@@ -530,18 +585,31 @@ impl App {
         let caret_col = self.editor.caret_column();
         let caret_display = self.display_column(caret_line, caret_col);
 
-        // Keep the caret on the screen, scrolling the least that will do it.
-        if caret_line < self.scroll_line {
-            self.scroll_line = caret_line;
+        let wrap = self.settings.wrap && layout.text_cols > 0;
+        if !wrap {
+            self.scroll_seg = 0;
         }
-        if text_rows > 0 && caret_line >= self.scroll_line + text_rows {
-            self.scroll_line = caret_line + 1 - text_rows;
-        }
-        if caret_display < self.scroll_col {
-            self.scroll_col = caret_display;
-        }
-        if layout.text_cols > 0 && caret_display >= self.scroll_col + layout.text_cols {
-            self.scroll_col = caret_display + 1 - layout.text_cols;
+        if wrap {
+            // Wrapping means the caret is somewhere on a line that may take
+            // several rows, so the question is not which column is on screen but
+            // which rows the last frame had.
+            self.scroll_col = 0;
+            self.reveal_wrapped(caret_line, caret_display, layout);
+        } else {
+            // Keep the caret on the screen, scrolling the least that will do it.
+            if caret_line < self.scroll_line {
+                self.scroll_line = caret_line;
+            }
+            if text_rows > 0 && caret_line >= self.scroll_line + text_rows {
+                self.scroll_line = caret_line + 1 - text_rows;
+            }
+            if caret_display < self.scroll_col {
+                self.scroll_col = caret_display;
+            }
+            if layout.text_cols > 0 && caret_display >= self.scroll_col + layout.text_cols {
+                self.scroll_col = caret_display + 1 - layout.text_cols;
+            }
+            self.visible_until = self.scroll_line + text_rows;
         }
 
         let caret = self.editor.caret();
@@ -560,23 +628,26 @@ impl App {
             for column in layout.gutter..width {
                 grid.put(row, column, ' ', Tone::Text);
             }
-            let line = self.scroll_line + row;
-            if line >= self.editor.doc.len_lines() {
-                // Past the end of the document the gutter keeps its column, so
-                // the strip reads as one thing rather than as a ragged edge.
-                continue;
-            }
-            self.draw_gutter(grid, row, line, layout.gutter, caret_line);
-            self.draw_line(grid, row, line, layout, caret, &selection);
-            if line == caret_line && caret_col == self.line_length(line) && layout.text_cols > 0 {
-                // The caret is past the last character: a block on the space
-                // that follows it, which is where the next character goes.
-                let column = gutter + caret_display.saturating_sub(self.scroll_col);
-                if column < width {
-                    grid.put(row, column, ' ', Tone::Caret);
-                }
-            }
         }
+
+        // The lines, one after another, each taking as many rows as it needs:
+        // one while wrapping is off, a screenful or more for a long line while
+        // it is on.
+        let mut row = 0usize;
+        let mut line = self.scroll_line;
+        let mut skip = if wrap { self.scroll_seg } else { 0 };
+        while row < text_rows && line < self.editor.doc.len_lines() {
+            if skip == 0 {
+                // A line wears its number on its first row, and a continuation
+                // row has none: the strip reads as one line rather than as
+                // several with the same number.
+                self.draw_gutter(grid, row, line, layout.gutter, caret_line);
+            }
+            row += self.draw_line(grid, row, line, layout, caret, &selection, skip, wrap);
+            line += 1;
+            skip = 0;
+        }
+        self.visible_until = line;
         if let Some(row) = layout.find_row {
             self.find.draw(grid, row, width);
         }
@@ -607,7 +678,90 @@ impl App {
         grid.put(row, gutter - 1, ' ', tone);
     }
 
-    /// Puts one line of the document, from the scroll position, on `row`.
+    /// Where the caret has to be for the view to hold it, while wrapping is on.
+    ///
+    /// A wrapped line is several rows of one line, so `scroll_line` alone cannot
+    /// say whether the caret is on the screen: `scroll_seg` names the segments of
+    /// the top line that are above it, and `visible_until` -- the first line the
+    /// last frame had no room for -- says whether the caret's line was one of
+    /// them at all. The near case moves the view by one line, so that a caret
+    /// walked off the bottom of the screen scrolls it as it always did; the far
+    /// case, a jump or a first frame, puts the caret's line at the top.
+    fn reveal_wrapped(&mut self, caret_line: usize, caret_display: usize, layout: Layout) {
+        let rows = layout.text_rows();
+        let columns = layout.text_cols.max(1);
+        let segment = caret_display / columns;
+        if caret_line < self.scroll_line {
+            self.scroll_line = caret_line;
+            self.scroll_seg = 0;
+        }
+        if self.visible_until <= self.scroll_line {
+            // Nothing is known about what fits -- a first frame, or a window that
+            // has just changed size -- so the caret's line is given the benefit.
+            self.visible_until = self.scroll_line + rows;
+        }
+        if caret_line >= self.visible_until {
+            self.scroll_line = if rows > 0 && caret_line < self.visible_until + rows {
+                self.visible_until
+            } else {
+                (caret_line + 1).saturating_sub(rows)
+            };
+            self.scroll_seg = 0;
+        }
+        if caret_line == self.scroll_line && rows > 0 {
+            if segment < self.scroll_seg {
+                self.scroll_seg = segment;
+            }
+            if segment >= self.scroll_seg + rows {
+                self.scroll_seg = segment + 1 - rows;
+            }
+        }
+    }
+
+    /// Where the cell at display column `display` of a line starting on `row`
+    /// goes.
+    fn cell_of(
+        &self,
+        row: usize,
+        display: usize,
+        layout: Layout,
+        wrap: bool,
+        skip: usize,
+    ) -> CellAt {
+        if layout.text_cols == 0 {
+            return CellAt::Past;
+        }
+        if wrap {
+            let segment = display / layout.text_cols;
+            if segment < skip {
+                // Above the top of the screen: the caret can still be in it.
+                return CellAt::Hidden;
+            }
+            let at_row = row + segment - skip;
+            if at_row >= layout.text_rows() {
+                return CellAt::Past;
+            }
+            CellAt::Put(at_row, layout.gutter + display % layout.text_cols)
+        } else {
+            if display < self.scroll_col {
+                return CellAt::Hidden;
+            }
+            let column = layout.gutter + display - self.scroll_col;
+            if column >= layout.gutter + layout.text_cols {
+                return CellAt::Past;
+            }
+            CellAt::Put(row, column)
+        }
+    }
+
+    /// Puts the line on the screen, from its first visible row, and answers how
+    /// many rows it took.
+    ///
+    /// With wrapping on a row holds a segment of the line, and a line too long
+    /// for the rows that are left is drawn as far as they go: the rest of it is
+    /// below the screen and the frame after this one starts where this one ran
+    /// out.
+    #[allow(clippy::too_many_arguments)]
     fn draw_line(
         &self,
         grid: &mut Grid,
@@ -616,11 +770,12 @@ impl App {
         layout: Layout,
         caret: usize,
         selection: &std::ops::Range<usize>,
-    ) {
-        let gutter = layout.gutter;
-        let text_cols = layout.text_cols;
+        skip: usize,
+        wrap: bool,
+    ) -> usize {
         let line_start = self.editor.doc.line_to_char(line);
         let mut display = 0usize;
+        let mut used = 1usize;
         for (index, ch) in self.editor.doc.line_chars(line).enumerate() {
             if ch == '\n' || ch == '\r' {
                 break;
@@ -628,14 +783,6 @@ impl App {
             let width = ch.width().unwrap_or(1);
             let at = display;
             display = advance(display, ch, self.settings.tab_width);
-            if at < self.scroll_col {
-                // Scrolled off to the left, but the caret can still be in it.
-                continue;
-            }
-            let column = gutter + at - self.scroll_col;
-            if column >= gutter + text_cols {
-                break;
-            }
             let char_index = line_start + index;
             let tone = if char_index == caret {
                 Tone::Caret
@@ -644,23 +791,59 @@ impl App {
             } else {
                 palette::tone(self.editor.doc.style_at(char_index))
             };
-            if ch == '\t' {
-                // A tab is drawn as the spaces it stands for, in the tone of the
-                // text around it: a terminal has no tab stops to hand the job to.
-                for step in 0..(display - at) {
-                    let column = gutter + at + step - self.scroll_col;
-                    if column < gutter + text_cols {
-                        grid.put(row, column, ' ', tone);
+            // A tab is a run of cells rather than a character, and a run can
+            // straddle the column a wrapped row ends on: each cell is placed on
+            // its own. Any other character is one cell -- two for a wide glyph,
+            // which the grid writes itself.
+            let (from, cells, drawn) = match ch {
+                '\t' => (at, display.saturating_sub(at).max(1), ' '),
+                _ if width == 0 => {
+                    // A combining mark: this shell draws the base character only.
+                    continue;
+                }
+                _ => (at, 1, ch),
+            };
+            for step in 0..cells {
+                match self.cell_of(row, from + step, layout, wrap, skip) {
+                    CellAt::Hidden => {}
+                    CellAt::Put(at_row, column) => {
+                        grid.put(at_row, column, drawn, tone);
+                        used = used.max(at_row - row + 1);
+                    }
+                    CellAt::Past => {
+                        // Nothing after this fits. With wrapping on that is the
+                        // bottom of the screen, and every row left belongs to
+                        // this line; with it off it is the right-hand edge, and
+                        // the line is as tall as it ever was.
+                        return if wrap {
+                            layout.text_rows().saturating_sub(row).max(1)
+                        } else {
+                            used
+                        };
                     }
                 }
-                continue;
             }
-            if width == 0 {
-                // A combining mark: this shell draws the base character only.
-                continue;
-            }
-            grid.put(row, column, ch, tone);
         }
+        // The caret past the last character takes a cell of its own, and a line
+        // that fills its rows exactly gets one more for it: the caret is a thing
+        // the line is a cell wider for, not an ornament on the last character.
+        if caret == line_start + self.line_length(line) {
+            match self.cell_of(row, display, layout, wrap, skip) {
+                CellAt::Put(at_row, column) => {
+                    grid.put(at_row, column, ' ', Tone::Caret);
+                    used = used.max(at_row - row + 1);
+                }
+                CellAt::Hidden => {}
+                CellAt::Past => {
+                    return if wrap {
+                        layout.text_rows().saturating_sub(row).max(1)
+                    } else {
+                        used
+                    };
+                }
+            }
+        }
+        used
     }
 
     /// How many characters `line` holds, without its terminator.
@@ -786,6 +969,110 @@ mod tests {
         // The line number is there, in the gutter.
         assert!(rows[0].starts_with("1 "), "{:?}", rows);
         assert!(rows[0].trim_end().ends_with("hello"), "{:?}", rows);
+    }
+
+    #[test]
+    fn a_long_line_wraps_onto_the_row_below() {
+        // Twelve columns and a gutter of two leave ten of text, so the sixteen
+        // characters of the first line take two rows -- and the second of them
+        // carries no line number, because it is not a line.
+        let mut app = app("0123456789ABCDEF\nab\n");
+        app.settings_mut().wrap = true;
+        let rows = drawn(&mut app, 12, 5);
+        assert_eq!(rows[0], "1 0123456789", "{:?}", rows);
+        assert_eq!(rows[1], "  ABCDEF    ", "{:?}", rows);
+        assert_eq!(rows[2], "2 ab        ", "{:?}", rows);
+        // With wrapping off the same line is cut at the edge instead, and the
+        // second line of the document starts one row higher.
+        app.settings_mut().wrap = false;
+        let rows = drawn(&mut app, 12, 5);
+        assert_eq!(rows[0], "1 0123456789", "{:?}", rows);
+        assert_eq!(rows[1], "2 ab        ", "{:?}", rows);
+    }
+
+    #[test]
+    fn wrapped_rows_carry_the_caret_and_the_tone_of_their_text() {
+        let mut app = app("fn main() { let value = 1; }\n");
+        app.settings_mut().wrap = true;
+        app.editor.goto_position(0, 14);
+        let mut grid = Grid::new(12, 4);
+        app.draw(&mut grid);
+        // The caret is at display column fourteen, which is the fifth cell of
+        // the second row: two of gutter and three more.
+        assert_eq!(grid.get(0, 2).ch, 'f', "{:?}", (0, 2));
+        assert_eq!(grid.get(0, 2).tone, Tone::Keyword);
+        assert_eq!(grid.get(1, 6).ch, 't', "{:?}", (1, 6));
+        assert_eq!(grid.get(1, 6).tone, Tone::Caret);
+        // The row a line continues on is text, not gutter: it starts with the
+        // character the previous row ran out of room for, and the cells past the
+        // end of it keep the text background.
+        assert_eq!(grid.get(1, 2).ch, '{', "{:?}", (1, 2));
+        assert_eq!(grid.get(1, 2).tone, Tone::Operator);
+        assert_eq!(grid.get(1, 11).tone, Tone::Text);
+    }
+
+    #[test]
+    fn a_line_taller_than_the_window_scrolls_to_hold_the_caret() {
+        // Fifty characters on one line and two rows of text: the caret at the
+        // end of it is five segments below the start, which no line number can
+        // bring onto the screen. The segment offset does.
+        let line: String = "abcdefghij".repeat(5);
+        let mut app = app(&format!("{line}\n"));
+        app.settings_mut().wrap = true;
+        app.editor.goto_position(0, line.chars().count());
+        let rows = drawn(&mut app, 12, 3);
+        // Segments four and five: the last ten characters, then the caret on the
+        // blank cell after them.
+        assert_eq!(rows[0], "  abcdefghij", "{:?}", rows);
+        assert_eq!(&rows[1][..3], "   ", "{:?}", rows);
+        let mut grid = Grid::new(12, 3);
+        app.draw(&mut grid);
+        assert_eq!(grid.get(1, 2).tone, Tone::Caret, "{:?}", rows);
+    }
+
+    #[test]
+    fn walking_down_a_wrapped_document_brings_the_caret_with_it() {
+        // Twelve columns leave ten of text, and every line is sixty characters:
+        // each one is six rows tall, so the screen -- four rows of text -- does
+        // not even hold one whole line. Following the caret through that is the
+        // case a line number alone cannot describe.
+        let line: String = "x".repeat(60);
+        let text: String = (0..30).map(|_| format!("{line}\n")).collect();
+        let mut app = app(&text);
+        app.settings_mut().wrap = true;
+        let mut grid = Grid::new(12, 5);
+        app.draw(&mut grid);
+        for _ in 0..12 {
+            app.handle(Key::Down);
+            app.draw(&mut grid);
+        }
+        assert_eq!(app.editor.caret_line(), 12);
+        let mut caret = None;
+        for row in 0..4 {
+            for column in 0..12 {
+                if grid.get(row, column).tone == Tone::Caret {
+                    caret = Some((row, column));
+                }
+            }
+        }
+        // A blank cell rather than a character: the caret is at the start of a
+        // line, and every row of it that the screen has is the one it is on.
+        assert!(caret.is_some(), "the caret left the screen");
+        // And the same walk back up finds it again.
+        for _ in 0..6 {
+            app.handle(Key::Up);
+            app.draw(&mut grid);
+        }
+        assert_eq!(app.editor.caret_line(), 6);
+        let mut back = None;
+        for row in 0..4 {
+            for column in 0..12 {
+                if grid.get(row, column).tone == Tone::Caret {
+                    back = Some((row, column));
+                }
+            }
+        }
+        assert!(back.is_some(), "the caret left the screen going back up");
     }
 
     #[test]
