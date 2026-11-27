@@ -13525,3 +13525,73 @@ named.
 The keystroke measurement is unchanged at 15,554 bytes for the first paint and 306
 for a keystroke. `cargo clippy --offline --release --all-targets`: 0 warnings.
 `cargo fmt` was not run. The feature reference and its PDF are untouched.
+
+## The hundred-and-thirty-third pass: Open and Save As
+
+The shell could read one file, the one named on its command line. `Open` and
+`Save As` are the two rows of the File menu a reader reaches for first, and both
+said `not in the terminal yet`. They are here, and they are what the prompt of the
+last pass was built for.
+
+The prompt changed shape on the way. It used to run its own command, which meant a
+field that held an editor; it now hands the answer back -- `take_answer`, read once
+-- and the shell runs it. That is why `Go to line` moved into `run_prompt` beside
+the two new ones: what a path means, what a number means, and what the bar says
+afterwards are all questions for the piece that can open a file and has a status
+line, and keeping them out of the widget is what lets the widget be tested without
+a document.
+
+`Ctrl+O` arrives. `Ctrl+Shift+S` does not: Ctrl and Shift and a letter is not one of
+the bytes a keyboard puts on the wire, so `Save As` is the File menu's row, and that
+is the sixth entry in the quirks list. `Open` makes the path absolute before it
+touches it, because a relative name means a different file the next time the shell
+is started from somewhere else -- the window learned that, and
+`nn_core::paths::absolute` is what it was learned into.
+
+Opening is refused while the document in front has unsaved changes. The window
+opens a second tab and loses nothing; this shell has one document, so the honest
+answer is the bar's: `unsaved changes: Ctrl+S saves them first`. That refusal is
+what the tabs pass will lift. A name that is not there is not an error, though: it
+opens a blank page for that name, whose first save creates the file. That is
+`Document::open`'s rule, the window's rule, and now the command line's too --
+`npp-tui notes.txt` in a directory without `notes.txt` used to print an error and
+exit, which was the one place where the two front-ends disagreed about a name they
+had both been given.
+
+`Save As` writes, adopts the path, clears the mark and swaps the lexer with the
+extension, because a buffer saved as `x.json` should colour itself as JSON from the
+next line on and not keep the colours of the name it used to have. Everything that
+described the old document -- its scroll, the remembered row, the half-armed quit
+warning -- is dropped in one place, `load`, which `with_document` now goes through
+as well, so "what belongs to the document that was open" is a list written once.
+
+The cost of both commands is a file read and a file write, once each, and one
+highlighting pass for the document that replaces the old one. Nothing here is paid
+per keystroke: the field edits three characters, and the frame it draws is a row
+that was already being painted.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical;
+only `nn-tui` changed.
+
+Through a pseudo terminal on a 140-column screen, from a fresh home, on a file
+holding one line `first`. `Ctrl+O` drew `Open:`, a typed `/tmp/second.txt` and Enter
+put that file on the screen as three lines and the bar said `opened
+/tmp/second.txt`. Typing a character first and then asking for the same file said
+`unsaved changes: Ctrl+S saves them first` and left the buffer alone. F9, Down onto
+the File dropdown's first row and eight Downs found `Save As...`: the prompt read
+`Save as:`, `/tmp/saved-copy.txt` and Enter wrote the six bytes of `first` to disk
+and said `saved /tmp/saved-copy.txt`. Started on a name that was not there, the
+shell drew an empty first line instead of printing an error; typing `hello` and
+`Ctrl+S` created the file with those five bytes in it.
+
+`cargo test --offline --release`: 2,410 tests, 0 failed -- the prompt's five became
+four, since the widget no longer runs anything, and the shell gained five: `Ctrl+O`
+opening the file that was typed, opening refused while the document is dirty, a
+name that is not there opening a blank page, `Save As` writing the file and adopting
+its name, and the language following the extension -- the last one proven by the
+tone of `fn`, which is a keyword under the code lexer and is not under the JSON
+one. The keystroke measurement is unchanged at 15,554 bytes for the first paint and
+306 for a keystroke. `cargo clippy --offline --release --all-targets`: 0 warnings.
+`cargo fmt` was not run. The feature reference and its PDF are untouched.

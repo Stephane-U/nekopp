@@ -27,6 +27,7 @@
 
 use std::path::Path;
 
+use nn_core::paths::absolute;
 use nn_core::{CLikeLexer, ConfigLexer, Document, Editor, Highlighter, Lexer, Motion};
 use nn_shared::action::Action;
 use nn_shared::i18n::Catalog;
@@ -160,8 +161,11 @@ pub struct App {
 impl App {
     /// Opens `path`, or a buffer named `[No Name]` when there is none.
     pub fn open(path: Option<&Path>) -> std::io::Result<Self> {
+        // `Document::open` rather than `from_file`, because the name on the
+        // command line means what it means in the File menu: a file that is not
+        // there is a blank page for it, and its first save creates the file.
         let doc = match path {
-            Some(path) => Document::from_file(path)?,
+            Some(path) => Document::open(path)?,
             None => Document::new(),
         };
         Ok(App::with_document(doc))
@@ -169,16 +173,9 @@ impl App {
 
     /// Wraps a document that is already in memory.
     pub fn with_document(doc: Document) -> Self {
-        let mut editor = Editor::new(doc);
-        let mut highlighter = Highlighter::new(lexer_for(editor.doc.path()));
-        // A large file opens unhighlighted for the same reason it does in the
-        // windowed editor: both passes are O(file) and the pause is not worth it.
-        if !editor.doc.is_large() {
-            highlighter.highlight_all(&mut editor.doc);
-        }
         let mut app = App {
-            editor,
-            highlighter,
+            editor: Editor::new(Document::new()),
+            highlighter: Highlighter::new(lexer_for(None)),
             scroll_line: 0,
             scroll_col: 0,
             scroll_seg: 0,
@@ -200,6 +197,7 @@ impl App {
         // Before the first frame, so a terminal started twice reads the same way,
         // in the same language and the same colours.
         app.apply_settings();
+        app.load(doc);
         app
     }
 
@@ -320,7 +318,12 @@ impl App {
         // rather than to the document behind it, and a key the field has no use
         // for is dropped rather than handed on.
         if self.prompt.is_open() {
-            self.prompt.handle(key, &mut self.editor);
+            self.prompt.handle(key);
+            // Enter closes the row and leaves the answer behind, so the command
+            // runs on the keystroke that answered it rather than on the next one.
+            if let Some((kind, text)) = self.prompt.take_answer() {
+                self.run_prompt(kind, text);
+            }
             return;
         }
         self.message = None;
@@ -468,6 +471,8 @@ impl App {
             Action::Find => self.find.open(&self.editor),
             Action::Replace => self.find.open_replace(&self.editor),
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
+            Action::Open => self.prompt.open(PromptKind::Open),
+            Action::SaveAs => self.prompt.open(PromptKind::SaveAs),
             Action::FindNext => self.find.step(&mut self.editor, true),
             Action::FindPrev => self.find.step(&mut self.editor, false),
             Action::Exit => self.ask_to_quit(),
@@ -517,6 +522,100 @@ impl App {
             Ok(()) => self.say("saved", false),
             Err(error) => self.say(&format!("save failed: {error}"), true),
         }
+    }
+
+    /// Runs the command a prompt was asking for.
+    ///
+    /// The prompt is a field and nothing else: what a path means, what a line
+    /// number means, and what the bar says afterwards all belong here, because
+    /// this is the piece that can open a file and the piece with a status line to
+    /// answer on.
+    fn run_prompt(&mut self, kind: PromptKind, text: String) {
+        match kind {
+            // Counted from one, as the status bar counts, and clamped by the
+            // editor: a line past the end of the file is its last line, which is
+            // what the window does with the same number.
+            PromptKind::GotoLine => {
+                if let Ok(line) = text.trim().parse::<usize>() {
+                    self.editor.goto_line(line.saturating_sub(1));
+                }
+            }
+            PromptKind::Open => self.open_path(text.trim()),
+            PromptKind::SaveAs => self.save_as(text.trim()),
+        }
+    }
+
+    /// Opens `typed`, which is a path as the reader typed it.
+    ///
+    /// Made absolute, because a relative name means a different file the next
+    /// time the shell is started from somewhere else -- the window learned that
+    /// and `nn_core::paths::absolute` is what it learned it into. Refused while
+    /// the document in front has unsaved changes: this shell has one document,
+    /// and opening another would throw them away. The window opens a second tab
+    /// instead, which is the pass that lifts this.
+    ///
+    /// A name that is not there opens a blank page for it rather than an error,
+    /// which is `Document::open`'s rule and the window's: `npp notes.txt` in a
+    /// directory without `notes.txt` gives a buffer whose first save creates the
+    /// file.
+    fn open_path(&mut self, typed: &str) {
+        if typed.is_empty() {
+            self.say("open: type a path", true);
+            return;
+        }
+        if self.editor.doc.is_dirty() {
+            self.say("unsaved changes: Ctrl+S saves them first", true);
+            return;
+        }
+        let path = absolute(Path::new(typed));
+        match Document::open(&path) {
+            Ok(doc) => {
+                self.load(doc);
+                self.say(&format!("opened {}", path.display()), false);
+            }
+            Err(error) => self.say(&format!("cannot open {}: {error}", path.display()), true),
+        }
+    }
+
+    /// Writes the document to `typed` and adopts that path.
+    ///
+    /// The language follows the extension, as it does when a file is opened: a
+    /// buffer saved as `x.rs` should colour itself as Rust from the next line on,
+    /// not keep the lexer of the name it used to have.
+    fn save_as(&mut self, typed: &str) {
+        if typed.is_empty() {
+            self.say("save as: type a path", true);
+            return;
+        }
+        let path = absolute(Path::new(typed));
+        match self.editor.doc.save_as(&path) {
+            Ok(()) => {
+                self.highlighter = Highlighter::new(lexer_for(self.editor.doc.path()));
+                self.refresh_all();
+                self.say(&format!("saved {}", path.display()), false);
+            }
+            Err(error) => self.say(&format!("save failed: {error}"), true),
+        }
+    }
+
+    /// Puts `doc` in front, dropping everything that described the one before it.
+    ///
+    /// Scroll, the remembered row and the quit warning all belong to the document
+    /// that was open, so a new one starts at its first line with nothing armed.
+    fn load(&mut self, doc: Document) {
+        self.editor = Editor::new(doc);
+        self.highlighter = Highlighter::new(lexer_for(self.editor.doc.path()));
+        // A large file opens unhighlighted for the same reason it does in the
+        // windowed editor: the pass is O(file) and the pause is not worth it.
+        if !self.editor.doc.is_large() {
+            self.highlighter.highlight_all(&mut self.editor.doc);
+        }
+        self.scroll_line = 0;
+        self.scroll_col = 0;
+        self.scroll_seg = 0;
+        self.visible_until = 0;
+        self.desired_row = None;
+        self.quit_armed = false;
     }
 
     /// Quits, or warns once that there is unsaved work.
@@ -1656,6 +1755,109 @@ mod tests {
         app.handle(Key::Ctrl('s'));
         assert!(!app.editor.doc.is_dirty(), "{}", app.message().unwrap_or(""));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), "one!\n");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A path in the temporary directory, named after this test binary.
+    fn temp(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("npp-tui-{}-{name}", std::process::id()))
+    }
+
+    /// Opens the prompt `action` asks for and types `text` into it.
+    fn prompt(app: &mut App, action: Action, text: &str) {
+        app.run(action);
+        for ch in text.chars() {
+            app.handle(Key::Char(ch));
+        }
+        app.handle(Key::Enter);
+    }
+
+    #[test]
+    fn ctrl_o_opens_the_file_that_was_typed() {
+        let path = temp("open.txt");
+        std::fs::write(&path, "one\ntwo\n").expect("write");
+        let mut app = app("first\n");
+        app.handle(Key::Ctrl('o'));
+        // The prompt says what it wants, in the window's words.
+        let rows = drawn(&mut app, 40, 6);
+        assert!(rows[4].starts_with("Open:"), "{:?}", rows);
+        for _ in 0..5 {
+            app.handle(Key::Backspace);
+        }
+        for ch in path.display().to_string().chars() {
+            app.handle(Key::Char(ch));
+        }
+        app.handle(Key::Enter);
+        assert_eq!(app.editor.doc.path(), Some(path.as_path()));
+        assert_eq!(app.editor.doc.text().as_str(), "one\ntwo\n");
+        assert_eq!(app.editor.caret(), 0, "the caret did not go to the top");
+        assert!(app.message().unwrap_or_default().starts_with("opened"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn opening_is_refused_while_the_document_has_unsaved_changes() {
+        let path = temp("refused.txt");
+        std::fs::write(&path, "one\n").expect("write");
+        let mut app = app("first\n");
+        app.handle(Key::Char('!'));
+        prompt(&mut app, Action::Open, &path.display().to_string());
+        let message = app.message().unwrap_or_default();
+        assert!(message.contains("unsaved"), "{message}");
+        assert_eq!(app.editor.doc.text().as_str(), "!first\n", "it opened anyway");
+        assert_eq!(app.editor.doc.path(), None);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_name_that_is_not_there_opens_a_blank_page_for_it() {
+        let path = temp("not-yet.txt");
+        let _ = std::fs::remove_file(&path);
+        let app = App::open(Some(&path)).expect("a missing name is not an error");
+        assert_eq!(app.editor.doc.path(), Some(path.as_path()));
+        assert!(!app.editor.doc.is_dirty(), "the blank page started dirty");
+        assert_eq!(app.editor.doc.text().as_str(), "");
+    }
+
+    #[test]
+    fn save_as_writes_the_file_and_adopts_the_name() {
+        let path = temp("save-as.txt");
+        let _ = std::fs::remove_file(&path);
+        let mut app = app("one\n");
+        prompt(&mut app, Action::SaveAs, &path.display().to_string());
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), "one\n");
+        assert_eq!(app.editor.doc.path(), Some(path.as_path()));
+        assert!(!app.editor.doc.is_dirty());
+        assert!(app.message().unwrap_or_default().starts_with("saved"));
+        // Once the message has been cleared by the next keystroke, the bar names
+        // the file the buffer now holds.
+        app.handle(Key::Down);
+        let rows = drawn(&mut app, 60, 4);
+        let name = path.file_name().expect("a file name").to_string_lossy();
+        assert!(rows[3].contains(&*name), "{:?}", rows);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn saving_under_a_new_name_changes_the_language_with_it() {
+        let path = temp("language.json");
+        let _ = std::fs::remove_file(&path);
+        let mut app = app("fn main() {}\n");
+        // The caret stands on the `f`, and the caret's tone is drawn over the
+        // text's, so it is moved out of the way first.
+        app.handle(Key::LineEnd);
+        let mut grid = Grid::new(40, 3);
+        app.draw(&mut grid);
+        // The document has no name, so it is drawn as code, and `fn` is a keyword.
+        assert_eq!(grid.get(0, 2).tone, Tone::Keyword);
+        prompt(&mut app, Action::SaveAs, &path.display().to_string());
+        let mut grid = Grid::new(40, 3);
+        app.draw(&mut grid);
+        assert_ne!(
+            grid.get(0, 2).tone,
+            Tone::Keyword,
+            "the buffer kept the lexer of the name it used to have"
+        );
         let _ = std::fs::remove_file(&path);
     }
 

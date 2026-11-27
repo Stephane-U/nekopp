@@ -24,12 +24,12 @@
 //!
 //! It is modal while it is up, as the window's is: a letter belongs to the
 //! prompt rather than to the document behind it, so a mistyped chord cannot edit
-//! a file the reader is not looking at. Escape leaves without doing anything,
-//! Enter runs what was typed, and a line number that is not a number runs
-//! nothing -- the window's rule, kept rather than improved on, because two
-//! front-ends that disagree about silence are two front-ends to learn twice.
+//! a file the reader is not looking at. Escape leaves without doing anything and
+//! Enter hands what was typed back to the shell, which is the piece that can open
+//! a file and the piece with a status line to answer on. A path that cannot be
+//! read, and a line number that is not a number, are the shell's to answer too;
+//! keeping that out of here is what lets the field be tested without an editor.
 
-use nn_core::Editor;
 use nn_shared::i18n::Catalog;
 
 use crate::keys::Key;
@@ -39,6 +39,10 @@ use crate::screen::Grid;
 /// What the prompt is asking for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
+    /// A file to read.
+    Open,
+    /// A path to write the document to.
+    SaveAs,
     /// A line number, counted from one.
     GotoLine,
 }
@@ -47,6 +51,10 @@ impl Kind {
     /// The label drawn in front of the field, in English.
     fn label(self) -> &'static str {
         match self {
+            // The window's own words, down to the lowercased `as`: a reader who
+            // has used both front-ends should not have to notice they differ.
+            Kind::Open => "Open:",
+            Kind::SaveAs => "Save as:",
             Kind::GotoLine => "Go to line:",
         }
     }
@@ -59,6 +67,8 @@ pub struct Prompt {
     /// Where the next character goes, counted in characters rather than bytes:
     /// the field holds what a reader typed, and a reader counts characters.
     caret: usize,
+    /// What was answered, waiting to be read by the shell.
+    answer: Option<(Kind, String)>,
     catalog: Option<Catalog>,
 }
 
@@ -69,6 +79,7 @@ impl Prompt {
             open: None,
             text: String::new(),
             caret: 0,
+            answer: None,
             catalog: None,
         }
     }
@@ -87,6 +98,15 @@ impl Prompt {
         self.open = Some(kind);
         self.text.clear();
         self.caret = 0;
+        self.answer = None;
+    }
+
+    /// The answer to a prompt that was just answered, once.
+    ///
+    /// Reading clears it, so a command that opened a prompt and left it alone
+    /// cannot pick up the answer to the one before it.
+    pub fn take_answer(&mut self) -> Option<(Kind, String)> {
+        self.answer.take()
     }
 
     /// Closes the prompt without running anything.
@@ -112,15 +132,18 @@ impl Prompt {
     /// Nothing goes back to the shell while the prompt is up: it is modal, and a
     /// key it does not want is dropped rather than handed on to whatever is
     /// behind it.
-    pub fn handle(&mut self, key: Key, editor: &mut Editor) -> bool {
+    pub fn handle(&mut self, key: Key) -> bool {
         let Some(kind) = self.open else {
             return false;
         };
         match key {
             Key::Escape => self.close(),
             Key::Enter => {
+                // The row goes before the command runs, so a command that says
+                // something on the bar is not read with the question still above
+                // it, and the answer is left for the shell to collect.
                 self.close();
-                self.run(kind, editor);
+                self.answer = Some((kind, self.text.clone()));
             }
             Key::Char(ch) => {
                 let at = self.byte_at(self.caret);
@@ -149,20 +172,6 @@ impl Prompt {
             _ => {}
         }
         true
-    }
-
-    /// Runs what was typed, for the kind the prompt was opened on.
-    fn run(&mut self, kind: Kind, editor: &mut Editor) {
-        match kind {
-            // Counted from one, as the status bar counts, and clamped by the
-            // editor: a line past the end of the file is the last line, which is
-            // what the window's prompt does with the same number.
-            Kind::GotoLine => {
-                if let Ok(line) = self.text.trim().parse::<usize>() {
-                    editor.goto_line(line.saturating_sub(1));
-                }
-            }
-        }
     }
 
     /// The byte offset of the `index`th character of the field.
@@ -199,101 +208,88 @@ impl Prompt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nn_core::Document;
-
-    /// An editor on `text`, with the caret at the start.
-    fn editor(text: &str) -> Editor {
-        Editor::new(Document::from_text(text))
-    }
 
     /// Types `text` into the open prompt.
-    fn type_in(prompt: &mut Prompt, editor: &mut Editor, text: &str) {
+    fn type_in(prompt: &mut Prompt, text: &str) {
         for ch in text.chars() {
-            prompt.handle(Key::Char(ch), editor);
+            prompt.handle(Key::Char(ch));
         }
     }
 
     #[test]
-    fn a_line_number_moves_the_caret_and_is_counted_from_one() {
-        let mut editor = editor("one\ntwo\nthree\n");
+    fn an_answer_is_handed_back_once_and_keeps_the_kind() {
         let mut prompt = Prompt::new();
         prompt.open(Kind::GotoLine);
-        type_in(&mut prompt, &mut editor, "2");
-        assert!(prompt.handle(Key::Enter, &mut editor));
+        type_in(&mut prompt, "12");
+        assert!(prompt.handle(Key::Enter));
         assert!(!prompt.is_open(), "the prompt stayed up after Enter");
-        assert_eq!(editor.caret_line(), 1);
-        assert_eq!(editor.caret_column(), 0);
+        assert_eq!(prompt.take_answer(), Some((Kind::GotoLine, "12".to_string())));
+        // Read once: a command that opens a prompt and walks away cannot pick up
+        // the answer to the one before it.
+        assert_eq!(prompt.take_answer(), None);
+        // And opening the next prompt drops any answer left unread.
+        prompt.open(Kind::Open);
+        type_in(&mut prompt, "notes.txt");
+        prompt.handle(Key::Enter);
+        prompt.open(Kind::Open);
+        assert_eq!(prompt.take_answer(), None);
     }
 
     #[test]
-    fn a_line_past_the_end_arrives_on_the_last_line() {
-        let mut editor = editor("one\ntwo\n");
+    fn escape_answers_nothing_at_all() {
         let mut prompt = Prompt::new();
-        prompt.open(Kind::GotoLine);
-        type_in(&mut prompt, &mut editor, "99");
-        prompt.handle(Key::Enter, &mut editor);
-        // `one\ntwo\n` has three lines, the last of them empty: that is where a
-        // number past the end arrives.
-        assert_eq!(editor.caret_line(), 2);
-        // And a number below one is the first line rather than a wrap round.
-        prompt.open(Kind::GotoLine);
-        type_in(&mut prompt, &mut editor, "0");
-        prompt.handle(Key::Enter, &mut editor);
-        assert_eq!(editor.caret_line(), 0);
-    }
-
-    #[test]
-    fn what_is_not_a_number_moves_nothing_and_escape_runs_nothing() {
-        let mut editor = editor("one\ntwo\n");
-        let mut prompt = Prompt::new();
-        prompt.open(Kind::GotoLine);
-        type_in(&mut prompt, &mut editor, "2");
-        assert!(prompt.handle(Key::Escape, &mut editor));
-        assert_eq!(editor.caret_line(), 0, "Escape ran the command anyway");
-        prompt.open(Kind::GotoLine);
-        type_in(&mut prompt, &mut editor, "two");
-        prompt.handle(Key::Enter, &mut editor);
-        assert_eq!(editor.caret_line(), 0);
+        prompt.open(Kind::SaveAs);
+        type_in(&mut prompt, "/tmp/x.txt");
+        assert!(prompt.handle(Key::Escape));
+        assert!(!prompt.is_open());
+        assert_eq!(prompt.take_answer(), None);
     }
 
     #[test]
     fn the_field_takes_the_editing_keys_and_nothing_goes_back_to_the_shell() {
-        let mut editor = editor("one\ntwo\nthree\n");
         let mut prompt = Prompt::new();
-        prompt.open(Kind::GotoLine);
+        prompt.open(Kind::Open);
         // A chord is dropped rather than handed on: the prompt is modal.
-        assert!(prompt.handle(Key::Ctrl('q'), &mut editor));
+        assert!(prompt.handle(Key::Ctrl('q')));
         assert!(prompt.is_open(), "a chord closed the prompt");
-        type_in(&mut prompt, &mut editor, "123");
+        type_in(&mut prompt, "123");
         assert_eq!(prompt.text, "123");
         // A character is inserted where the caret is, not always at the end.
-        prompt.handle(Key::Left, &mut editor);
-        prompt.handle(Key::Left, &mut editor);
-        type_in(&mut prompt, &mut editor, "9");
+        prompt.handle(Key::Left);
+        prompt.handle(Key::Left);
+        type_in(&mut prompt, "9");
         assert_eq!(prompt.text, "1923");
-        prompt.handle(Key::LineStart, &mut editor);
-        prompt.handle(Key::Delete, &mut editor);
+        prompt.handle(Key::LineStart);
+        prompt.handle(Key::Delete);
         assert_eq!(prompt.text, "923");
-        prompt.handle(Key::LineEnd, &mut editor);
-        prompt.handle(Key::Backspace, &mut editor);
+        prompt.handle(Key::LineEnd);
+        prompt.handle(Key::Backspace);
         assert_eq!(prompt.text, "92");
         // A key the field has no use for is swallowed rather than passed on.
-        assert!(prompt.handle(Key::PageDown, &mut editor));
-        assert_eq!(editor.caret_line(), 0);
+        assert!(prompt.handle(Key::PageDown));
+        assert_eq!(prompt.text, "92");
     }
 
     #[test]
     fn the_label_and_the_caret_hold_their_places_on_the_row() {
-        let mut editor = editor("one\n");
         let mut prompt = Prompt::new();
         prompt.open(Kind::GotoLine);
-        type_in(&mut prompt, &mut editor, "42");
+        type_in(&mut prompt, "42");
         let row = drawn(&prompt, 20);
         assert!(row.starts_with("Go to line: 42"), "{row:?}");
         assert_eq!(row.len(), 20, "{row:?}");
         // The caret is a space of its own, one past the number, and the row is
         // painted to its last cell so nothing of the frame behind shows through.
         assert_eq!(&row[12..], "42      ", "{row:?}");
+        // Each kind asks its own question, in the window's words.
+        for (kind, label) in [
+            (Kind::Open, "Open:"),
+            (Kind::SaveAs, "Save as:"),
+            (Kind::GotoLine, "Go to line:"),
+        ] {
+            prompt.open(kind);
+            assert!(drawn(&prompt, 20).starts_with(label));
+        }
     }
 
     /// The prompt's row, as a string.
