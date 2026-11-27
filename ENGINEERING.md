@@ -13361,3 +13361,36 @@ off; the sixth test to change is the keystroke measurement, which now measures a
 wrapped Down as well. `cargo clippy --offline --release --all-targets`: 0
 warnings. `cargo fmt` was not run. The feature reference and its PDF are
 untouched.
+
+## The hundred-and-thirtieth pass: the bar that had lost its arrows
+
+Pass 129 gave the shell a vertical move of its own and put it where it had to be
+-- before the find bar, because a key that moves the caret is a key the text area
+answers. The bar is asked after it, so with wrapping on its Up and Down never
+arrived: a reader with a pattern typed and a long line in front of them pressed
+Down to walk to the next match and watched the caret step a row down the line
+instead.
+
+The fix is one clause. `move_by_rows` declines while the bar is up, because a bar
+that takes those two keys is a reason to decline rather than a reason to move by a
+row; the order in `handle` is unchanged, which is the point -- the guard belongs to
+the move, not to the shell's dispatch, and neither the menu nor the preferences
+dialog needs one, since both are answered before it.
+
+The test that catches it draws a frame first. Without one the move has no width to
+divide by and declines for the wrong reason, which is how the first version of the
+test passed while the bug was still there; the numbers it now asserts are the two
+matches a Down walks to, `201` and `409`, against the `38` a row of the same line
+would have landed on.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical;
+only `nn-tui` changed.
+
+`cargo test --offline --release`: 2,394 tests, 0 failed -- 2,393 plus one: a
+wrapped document with two matches on one line, Down twice, the selection at 201
+and then 409. Run against the guard removed, the same test fails with 38, so it is
+the guard it is testing. `cargo clippy --offline --release --all-targets`: 0
+warnings. `cargo fmt` was not run. The feature reference and its PDF are
+untouched.

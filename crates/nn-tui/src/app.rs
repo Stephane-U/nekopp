@@ -583,7 +583,14 @@ impl App {
     /// not lost, so passing through a short line does not pull the caret left for
     /// good.
     fn move_by_rows(&mut self, key: Key) -> bool {
-        if !self.settings.wrap || self.view_cols == 0 || self.editor.selections.len() > 1 {
+        // The find bar takes Up and Down as "the match before" and "the match
+        // after", and it is asked *after* this move, so a bar that is up is a
+        // reason to decline rather than a reason to move the caret by a row.
+        if self.find.is_open()
+            || !self.settings.wrap
+            || self.view_cols == 0
+            || self.editor.selections.len() > 1
+        {
             return false;
         }
         let (delta, extend) = match key {
@@ -1496,6 +1503,31 @@ mod tests {
         app.run(Action::Find);
         app.handle(Key::Ctrl('s'));
         assert!(app.message().unwrap_or_default().contains("no file name"));
+    }
+
+    #[test]
+    fn the_find_bar_keeps_its_arrows_while_lines_wrap() {
+        // A pattern with two matches on one long line: Down in the bar means the
+        // match after, not the row below, even though the document wraps.
+        let text = format!("{} needle {} needle\n", "x".repeat(200), "y".repeat(200));
+        let mut app = App::with_document(Document::from_text(&text));
+        *app.settings_mut() = Settings {
+            wrap: true,
+            ..Settings::default()
+        };
+        app.apply_settings();
+        // A frame first: the row motion works in the cells the last frame drew,
+        // so without one it has no width to divide by and declines for that
+        // reason instead of this one.
+        drawn(&mut app, 40, 6);
+        app.run(Action::Find);
+        for ch in "needle".chars() {
+            app.handle(Key::Char(ch));
+        }
+        app.handle(Key::Down);
+        assert_eq!(app.editor.selection_start(), 201);
+        app.handle(Key::Down);
+        assert_eq!(app.editor.selection_start(), 409);
     }
 
     #[test]
