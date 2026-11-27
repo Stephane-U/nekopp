@@ -13844,3 +13844,64 @@ closing the bar brought the strip back. One document alone drew no strip, its fi
 line on row nought, and with two open the find bar still sat on the row above the
 bar, `Find: t ... 0/2`.
 
+## The hundred-and-thirty-eighth pass: one session file, two front-ends
+
+The window has remembered the files you had open and the ones you opened lately
+since before the terminal shell existed, in `session.txt` under the platform's
+configuration directory. The terminal shell now reads and writes the same file, and
+the way that is done without a second copy of the format is that the format moved:
+`nn-app/src/session.rs` is `nn-shared/src/session.rs`, and `TabColour` went with it,
+because a session line names the colour a tab was painted with. `nn-app` re-exports
+both at the paths they had, so not one caller in the window changed -- and the
+session's own tests moved with it, which is why the suite's count did not move for
+that part of this pass.
+
+The terminal side is three pieces. The session is read once, at startup, after the
+first document is in place; the file the command line named is recorded as recent,
+which is what the window does with `npp notes.txt` and the reason that file is the
+first row in the menu afterwards. Opening a file from the prompt, from a recent row,
+or writing one with `Save As` records it too -- but only if it is on the disk,
+because a buffer for a name that has never been written is not a place the user has
+been. And the file is written once, on the way out, out of the copy that was read:
+the tabs the window had open are carried through untouched, so a terminal session
+does not cost the window its strip.
+
+The rows themselves come from the shared tree, which already took the recent list as
+an argument -- `Contents { recent, .. }` -- so the only new thing is that the shell
+rebuilds its bar when the list changes. That is a few hundred rows of text built
+once per open command, not per frame and not per keystroke, and the rows are in the
+order the shared tree puts them: after `Open...`, before `Reload from Disk`, with
+`Clear Recent` at the end of them. A recent row opens its file in a tab, or brings
+it to the front when a tab already has it, which is what `Open` itself does.
+
+One decision is worth saying out loud because it is invisible: the recent list is
+written at exit rather than after every open. A shell that is killed loses what it
+remembered since it started, exactly as the window does, and the alternative -- a
+write on every open -- buys a few file names at the cost of touching the shared file
+while the other front-end may be running.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical, so the
+move changed nothing the window draws or decides.
+
+`cargo test --offline --release`: 2,420 tests, 0 failed -- 2,418 plus two: a file
+opened from the prompt landing first in the recent list and as a row of the File
+menu above `Reload from Disk`, with the window's tab list still empty; and the rows
+opening their file rather than opening it twice (`OpenRecent` on a file already in a
+tab brings that tab forward), with `Clear Recent` emptying the list and saying so.
+The session
+and colour tests moved into `nn-shared` with the code they test, so their names are
+the same and their count is unchanged. The keystroke measurement is unchanged at
+15,554 bytes for the first paint and 306 for a keystroke. `cargo clippy --offline
+--release --all-targets`: 0 warnings. `cargo fmt` was not run. The feature reference
+and its PDF are untouched.
+
+Through a pseudo terminal with a fresh home: opening `/tmp/tab-b.txt` from the File
+menu over `/tmp/tab-a.txt`, then Ctrl+Q, left a session file reading
+`recent /tmp/tab-b.txt`, `recent /tmp/tab-a.txt`, `active 0` -- and no tab lines,
+because no window had written any. A second run, started on `/tmp/tab-a.txt`, drew
+the same two names as the File menu's first two rows; selecting `tab-b.txt` drew
+` tab-a.txt  tab-b.txt` with `two` and `three` in the tab it opened, and `Clear
+Recent` said `the recent list is empty`.
+

@@ -32,6 +32,7 @@ use nn_core::{CLikeLexer, ConfigLexer, Document, Editor, Highlighter, Lexer, Mot
 use nn_shared::action::Action;
 use nn_shared::i18n::Catalog;
 use nn_shared::keymap::{Chord, KeyName, Keymap};
+use nn_shared::session::Session;
 use nn_shared::settings::Settings;
 use unicode_width::UnicodeWidthChar;
 
@@ -173,6 +174,17 @@ pub struct App {
     view_rows: usize,
     /// The bar and its dropdowns, with the shared tree behind them.
     menus: Menus,
+    /// The catalogue the labels are drawn through, kept so the bar can be
+    /// rebuilt for a new recent list without reading the language off the disk
+    /// again.
+    catalog: Option<Catalog>,
+    /// The recent files and the tabs the window had open, which is the file both
+    /// front-ends share.
+    ///
+    /// Read at startup and written at exit, which is when the window writes it
+    /// too. The tabs in it are carried through untouched: they are the window's,
+    /// and this shell has nothing of its own to say about them yet.
+    session: Session,
     /// The preferences dialog, and the settings it edits.
     ///
     /// Loading them at startup rather than when the dialog opens is what makes a
@@ -214,7 +226,29 @@ impl App {
             Some(path) => Document::open(absolute(path))?,
             None => Document::new(),
         };
-        Ok(App::with_document(doc))
+        let mut app = App::with_document(doc);
+        // The recent list and the window's tabs, read once. Writing happens at
+        // exit, which is when the window writes it too -- so a shell that is
+        // killed rather than quit loses the same thing the window would.
+        app.session = Session::load();
+        // The file the command line named is a recent one, as it is in the
+        // window: it is the last file this shell was asked to open. A name that
+        // is not on the disk is skipped by `record_recent`, because a buffer for
+        // a file that has never been written is not somewhere the user has been.
+        if let Some(path) = path {
+            app.record_recent(&absolute(path));
+        }
+        app.rebuild_menus();
+        Ok(app)
+    }
+
+    /// Writes the session, for the loop that is leaving.
+    ///
+    /// Not called on every open: the file belongs to both front-ends and holds
+    /// the window's open tabs as well, so it is written once, when this shell is
+    /// done, out of the copy it read at startup.
+    pub fn save_session(&self) {
+        self.session.save();
     }
 
     /// Wraps a document that is already in memory.
@@ -224,7 +258,9 @@ impl App {
             active: 0,
             view_cols: 0,
             view_rows: 0,
-            menus: Menus::new(&Keymap::default()),
+            menus: Menus::new(&Keymap::default(), &[]),
+            catalog: None,
+            session: Session::default(),
             prefs: Prefs::new(),
             find: Find::new(),
             prompt: Prompt::new(),
@@ -319,7 +355,45 @@ impl App {
         self.prefs.set_catalog(catalog.clone());
         self.find.set_catalog(catalog.clone());
         self.prompt.set_catalog(catalog.clone());
-        self.menus.set_catalog(catalog);
+        self.menus.set_catalog(catalog.clone());
+        // Kept as well, because the bar is rebuilt whenever a recent file is
+        // added and the catalogue has to go back into the new tree.
+        self.catalog = catalog;
+    }
+
+    /// Rebuilds the bar with the recent files it now has.
+    ///
+    /// The recent list is part of the shared tree rather than a list the File
+    /// menu reads when it opens, so a new entry means a new tree. That is a few
+    /// hundred rows of text built once per open command -- not on a keystroke --
+    /// and nothing else in the shell reads the tree between one open and the
+    /// next.
+    fn rebuild_menus(&mut self) {
+        let recent: Vec<String> = self
+            .session
+            .recent
+            .iter()
+            .map(|path| match path.file_name() {
+                Some(name) => name.to_string_lossy().into_owned(),
+                None => path.display().to_string(),
+            })
+            .collect();
+        let mut menus = Menus::new(&self.keymap, &recent);
+        menus.set_catalog(self.catalog.clone());
+        self.menus = menus;
+    }
+
+    /// Records `path` as a recent file, and puts the bar's File menu back in step.
+    ///
+    /// Only files that are on the disk are worth remembering: a buffer for a name
+    /// that has never been written is not somewhere the user has been, which is
+    /// the window's rule and the reason `Save As` records the name it just made.
+    fn record_recent(&mut self, path: &Path) {
+        if !path.exists() {
+            return;
+        }
+        self.session.push_recent(path);
+        self.rebuild_menus();
     }
 
     /// Whether the loop should stop.
@@ -549,6 +623,16 @@ impl App {
             Action::Replace => self.find.open_replace(&self.tabs[self.active].editor),
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
             Action::Open => self.prompt.open(PromptKind::Open),
+            Action::OpenRecent(index) => {
+                if let Some(path) = self.session.recent.get(index).cloned() {
+                    self.open_path(&path.display().to_string());
+                }
+            }
+            Action::ClearRecent => {
+                self.session.recent.clear();
+                self.rebuild_menus();
+                self.say("the recent list is empty", false);
+            }
             Action::New => self.new_document(),
             Action::CloseTab => self.close_document(),
             Action::CloseAll => self.close_all(),
@@ -794,6 +878,7 @@ impl App {
             Ok(doc) => {
                 self.tabs.push(Tab::new(doc));
                 self.active = self.tabs.len() - 1;
+                self.record_recent(&path);
                 self.say(&format!("opened {}", path.display()), false);
             }
             Err(error) => self.say(&format!("cannot open {}: {error}", path.display()), true),
@@ -815,6 +900,7 @@ impl App {
             Ok(()) => {
                 self.tab_mut().highlighter = Highlighter::new(lexer_for(self.editor().doc.path()));
                 self.refresh_all();
+                self.record_recent(&path);
                 self.say(&format!("saved {}", path.display()), false);
             }
             Err(error) => self.say(&format!("save failed: {error}"), true),
@@ -2301,6 +2387,62 @@ mod tests {
         // View menu, and the menu answers them through the same command.
         app.run(Action::PrevTab);
         assert_eq!(app.active, 1);
+    }
+
+    #[test]
+    fn a_file_that_was_opened_goes_on_the_recent_list_and_the_file_menu() {
+        let path = temp("recent-a.txt");
+        std::fs::write(&path, "one\n").expect("write");
+        let mut app = app("first\n");
+        // Nothing has been opened yet, so the File menu is the short one.
+        app.handle(Key::Function(9));
+        app.handle(Key::Down);
+        let rows = drawn(&mut app, 60, 30);
+        assert!(!rows.iter().any(|row| row.contains("recent-a.txt")), "{rows:?}");
+        app.handle(Key::Escape);
+        prompt(&mut app, Action::Open, &path.display().to_string());
+        assert_eq!(app.session.recent.first(), Some(&path));
+        // The window's tab list is carried through untouched: this shell has
+        // nothing of its own to say about it yet.
+        assert!(app.session.tabs.is_empty());
+        // And the bar's File menu now carries the row, above `Reload from Disk`.
+        app.handle(Key::Function(9));
+        app.handle(Key::Down);
+        let rows = drawn(&mut app, 60, 30);
+        let at = rows
+            .iter()
+            .position(|row| row.contains("recent-a.txt"))
+            .unwrap_or_else(|| panic!("no recent row: {rows:?}"));
+        let reload = rows
+            .iter()
+            .position(|row| row.contains("Reload from Disk"))
+            .expect("the menu is drawn");
+        assert!(at < reload, "a recent row comes before Reload: {rows:?}");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn the_recent_rows_open_their_file_and_clearing_empties_the_list() {
+        let first = temp("recent-b.txt");
+        let second = temp("recent-c.txt");
+        std::fs::write(&first, "one\n").expect("write");
+        std::fs::write(&second, "two\n").expect("write");
+        let mut app = app("first\n");
+        prompt(&mut app, Action::Open, &first.display().to_string());
+        prompt(&mut app, Action::Open, &second.display().to_string());
+        // Most recent first, which is the order the rows are in.
+        assert_eq!(app.session.recent.first(), Some(&second));
+        assert_eq!(app.session.recent.get(1), Some(&first));
+        // The row opens the file and comes to front, rather than opening it twice.
+        let tabs = app.tabs.len();
+        app.run(Action::OpenRecent(1));
+        assert_eq!(app.tabs.len(), tabs);
+        assert_eq!(app.tab().editor.doc.path(), Some(first.as_path()));
+        app.run(Action::ClearRecent);
+        assert!(app.session.recent.is_empty());
+        assert_eq!(app.message(), Some("the recent list is empty"));
+        let _ = std::fs::remove_file(&first);
+        let _ = std::fs::remove_file(&second);
     }
 
     #[test]

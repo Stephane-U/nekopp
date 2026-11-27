@@ -68,6 +68,8 @@ pub mod color;
 pub mod i18n;
 pub mod keymap;
 pub mod prefs;
+pub mod session;
 pub mod settings;
 pub mod menu;
+pub mod tabcolour;
 pub mod theme;

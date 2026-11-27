@@ -69,9 +69,19 @@ pub struct Menus {
 }
 
 impl Menus {
-    /// The bar, built from the shared tree with the chords from `keymap`.
-    pub fn new(keymap: &Keymap) -> Self {
-        let mut menus = menus(Contents::default());
+    /// The bar, built from the shared tree with the chords from `keymap` and the
+    /// recent files from `recent`.
+    ///
+    /// The recent list is part of the tree rather than something the File menu
+    /// adds when it is opened, because the shared tree is the one place that
+    /// knows the File menu's rows are in the order Notepad++ puts them. A new
+    /// recent file therefore means a new tree, which is what the shell rebuilds
+    /// when its list changes.
+    pub fn new(keymap: &Keymap, recent: &[String]) -> Self {
+        let mut menus = menus(Contents {
+            recent,
+            ..Contents::default()
+        });
         for menu in &mut menus {
             fill_shortcuts(keymap, &mut menu.items);
         }
@@ -489,7 +499,7 @@ mod tests {
     use crate::screen::Grid;
 
     fn bar() -> Menus {
-        Menus::new(&Keymap::default())
+        Menus::new(&Keymap::default(), &[])
     }
 
     /// A catalogue written in this editor's own schema: one file, no ids.

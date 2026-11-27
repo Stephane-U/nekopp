@@ -119,6 +119,10 @@ fn run(path: Option<PathBuf>) -> std::io::Result<()> {
         }
     }
     terminal.close();
+    // The recent files this session touched, and the window's tabs carried
+    // through untouched: the file is written once, on the way out, as the window
+    // writes it. A shell that is killed rather than quit loses the same thing.
+    app.save_session();
     Ok(())
 }
 

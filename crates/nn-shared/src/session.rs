@@ -26,7 +26,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::tabbar::TabColour;
+use crate::tabcolour::TabColour;
 
 /// How many recent files to remember.
 pub const MAX_RECENT: usize = 10;
@@ -63,7 +63,7 @@ impl Session {
     /// Each platform has its own idea of where configuration belongs, and using
     /// the wrong one means the file is invisible to the tools that back it up.
     pub fn path() -> Option<PathBuf> {
-        crate::paths::config_file("session.txt")
+        nn_core::paths::config_file("session.txt")
     }
 
     /// Reads the session, or an empty one when there is none.
@@ -82,7 +82,7 @@ impl Session {
         let Some(path) = Self::path() else {
             return;
         };
-        crate::paths::write(&path, &self.render());
+        nn_core::paths::write(&path, &self.render());
     }
 
     /// Records `path` as the most recent file, moving it to the front.
@@ -94,7 +94,7 @@ impl Session {
     /// for a reason the user could not see. The same rule makes the duplicate
     /// check work: one file reached two ways is one entry.
     pub fn push_recent(&mut self, path: &Path) {
-        let path = crate::paths::absolute(path);
+        let path = nn_core::paths::absolute(path);
         self.recent.retain(|p| p != &path);
         self.recent.insert(0, path);
         self.recent.truncate(MAX_RECENT);

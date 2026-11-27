@@ -58,7 +58,11 @@ pub mod quad;
 pub mod renderer;
 pub mod rest;
 pub mod results;
-pub mod session;
+// Moved to `nn-shared::session` in the hundred-and-thirty-eighth pass: the
+// terminal shell reads and writes the same `session.txt`, so the format and the
+// directory it lives in have one home. The re-export keeps every caller and
+// every test path in this crate spelled the way it was.
+pub use nn_shared::session;
 pub mod settings;
 pub mod shortcuts;
 #[cfg(target_os = "linux")]
