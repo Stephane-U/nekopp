@@ -13595,3 +13595,53 @@ tone of `fn`, which is a keyword under the code lexer and is not under the JSON
 one. The keystroke measurement is unchanged at 15,554 bytes for the first paint and
 306 for a keystroke. `cargo clippy --offline --release --all-targets`: 0 warnings.
 `cargo fmt` was not run. The feature reference and its PDF are untouched.
+
+## The hundred-and-thirty-fourth pass: New, and reading the file again
+
+Two more rows of the File menu, and they are the last two that cost nothing but a
+call the shell already had. `New` starts a blank page with no name, which is
+`Document::new` and `load` and nothing else. `Reload from Disk` reads the file
+again with `Document::from_file` -- not `Document::open`, because a file that has
+been deleted since it was opened is an error worth reporting rather than a blank
+page to hand back.
+
+The difference between the two is what they do with unsaved work, and it is the
+window's own difference. `New` is refused while the document is dirty, because the
+window opens a tab and loses nothing and this shell has one buffer: the honest
+answer is `unsaved changes: Ctrl+S saves them first`, the same sentence `Open`
+gives, and it is the second place where the missing tabs show. `Reload` goes
+ahead, because "throw away what I have and read the file" is what the command
+means and the window's reload does exactly that.
+
+The one liberty is in the wording. The window's tab loses its `[+]` mark when a
+reload drops unsaved edits, which is a fact a reader can see; the terminal's bar is
+the only place that fact can land, so a reload that dropped something says
+`reloaded <path> (unsaved changes were dropped)` and one that dropped nothing says
+`reloaded <path>`. Same behaviour, said out loud once because the strip that would
+have said it is not here yet.
+
+Both commands are one file read at most, and neither touches a keystroke that was
+not already being painted.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical;
+only `nn-tui` changed.
+
+Through a pseudo terminal on a 140-column screen, from a fresh home. F9 and Down
+onto the File dropdown's first row, then Enter, turned a file holding `one` and
+`two` into a blank first line whose bar read `[No Name]`; the same command with a
+character typed first said `unsaved changes: Ctrl+S saves them first` and left the
+character in place. With the file on disk rewritten to `three` and a character
+typed into the buffer, five Downs to `Reload from Disk` and Enter drew `three`, said
+`reloaded /tmp/rel.txt (unsaved changes were dropped)`, and left the file on disk
+holding `three` alone; the same command on a clean buffer said `reloaded
+/tmp/rel.txt`.
+
+`cargo test --offline --release`: 2,412 tests, 0 failed -- 2,410 plus two: New
+giving a blank page and refusing while dirty, and Reload reading the file again,
+refusing on a buffer with no file, saying what it dropped, and reporting a file
+deleted since it was opened as an error rather than as an empty page. The keystroke
+measurement is unchanged at 15,554 bytes for the first paint and 306 for a
+keystroke. `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo
+fmt` was not run. The feature reference and its PDF are untouched.

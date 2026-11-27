@@ -472,6 +472,8 @@ impl App {
             Action::Replace => self.find.open_replace(&self.editor),
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
             Action::Open => self.prompt.open(PromptKind::Open),
+            Action::New => self.new_document(),
+            Action::Reload => self.reload(),
             Action::SaveAs => self.prompt.open(PromptKind::SaveAs),
             Action::FindNext => self.find.step(&mut self.editor, true),
             Action::FindPrev => self.find.step(&mut self.editor, false),
@@ -542,6 +544,55 @@ impl App {
             }
             PromptKind::Open => self.open_path(text.trim()),
             PromptKind::SaveAs => self.save_as(text.trim()),
+        }
+    }
+
+    /// Starts a blank document with no name.
+    ///
+    /// Refused while the document in front has unsaved changes, for the same
+    /// reason `Open` is: one document, so a new one would be an edit lost without
+    /// a word. The window pushes a tab and loses nothing; this refusal is the
+    /// price of one buffer, and it goes when the tabs arrive.
+    fn new_document(&mut self) {
+        if self.editor.doc.is_dirty() {
+            self.say("unsaved changes: Ctrl+S saves them first", true);
+            return;
+        }
+        self.load(Document::new());
+    }
+
+    /// Reads the document's file again, dropping what was typed since.
+    ///
+    /// The window's Reload does the same, and the command's whole meaning is
+    /// "throw away what I have and read the file". The one liberty taken here is
+    /// saying so: the window's tab loses its `[+]` mark where a reader can see it,
+    /// and the terminal's bar is the only place the fact can land.
+    fn reload(&mut self) {
+        let Some(path) = self.editor.doc.path().map(|path| path.to_path_buf()) else {
+            self.say("nothing to reload: this buffer has no file", true);
+            return;
+        };
+        // `from_file` rather than `open`: a file that has been deleted since it
+        // was opened is an error to report, not a blank page to hand back.
+        match Document::from_file(&path) {
+            Ok(doc) => {
+                let dropped = self.editor.doc.is_dirty();
+                let read_only = self.editor.doc.is_read_only();
+                self.load(doc);
+                if read_only {
+                    self.editor.doc.set_read_only(true);
+                }
+                let at = path.display();
+                if dropped {
+                    self.say(
+                        &format!("reloaded {at} (unsaved changes were dropped)"),
+                        true,
+                    );
+                } else {
+                    self.say(&format!("reloaded {at}"), false);
+                }
+            }
+            Err(error) => self.say(&format!("cannot reload: {error}"), true),
         }
     }
 
@@ -1859,6 +1910,53 @@ mod tests {
             "the buffer kept the lexer of the name it used to have"
         );
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn new_gives_a_blank_page_and_refuses_while_dirty() {
+        let path = temp("new.txt");
+        std::fs::write(&path, "one\n").expect("write");
+        let mut app = App::open(Some(&path)).expect("open");
+        app.run(Action::New);
+        assert_eq!(app.editor.doc.path(), None);
+        assert_eq!(app.editor.doc.text().as_str(), "");
+        let rows = drawn(&mut app, 40, 4);
+        assert!(rows[3].trim_start().starts_with("[No Name]"), "{:?}", rows);
+        // Typing makes it dirty, and a new document would be that edit lost.
+        app.handle(Key::Char('x'));
+        app.run(Action::New);
+        assert_eq!(app.editor.doc.text().as_str(), "x");
+        assert!(app.message().unwrap_or_default().contains("unsaved"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn reload_reads_the_file_again_and_says_what_it_dropped() {
+        // A buffer with no file has nothing to read again.
+        let mut unnamed = app("text\n");
+        unnamed.run(Action::Reload);
+        let message = unnamed.message().unwrap_or_default().to_string();
+        assert!(message.contains("nothing to reload"), "{message}");
+        let path = temp("reload.txt");
+        std::fs::write(&path, "one\n").expect("write");
+        let mut app = App::open(Some(&path)).expect("open");
+        std::fs::write(&path, "two\nthree\n").expect("rewrite");
+        app.run(Action::Reload);
+        assert_eq!(app.editor.doc.text().as_str(), "two\nthree\n");
+        assert!(!app.editor.doc.is_dirty());
+        assert!(app.message().unwrap_or_default().starts_with("reloaded"));
+        // What was typed is dropped, with the bar saying so.
+        app.handle(Key::Char('!'));
+        app.run(Action::Reload);
+        assert_eq!(app.editor.doc.text().as_str(), "two\nthree\n");
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.contains("were dropped"), "{message}");
+        let _ = std::fs::remove_file(&path);
+        // A file deleted since it was opened is an error, not a blank page.
+        app.run(Action::Reload);
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.contains("cannot reload"), "{message}");
+        assert_eq!(app.editor.doc.text().as_str(), "two\nthree\n");
     }
 
     #[test]
