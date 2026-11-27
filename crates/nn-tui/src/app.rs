@@ -88,8 +88,13 @@ struct Message {
     alert: bool,
 }
 
-/// The editor, as the terminal sees it.
-pub struct App {
+/// One open document and everything that belongs to it.
+///
+/// The window keeps the same thing per tab: an editor, its highlighter and where
+/// the view was scrolled to. The shell keeps the list and the index of the one in
+/// front, and every command that reads a document reads it through `tab`, so a
+/// second document is a row in `tabs` rather than a second shell.
+pub struct Tab {
     /// The document and its caret, from the core.
     pub editor: Editor,
     highlighter: Highlighter,
@@ -100,7 +105,7 @@ pub struct App {
     /// Always zero while wrapping is on: a wrapped line has no second half off
     /// to the right, so there is nothing to scroll towards.
     scroll_col: usize,
-    /// With wrapping on, the segments of [`App::scroll_line`] above the screen.
+    /// With wrapping on, the segments of [`Tab::scroll_line`] above the screen.
     ///
     /// A line taller than the window is the one case the line number cannot
     /// describe the top of the screen on its own, and the caret can sit deeper
@@ -112,6 +117,44 @@ pub struct App {
     /// the screen, which is a question the line number alone cannot answer once
     /// one line can take several rows.
     visible_until: usize,
+    /// The column within a wrapped row that a run of vertical moves aims at.
+    ///
+    /// The core remembers a character column for the moves it makes, which is the
+    /// right unit while a line is a row. With wrapping on the column that has to
+    /// survive is the position inside the row -- `desired_col` in the core's
+    /// sense would be a different place on every row -- so a tab keeps its own,
+    /// and keeps it only across a run of vertical moves.
+    desired_row: Option<usize>,
+}
+
+impl Tab {
+    /// A tab on `doc`, highlighted unless the file is too large to be worth it.
+    fn new(doc: Document) -> Self {
+        let mut editor = Editor::new(doc);
+        let mut highlighter = Highlighter::new(lexer_for(editor.doc.path()));
+        // A large file opens unhighlighted for the same reason it does in the
+        // windowed editor: the pass is O(file) and the pause is not worth it.
+        if !editor.doc.is_large() {
+            highlighter.highlight_all(&mut editor.doc);
+        }
+        Tab {
+            editor,
+            highlighter,
+            scroll_line: 0,
+            scroll_col: 0,
+            scroll_seg: 0,
+            visible_until: 0,
+            desired_row: None,
+        }
+    }
+}
+
+/// The shell around the open documents, as the terminal sees it.
+pub struct App {
+    /// The open documents, in the order the window would show their tabs.
+    tabs: Vec<Tab>,
+    /// Which of them is in front.
+    active: usize,
     /// The columns the text area had in the last frame.
     ///
     /// Kept because a vertical move is a move between rows while wrapping is on,
@@ -120,14 +163,6 @@ pub struct App {
     view_cols: usize,
     /// The rows of text the last frame had, which is what a page is.
     view_rows: usize,
-    /// The column within a wrapped row that a run of vertical moves aims at.
-    ///
-    /// The core remembers a character column for the moves it makes, which is the
-    /// right unit while a line is a row. With wrapping on the column that has to
-    /// survive is the position inside the row -- `desired_col` in the core's
-    /// sense would be a different place on every row -- so the shell keeps its
-    /// own, and keeps it only across a run of vertical moves.
-    desired_row: Option<usize>,
     /// The bar and its dropdowns, with the shared tree behind them.
     menus: Menus,
     /// The preferences dialog, and the settings it edits.
@@ -174,15 +209,10 @@ impl App {
     /// Wraps a document that is already in memory.
     pub fn with_document(doc: Document) -> Self {
         let mut app = App {
-            editor: Editor::new(Document::new()),
-            highlighter: Highlighter::new(lexer_for(None)),
-            scroll_line: 0,
-            scroll_col: 0,
-            scroll_seg: 0,
-            visible_until: 0,
+            tabs: vec![Tab::new(doc)],
+            active: 0,
             view_cols: 0,
             view_rows: 0,
-            desired_row: None,
             menus: Menus::new(&Keymap::default()),
             prefs: Prefs::new(),
             find: Find::new(),
@@ -197,8 +227,26 @@ impl App {
         // Before the first frame, so a terminal started twice reads the same way,
         // in the same language and the same colours.
         app.apply_settings();
-        app.load(doc);
         app
+    }
+
+    /// The tab in front, which is what a command acts on.
+    fn tab(&self) -> &Tab {
+        &self.tabs[self.active]
+    }
+
+    /// The tab in front, for the parts of it a command writes.
+    fn tab_mut(&mut self) -> &mut Tab {
+        &mut self.tabs[self.active]
+    }
+
+    /// The editor of the tab in front, for an edit.
+    ///
+    /// Apart from `tab_mut`, because most of the shell only ever wants the
+    /// document, and `self.editor().insert(..)` says what the line does without
+    /// spelling out which tab it does it to.
+    fn editor(&mut self) -> &mut Editor {
+        &mut self.tabs[self.active].editor
     }
 
     /// The escapes the screen is painted with.
@@ -332,7 +380,7 @@ impl App {
             key,
             Key::Up | Key::Down | Key::ExtendUp | Key::ExtendDown | Key::PageUp | Key::PageDown
         ) {
-            self.desired_row = None;
+            self.tab_mut().desired_row = None;
         }
         if self.move_by_rows(key) {
             return;
@@ -341,7 +389,11 @@ impl App {
         // rest back, so `Ctrl+S` saves and `Ctrl+Q` quits with a pattern half
         // typed: a bar that swallowed every chord would be a mode, and this one
         // is a row.
-        if self.find.is_open() && self.find.handle(key, &mut self.editor) {
+        // Two fields, not two helpers: the bar borrows the editor while it is
+        // asked, so both have to come straight out of `self`.
+        if self.find.is_open()
+            && self.find.handle(key, &mut self.tabs[self.active].editor)
+        {
             // The bar replaces through the editor rather than through the shell,
             // so this is the only place that hears the document changed.
             if self.find.take_replaced() {
@@ -367,48 +419,48 @@ impl App {
             self.run(action);
             return;
         }
-        let line = self.editor.caret_line();
+        let line = self.editor().caret_line();
         match key {
             Key::Char(ch) => {
-                self.editor.insert(&ch.to_string());
+                self.editor().insert(&ch.to_string());
                 self.refresh_from(line);
             }
             Key::Enter => {
-                let indent = self.editor.auto_indent();
-                self.editor.insert(&format!("\n{indent}"));
+                let indent = self.editor().auto_indent();
+                self.editor().insert(&format!("\n{indent}"));
                 self.refresh_from(line);
             }
             Key::Tab => {
-                self.editor.insert("    ");
+                self.editor().insert("    ");
                 self.refresh_from(line);
             }
             Key::Backspace => {
-                self.editor.backspace();
+                self.editor().backspace();
                 self.refresh_from(line);
             }
             Key::Delete => {
-                self.editor.delete_forward();
+                self.editor().delete_forward();
                 self.refresh_from(line);
             }
-            Key::Up => self.editor.move_caret(Motion::LineUp, false),
-            Key::Down => self.editor.move_caret(Motion::LineDown, false),
-            Key::Left => self.editor.move_caret(Motion::CharLeft, false),
-            Key::Right => self.editor.move_caret(Motion::CharRight, false),
-            Key::ExtendUp => self.editor.move_caret(Motion::LineUp, true),
-            Key::ExtendDown => self.editor.move_caret(Motion::LineDown, true),
-            Key::ExtendLeft => self.editor.move_caret(Motion::CharLeft, true),
-            Key::ExtendRight => self.editor.move_caret(Motion::CharRight, true),
-            Key::WordLeft => self.editor.move_caret(Motion::WordLeft, false),
-            Key::WordRight => self.editor.move_caret(Motion::WordRight, false),
-            Key::LineStart => self.editor.move_caret(Motion::LineStart, false),
-            Key::LineEnd => self.editor.move_caret(Motion::LineEnd, false),
-            Key::DocStart => self.editor.move_caret(Motion::DocStart, false),
-            Key::DocEnd => self.editor.move_caret(Motion::DocEnd, false),
-            Key::PageUp => self.editor.move_caret(Motion::PageUp, false),
-            Key::PageDown => self.editor.move_caret(Motion::PageDown, false),
+            Key::Up => self.editor().move_caret(Motion::LineUp, false),
+            Key::Down => self.editor().move_caret(Motion::LineDown, false),
+            Key::Left => self.editor().move_caret(Motion::CharLeft, false),
+            Key::Right => self.editor().move_caret(Motion::CharRight, false),
+            Key::ExtendUp => self.editor().move_caret(Motion::LineUp, true),
+            Key::ExtendDown => self.editor().move_caret(Motion::LineDown, true),
+            Key::ExtendLeft => self.editor().move_caret(Motion::CharLeft, true),
+            Key::ExtendRight => self.editor().move_caret(Motion::CharRight, true),
+            Key::WordLeft => self.editor().move_caret(Motion::WordLeft, false),
+            Key::WordRight => self.editor().move_caret(Motion::WordRight, false),
+            Key::LineStart => self.editor().move_caret(Motion::LineStart, false),
+            Key::LineEnd => self.editor().move_caret(Motion::LineEnd, false),
+            Key::DocStart => self.editor().move_caret(Motion::DocStart, false),
+            Key::DocEnd => self.editor().move_caret(Motion::DocEnd, false),
+            Key::PageUp => self.editor().move_caret(Motion::PageUp, false),
+            Key::PageDown => self.editor().move_caret(Motion::PageDown, false),
             Key::Escape => {
                 self.quit_armed = false;
-                self.editor.clear_extra_carets();
+                self.editor().clear_extra_carets();
             }
             // Every other control chord and function key is either bound in the
             // keymap, which was asked above, or bound to nothing. A chord bound
@@ -451,32 +503,32 @@ impl App {
         match action {
             Action::Save => self.save(),
             Action::Undo => {
-                if self.editor.undo() {
+                if self.editor().undo() {
                     self.refresh_all();
                 }
             }
             Action::Redo => {
-                if self.editor.redo() {
+                if self.editor().redo() {
                     self.refresh_all();
                 }
             }
-            Action::SelectAll => self.editor.select_all(),
-            Action::SelectLine => self.editor.select_line(),
+            Action::SelectAll => self.editor().select_all(),
+            Action::SelectLine => self.editor().select_line(),
             Action::DuplicateLine => self.edit(|ed| ed.duplicate_lines()),
             Action::MoveLineUp => self.edit(|ed| ed.move_lines(true)),
             Action::MoveLineDown => self.edit(|ed| ed.move_lines(false)),
             Action::DeleteLine => self.edit(|ed| ed.delete_lines()),
             Action::Preferences => self.prefs.open(),
             Action::ToggleWrap => self.toggle_wrap(),
-            Action::Find => self.find.open(&self.editor),
-            Action::Replace => self.find.open_replace(&self.editor),
+            Action::Find => self.find.open(&self.tabs[self.active].editor),
+            Action::Replace => self.find.open_replace(&self.tabs[self.active].editor),
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
             Action::Open => self.prompt.open(PromptKind::Open),
             Action::New => self.new_document(),
             Action::Reload => self.reload(),
             Action::SaveAs => self.prompt.open(PromptKind::SaveAs),
-            Action::FindNext => self.find.step(&mut self.editor, true),
-            Action::FindPrev => self.find.step(&mut self.editor, false),
+            Action::FindNext => self.find.step(&mut self.tabs[self.active].editor, true),
+            Action::FindPrev => self.find.step(&mut self.tabs[self.active].editor, false),
             Action::Exit => self.ask_to_quit(),
             // The rest of the editing commands are one table over in the engine:
             // upper case, indent, sort, comment, and thirty more. They take the
@@ -500,10 +552,10 @@ impl App {
     fn toggle_wrap(&mut self) {
         self.settings.wrap = !self.settings.wrap;
         self.settings.save();
-        self.scroll_col = 0;
-        self.scroll_seg = 0;
-        self.visible_until = 0;
-        self.scroll_line = self.editor.caret_line();
+        self.tab_mut().scroll_col = 0;
+        self.tab_mut().scroll_seg = 0;
+        self.tab_mut().visible_until = 0;
+        self.tab_mut().scroll_line = self.editor().caret_line();
         self.say(
             if self.settings.wrap {
                 "long lines wrap"
@@ -516,11 +568,11 @@ impl App {
 
     /// Writes the document back, and says what happened.
     fn save(&mut self) {
-        if self.editor.doc.path().is_none() {
+        if self.editor().doc.path().is_none() {
             self.say("no file name: start with a path to save", true);
             return;
         }
-        match self.editor.doc.save() {
+        match self.editor().doc.save() {
             Ok(()) => self.say("saved", false),
             Err(error) => self.say(&format!("save failed: {error}"), true),
         }
@@ -539,7 +591,7 @@ impl App {
             // what the window does with the same number.
             PromptKind::GotoLine => {
                 if let Ok(line) = text.trim().parse::<usize>() {
-                    self.editor.goto_line(line.saturating_sub(1));
+                    self.editor().goto_line(line.saturating_sub(1));
                 }
             }
             PromptKind::Open => self.open_path(text.trim()),
@@ -554,7 +606,7 @@ impl App {
     /// a word. The window pushes a tab and loses nothing; this refusal is the
     /// price of one buffer, and it goes when the tabs arrive.
     fn new_document(&mut self) {
-        if self.editor.doc.is_dirty() {
+        if self.editor().doc.is_dirty() {
             self.say("unsaved changes: Ctrl+S saves them first", true);
             return;
         }
@@ -568,7 +620,7 @@ impl App {
     /// saying so: the window's tab loses its `[+]` mark where a reader can see it,
     /// and the terminal's bar is the only place the fact can land.
     fn reload(&mut self) {
-        let Some(path) = self.editor.doc.path().map(|path| path.to_path_buf()) else {
+        let Some(path) = self.editor().doc.path().map(|path| path.to_path_buf()) else {
             self.say("nothing to reload: this buffer has no file", true);
             return;
         };
@@ -576,11 +628,11 @@ impl App {
         // was opened is an error to report, not a blank page to hand back.
         match Document::from_file(&path) {
             Ok(doc) => {
-                let dropped = self.editor.doc.is_dirty();
-                let read_only = self.editor.doc.is_read_only();
+                let dropped = self.editor().doc.is_dirty();
+                let read_only = self.editor().doc.is_read_only();
                 self.load(doc);
                 if read_only {
-                    self.editor.doc.set_read_only(true);
+                    self.editor().doc.set_read_only(true);
                 }
                 let at = path.display();
                 if dropped {
@@ -614,7 +666,7 @@ impl App {
             self.say("open: type a path", true);
             return;
         }
-        if self.editor.doc.is_dirty() {
+        if self.editor().doc.is_dirty() {
             self.say("unsaved changes: Ctrl+S saves them first", true);
             return;
         }
@@ -639,9 +691,9 @@ impl App {
             return;
         }
         let path = absolute(Path::new(typed));
-        match self.editor.doc.save_as(&path) {
+        match self.editor().doc.save_as(&path) {
             Ok(()) => {
-                self.highlighter = Highlighter::new(lexer_for(self.editor.doc.path()));
+                self.tab_mut().highlighter = Highlighter::new(lexer_for(self.editor().doc.path()));
                 self.refresh_all();
                 self.say(&format!("saved {}", path.display()), false);
             }
@@ -654,24 +706,13 @@ impl App {
     /// Scroll, the remembered row and the quit warning all belong to the document
     /// that was open, so a new one starts at its first line with nothing armed.
     fn load(&mut self, doc: Document) {
-        self.editor = Editor::new(doc);
-        self.highlighter = Highlighter::new(lexer_for(self.editor.doc.path()));
-        // A large file opens unhighlighted for the same reason it does in the
-        // windowed editor: the pass is O(file) and the pause is not worth it.
-        if !self.editor.doc.is_large() {
-            self.highlighter.highlight_all(&mut self.editor.doc);
-        }
-        self.scroll_line = 0;
-        self.scroll_col = 0;
-        self.scroll_seg = 0;
-        self.visible_until = 0;
-        self.desired_row = None;
+        self.tabs[self.active] = Tab::new(doc);
         self.quit_armed = false;
     }
 
     /// Quits, or warns once that there is unsaved work.
     fn ask_to_quit(&mut self) {
-        if self.editor.doc.is_dirty() && !self.quit_armed {
+        if self.editor().doc.is_dirty() && !self.quit_armed {
             self.quit_armed = true;
             self.say("unsaved changes: Ctrl+Q again discards them", true);
             return;
@@ -685,7 +726,7 @@ impl App {
     /// returns: an edit that was a no-op -- indent on a line that is already
     /// indented to the stop -- costs no undo step and no refresh.
     fn edit(&mut self, edit: impl FnOnce(&mut Editor) -> bool) {
-        if edit(&mut self.editor) {
+        if edit(self.editor()) {
             self.refresh_all();
         }
     }
@@ -724,16 +765,20 @@ impl App {
 
     /// Re-lexes from `line` down, which is all an edit can have changed.
     fn refresh_from(&mut self, line: usize) {
-        self.highlighter.highlight_from(&mut self.editor.doc, line);
+        // Through one binding: the highlighter writes spans into the document it
+        // reads, so the two halves of a tab have to be borrowed together.
+        let tab = &mut self.tabs[self.active];
+        tab.highlighter.highlight_from(&mut tab.editor.doc, line);
     }
 
     /// Re-lexes everything: undo and redo can have changed any line.
     fn refresh_all(&mut self) {
-        if self.editor.doc.is_large() {
-            let line = self.editor.caret_line();
+        if self.editor().doc.is_large() {
+            let line = self.editor().caret_line();
             self.refresh_from(line);
         } else {
-            self.highlighter.highlight_all(&mut self.editor.doc);
+            let tab = &mut self.tabs[self.active];
+            tab.highlighter.highlight_all(&mut tab.editor.doc);
         }
     }
 
@@ -759,7 +804,7 @@ impl App {
         if self.find.is_open()
             || !self.settings.wrap
             || self.view_cols == 0
-            || self.editor.selections.len() > 1
+            || self.editor().selections.len() > 1
         {
             return false;
         }
@@ -773,9 +818,10 @@ impl App {
             _ => return false,
         };
         let cols = self.view_cols;
-        let line = self.editor.caret_line();
-        let display = self.display_column(line, self.editor.caret_column());
-        let row_col = *self.desired_row.get_or_insert(display % cols);
+        let line = self.tab().editor.caret_line();
+        let column = self.tab().editor.caret_column();
+        let display = self.display_column(line, column);
+        let row_col = *self.tab_mut().desired_row.get_or_insert(display % cols);
         let mut at = (line, display / cols);
         // How many rows the line the caret is on takes, counted once per line it
         // crosses: a page walks every row of a tall line, and counting a line of
@@ -797,11 +843,11 @@ impl App {
         }
         let width = self.display_column(at.0, self.line_length(at.0));
         let target = (at.1 * cols + row_col).min(width);
-        let position = self.editor.doc.line_to_char(at.0) + self.char_at_display(at.0, target);
+        let position = self.editor().doc.line_to_char(at.0) + self.char_at_display(at.0, target);
         if extend {
-            self.editor.selections.primary_mut().extend_to(position);
+            self.editor().selections.primary_mut().extend_to(position);
         } else {
-            self.editor.selections.set_caret(position);
+            self.editor().selections.set_caret(position);
         }
         true
     }
@@ -819,7 +865,7 @@ impl App {
             if segment + 1 < rows {
                 Some((line, segment + 1))
             } else {
-                (line + 1 < self.editor.doc.len_lines()).then_some((line + 1, 0))
+                (line + 1 < self.tab().editor.doc.len_lines()).then_some((line + 1, 0))
             }
         } else if segment > 0 {
             Some((line, segment - 1))
@@ -844,7 +890,7 @@ impl App {
     /// one past its last character.
     fn char_at_display(&self, line: usize, target: usize) -> usize {
         let mut display = 0usize;
-        for (index, ch) in self.editor.doc.line_chars(line).enumerate() {
+        for (index, ch) in self.tab().editor.doc.line_chars(line).enumerate() {
             if ch == '\n' || ch == '\r' || display >= target {
                 return index;
             }
@@ -855,14 +901,14 @@ impl App {
 
     /// How many columns the line numbers take, with their trailing space.
     fn gutter_width(&self) -> usize {
-        let digits = self.editor.doc.len_lines().to_string().len();
+        let digits = self.tab().editor.doc.len_lines().to_string().len();
         digits + 1
     }
 
     /// The display column of character `column` of `line`, with tabs expanded.
     fn display_column(&self, line: usize, column: usize) -> usize {
         let mut display = 0;
-        for (index, ch) in self.editor.doc.line_chars(line).enumerate() {
+        for (index, ch) in self.tab().editor.doc.line_chars(line).enumerate() {
             if index >= column || ch == '\n' || ch == '\r' {
                 break;
             }
@@ -900,47 +946,47 @@ impl App {
 
         // The core moves by a screenful on Page Up and Page Down, and it takes
         // "a screenful" from the viewport. In cells, a line is one unit high.
-        let viewport = &mut self.editor.viewport;
+        let viewport = &mut self.editor().viewport;
         viewport.height = text_rows as f32;
         viewport.line_height = 1.0;
         viewport.char_width = 1.0;
         viewport.width = layout.text_cols as f32;
 
-        let caret_line = self.editor.caret_line();
-        let caret_col = self.editor.caret_column();
+        let caret_line = self.editor().caret_line();
+        let caret_col = self.editor().caret_column();
         let caret_display = self.display_column(caret_line, caret_col);
 
         let wrap = self.settings.wrap && layout.text_cols > 0;
         if !wrap {
-            self.scroll_seg = 0;
+            self.tab_mut().scroll_seg = 0;
         }
         if wrap {
             // Wrapping means the caret is somewhere on a line that may take
             // several rows, so the question is not which column is on screen but
             // which rows the last frame had.
-            self.scroll_col = 0;
+            self.tab_mut().scroll_col = 0;
             self.reveal_wrapped(caret_line, caret_display, layout);
         } else {
             // Keep the caret on the screen, scrolling the least that will do it.
-            if caret_line < self.scroll_line {
-                self.scroll_line = caret_line;
+            if caret_line < self.tab_mut().scroll_line {
+                self.tab_mut().scroll_line = caret_line;
             }
-            if text_rows > 0 && caret_line >= self.scroll_line + text_rows {
-                self.scroll_line = caret_line + 1 - text_rows;
+            if text_rows > 0 && caret_line >= self.tab_mut().scroll_line + text_rows {
+                self.tab_mut().scroll_line = caret_line + 1 - text_rows;
             }
-            if caret_display < self.scroll_col {
-                self.scroll_col = caret_display;
+            if caret_display < self.tab_mut().scroll_col {
+                self.tab_mut().scroll_col = caret_display;
             }
-            if layout.text_cols > 0 && caret_display >= self.scroll_col + layout.text_cols {
-                self.scroll_col = caret_display + 1 - layout.text_cols;
+            if layout.text_cols > 0 && caret_display >= self.tab_mut().scroll_col + layout.text_cols {
+                self.tab_mut().scroll_col = caret_display + 1 - layout.text_cols;
             }
-            self.visible_until = self.scroll_line + text_rows;
+            self.tab_mut().visible_until = self.tab_mut().scroll_line + text_rows;
         }
 
         self.view_cols = layout.text_cols;
         self.view_rows = text_rows;
-        let caret = self.editor.caret();
-        let selection = self.editor.selection_start()..self.editor.selection_end();
+        let caret = self.editor().caret();
+        let selection = self.editor().selection_start()..self.editor().selection_end();
 
         for row in 0..text_rows {
             // Every row is painted edge to edge, in the two tones the windowed
@@ -961,9 +1007,9 @@ impl App {
         // one while wrapping is off, a screenful or more for a long line while
         // it is on.
         let mut row = 0usize;
-        let mut line = self.scroll_line;
-        let mut skip = if wrap { self.scroll_seg } else { 0 };
-        while row < text_rows && line < self.editor.doc.len_lines() {
+        let mut line = self.tab_mut().scroll_line;
+        let mut skip = if wrap { self.tab_mut().scroll_seg } else { 0 };
+        while row < text_rows && line < self.editor().doc.len_lines() {
             if skip == 0 {
                 // A line wears its number on its first row, and a continuation
                 // row has none: the strip reads as one line rather than as
@@ -974,7 +1020,7 @@ impl App {
             line += 1;
             skip = 0;
         }
-        self.visible_until = line;
+        self.tab_mut().visible_until = line;
         if let Some(row) = layout.bar_row {
             if self.prompt.is_open() {
                 self.prompt.draw(grid, row, width);
@@ -1022,29 +1068,29 @@ impl App {
         let rows = layout.text_rows();
         let columns = layout.text_cols.max(1);
         let segment = caret_display / columns;
-        if caret_line < self.scroll_line {
-            self.scroll_line = caret_line;
-            self.scroll_seg = 0;
+        if caret_line < self.tab_mut().scroll_line {
+            self.tab_mut().scroll_line = caret_line;
+            self.tab_mut().scroll_seg = 0;
         }
-        if self.visible_until <= self.scroll_line {
+        if self.tab_mut().visible_until <= self.tab_mut().scroll_line {
             // Nothing is known about what fits -- a first frame, or a window that
             // has just changed size -- so the caret's line is given the benefit.
-            self.visible_until = self.scroll_line + rows;
+            self.tab_mut().visible_until = self.tab_mut().scroll_line + rows;
         }
-        if caret_line >= self.visible_until {
-            self.scroll_line = if rows > 0 && caret_line < self.visible_until + rows {
-                self.visible_until
+        if caret_line >= self.tab_mut().visible_until {
+            self.tab_mut().scroll_line = if rows > 0 && caret_line < self.tab_mut().visible_until + rows {
+                self.tab_mut().visible_until
             } else {
                 (caret_line + 1).saturating_sub(rows)
             };
-            self.scroll_seg = 0;
+            self.tab_mut().scroll_seg = 0;
         }
-        if caret_line == self.scroll_line && rows > 0 {
-            if segment < self.scroll_seg {
-                self.scroll_seg = segment;
+        if caret_line == self.tab_mut().scroll_line && rows > 0 {
+            if segment < self.tab_mut().scroll_seg {
+                self.tab_mut().scroll_seg = segment;
             }
-            if segment >= self.scroll_seg + rows {
-                self.scroll_seg = segment + 1 - rows;
+            if segment >= self.tab_mut().scroll_seg + rows {
+                self.tab_mut().scroll_seg = segment + 1 - rows;
             }
         }
     }
@@ -1074,10 +1120,10 @@ impl App {
             }
             CellAt::Put(at_row, layout.gutter + display % layout.text_cols)
         } else {
-            if display < self.scroll_col {
+            if display < self.tab().scroll_col {
                 return CellAt::Hidden;
             }
-            let column = layout.gutter + display - self.scroll_col;
+            let column = layout.gutter + display - self.tab().scroll_col;
             if column >= layout.gutter + layout.text_cols {
                 return CellAt::Past;
             }
@@ -1104,10 +1150,10 @@ impl App {
         skip: usize,
         wrap: bool,
     ) -> usize {
-        let line_start = self.editor.doc.line_to_char(line);
+        let line_start = self.tab().editor.doc.line_to_char(line);
         let mut display = 0usize;
         let mut used = 1usize;
-        for (index, ch) in self.editor.doc.line_chars(line).enumerate() {
+        for (index, ch) in self.tab().editor.doc.line_chars(line).enumerate() {
             if ch == '\n' || ch == '\r' {
                 break;
             }
@@ -1120,7 +1166,7 @@ impl App {
             } else if selection.contains(&char_index) {
                 Tone::Selection
             } else {
-                palette::tone(self.editor.doc.style_at(char_index))
+                palette::tone(self.tab().editor.doc.style_at(char_index))
             };
             // A tab is a run of cells rather than a character, and a run can
             // straddle the column a wrapped row ends on: each cell is placed on
@@ -1179,7 +1225,7 @@ impl App {
 
     /// How many characters `line` holds, without its terminator.
     fn line_length(&self, line: usize) -> usize {
-        self.editor.doc.line_len(line)
+        self.tab().editor.doc.line_len(line)
     }
 
     /// The bar at the bottom: where the file is, and where the caret is in it.
@@ -1187,13 +1233,13 @@ impl App {
         for column in 0..width {
             grid.put(row, column, ' ', Tone::StatusBar);
         }
-        let mut left = self
+        let mut left = self.tabs[self.active]
             .editor
             .doc
             .path()
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "[No Name]".to_string());
-        if self.editor.doc.is_dirty() {
+        if self.tab().editor.doc.is_dirty() {
             left.push_str(" [+]");
         }
         let tone = match &self.message {
@@ -1207,14 +1253,14 @@ impl App {
             }
             None => Tone::StatusBar,
         };
-        let line = self.editor.caret_line() + 1;
-        let column = self.editor.caret_column() + 1;
+        let line = self.tab().editor.caret_line() + 1;
+        let column = self.tab().editor.caret_column() + 1;
         let right = format!(
             "Ln {}, Col {}  {}  {} ",
             line,
             column,
-            self.editor.doc.encoding().name(),
-            self.editor.doc.eol().name()
+            self.tab().editor.doc.encoding().name(),
+            self.tab().editor.doc.eol().name()
         );
         let start = width.saturating_sub(right.chars().count());
         // The half on the left gives way to the half on the right: a narrow
@@ -1269,6 +1315,12 @@ mod tests {
     /// theme, and a test that read them would pass where it was written and fail
     /// on the next machine. `Ctrl+Q` in this crate's tests means what it means in
     /// a fresh installation.
+    /// The caret, as a line and a column.
+    fn caret(app: &App) -> (usize, usize) {
+        let editor = &app.tabs[app.active].editor;
+        (editor.caret_line(), editor.caret_column())
+    }
+
     fn app(text: &str) -> App {
         let mut app = App::with_document(Document::from_text(text));
         *app.settings_mut() = Settings::default();
@@ -1306,7 +1358,7 @@ mod tests {
         for ch in "hello".chars() {
             app.handle(Key::Char(ch));
         }
-        assert_eq!(app.editor.doc.text(), "hello");
+        assert_eq!(app.tab().editor.doc.text(), "hello");
         let rows = drawn(&mut app, 60, 4);
         assert!(rows[0].contains("hello"), "{:?}", rows);
         // The line number is there, in the gutter.
@@ -1337,7 +1389,7 @@ mod tests {
     fn wrapped_rows_carry_the_caret_and_the_tone_of_their_text() {
         let mut app = app("fn main() { let value = 1; }\n");
         app.settings_mut().wrap = true;
-        app.editor.goto_position(0, 14);
+        app.editor().goto_position(0, 14);
         let mut grid = Grid::new(12, 4);
         app.draw(&mut grid);
         // The caret is at display column fourteen, which is the fifth cell of
@@ -1362,7 +1414,7 @@ mod tests {
         let line: String = "abcdefghij".repeat(5);
         let mut app = app(&format!("{line}\n"));
         app.settings_mut().wrap = true;
-        app.editor.goto_position(0, line.chars().count());
+        app.editor().goto_position(0, line.chars().count());
         let rows = drawn(&mut app, 12, 3);
         // Segments four and five: the last ten characters, then the caret on the
         // blank cell after them.
@@ -1382,23 +1434,23 @@ mod tests {
         let mut grid = Grid::new(12, 4);
         app.draw(&mut grid);
         app.handle(Key::Down);
-        assert_eq!(app.editor.caret_column(), 10);
+        assert_eq!(app.tab().editor.caret_column(), 10);
         app.handle(Key::Down);
-        assert_eq!(app.editor.caret_column(), 20);
+        assert_eq!(app.tab().editor.caret_column(), 20);
         // The third row is five characters long, and the caret arrives at the
         // start of it: a row move keeps the column inside the row, which is zero.
         app.handle(Key::Down);
-        assert_eq!(app.editor.caret_column(), 20);
+        assert_eq!(app.tab().editor.caret_column(), 20);
         // Which is also the last row of the document: one more Down stays put.
         app.handle(Key::Down);
-        assert_eq!(app.editor.caret_column(), 20);
+        assert_eq!(app.tab().editor.caret_column(), 20);
         // And Up walks back, arriving on the same two columns.
         app.handle(Key::Up);
-        assert_eq!(app.editor.caret_column(), 10);
+        assert_eq!(app.tab().editor.caret_column(), 10);
         app.handle(Key::Up);
-        assert_eq!(app.editor.caret_column(), 0);
+        assert_eq!(app.tab().editor.caret_column(), 0);
         app.handle(Key::Up);
-        assert_eq!(app.editor.caret_column(), 0);
+        assert_eq!(app.tab().editor.caret_column(), 0);
     }
 
     #[test]
@@ -1408,20 +1460,20 @@ mod tests {
         app.settings_mut().wrap = true;
         let mut grid = Grid::new(12, 4);
         app.draw(&mut grid);
-        app.editor.goto_position(0, 3);
+        app.editor().goto_position(0, 3);
         app.draw(&mut grid);
         // Down the rows of the same line: three more cells along, ten in.
         app.handle(Key::Down);
-        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (0, 13));
+        assert_eq!(caret(&app), (0, 13));
         app.handle(Key::Down);
-        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (0, 23));
+        assert_eq!(caret(&app), (0, 23));
         // Down onto `ab`: the remembered column is three, the line has two.
         app.handle(Key::Down);
-        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (1, 2));
+        assert_eq!(caret(&app), (1, 2));
         // And the memory is not the clamp: the next line gets its own row read
         // from the column that was asked for, not from the two cells it gave.
         app.handle(Key::Down);
-        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (2, 3));
+        assert_eq!(caret(&app), (2, 3));
     }
 
     #[test]
@@ -1430,12 +1482,12 @@ mod tests {
         app.settings_mut().wrap = true;
         let mut grid = Grid::new(12, 4);
         app.draw(&mut grid);
-        app.editor.goto_position(1, 2);
+        app.editor().goto_position(1, 2);
         app.draw(&mut grid);
         // The line above takes two rows, so Up lands on its second row, two cells
         // in -- not at the end of its first.
         app.handle(Key::Up);
-        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (0, 12));
+        assert_eq!(caret(&app), (0, 12));
     }
 
     #[test]
@@ -1449,11 +1501,11 @@ mod tests {
         // A tab reaches the next stop of four, so a line of four is sixteen cells
         // and two rows of ten.
         app.handle(Key::PageDown);
-        assert_eq!(app.editor.caret_line(), 2, "a page of four rows is two lines");
+        assert_eq!(caret(&app).0, 2, "a page of four rows is two lines");
         app.handle(Key::PageDown);
-        assert_eq!(app.editor.caret_line(), 4);
+        assert_eq!(app.tab().editor.caret_line(), 4);
         app.handle(Key::PageUp);
-        assert_eq!(app.editor.caret_line(), 2);
+        assert_eq!(app.tab().editor.caret_line(), 2);
     }
 
     #[test]
@@ -1461,15 +1513,15 @@ mod tests {
         let mut app = app("0123456789ABCDEFGHIJ\nab\n0123456789ABCDEFGHIJ\n");
         let mut grid = Grid::new(12, 4);
         app.draw(&mut grid);
-        app.editor.goto_position(0, 3);
+        app.editor().goto_position(0, 3);
         app.draw(&mut grid);
         // The second line holds two characters, the third none of the first
         // line's tail: the core's motion clamps to each line and remembers the
         // column, and nothing here interfered with it.
         app.handle(Key::Down);
-        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (1, 2));
+        assert_eq!(caret(&app), (1, 2));
         app.handle(Key::Down);
-        assert_eq!((app.editor.caret_line(), app.editor.caret_column()), (2, 3));
+        assert_eq!(caret(&app), (2, 3));
     }
 
     #[test]
@@ -1492,7 +1544,7 @@ mod tests {
         // Twelve rows down is one and a half lines of six rows, so the caret is
         // on the second line -- where a line motion would have put it on the
         // thirteenth.
-        assert_eq!(app.editor.caret_line(), 1);
+        assert_eq!(app.tab().editor.caret_line(), 1);
         // And the same walk back up returns it to where it started, which is what
         // makes the two motions inverses of one another.
         for _ in 0..12 {
@@ -1500,7 +1552,7 @@ mod tests {
             app.draw(&mut grid);
             assert!(caret_cell(&grid).is_some(), "the caret left the screen");
         }
-        assert_eq!(app.editor.caret(), 0);
+        assert_eq!(app.tab().editor.caret(), 0);
     }
 
     #[test]
@@ -1574,7 +1626,7 @@ mod tests {
         app.handle(Key::LineEnd);
         app.handle(Key::Enter);
         app.handle(Key::Char('a'));
-        assert_eq!(app.editor.doc.text(), "    let x = 1;\n    a\n");
+        assert_eq!(app.tab().editor.doc.text(), "    let x = 1;\n    a\n");
     }
 
     #[test]
@@ -1583,10 +1635,10 @@ mod tests {
         // `delete_line`; both act on the caret's line when nothing is selected.
         let mut app = app("one\ntwo\n");
         app.handle(Key::Ctrl('d'));
-        assert_eq!(app.editor.doc.text(), "one\none\ntwo\n");
-        app.editor.goto_line(1);
+        assert_eq!(app.tab().editor.doc.text(), "one\none\ntwo\n");
+        app.editor().goto_line(1);
         app.handle(Key::Ctrl('l'));
-        assert_eq!(app.editor.doc.text(), "one\ntwo\n");
+        assert_eq!(app.tab().editor.doc.text(), "one\ntwo\n");
     }
 
     #[test]
@@ -1595,7 +1647,8 @@ mod tests {
         app.settings_mut().keymap.unbind(Action::DuplicateLine);
         app.apply_settings();
         app.handle(Key::Ctrl('d'));
-        assert_eq!(app.editor.doc.text(), "one\n", "an unbound chord edited the file");
+        let text = app.tab().editor.doc.text();
+        assert_eq!(text, "one\n", "an unbound chord edited the file");
     }
 
     #[test]
@@ -1606,37 +1659,37 @@ mod tests {
         // invent one for them.
         app.run(Action::SelectAll);
         app.run(Action::UpperCase);
-        assert_eq!(app.editor.doc.text(), "B\nA\n");
+        assert_eq!(app.tab().editor.doc.text(), "B\nA\n");
         // An edit replaces what it was given, so the selection is gone after it:
         // the next command needs one of its own.
         app.run(Action::SelectAll);
         app.run(Action::SortAsc);
-        assert_eq!(app.editor.doc.text(), "A\nB\n");
+        assert_eq!(app.tab().editor.doc.text(), "A\nB\n");
         app.run(Action::SelectAll);
         // The engine indents with a tab, not with `tab_width` spaces: the
         // column a tab stands for is a display question, and the file keeps the
         // character that is one keystroke away from the one it replaces.
         app.run(Action::Indent);
-        assert_eq!(app.editor.doc.text(), "\tA\n\tB\n");
+        assert_eq!(app.tab().editor.doc.text(), "\tA\n\tB\n");
         app.run(Action::SelectAll);
         app.run(Action::Unindent);
-        assert_eq!(app.editor.doc.text(), "A\nB\n");
+        assert_eq!(app.tab().editor.doc.text(), "A\nB\n");
     }
 
     #[test]
     fn the_line_commands_move_and_delete() {
         let mut app = app("one\ntwo\n");
         app.run(Action::MoveLineDown);
-        assert_eq!(app.editor.doc.text(), "two\none\n");
-        app.editor.goto_line(1);
+        assert_eq!(app.tab().editor.doc.text(), "two\none\n");
+        app.editor().goto_line(1);
         app.run(Action::MoveLineUp);
-        assert_eq!(app.editor.doc.text(), "one\ntwo\n");
+        assert_eq!(app.tab().editor.doc.text(), "one\ntwo\n");
         // The caret is left at the end of the block the move touched, which is
         // the empty line after the last newline; a delete needs it somewhere
         // with a line under it.
-        app.editor.goto_line(0);
+        app.editor().goto_line(0);
         app.run(Action::DeleteLine);
-        assert_eq!(app.editor.doc.text(), "two\n");
+        assert_eq!(app.tab().editor.doc.text(), "two\n");
         // The text commands leave a message when they cannot run, and these do
         // not: they answered.
         assert_eq!(app.message(), None);
@@ -1651,7 +1704,7 @@ mod tests {
             app.handle(Key::Char(ch));
         }
         // Typing went into the bar, not into the document.
-        assert_eq!(app.editor.doc.text(), "one two one\n");
+        assert_eq!(app.tab().editor.doc.text(), "one two one\n");
         let rows = drawn(&mut app, 40, 5);
         // The bar is the row above the status bar, and the text lost the row.
         assert!(rows[3].starts_with("Find: one"), "{:?}", rows);
@@ -1680,9 +1733,9 @@ mod tests {
         // The caret is still where the search left it: at the start, having
         // never stepped anywhere.
         app.handle(Key::Function(3));
-        assert_eq!(app.editor.selection_start(), 0);
+        assert_eq!(app.tab().editor.selection_start(), 0);
         app.handle(Key::Function(3));
-        assert_eq!(app.editor.selection_start(), 8);
+        assert_eq!(app.tab().editor.selection_start(), 8);
         // A chord the bar does not want is the shell's, even with the bar up.
         app.run(Action::Find);
         app.handle(Key::Ctrl('s'));
@@ -1737,7 +1790,7 @@ mod tests {
         }
         app.handle(Key::Char('1'));
         app.handle(Key::Enter);
-        assert_eq!(app.editor.doc.text().as_str(), "1 two one\n");
+        assert_eq!(app.tab().editor.doc.text().as_str(), "1 two one\n");
         // The shell heard the bar's edit: the line is drawn again with the new
         // text on it, not with the one it replaced.
         let rows = drawn(&mut app, 40, 6);
@@ -1769,9 +1822,9 @@ mod tests {
             app.handle(Key::Char(ch));
         }
         app.handle(Key::Down);
-        assert_eq!(app.editor.selection_start(), 201);
+        assert_eq!(app.tab().editor.selection_start(), 201);
         app.handle(Key::Down);
-        assert_eq!(app.editor.selection_start(), 409);
+        assert_eq!(app.tab().editor.selection_start(), 409);
     }
 
     #[test]
@@ -1787,7 +1840,7 @@ mod tests {
     fn unsaved_changes_take_two_presses_of_ctrl_q() {
         let mut app = app("text");
         app.handle(Key::Char('!'));
-        assert!(app.editor.doc.is_dirty());
+        assert!(app.tab().editor.doc.is_dirty());
         app.handle(Key::Ctrl('q'));
         assert!(!app.take_quit(), "the first press left without asking");
         assert!(app.message().unwrap_or_default().contains("unsaved"));
@@ -1802,9 +1855,10 @@ mod tests {
         let mut app = App::open(Some(&path)).expect("open");
         app.handle(Key::LineEnd);
         app.handle(Key::Char('!'));
-        assert!(app.editor.doc.is_dirty());
+        assert!(app.tab().editor.doc.is_dirty());
         app.handle(Key::Ctrl('s'));
-        assert!(!app.editor.doc.is_dirty(), "{}", app.message().unwrap_or(""));
+        let dirty = app.tab().editor.doc.is_dirty();
+        assert!(!dirty, "{}", app.message().unwrap_or(""));
         assert_eq!(std::fs::read_to_string(&path).expect("read"), "one!\n");
         let _ = std::fs::remove_file(&path);
     }
@@ -1839,9 +1893,9 @@ mod tests {
             app.handle(Key::Char(ch));
         }
         app.handle(Key::Enter);
-        assert_eq!(app.editor.doc.path(), Some(path.as_path()));
-        assert_eq!(app.editor.doc.text().as_str(), "one\ntwo\n");
-        assert_eq!(app.editor.caret(), 0, "the caret did not go to the top");
+        assert_eq!(app.tab().editor.doc.path(), Some(path.as_path()));
+        assert_eq!(app.tab().editor.doc.text().as_str(), "one\ntwo\n");
+        assert_eq!(app.tab().editor.caret(), 0, "the caret did not go to the top");
         assert!(app.message().unwrap_or_default().starts_with("opened"));
         let _ = std::fs::remove_file(&path);
     }
@@ -1855,8 +1909,9 @@ mod tests {
         prompt(&mut app, Action::Open, &path.display().to_string());
         let message = app.message().unwrap_or_default();
         assert!(message.contains("unsaved"), "{message}");
-        assert_eq!(app.editor.doc.text().as_str(), "!first\n", "it opened anyway");
-        assert_eq!(app.editor.doc.path(), None);
+        let text = app.tab().editor.doc.text();
+        assert_eq!(text.as_str(), "!first\n", "it opened anyway");
+        assert_eq!(app.tab().editor.doc.path(), None);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -1865,9 +1920,9 @@ mod tests {
         let path = temp("not-yet.txt");
         let _ = std::fs::remove_file(&path);
         let app = App::open(Some(&path)).expect("a missing name is not an error");
-        assert_eq!(app.editor.doc.path(), Some(path.as_path()));
-        assert!(!app.editor.doc.is_dirty(), "the blank page started dirty");
-        assert_eq!(app.editor.doc.text().as_str(), "");
+        assert_eq!(app.tab().editor.doc.path(), Some(path.as_path()));
+        assert!(!app.tab().editor.doc.is_dirty(), "the blank page started dirty");
+        assert_eq!(app.tab().editor.doc.text().as_str(), "");
     }
 
     #[test]
@@ -1877,8 +1932,8 @@ mod tests {
         let mut app = app("one\n");
         prompt(&mut app, Action::SaveAs, &path.display().to_string());
         assert_eq!(std::fs::read_to_string(&path).expect("read"), "one\n");
-        assert_eq!(app.editor.doc.path(), Some(path.as_path()));
-        assert!(!app.editor.doc.is_dirty());
+        assert_eq!(app.tab().editor.doc.path(), Some(path.as_path()));
+        assert!(!app.tab().editor.doc.is_dirty());
         assert!(app.message().unwrap_or_default().starts_with("saved"));
         // Once the message has been cleared by the next keystroke, the bar names
         // the file the buffer now holds.
@@ -1918,14 +1973,14 @@ mod tests {
         std::fs::write(&path, "one\n").expect("write");
         let mut app = App::open(Some(&path)).expect("open");
         app.run(Action::New);
-        assert_eq!(app.editor.doc.path(), None);
-        assert_eq!(app.editor.doc.text().as_str(), "");
+        assert_eq!(app.tab().editor.doc.path(), None);
+        assert_eq!(app.tab().editor.doc.text().as_str(), "");
         let rows = drawn(&mut app, 40, 4);
         assert!(rows[3].trim_start().starts_with("[No Name]"), "{:?}", rows);
         // Typing makes it dirty, and a new document would be that edit lost.
         app.handle(Key::Char('x'));
         app.run(Action::New);
-        assert_eq!(app.editor.doc.text().as_str(), "x");
+        assert_eq!(app.tab().editor.doc.text().as_str(), "x");
         assert!(app.message().unwrap_or_default().contains("unsaved"));
         let _ = std::fs::remove_file(&path);
     }
@@ -1942,13 +1997,13 @@ mod tests {
         let mut app = App::open(Some(&path)).expect("open");
         std::fs::write(&path, "two\nthree\n").expect("rewrite");
         app.run(Action::Reload);
-        assert_eq!(app.editor.doc.text().as_str(), "two\nthree\n");
-        assert!(!app.editor.doc.is_dirty());
+        assert_eq!(app.tab().editor.doc.text().as_str(), "two\nthree\n");
+        assert!(!app.tab().editor.doc.is_dirty());
         assert!(app.message().unwrap_or_default().starts_with("reloaded"));
         // What was typed is dropped, with the bar saying so.
         app.handle(Key::Char('!'));
         app.run(Action::Reload);
-        assert_eq!(app.editor.doc.text().as_str(), "two\nthree\n");
+        assert_eq!(app.tab().editor.doc.text().as_str(), "two\nthree\n");
         let message = app.message().unwrap_or_default().to_string();
         assert!(message.contains("were dropped"), "{message}");
         let _ = std::fs::remove_file(&path);
@@ -1956,7 +2011,7 @@ mod tests {
         app.run(Action::Reload);
         let message = app.message().unwrap_or_default().to_string();
         assert!(message.contains("cannot reload"), "{message}");
-        assert_eq!(app.editor.doc.text().as_str(), "two\nthree\n");
+        assert_eq!(app.tab().editor.doc.text().as_str(), "two\nthree\n");
     }
 
     #[test]

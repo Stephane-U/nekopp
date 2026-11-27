@@ -13645,3 +13645,66 @@ deleted since it was opened as an error rather than as an empty page. The keystr
 measurement is unchanged at 15,554 bytes for the first paint and 306 for a
 keystroke. `cargo clippy --offline --release --all-targets`: 0 warnings. `cargo
 fmt` was not run. The feature reference and its PDF are untouched.
+
+## The hundred-and-thirty-fifth pass: the shape of a tab
+
+The window keeps one editor per tab. The terminal shell kept one editor in the
+shell itself, and that is the reason the last three passes had to write `Open`,
+`New` and `Save As` so carefully: two of them refuse while the document is dirty,
+because losing an edit to a second document is what the window's tabs exist to
+prevent. The missing thing was never a command. It was a place for a second
+document to live.
+
+So the fields moved out of the shell and into a `Tab`: the editor, its
+highlighter, and the five numbers that describe where that document is on screen
+-- the first line, the first column, the wrapped segment above the window, the
+first line the last frame had no room for, and the row a run of vertical moves
+aims at. `App` now holds `tabs: Vec<Tab>` and `active: usize`, and what stayed on
+the shell is what belongs to the window rather than to a document: the size of the
+last frame, the bar, the preferences dialog, the find bar, the prompt, the
+settings, the palette, the message and the quit arming.
+
+The rest of the pass is one rename per call site, with three helpers to keep it
+readable: `self.tab()`, `self.tab_mut()` and `self.editor()`, which say which
+document a line is about without spelling out `self.tabs[self.active]` a hundred
+and twenty times. Where two of them would be borrowed at once the path is written
+out instead -- `self.find.handle(key, &mut self.tabs[self.active].editor)` --
+because `self.editor()` borrows all of the shell mutably, and two fields have to be
+named separately for the compiler to see they do not overlap. That sentence is the
+whole cost of the shape, and it appears twice.
+
+Two things were simplified on the way rather than moved. `with_document` used to
+build a placeholder editor and replace it in `load`; it now builds a `tabs` list
+holding one `Tab::new(doc)` and is done, with the first highlight pass living in
+`Tab::new` beside the large-file rule it obeys. `load` is down to the assignment
+and disarming the quit.
+
+Nothing else changed, and that is the point: one tab exists so far and nothing
+switches it, so this pass should be invisible on screen. Its value is that the next
+one -- a strip, and a key that moves between two documents -- becomes a command
+rather than a restructuring.
+
+The cost of the indirection is an index and a bounds check per field access, on a
+path that reaches a document pointer it already had. The keystroke measurement is
+where a cost like that would show, and it did not.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical;
+only `nn-tui` changed, and its output is byte for byte what it was.
+
+`cargo test --offline --release`: 2,412 tests, 0 failed -- the same count as the
+pass before, because a restructuring that changes no behaviour should add no test.
+The tests read the front document through `app.tab().editor`, or through one new
+helper, `caret(&app)`, which is the line and column in one call and keeps the eight
+assertions that used to name both fields on one line each. The keystroke
+measurement is unchanged at 15,554 bytes for the first paint and 306 for a
+keystroke, 47 µs in this run. `cargo clippy --offline --release --all-targets`:
+0 warnings. `cargo fmt` was not run. The feature reference and its PDF are
+untouched.
+
+Through a pseudo terminal on a 140-column screen, from a fresh home: opening
+`crates/nn-tui/Cargo.toml`, two Downs and one character typed, drew the file with
+`[+]` after the path in the bar and `Ln 2, Col 2` at the right, so the editor, its
+caret and its dirty mark all still answer through the tab.
+
