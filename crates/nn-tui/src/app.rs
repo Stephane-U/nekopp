@@ -50,6 +50,9 @@ use crate::screen::Grid;
 /// number of rows of text is the row the first strip is drawn on.
 #[derive(Debug, Clone, Copy)]
 struct Layout {
+    /// The first row of text: the tab strip's row plus one while the strip is
+    /// drawn, and nought the rest of the time.
+    top: usize,
     /// Columns the line numbers take.
     gutter: usize,
     /// Columns left for the text.
@@ -62,9 +65,14 @@ struct Layout {
 }
 
 impl Layout {
-    /// The rows the document has, which is every row above the first strip.
-    fn text_rows(self) -> usize {
+    /// The first row below the text: the find bar, the prompt, or the bar.
+    fn bottom(self) -> usize {
         self.bar_row.unwrap_or(self.status_row)
+    }
+
+    /// The rows the document has, which is every row between the two.
+    fn text_rows(self) -> usize {
+        self.bottom().saturating_sub(self.top)
     }
 }
 
@@ -1037,7 +1045,12 @@ impl App {
             return;
         }
         let gutter = self.gutter_width().min(width);
+        // The strip is drawn only when there is more than one document to name,
+        // which is the window's rule, and only on a screen tall enough to spare
+        // the row: two documents and two rows is a shell with nowhere to type.
+        let strip = self.tabs.len() > 1 && height >= 3;
         let layout = Layout {
+            top: usize::from(strip),
             gutter,
             text_cols: width - gutter,
             bar_row: {
@@ -1100,7 +1113,7 @@ impl App {
         let caret = self.editor().caret();
         let selection = self.editor().selection_start()..self.editor().selection_end();
 
-        for row in 0..text_rows {
+        for row in layout.top..layout.bottom() {
             // Every row is painted edge to edge, in the two tones the windowed
             // editor uses for the same strips. Leaving the cells past the end of
             // a line alone would let the terminal's own background through, and
@@ -1118,10 +1131,10 @@ impl App {
         // The lines, one after another, each taking as many rows as it needs:
         // one while wrapping is off, a screenful or more for a long line while
         // it is on.
-        let mut row = 0usize;
+        let mut row = layout.top;
         let mut line = self.tab_mut().scroll_line;
         let mut skip = if wrap { self.tab_mut().scroll_seg } else { 0 };
-        while row < text_rows && line < self.editor().doc.len_lines() {
+        while row < layout.bottom() && line < self.editor().doc.len_lines() {
             if skip == 0 {
                 // A line wears its number on its first row, and a continuation
                 // row has none: the strip reads as one line rather than as
@@ -1133,6 +1146,9 @@ impl App {
             skip = 0;
         }
         self.tab_mut().visible_until = line;
+        if strip {
+            self.draw_strip(grid, 0, width);
+        }
         if let Some(row) = layout.bar_row {
             if self.prompt.is_open() {
                 self.prompt.draw(grid, row, width);
@@ -1150,6 +1166,66 @@ impl App {
         // And the preferences dialog over everything: it is the most modal thing
         // the shell has, and a dropdown cannot be open at the same time.
         self.prefs.draw(grid, &self.settings);
+    }
+
+    /// The strip of open documents, along the top row.
+    ///
+    /// The window's tab strip, in the one row a terminal gives it: the name of
+    /// each document, the one in front lit by the same tone an open menu's title
+    /// gets, a `*` after the name of one with unsaved changes, and the rest of the
+    /// row painted the strip's own colour so it reads as a bar rather than as a
+    /// line of text.
+    ///
+    /// A strip longer than the screen drops the names on the left until what is
+    /// left fits, because the one thing a strip must never do is hide the
+    /// document in front. The row is cut rather than wrapped for the same reason:
+    /// a second row of names would be a second line of the document's.
+    fn draw_strip(&self, grid: &mut Grid, row: usize, width: usize) {
+        for column in 0..width {
+            grid.put(row, column, ' ', Tone::Menu);
+        }
+        let names: Vec<String> = self
+            .tabs
+            .iter()
+            .map(|tab| {
+                let mark = if tab.editor.doc.is_dirty() { "*" } else { "" };
+                format!(" {}{mark} ", strip_name(&tab.editor.doc))
+            })
+            .collect();
+        // The name in front, then as many of its neighbours as the row holds --
+        // to the right first, then to the left with what is left. That order is
+        // the whole rule: the document in front is the one name that is always
+        // drawn, and it is drawn whole unless it is wider than the screen.
+        let active = self.active.min(names.len() - 1);
+        let mut used = names[active].chars().count();
+        let mut end = active + 1;
+        while end < names.len() && used + names[end].chars().count() <= width {
+            used += names[end].chars().count();
+            end += 1;
+        }
+        let mut start = active;
+        while start > 0 && used + names[start - 1].chars().count() <= width {
+            start -= 1;
+            used += names[start].chars().count();
+        }
+        let mut column = 0usize;
+        for (index, name) in names.iter().enumerate().take(end).skip(start) {
+            if column >= width {
+                break;
+            }
+            let tone = if index == self.active {
+                Tone::MenuHover
+            } else {
+                Tone::Menu
+            };
+            for ch in name.chars() {
+                if column >= width {
+                    break;
+                }
+                grid.put(row, column, ch, tone);
+                column += 1;
+            }
+        }
     }
 
     /// Puts the line number, right-aligned, at the left of `row`.
@@ -1227,7 +1303,7 @@ impl App {
                 return CellAt::Hidden;
             }
             let at_row = row + segment - skip;
-            if at_row >= layout.text_rows() {
+            if at_row >= layout.bottom() {
                 return CellAt::Past;
             }
             CellAt::Put(at_row, layout.gutter + display % layout.text_cols)
@@ -1305,7 +1381,7 @@ impl App {
                         // this line; with it off it is the right-hand edge, and
                         // the line is as tall as it ever was.
                         return if wrap {
-                            layout.text_rows().saturating_sub(row).max(1)
+                            layout.bottom().saturating_sub(row).max(1)
                         } else {
                             used
                         };
@@ -1325,7 +1401,7 @@ impl App {
                 CellAt::Hidden => {}
                 CellAt::Past => {
                     return if wrap {
-                        layout.text_rows().saturating_sub(row).max(1)
+                        layout.bottom().saturating_sub(row).max(1)
                     } else {
                         used
                     };
@@ -1353,14 +1429,6 @@ impl App {
             .unwrap_or_else(|| "[No Name]".to_string());
         if self.tab().editor.doc.is_dirty() {
             left.push_str(" [+]");
-        }
-        // Where this document sits among the open ones. The window says the same
-        // thing by drawing a strip of tabs, which is a row this shell does not
-        // have yet: the bar is the only place the count can land until it does,
-        // and a reader who has just opened a second file needs to see that the
-        // first one is still there.
-        if self.tabs.len() > 1 {
-            left.push_str(&format!(" [{}/{}]", self.active + 1, self.tabs.len()));
         }
         let tone = match &self.message {
             Some(message) => {
@@ -1406,6 +1474,21 @@ fn advance(column: usize, ch: char, tab_width: u16) -> usize {
     } else {
         column + ch.width().unwrap_or(1)
     }
+}
+
+/// What the strip calls a document: its file name, or `[No Name]` for one that
+/// has never been written.
+///
+/// The window's strip says `new` for such a document, which is the core's own
+/// word for it; the terminal's bar has said `[No Name]` since its first frame, and
+/// one screen calling one document two things is worse than either word. For a
+/// document that has a file the two agree, because `display_name` is where the
+/// window got the name as well.
+fn strip_name(doc: &Document) -> String {
+    if doc.path().is_none() {
+        return "[No Name]".to_string();
+    }
+    doc.display_name()
 }
 
 /// The lexer for a path, chosen the way the windowed editor chooses one.
@@ -2084,12 +2167,13 @@ mod tests {
         // the window's `New` does and what this now does too.
         assert_eq!(app.tabs.len(), 2);
         assert_eq!(app.tabs[0].editor.doc.text().as_str(), "one\n");
+        // The strip names both documents and the text has moved down a row to
+        // make room for it; the bar keeps naming the one in front.
         let rows = drawn(&mut app, 40, 4);
-        assert!(
-            rows[3].trim_start().starts_with("[No Name] [2/2]"),
-            "{:?}",
-            rows
-        );
+        assert!(rows[0].contains("new.txt"), "{:?}", rows);
+        assert!(rows[0].contains("[No Name]"), "{:?}", rows);
+        assert!(rows[1].starts_with('1'), "{:?}", rows);
+        assert!(rows[3].trim_start().starts_with("[No Name]"), "{:?}", rows);
         // A second `New` is a third tab, and the first two keep what they had --
         // including the character typed into the second one.
         app.handle(Key::Char('x'));
@@ -2120,9 +2204,81 @@ mod tests {
         assert_eq!(app.tab().editor.doc.text().as_str(), "Xone\n");
         assert_eq!(caret(&app), (0, 1));
         let rows = drawn(&mut app, 100, 4);
-        assert!(rows[3].contains("[1/2]"), "{:?}", rows);
+        assert!(rows[0].contains("tab-first.txt"), "{:?}", rows);
+        assert!(rows[0].contains("tab-second.txt"), "{:?}", rows);
+        assert!(rows[1].starts_with("1 Xone"), "{:?}", rows);
         let _ = std::fs::remove_file(&first);
         let _ = std::fs::remove_file(&second);
+    }
+
+    #[test]
+    fn the_strip_names_the_documents_and_lights_the_one_in_front() {
+        let first = temp("strip-first.txt");
+        let second = temp("strip-second.txt");
+        std::fs::write(&first, "one\n").expect("write");
+        std::fs::write(&second, "two\n").expect("write");
+        let mut app = App::open(Some(&first)).expect("open");
+        // One document is no strip at all, so its first line is on row nought.
+        let rows = drawn(&mut app, 40, 4);
+        assert!(rows[0].starts_with("1 one"), "{:?}", rows);
+        prompt(&mut app, Action::Open, &second.display().to_string());
+        // Wide enough for both names: the two temporary files carry the process
+        // id in their names, and the strip drops what does not fit.
+        let rows = drawn(&mut app, 80, 4);
+        assert!(rows[0].contains("strip-first.txt"), "{:?}", rows);
+        assert!(rows[0].contains("strip-second.txt"), "{:?}", rows);
+        // The one in front wears the tone an open menu's title wears, and the
+        // other one the strip's own; both are the window's menu colours.
+        let mut grid = Grid::new(80, 4);
+        app.draw(&mut grid);
+        let strip: String = (0..80).map(|column| grid.get(0, column).ch).collect();
+        let tone_of = |needle: &str| {
+            let at = strip.find(needle).expect("on the strip");
+            grid.get(0, at).tone
+        };
+        assert_eq!(tone_of("strip-first.txt"), Tone::Menu);
+        assert_eq!(tone_of("strip-second.txt"), Tone::MenuHover);
+        // Unsaved changes put a `*` after the name, which is the mark the bar
+        // uses as well.
+        app.handle(Key::Char('!'));
+        let rows = drawn(&mut app, 80, 4);
+        assert!(rows[0].contains("strip-second.txt*"), "{:?}", rows);
+        // A strip wider than the screen keeps the document in front whole and
+        // drops the name to its left, because the one being typed into is the one
+        // that must not be hidden. Forty columns hold the second name and not the
+        // two of them.
+        let mut narrow = Grid::new(40, 4);
+        app.draw(&mut narrow);
+        let row: String = (0..40).map(|column| narrow.get(0, column).ch).collect();
+        assert!(row.contains("strip-second.txt*"), "{row:?}");
+        assert!(!row.contains("first"), "{row:?}");
+        let _ = std::fs::remove_file(&first);
+        let _ = std::fs::remove_file(&second);
+    }
+
+    #[test]
+    fn a_wrapped_line_folds_below_the_strip_and_not_into_the_bar() {
+        let mut app = app("short\n");
+        app.settings_mut().wrap = true;
+        app.apply_settings();
+        app.run(Action::New);
+        // One long line in the second document: sixty-one cells over a text area
+        // thirty-eight wide, so two rows of it.
+        app.handle(Key::Char('x'));
+        app.tabs[app.active].editor.insert(&"0123456789".repeat(6));
+        let mut grid = Grid::new(40, 4);
+        app.draw(&mut grid);
+        let row = |r: usize| -> String { (0..40).map(|c| grid.get(r, c).ch).collect() };
+        assert!(row(0).contains("[No Name]"), "the strip is there: {:?}", row(0));
+        // The line's number is on its first row and its continuation has none, so
+        // the second row of the line starts in the text rather than the gutter.
+        assert!(row(1).starts_with("1 "), "{:?}", row(1));
+        assert!(row(2).starts_with("  "), "{:?}", row(2));
+        // The caret is on the second row of the line, one row below the strip, and
+        // the bar keeps the last row whatever the text does.
+        let caret = caret_cell(&grid).expect("the caret is on screen");
+        assert_eq!(caret.0, 2, "the caret follows the folded row");
+        assert!(row(3).contains("Ln 1"), "the bar: {:?}", row(3));
     }
 
     #[test]

@@ -13781,3 +13781,66 @@ at the end of it. `Ctrl+W` closed the second document, saying
 `unsaved changes in 1 document: Ctrl+S saves them first` and closed nothing; with
 both saved it said `closed 2 documents` and left one blank page.
 
+## The hundred-and-thirty-seventh pass: the strip itself
+
+One row, at the top, while more than one document is open. Each document is named by
+its own file name, and `[No Name]` for a buffer that has never been written -- the
+word the bar has always used, where the window's strip says `new`, because one
+screen calling one document two things is worse than either word. A `*` follows the
+name of a document with unsaved changes, which is the mark the bar uses for the same
+fact and the one thing a terminal can say where the window draws a pencil. The
+document in front wears the tone an open menu's title wears, the others the strip's
+own, and the rest of the row is painted that colour too, so it reads as a bar rather
+than as a line of text.
+
+The names are laid out by one rule: the document in front is drawn whole unless it
+alone is wider than the screen, then its neighbours to the right with what is left,
+then the ones to its left. The row is cut rather than wrapped, because a second row
+of names would be a second line of the document. The only thing a strip must never
+do is hide the document being typed into, and that is what the order buys.
+
+The layout cost is one field. `Layout` gained `top` -- nought, or one when the strip
+is drawn -- and a `bottom`, and the row arithmetic that was absolute from nought is
+absolute from `top` instead: the loop that paints the blank rows, the loop that
+draws the lines, the bound in `cell_of` that says a cell is past the bottom, and the
+answer `draw_line` gives when a wrapped line runs out of screen. Nothing else moved.
+The bar lost the `[2/3]` count the last pass put there, because the strip says it
+better and one fact in two places is one place too many. The find bar, the prompt
+and the menus keep the rows they had: the strip is row nought, the menu bar takes
+that row only while it is up, and a dropdown covers what it always covered.
+
+The strip is drawn only when there is more than one document, which is the window's
+rule, and only on a screen of three rows or more: two documents and two rows is a
+shell with nowhere to type.
+
+What it costs is one row of paint while more than one document is open, and a
+handful of small strings per frame for the names. The keystroke measurement, which
+is one document and no strip, is unchanged byte for byte, and the frame writer
+still diffs what it is handed, so the strip is written once and then not again
+until a name or the front document changes.
+
+### Verified
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical; only
+`nn-tui` changed.
+
+`cargo test --offline --release`: 2,418 tests, 0 failed -- 2,416 plus two: the strip
+naming both documents, lighting the one in front in the menu-hover tone and the
+other in the strip's tone, marking unsaved changes with a `*`, dropping the name to
+the left rather than the one in front when forty columns cannot hold both, and
+leaving no strip at all for a single document; and a long line with wrapping on
+folding correctly under the strip -- its number on the first row, a continuation row
+with no number, the caret on the second row of the line, and the bar still on the
+last row. The keystroke measurement is unchanged at 15,554 bytes for the first paint
+and 306 for a keystroke. `cargo clippy --offline --release --all-targets`: 0
+warnings. `cargo fmt` was not run. The feature reference and its PDF are untouched.
+
+Through a pseudo terminal on 140 columns, from a fresh home: opening
+`/tmp/tab-b.txt` from the File menu over `/tmp/tab-a.txt` drew
+` tab-a.txt  tab-b.txt` on the first row with the text starting on the second; one
+character typed into the second added the `*`, ` tab-a.txt  tab-b.txt*`; F9 put the
+menu bar's titles on that row and the dropdown over the text without moving it;
+closing the bar brought the strip back. One document alone drew no strip, its first
+line on row nought, and with two open the find bar still sat on the row above the
+bar, `Find: t ... 0/2`.
+
