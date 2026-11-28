@@ -30,6 +30,7 @@
 //! not silently ignored: it says so, in the same words the window would use for
 //! its label.
 
+use nn_core::plugin::Inventory;
 use nn_shared::action::Action;
 use nn_shared::i18n::Catalog;
 use nn_shared::keymap::Keymap;
@@ -128,6 +129,49 @@ impl Menus {
         for (offset, (label, action)) in rows.into_iter().enumerate() {
             view.items.insert(after + offset, Item::new(label, action));
         }
+    }
+
+    /// Fills the Plugins menu from what is installed.
+    ///
+    /// The shared tree leaves this menu empty on purpose: its rows are composed
+    /// from a plugin host's inventory, and the tree is the one place that cannot
+    /// know whether there is a host at all. This fills it the way the window's
+    /// bar does -- the same management rows, one submenu per plugin, the plugin's
+    /// own words for its own commands, and a row saying the folder is empty when
+    /// it is -- so a user who has read one Plugins menu has read both.
+    ///
+    /// The rows carry the pair the inventory gave them, and the shell rebuilds
+    /// this menu whenever the inventory moves, so an index is never one reload
+    /// out of date.
+    pub fn set_plugins(&mut self, plugins: &[Inventory]) {
+        let Some(menu) = self.menus.iter_mut().find(|menu| menu.english == "Plugins") else {
+            return;
+        };
+        let mut items = vec![
+            Item::new("Manage Plugins...", Action::ManagePlugins),
+            Item::new("Open Plugins Folder...", Action::OpenPluginsFolder),
+            Item::new("Reload Plugins", Action::ReloadPlugins),
+        ];
+        if plugins.is_empty() {
+            items.push(Item::separator());
+            items.push(Item::new("No Plugins Installed", Action::NoOp));
+        } else {
+            for (index, plugin) in plugins.iter().enumerate() {
+                // A plugin's name and its command names are the plugin's own
+                // text: a catalogue that happened to hold `Cancel` would
+                // otherwise rename a row into a command the plugin has not got.
+                let children = plugin
+                    .commands
+                    .iter()
+                    .enumerate()
+                    .map(|(command, label)| {
+                        Item::literal(label.clone(), Action::Plugin(index, command))
+                    })
+                    .collect();
+                items.push(Item::literal_submenu(plugin.name.clone(), children));
+            }
+        }
+        menu.items = items;
     }
 
     /// Swaps in a catalogue, or clears it back to English with `None`.
@@ -578,6 +622,66 @@ mod tests {
             .find(|item| !item.children.is_empty())
             .expect("File has a submenu");
         assert_eq!(submenu.shortcut, "");
+    }
+
+    /// One row of a plugin folder, as the host would report it.
+    fn installed(name: &str, commands: &[&str]) -> Inventory {
+        Inventory {
+            name: name.to_string(),
+            file: format!("{name}.wasm"),
+            enabled: false,
+            commands: commands.iter().map(|one| one.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn the_plugins_menu_says_when_the_folder_is_empty() {
+        let mut menus = bar();
+        menus.set_plugins(&[]);
+        let items = &menus.menus[10].items;
+        let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+        assert_eq!(
+            labels,
+            [
+                "Manage Plugins...",
+                "Open Plugins Folder...",
+                "Reload Plugins",
+                "",
+                "No Plugins Installed",
+            ]
+        );
+        assert_eq!(items[0].action, Action::ManagePlugins);
+        assert_eq!(items[2].action, Action::ReloadPlugins);
+        assert!(items[3].separator);
+    }
+
+    #[test]
+    fn the_plugins_menu_lists_each_plugin_and_its_commands() {
+        let mut menus = bar();
+        menus.set_plugins(&[
+            installed("JSON", &["Minify", "Indent"]),
+            installed("XML", &["Pretty Print"]),
+        ]);
+        let items = &menus.menus[10].items;
+        assert_eq!(items.len(), 5, "three management rows and two plugins");
+        assert_eq!(items[3].label, "JSON");
+        assert!(items[3].literal, "a plugin's name is its own text");
+        // The pair a row carries is the one the inventory gave it, so a command
+        // reaches the plugin it was read from rather than the one beside it.
+        assert_eq!(items[3].children[1].action, Action::Plugin(0, 1));
+        assert_eq!(items[4].children[0].action, Action::Plugin(1, 0));
+        assert!(items[4].children[0].literal, "and so is a command's");
+    }
+
+    #[test]
+    fn a_plugin_that_appears_after_a_reload_replaces_the_empty_note() {
+        let mut menus = bar();
+        menus.set_plugins(&[]);
+        assert_eq!(menus.menus[10].items.len(), 5);
+        menus.set_plugins(&[installed("XML", &["Pretty Print"])]);
+        let items = &menus.menus[10].items;
+        assert_eq!(items.len(), 4);
+        assert!(items.iter().all(|item| item.label != "No Plugins Installed"));
     }
 
     #[test]

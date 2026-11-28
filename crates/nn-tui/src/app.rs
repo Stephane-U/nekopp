@@ -28,6 +28,7 @@
 use std::path::{Path, PathBuf};
 
 use nn_core::paths::absolute;
+use nn_core::plugin::Context;
 use nn_core::symbols::scan;
 use nn_core::{
     path_prefix, prefix_range, split_query, CLikeLexer, ConfigLexer, Document, Editor, FindInFiles,
@@ -52,6 +53,7 @@ use crate::keys::Key;
 use crate::menus::Menus;
 use crate::paramhint::ParamHint;
 use crate::palette::{self, Palette, Tone};
+use crate::plugins::Plugins;
 use crate::prefs::Prefs;
 use crate::prompt::{Kind as PromptKind, Prompt};
 use crate::results::{Results, Step};
@@ -349,6 +351,12 @@ pub struct App {
     /// The Style Configurator, which edits the same settings file from the other
     /// end: the window's dialog and this one write the same `style` lines.
     styles: Styles,
+    /// The plugins, and the manager over them.
+    ///
+    /// The runtime is `nn_core`'s, put there so the window and the MCP server
+    /// would run one implementation of a command; the terminal is the third
+    /// caller, and what it owns is the folder, the box and the settings line.
+    plugins: Plugins,
     /// The find bar and its pattern, which outlives the bar so `F3` works after
     /// it closes.
     find: Find,
@@ -465,6 +473,7 @@ impl App {
             session: Session::default(),
             prefs: Prefs::new(),
             styles: Styles::new(),
+            plugins: Plugins::new(None, &[]),
             find: Find::new(),
             results: Results::new(),
             symbols: Symbols::new(),
@@ -484,6 +493,12 @@ impl App {
         // Before the first frame, so a terminal started twice reads the same way,
         // in the same language and the same colours.
         app.apply_settings();
+        // Plugins switch on last, because the list of what to run is in the file
+        // that was just applied. Nothing has run before this point, which is what
+        // "disabled until enabled" means in this front-end too.
+        let dir = nn_core::paths::config_file("plugins");
+        app.plugins = Plugins::new(dir, &app.settings.enabled_plugins);
+        app.sync_plugin_menu();
         app
     }
 
@@ -515,6 +530,14 @@ impl App {
     #[cfg(test)]
     pub fn settings_mut(&mut self) -> &mut Settings {
         &mut self.settings
+    }
+
+    /// Points the shell at another plugin folder, for a test that must not read
+    /// the one on the machine it runs on.
+    #[cfg(test)]
+    pub fn set_plugins(&mut self, plugins: Plugins) {
+        self.plugins = plugins;
+        self.sync_plugin_menu();
     }
 
     /// Puts the settings that change how the program looks into force.
@@ -618,7 +641,93 @@ impl App {
             .collect();
         let mut menus = Menus::new(&self.keymap, &recent);
         menus.set_catalog(self.catalog.clone());
+        menus.set_plugins(&self.plugins.inventory());
         self.menus = menus;
+    }
+
+    /// Puts the Plugins menu back in step with what is installed.
+    fn sync_plugin_menu(&mut self) {
+        let rows = self.plugins.inventory();
+        self.menus.set_plugins(&rows);
+    }
+
+    /// Reads the plugin folder again, keeping the plugins the settings name.
+    ///
+    /// A plugin dropped into the folder by hand does not need a restart, which is
+    /// the window's rule and the reason the row is on the menu rather than in the
+    /// manager: the manager lists what the folder held when it was read.
+    fn reload_plugins(&mut self) {
+        self.plugins.reload(&self.settings.enabled_plugins);
+        self.sync_plugin_menu();
+        let (available, running) = self.plugins.counts();
+        let failures = self.plugins.failures();
+        let message = if failures == 0 {
+            format!("{running} of {available} plugin(s) enabled")
+        } else {
+            format!("{running} of {available} plugin(s) enabled, {failures} failed")
+        };
+        self.say(&message, false);
+    }
+
+    /// Runs one command of one plugin over the document in front.
+    ///
+    /// The crossing is where the units change: the editor counts characters and a
+    /// plugin counts bytes, so the text, the caret and the selection are converted
+    /// here, once per command, rather than in every plugin that opens a document.
+    /// A command that writes comes back as a whole document and replaces the
+    /// buffer in one edit, so undo sees one step rather than a hundred; one that
+    /// traps leaves the document alone and says why on the bar.
+    fn run_plugin(&mut self, plugin: usize, command: usize) {
+        let text = self.tab().editor.doc.text();
+        let context = {
+            let editor = &self.tab().editor;
+            Context {
+                text: &text,
+                caret: editor.doc.char_to_byte(editor.caret()),
+                selection: (
+                    editor.doc.char_to_byte(editor.selection_start()),
+                    editor.doc.char_to_byte(editor.selection_end()),
+                ),
+                read_only: editor.doc.is_read_only(),
+            }
+        };
+        let outcome = match self.plugins.run(plugin, command, &context) {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                self.say(&error, true);
+                return;
+            }
+        };
+        if let Some(new) = outcome.text {
+            if new != text {
+                // Replaced whole, in one edit: the plugin works on a copy and
+                // hands back a document, so this is one undo step rather than one
+                // per changed line.
+                self.edit(|ed| {
+                    let len = ed.doc.len_chars();
+                    ed.replace_ranges(&[(0..len, new.clone())]);
+                    true
+                });
+            }
+        }
+        // A selection *is* a caret with an anchor, so a command that sets one has
+        // said where the user now is and a second answer would contradict it.
+        if let Some((start, end)) = outcome.selection {
+            let (start, end) = {
+                let doc = &self.tab().editor.doc;
+                (doc.byte_to_char(start), doc.byte_to_char(end))
+            };
+            self.editor().select_range(start..end);
+        } else if let Some(caret) = outcome.caret {
+            let caret = self.tab().editor.doc.byte_to_char(caret);
+            self.editor().set_caret(caret);
+        }
+        self.editor().ensure_caret_visible();
+        match outcome.log.len() {
+            0 => {}
+            1 => self.say(&outcome.log[0], false),
+            _ => self.say(&outcome.log.join("; "), false),
+        }
     }
 
     /// Records `path` as a recent file, and puts the bar's File menu back in step.
@@ -753,6 +862,23 @@ impl App {
                 self.settings.save();
                 self.apply_settings();
                 self.say("styles saved", false);
+            }
+            return;
+        }
+        // The plugin manager, the third modal box: a switch it flipped is written
+        // down here, and the menu is rebuilt from what is now running, because a
+        // plugin's commands appear on the bar the moment it is on.
+        if self.plugins.is_open() {
+            let changed = self.plugins.handle(key, &mut self.settings);
+            if changed {
+                self.settings.save();
+                self.sync_plugin_menu();
+            }
+            // Said whether or not the list moved: a module that refused to load is
+            // the one thing a reader must be told, and it is exactly the case
+            // where nothing in the settings changed.
+            if let Some(notice) = self.plugins.take_notice() {
+                self.say(&notice, !changed);
             }
             return;
         }
@@ -1095,6 +1221,9 @@ impl App {
             Action::ParamHintNext => self.hint.step(1),
             Action::Preferences => self.prefs.open(),
             Action::StyleConfigurator => self.styles.open(),
+            Action::ManagePlugins => self.plugins.open(),
+            Action::ReloadPlugins => self.reload_plugins(),
+            Action::Plugin(plugin, command) => self.run_plugin(plugin, command),
             Action::ToggleWrap => self.toggle_wrap(),
             Action::SplitVertical => self.split_window(Split::Vertical),
             Action::SplitHorizontal => self.split_window(Split::Horizontal),
@@ -2404,6 +2533,7 @@ impl App {
         // The Style Configurator sits at the same level, and the two can never be
         // open together: a modal box is the only thing a keystroke reaches.
         self.styles.draw(grid, &self.theme);
+        self.plugins.draw(grid);
     }
 
     /// The strip of open documents, along the top row.
@@ -3355,6 +3485,55 @@ mod tests {
         // Closing is not tested through the shell: it writes the settings file,
         // and the file of whoever runs the suite is not this test's business.
         // `Styles::handle` covers the close on its own.
+    }
+
+    /// A plugin folder of this test's own, so the one on the machine is never
+    /// read and a folder of the developer's own plugins cannot change a screen.
+    fn plugin_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("npp-tui-app-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("a folder");
+        dir
+    }
+
+    #[test]
+    fn the_plugin_manager_opens_from_its_menu_row_and_takes_every_key() {
+        let mut app = app("one\n");
+        app.set_plugins(Plugins::new(Some(plugin_dir("manager")), &[]));
+        app.run(Action::ManagePlugins);
+        let text = drawn(&mut app, 80, 24).join("\n");
+        assert!(text.contains("Plugin Manager"), "{text}");
+        // An empty folder says so rather than drawing an empty box.
+        assert!(text.contains("No Plugins Installed"), "{text}");
+        // Modal: a letter is not an edit, and the box is still up.
+        app.handle(Key::Char('x'));
+        assert_eq!(app.tabs[0].editor.doc.text(), "one\n");
+        assert!(drawn(&mut app, 80, 24).join("\n").contains("Esc closes"));
+        app.handle(Key::Escape);
+        assert!(!drawn(&mut app, 80, 24).join("\n").contains("Plugin Manager"));
+    }
+
+    #[test]
+    fn a_plugin_command_with_no_plugin_behind_it_says_so_and_leaves_the_text() {
+        let mut app = app("one\n");
+        app.set_plugins(Plugins::new(Some(plugin_dir("missing")), &[]));
+        app.run(Action::Plugin(0, 0));
+        let message = app.message().unwrap_or_default().to_string();
+        assert!(message.starts_with("Plugin failed:"), "{message}");
+        assert_eq!(app.tabs[0].editor.doc.text(), "one\n");
+    }
+
+    #[test]
+    fn reloading_the_plugins_says_how_many_are_running() {
+        let mut app = app("one\n");
+        app.set_plugins(Plugins::new(Some(plugin_dir("reload")), &[]));
+        app.run(Action::ReloadPlugins);
+        assert_eq!(
+            app.message(),
+            Some("0 of 0 plugin(s) enabled"),
+            "{:?}",
+            app.message()
+        );
     }
 
     #[test]

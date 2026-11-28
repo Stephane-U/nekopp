@@ -31,6 +31,7 @@ mod find;
 mod keys;
 mod menus;
 mod palette;
+mod plugins;
 mod paramhint;
 mod prefs;
 mod prompt;

@@ -15169,3 +15169,85 @@ document behind the box was repainted too. `Escape` wrote
 `style keyword #0000C8` to `~/.config/npp/settings.txt` and the bar said
 `styles saved`; a second run of the program drew `#0000C8` on that row without
 being told it again.
+
+## The hundred-and-fifty-fifth pass: plugins, from the terminal
+
+The last widget of the plan's fourth phase, and the one where the terminal's answer
+had to be checked before it was written rather than after: whether a plugin can run
+here at all. It can, and the reason is a decision taken long before this pass. The
+interpreter, the scan of the folder, the switch and the bridge between a module and
+a document are `nn_core::plugin`'s, and that module's own header says why -- there
+is no window in it, so `npp` runs a command against the document being edited and
+`npp-mcp` runs the same command against text a client handed it. The terminal is
+the third caller, and what was missing was never the host: it was the folder, the
+box and the settings line.
+
+So this pass added no interpreter and no dependency. `crates/nn-tui/src/plugins.rs`
+holds a `Plugins`, which is `nn_core`'s host plus two fields of its own -- whether
+the manager is open, and which row is lit -- and the box over it: the window's title
+and its own hint line, one row per installed plugin with its name on the left and
+`Enabled` or `Disabled` on the right, `Space` to flip the row, `Esc` to close, and
+`No Plugins Installed` when the folder is empty, because an empty box reads as a bug
+rather than as an empty list. Fourteen rows at most, and the lit row kept inside the
+box when the folder holds more.
+
+The menu was the half that was not shared. The shared tree leaves the Plugins menu
+empty on purpose -- its rows are composed from a host's inventory and the tree is
+the one place that cannot know whether there is a host -- so `menus.rs` grew a
+`set_plugins`, which is the terminal's copy of what the window's bar does: manage,
+open the folder, reload, then one submenu per plugin, the plugin's name and its
+commands in the plugin's own words, each row carrying the pair
+`Action::Plugin(index, command)` the inventory gave it. Every rebuild of the bar
+installs those rows again, and a flip or a reload rebuilds them, so a command can
+never be run against an index a reload has moved. The pair is the shared action the
+window already uses, so the dispatcher needed three arms and not a new concept.
+
+Running a command is where the units change: the editor counts characters and a
+plugin counts bytes, so `run_plugin` converts the text, the caret and the selection
+once per command, hands the context in, and applies what comes back. A command that
+writes returns a whole document and replaces the buffer in one edit, which is one
+undo step rather than one per changed line; a command that traps leaves the document
+exactly as it was and puts its own sentence on the bar. The lines a plugin logs go
+to the bar as well, since a terminal has no console to spare: the screen is the
+console.
+
+Three sentences came across word for word, because they are what a reader learns
+about a file: `Loaded`, `Unloaded` and `Cannot load the plugin`. The last one is why
+a flip keeps its own answer rather than reading the row afterwards -- a row that
+says `Disabled` reads the same whether a plugin was switched off or never came on,
+and the two are not the same news. Plugins switch on at startup after the settings
+are applied and nowhere earlier, which is what "disabled until enabled" means here
+as it does in the window.
+
+### Verified
+
+`cargo test --offline --release`: 2,571 tests, 0 failed -- nn-app 1,008, nn-core
+1,031, nn-mcp 100, nn-shared 202, nn-tui 230. Fourteen are new, all in the terminal.
+Eight are the manager's: an empty folder is an empty list, a folder that is not
+there reads as an empty one and a program with no configuration directory does not
+panic, a file that is not a module is a failure rather than a row, a closed box
+takes no keys, walking an empty list stays on the first row and `Space` on nothing
+writes nothing, `Esc` closes and nothing else does, an empty folder draws the box
+that says so rather than no box at all, and a screen too small for the box is left
+alone.
+
+Three are the Plugins menu's: an empty folder gives the three management rows and
+the note under them, a folder of two plugins gives two literal submenus whose rows
+carry `Plugin(0, 1)` and `Plugin(1, 0)` rather than each other's, and a plugin that
+appears after a reload replaces the note. Three are the shell's: the manager opens
+from its row and takes every key while it is up -- a letter typed into it is not an
+edit -- a command with no plugin behind it says `Plugin failed:` on the bar and
+leaves the text, and a reload says `0 of 0 plugin(s) enabled`.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31 against the baseline: the window is untouched. The
+terminal's keystroke is unchanged at 13,798 bytes for the first paint and 419 for
+one keystroke -- the manager is a modal, not a per-frame cost.
+
+Through a pseudo terminal at 140x40 with the repository's own XML plugin built to
+wasm and copied into `~/.config/npp/plugins`: the manager listed `XML` and
+`Disabled`, `Space` said `Loaded XML` and wrote `plugin XML` to the settings file, a
+second run drew that row as `Enabled` without being told again, the Plugins menu
+listed the plugin and its five commands, and `Pretty Print` turned
+`<doc><a>one</a><b><c/></b></doc>` into six indented lines -- one `Ctrl+Z` put the
+one-liner back, which is the single undo step the design promised.
