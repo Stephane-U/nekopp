@@ -40,11 +40,19 @@ use crate::palette::Tone;
 use crate::results::Step;
 use crate::screen::Grid;
 
+/// How many rows sit above the tree: its title and the filter line.
+///
+/// The window's panel has the same two, with the same words: the title says what
+/// is listed and the filter line says that typing narrows it.
+const HEADER_ROWS: usize = 2;
+
 /// The workspace tree, its cursor, and whether the dock is up.
 pub struct Workspace {
     tree: Tree,
     /// The line above the rows: what the panel is showing.
     title: String,
+    /// What has been typed into the filter line.
+    filter: String,
     /// Index of the first visible row.
     scroll: usize,
     /// The row the cursor is standing on, as an index into `tree.rows()`.
@@ -60,6 +68,7 @@ impl Workspace {
         Workspace {
             tree: Tree::default(),
             title: String::new(),
+            filter: String::new(),
             scroll: 0,
             selected: 0,
             open: false,
@@ -76,6 +85,10 @@ impl Workspace {
     pub fn show(&mut self, tree: Tree, title: impl Into<String>) {
         self.tree = tree;
         self.title = title.into();
+        // The text goes with the tree it filtered: a scan arrives unfiltered,
+        // and a filter line still reading `src` over a tree that shows
+        // everything would be the dock telling a reader something untrue.
+        self.filter.clear();
         self.scroll = 0;
         self.selected = 0;
         self.open = true;
@@ -90,6 +103,7 @@ impl Workspace {
         self.open = false;
         self.tree = Tree::default();
         self.title.clear();
+        self.filter.clear();
         self.scroll = 0;
         self.selected = 0;
     }
@@ -112,6 +126,46 @@ impl Workspace {
     /// Whether the row at `index` is a folder.
     pub fn is_dir_at(&self, index: usize) -> bool {
         self.tree.rows().get(index).is_some_and(|entry| entry.dir)
+    }
+
+    /// The keys the filter line takes, answering whether it took them.
+    ///
+    /// A letter goes to the filter rather than to the document behind the dock.
+    /// That is not a mode being invented: the tree already holds the arrows
+    /// while it is up, and a reader walking a folder is not typing into the file
+    /// they have not opened. `Escape` clears the filter before it closes the
+    /// dock, because a filter is something the reader typed and has to be able
+    /// to take back; when this answers no, the shell offers the key to
+    /// [`Workspace::handle`], which is where the dock closes.
+    pub fn filter_key(&mut self, key: Key) -> bool {
+        if !self.open {
+            return false;
+        }
+        match key {
+            Key::Char(ch) => {
+                self.filter.push(ch);
+                self.refilter();
+                true
+            }
+            Key::Backspace if !self.filter.is_empty() => {
+                self.filter.pop();
+                self.refilter();
+                true
+            }
+            Key::Escape if !self.filter.is_empty() => {
+                self.filter.clear();
+                self.refilter();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Applies the filter to the tree, with the cursor back at the top.
+    fn refilter(&mut self) {
+        self.tree.set_filter(&self.filter);
+        self.scroll = 0;
+        self.selected = 0;
     }
 
     /// Handles a key, answering what it meant.
@@ -188,7 +242,7 @@ impl Workspace {
         if !self.open || rows == 0 || width == 0 {
             return;
         }
-        self.visible = rows.saturating_sub(1).max(1);
+        self.visible = rows.saturating_sub(HEADER_ROWS).max(1);
         self.clamp();
         let body = width.saturating_sub(1);
         for row in top..top + rows {
@@ -205,8 +259,15 @@ impl Workspace {
         let header = workspace::title(&self.title, &self.tree);
         let room = body.saturating_sub(1);
         grid.text(top, 0, &format!(" {}", truncate(&header, room)), Tone::Menu);
+        // The filter line always shows, with its caret: on a terminal there is
+        // no box to click, so the line that says typing narrows the tree is
+        // also the line that says where the typing goes.
+        if rows > 1 {
+            let filter = workspace::filter_line(&self.filter, true);
+            grid.text(top + 1, 0, &format!(" {}", truncate(&filter, room)), Tone::Menu);
+        }
         let entries: Vec<&Entry> = self.tree.rows();
-        for offset in 0..rows.saturating_sub(1) {
+        for offset in 0..rows.saturating_sub(HEADER_ROWS) {
             let index = self.scroll + offset;
             if index >= entries.len() {
                 break;
@@ -216,12 +277,12 @@ impl Workspace {
             } else {
                 Tone::Menu
             };
-            let at = top + 1 + offset;
+            let at = top + HEADER_ROWS + offset;
             for column in 0..body {
                 grid.put(at, column, ' ', tone);
             }
             let entry = entries[index];
-            let expanded = self.tree.is_expanded(&entry.path);
+            let expanded = self.tree.shows_children(&entry.path);
             let text = workspace::row(entry, expanded, body.saturating_sub(1));
             grid.text(at, 0, &format!(" {text}"), tone);
         }
@@ -297,14 +358,66 @@ mod tests {
         let mut workspace = Workspace::new();
         workspace.show(Tree::scan(std::slice::from_ref(&root)), "Folder as Workspace");
         let rows = drawn(&mut workspace, 8, 40);
-        // The line above the rows is the panel's title, with the count in it.
+        // The first line above the rows is the panel's title, with the count in
+        // it; the second is the filter, empty and holding the caret.
         assert_eq!(body(&rows[0]), " Folder as Workspace (3 files)");
+        assert_eq!(body(&rows[1]), " Filter: _");
         // Then the root, open, and its children one step in: folders first, as
         // the scan sorts them.
         let name = root.file_name().unwrap_or_default().to_string_lossy();
-        assert_eq!(body(&rows[1]), format!(" - {name}"));
-        assert_eq!(body(&rows[2]), "   + sub");
-        assert_eq!(body(&rows[3]), "     f0.txt");
+        assert_eq!(body(&rows[2]), format!(" - {name}"));
+        assert_eq!(body(&rows[3]), "   + sub");
+        assert_eq!(body(&rows[4]), "     f0.txt");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_letter_narrows_the_tree_and_escape_takes_the_filter_back_first() {
+        let (mut workspace, root) = dock("narrow", 3, 10, 40);
+        let all = workspace.row_count();
+        // The root always shows, so `f1` leaves two rows: the root, and the one
+        // file whose name has the fragment in it.
+        assert!(workspace.filter_key(Key::Char('f')));
+        assert!(workspace.filter_key(Key::Char('1')));
+        assert_eq!(workspace.row_count(), 2);
+        // The line says what was typed, and the rows under it are the ones left.
+        let rows = drawn(&mut workspace, 10, 40);
+        assert_eq!(body(&rows[1]), " Filter: f1_");
+        assert_eq!(body(&rows[3]), "     f1.txt");
+        // Backspace widens one letter at a time, and ends where it started.
+        assert!(workspace.filter_key(Key::Backspace));
+        assert_eq!(workspace.row_count(), 4, "the three files are back");
+        assert!(workspace.filter_key(Key::Backspace));
+        assert_eq!(workspace.row_count(), all);
+        // The cursor went back to the top with every refilter, not left where it
+        // was on a row the filter had just taken away.
+        assert_eq!(workspace.selected, 0);
+        assert_eq!(workspace.scroll, 0);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn escape_clears_the_filter_before_it_closes_the_dock() {
+        let (mut workspace, root) = dock("clear", 2, 10, 40);
+        workspace.filter_key(Key::Char('f'));
+        // The first Escape is the filter's: the dock stays up, showing all rows.
+        assert!(workspace.filter_key(Key::Escape));
+        assert!(workspace.is_open());
+        // With the line empty the Escape is the dock's, and it closes.
+        assert!(!workspace.filter_key(Key::Escape));
+        assert_eq!(workspace.handle(Key::Escape), Step::Closed);
+        assert!(!workspace.is_open());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_new_scan_forgets_the_filter_that_narrowed_the_old_tree() {
+        let (mut workspace, root) = dock("refilter", 3, 10, 40);
+        workspace.filter_key(Key::Char('s'));
+        workspace.show(Tree::scan(std::slice::from_ref(&root)), "Folder as Workspace");
+        let rows = drawn(&mut workspace, 10, 40);
+        assert_eq!(body(&rows[1]), " Filter: _");
+        assert_eq!(workspace.row_count(), 5);
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -314,16 +427,16 @@ mod tests {
         let rows = drawn(&mut workspace, 10, 40);
         // A closed folder is `+`, and opening it where it stands is one
         // keystroke and one call on the tree.
-        assert_eq!(body(&rows[2]), "   + sub");
-        assert_eq!(body(&rows[3]), "     f0.txt");
+        assert_eq!(body(&rows[3]), "   + sub");
+        assert_eq!(body(&rows[4]), "     f0.txt");
         // The cursor lands on the folder, which is the row under the root.
         workspace.handle(Key::Down);
         assert!(workspace.is_dir_at(1));
         let path = workspace.path_at(1).expect("a path");
         workspace.tree_mut().toggle(&path);
         let rows = drawn(&mut workspace, 10, 40);
-        assert_eq!(body(&rows[2]), "   - sub");
-        assert_eq!(body(&rows[3]), "       deep.txt", "the folder opened");
+        assert_eq!(body(&rows[3]), "   - sub");
+        assert_eq!(body(&rows[4]), "       deep.txt", "the folder opened");
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -357,14 +470,15 @@ mod tests {
     #[test]
     fn the_cursor_stays_on_screen_while_the_tree_scrolls_under_it() {
         let (mut workspace, root) = dock("scroll", 20, 6, 26);
-        // Five rows of tree under a header, so the sixth move scrolls by one.
-        for _ in 0..5 {
+        // Four rows of tree under the two header rows, so the fifth move
+        // scrolls by one.
+        for _ in 0..4 {
             workspace.handle(Key::Down);
         }
-        assert_eq!(workspace.selected + 1, 6);
+        assert_eq!(workspace.selected + 1, 5);
         assert_eq!(workspace.scroll, 1);
         workspace.handle(Key::LineEnd);
-        assert_eq!(workspace.scroll, workspace.row_count() - 5);
+        assert_eq!(workspace.scroll, workspace.row_count() - 4);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

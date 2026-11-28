@@ -33,7 +33,7 @@
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 use nn_core::Tree;
-use nn_shared::workspace::{row, title};
+use nn_shared::workspace::{filter_line, row, title};
 
 use crate::quad::QuadRenderer;
 use crate::theme::{Theme, ToGpu};
@@ -123,6 +123,11 @@ impl FolderPanel {
     pub fn show(&mut self, tree: Tree, title: impl Into<String>) {
         self.tree = tree;
         self.title = title.into();
+        // The text goes with the tree it filtered: a scan arrives unfiltered,
+        // and a box still reading `src` over a tree that shows everything would
+        // be the panel telling a reader something untrue.
+        self.filter.clear();
+        self.filter_focus = false;
         self.scroll = 0;
         self.selected = None;
         self.open = true;
@@ -390,13 +395,7 @@ impl FolderPanel {
     /// only affordance a text field drawn as text can offer.
     fn header_line(&self) -> String {
         let title = title(&self.title, &self.tree);
-        let filter = if self.filter_focus {
-            format!("Filter: {}_", self.filter)
-        } else if self.filter.is_empty() {
-            "Filter:".to_string()
-        } else {
-            format!("Filter: {}", self.filter)
-        };
+        let filter = filter_line(&self.filter, self.filter_focus);
         format!("{title}\n{filter}")
     }
 
@@ -410,7 +409,7 @@ impl FolderPanel {
         let Some(entry) = rows.get(index) else {
             return String::new();
         };
-        row(entry, self.tree.is_expanded(&entry.path), columns)
+        row(entry, self.tree.shows_children(&entry.path), columns)
     }
 
     /// Queues the panel background and its right border.
@@ -547,6 +546,20 @@ mod tests {
         let header = panel.header_line();
         assert!(header.starts_with("Folder as Workspace (0 files)"));
         assert!(header.ends_with("Filter:"));
+    }
+
+    #[test]
+    fn a_new_tree_forgets_the_filter_that_filtered_the_old_one() {
+        let mut panel = panel();
+        panel.show(tree(), "x");
+        panel.focus_filter();
+        panel.type_filter('a');
+        assert_eq!(panel.filter(), "a");
+        // A fresh scan arrives unfiltered, so the box has to arrive empty.
+        panel.show(tree(), "x");
+        assert_eq!(panel.filter(), "");
+        assert!(!panel.is_filter_focused());
+        assert!(panel.header_line().ends_with("Filter:"));
     }
 
     #[test]

@@ -14541,3 +14541,90 @@ when nothing is being recorded.
 Through a pseudo terminal on a file holding `x`: `Macro > Start Recording`, `abc`
 typed, and the bar read `REC 3  Ln 1, Col 4  UTF-8  LF`; `Stop Recording` and
 then `Playback` left the line as `abcabcx`.
+
+## The hundred-and-forty-seventh pass: the folder panel's filter
+
+The pass that docked the tree wrote down what it left out: the filter box. It is a
+text field, and the worry was that a field needs a focus, which a terminal does not
+have. That worry was the wrong shape. The tree already holds the keyboard while it
+is up -- it takes the arrows, `Enter` and `Escape`, and hands back nothing -- so a
+letter has somewhere to go that is not the document, and no focus has to be
+invented for it.
+
+So `Workspace::filter_key` takes the letters, and the shell offers them to it
+before the dock's own keys. A letter appends and refilters, `Backspace` takes one
+back while there is one to take, and `Escape` clears the line while it has text in
+it -- then a second `Escape` closes the dock, which is what the dock's own handler
+answers when the line is empty. Two presses to leave a filtered tree, because a
+filter is something the reader typed and has to be able to take back; one press
+when the line is already empty, which is the case that was there before.
+
+Every refilter puts the cursor back at the top of the tree and the scroll with it.
+The row the cursor was on may be one of the rows the filter just took away, and a
+cursor left at index nine of a two-row list is a cursor on nothing.
+
+Drawing the line cost a header row: `HEADER_ROWS` is two, the title and the filter,
+and the tree's own rows start under them. The line always shows, caret and all, cut
+to the dock's width like the title above it. In the window the field is a box with
+a border and a pointer can land in it; on a terminal there is nothing to click, so
+the line that says typing narrows the tree is also the line that says where the
+typing goes. Paging and the viewport shrink by one row to pay for it.
+
+Two bugs came out of writing it down. The window's panel kept its filter text when
+a new tree arrived: `show` replaced the tree and left the string, so a panel
+reading `Filter: src` could be showing every row of a folder nobody had filtered.
+It now clears the text with the tree, and so does the dock, for the same reason and
+with a test apiece.
+
+The second is older and was in both front-ends. A filter opens the path down to
+each match without touching what the reader had clicked open, so `rows()` shows a
+closed directory's children; the marker was read straight off `is_expanded`, so the
+row read `+ sub` with `deep.txt` underneath it. `Tree::shows_children` is the one
+question both front-ends now ask before drawing a row: a directory shows its
+children when it is expanded or when a filter is on. The window was telling the
+same small lie and no longer does.
+
+The words are the window's: `Filter:`, `Filter: src`, `Filter: src_` for a line
+with the keyboard, from `nn_shared::workspace::filter_line`, which
+`nn_shared::workspace::row` and `title` already sat beside.
+
+### Verified
+
+`cargo test --offline --release`: 2,513 tests, 0 failed -- nn-app 1,008, nn-core
+1,030, nn-mcp 100, nn-shared 198, nn-tui 177. Six are new. `nn-tui` gained four:
+a letter narrowing the tree to the matching rows and `Backspace` widening it one
+letter at a time, `Escape` clearing the filter before it closes the dock, a new
+scan forgetting the text that filtered the old tree, and the re-baselined header
+tests, which now expect the filter row and the rows one line lower. `nn-shared`
+gained the line's three wordings and its caret, `nn-app` the window's half of the
+first bug, and `nn-core`'s test for a filter over a collapsed directory now also
+checks the marker reads open and stops reading open when the filter is cleared.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: the terminal's dock is not in
+them yet, and the filter is the dock's own line.
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical.
+
+The terminal's keystroke, measured against the binary built from the commit before
+this one and with the same harness -- a pty at 140x40 on a four-hundred-line file,
+the bytes of the first paint and of the frame one keystroke causes:
+
+    13,798 bytes first paint   419 bytes for one keystroke, both binaries
+    13,798                     419                          this pass
+
+Three runs each, identical to the byte; the previous pass's figures came from a
+different harness and are not comparable with these.
+
+Through a pseudo terminal on a folder holding `one.txt`, `two.txt` and
+`sub/deep.txt`, `View > Folder as Workspace` then `de` drew
+
+     1  Folder as Workspace (3 fi…1 one
+     2  Filter: de_               │2
+     3  - p147dir                 │3
+     4    - sub                   │4
+     5        deep.txt            │
+
+with `one` alone in the document behind it, so no letter reached the text. One
+`Escape` cleared the line and left the dock up with every row back and `+ sub`
+reading closed again; a second took the dock down.

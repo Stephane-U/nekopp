@@ -41,6 +41,23 @@ pub fn title(name: &str, tree: &Tree) -> String {
     format!("{name} ({files}{more} {noun})")
 }
 
+/// The filter box's line: its label, the text, and a caret while it has the
+/// keyboard.
+///
+/// An empty box still draws its label, so there is somewhere to type and the
+/// reader is told that typing filters. The caret is one underscore at the end of
+/// the text -- the only affordance a text field drawn as one row of cells can
+/// offer, and the same one in both front-ends.
+pub fn filter_line(text: &str, focused: bool) -> String {
+    if focused {
+        format!("Filter: {text}_")
+    } else if text.is_empty() {
+        "Filter:".to_string()
+    } else {
+        format!("Filter: {text}")
+    }
+}
+
 /// `entry` as one row of the panel, cut to `columns`.
 ///
 /// A directory carries `-` when it is open and `+` when it is closed, which is
@@ -102,6 +119,14 @@ mod tests {
     fn a_long_name_is_cut_with_a_mark() {
         let long = entry("a_very_long_file_name.rs", false, 0);
         assert_eq!(row(&long, false, 8), "  a_ver…");
+    }
+
+    #[test]
+    fn the_filter_line_says_whether_it_has_the_keyboard() {
+        assert_eq!(filter_line("", false), "Filter:");
+        assert_eq!(filter_line("", true), "Filter: _");
+        assert_eq!(filter_line("src", false), "Filter: src");
+        assert_eq!(filter_line("src", true), "Filter: src_");
     }
 
     #[test]

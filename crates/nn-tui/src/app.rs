@@ -692,6 +692,14 @@ impl App {
         // list over the bottom of the screen is a picker with the keyboard, and
         // the tree is a dock that can wait. `Enter` opens the row under the
         // cursor -- a folder where it stands, a file in a tab of its own.
+        //
+        // Letters go to the dock's filter line before its own keys, so that
+        // typing in a tree narrowed by a click in the window narrows it here
+        // too. `Escape` is the filter's while there is text to take back, and
+        // the dock's once the line is empty.
+        if self.workspace.filter_key(key) {
+            return;
+        }
         if self.workspace.is_open() {
             match self.workspace.handle(key) {
                 Step::No => {}
@@ -3443,6 +3451,30 @@ mod tests {
         assert!(!app.workspace.is_open(), "the dock stayed up");
         assert_eq!(app.tabs.len(), 2);
         assert_eq!(app.tab().editor.doc.path(), Some(dir.join("two.txt").as_path()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_letter_narrows_the_dock_and_never_reaches_the_document() {
+        let dir = workspace_folder("filter");
+        let mut app = App::open(Some(&dir.join("one.txt"))).expect("open");
+        app.run(Action::FolderAsWorkspace);
+        let all = app.workspace.row_count();
+        let text = app.tab().editor.doc.text();
+        // `de` is in `deep.txt` and nowhere in the folder's own name, so the
+        // tree narrows to that file and the path down to it.
+        app.handle(Key::Char('d'));
+        app.handle(Key::Char('e'));
+        assert_eq!(app.tab().editor.doc.text(), text, "the letter was typed");
+        assert_eq!(app.workspace.row_count(), 3, "the rows did not narrow");
+        let rows = drawn(&mut app, 60, 12);
+        assert!(rows[1].contains("Filter: de_"), "{rows:?}");
+        // One Escape is the filter's, the next is the dock's.
+        app.handle(Key::Escape);
+        assert!(app.workspace.is_open(), "the dock went with the filter");
+        assert_eq!(app.workspace.row_count(), all);
+        app.handle(Key::Escape);
+        assert!(!app.workspace.is_open(), "the dock stayed up");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

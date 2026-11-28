@@ -265,6 +265,16 @@ impl Tree {
         self.expanded.contains(path)
     }
 
+    /// Whether the row for `path` shows the rows under it.
+    ///
+    /// While a filter is active every directory does, matching or not: the
+    /// filter shows the path down to each match, so the tree is open whether or
+    /// not anyone clicked it open. A `+` in front of a row with rows under it
+    /// would be the panel saying two things at once.
+    pub fn shows_children(&self, path: &Path) -> bool {
+        !self.filter.is_empty() || self.is_expanded(path)
+    }
+
     /// Opens or closes `path`, returning whether it is now expanded.
     ///
     /// A file cannot be expanded, so toggling one is a no-op that reports
@@ -540,6 +550,13 @@ mod tests {
         tree.set_filter("deep");
         // `sub` is closed, but the filter opens the path to the match.
         assert_eq!(names(&tree.rows()), vec!["root", "sub", "deep.txt"]);
+        // And the marker says so: a row with rows under it is not a `+`. Both
+        // front-ends ask this one question before they draw, so the window and
+        // the terminal cannot disagree about it.
+        let sub = scratch.root().join("sub");
+        assert!(tree.shows_children(&sub), "the marker says a closed folder");
+        tree.set_filter("");
+        assert!(!tree.shows_children(&sub), "the marker outlived the filter");
     }
 
     #[test]
