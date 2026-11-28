@@ -15593,3 +15593,42 @@ Through a pseudo terminal at 140 by 40: `Ctrl+F`, the pattern `line 3`, `Enter` 
 the caret on `Ln 4, Col 7` and the bar counted `1/111`; `F3` after it counted
 `2/111` and moved to `Ln 31, Col 7`. Both of those presses now go through
 `open_find` and `find_next` in the shared table rather than its own match.
+
+## The hundred-and-sixty-first pass: the panels, and two names for one thing
+
+The fourth group is three rows of the View menu: `Folder as Workspace`, `Function
+List`, and the folder chooser that fills the first of them. It is the smallest group
+so far and the one where the two shells had drifted furthest apart in spelling while
+doing the same work.
+
+The window calls the second `toggle_folder_workspace`, the terminal calls it
+`toggle_workspace`; the window's chooser is `PromptKind::OpenFolderAsWorkspace`, the
+terminal's is `PromptKind::Workspace`. None of that is a bug. All of it is the
+reason a shared name is worth having: `toggle_folder_workspace` and
+`open_folder_as_workspace` in the table say what the command does, and each shell
+keeps its own name for its own machinery one line further in, where a reader who is
+working on that shell will find it.
+
+The window's `OpenFolderAsWorkspace` arm also called `self.window.request_redraw()`
+by hand. So do a dozen arms over there, and every one of them is redundant:
+`State::run` ends with the same call, which is why the shared path does not carry
+it. That is not worth a pass of its own, but it is worth noting, because a shared
+table cannot inherit a shell's habits -- it can only inherit its operations -- and a
+habit that turns out to be redundant is the cheapest kind of drift to find.
+
+### Verified
+
+`cargo test --offline --release`: 2,597 tests, 0 failed -- nn-app 1,006, nn-core
+1,031, nn-mcp 100, nn-shared 212, nn-tui 248. One more than the pass before, in
+`nn-shared`: three rows, each checked against the operation it should have reached,
+with the toggle and the question kept apart -- a `Folder as Workspace` that opened a
+chooser instead of showing the tree would be a different command.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31 against the pass-1 baseline, and the terminal's
+keystroke is unchanged at 13,798 bytes for the first paint and 419 for one key.
+
+Through a pseudo terminal at 140 by 40, View and then `Function List` -- the row
+twenty-nine deep in that dropdown -- reached `toggle_function_list` in the shared
+table and answered `no symbols in this document`, which is what the terminal says
+about a file of plain lines.

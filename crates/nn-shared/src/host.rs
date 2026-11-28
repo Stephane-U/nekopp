@@ -30,7 +30,8 @@
 //! apart costs a user work rather than a moment's surprise. The view follows: how
 //! the text area is laid out, and how it is cut into two panes. The search group
 //! after that: the find bar and its replacement side, a step in either direction,
-//! and the list of what a search of a folder found.
+//! and the list of what a search of a folder found. Then the panels -- the
+//! function list, and the folder the files are read from.
 //!
 //! The rest of the vocabulary follows, a group a pass, until the last arm makes a
 //! new command a compile error rather than a row that does nothing in one of the two
@@ -128,6 +129,15 @@ pub trait Host {
     /// The same, the other way.
     fn previous_result(&mut self);
 
+    /// Shows, or puts away, the list of the functions in the document in front.
+    fn toggle_function_list(&mut self);
+
+    /// Shows, or puts away, the tree of the folder the document in front is in.
+    fn toggle_folder_workspace(&mut self);
+
+    /// Asks the person for a folder, and opens it beside the documents.
+    fn open_folder_as_workspace(&mut self);
+
     /// Leaves the program, writing and asking whatever this front-end has to.
     fn quit(&mut self);
 }
@@ -179,6 +189,9 @@ pub fn run(action: Action, host: &mut impl Host) -> bool {
         Action::SearchResultsWindow => host.show_search_results(),
         Action::NextSearchResult => host.next_result(),
         Action::PrevSearchResult => host.previous_result(),
+        Action::ToggleFunctionList => host.toggle_function_list(),
+        Action::FolderAsWorkspace => host.toggle_folder_workspace(),
+        Action::OpenFolderAsWorkspace => host.open_folder_as_workspace(),
         Action::Exit => host.quit(),
         _ => return false,
     }
@@ -281,6 +294,15 @@ mod tests {
         fn previous_result(&mut self) {
             self.note("previous result");
         }
+        fn toggle_function_list(&mut self) {
+            self.note("function list");
+        }
+        fn toggle_folder_workspace(&mut self) {
+            self.note("folder tree");
+        }
+        fn open_folder_as_workspace(&mut self) {
+            self.note("open folder");
+        }
         fn quit(&mut self) {
             self.note("quit");
         }
@@ -350,6 +372,23 @@ mod tests {
             (Action::SearchResultsWindow, "search results"),
             (Action::NextSearchResult, "next result"),
             (Action::PrevSearchResult, "previous result"),
+        ];
+        for (action, expected) in cases {
+            let mut host = Recorder::default();
+            assert!(run(action, &mut host), "{action:?} was not answered");
+            assert_eq!(host.calls, [expected.to_string()], "{action:?}");
+        }
+    }
+
+    #[test]
+    fn every_panel_command_reaches_its_own_operation() {
+        // Two of the three are toggles and one is a question; the table keeps them
+        // apart the way the menu does, since a `Folder as Workspace` that opened a
+        // chooser instead of showing the tree would be a different command.
+        let cases = [
+            (Action::ToggleFunctionList, "function list"),
+            (Action::FolderAsWorkspace, "folder tree"),
+            (Action::OpenFolderAsWorkspace, "open folder"),
         ];
         for (action, expected) in cases {
             let mut host = Recorder::default();

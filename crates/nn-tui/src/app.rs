@@ -1327,9 +1327,6 @@ impl App {
             Action::ManagePlugins => self.plugins.open(),
             Action::ReloadPlugins => self.reload_plugins(),
             Action::Plugin(plugin, command) => self.run_plugin(plugin, command),
-            Action::ToggleFunctionList => self.toggle_function_list(),
-            Action::FolderAsWorkspace => self.toggle_workspace(),
-            Action::OpenFolderAsWorkspace => self.prompt.open(PromptKind::Workspace),
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
             // Two fields, for the reason the find bar's own handling gives: the
             // step borrows the editor while it walks the matches.
@@ -3186,6 +3183,18 @@ impl nn_shared::host::Host for App {
 
     fn previous_result(&mut self) {
         self.step_hit(false);
+    }
+
+    fn toggle_function_list(&mut self) {
+        self.toggle_function_list();
+    }
+
+    fn toggle_folder_workspace(&mut self) {
+        self.toggle_workspace();
+    }
+
+    fn open_folder_as_workspace(&mut self) {
+        self.prompt.open(PromptKind::Workspace);
     }
 
     fn quit(&mut self) {

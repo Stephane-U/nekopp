@@ -6323,6 +6323,9 @@ impl State {
             | Action::SearchResultsWindow
             | Action::NextSearchResult
             | Action::PrevSearchResult
+            | Action::ToggleFunctionList
+            | Action::FolderAsWorkspace
+            | Action::OpenFolderAsWorkspace
             | Action::Exit => {}
             // The line commands that are a function of text are run through
             // `nn_core::ops`, which is the same table an MCP client reaches: a
@@ -6386,7 +6389,6 @@ impl State {
                 self.prompt.open(PromptKind::SplitLines, ",");
                 self.window.request_redraw();
             }
-            Action::FolderAsWorkspace => self.toggle_folder_workspace(),
             Action::ProjectPanel(index) => self.toggle_project_panel(index),
             Action::AddProjectRoot => self.add_project_root(),
             Action::RefreshFolder => self.refresh_workspace(),
@@ -6445,7 +6447,6 @@ impl State {
                 self.prefs.set_settings(settings);
                 self.apply_settings();
             }
-            Action::ToggleFunctionList => self.toggle_function_list(),
             Action::CompleteWord => self.open_completion(),
             Action::CompleteFunction => self.open_completion_in(CompletionMode::Function),
             Action::CompleteDocument => self.open_completion_in(CompletionMode::Document),
@@ -6521,10 +6522,6 @@ impl State {
             Action::CopyPath => self.copy_path(),
             Action::OpenContainingFolder => self.open_containing_folder(),
             Action::OpenInDefaultViewer => self.open_in_default_viewer(),
-            Action::OpenFolderAsWorkspace => {
-                self.prompt.open(PromptKind::OpenFolderAsWorkspace, "");
-                self.window.request_redraw();
-            }
             Action::SaveCopyAs => {
                 let initial = self
                     .tab()
@@ -10118,6 +10115,18 @@ impl nn_shared::host::Host for State {
 
     fn previous_result(&mut self) {
         self.step_result(false);
+    }
+
+    fn toggle_function_list(&mut self) {
+        self.toggle_function_list();
+    }
+
+    fn toggle_folder_workspace(&mut self) {
+        self.toggle_folder_workspace();
+    }
+
+    fn open_folder_as_workspace(&mut self) {
+        self.prompt.open(PromptKind::OpenFolderAsWorkspace, "");
     }
 
     fn quit(&mut self) {
