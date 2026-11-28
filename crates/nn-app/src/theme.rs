@@ -26,7 +26,7 @@
 // the half of the story that needs a GPU: sRGB bytes are authored, linear values
 // are what a shader is given.
 pub use nn_shared::color::{mix, Rgb};
-pub use nn_shared::theme::{from_stylers, Theme};
+pub use nn_shared::theme::{from_stylers, step, Theme, PALETTE};
 
 /// What the GPU needs a colour turned into.
 ///

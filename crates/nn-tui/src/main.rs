@@ -37,6 +37,7 @@ mod prompt;
 mod results;
 mod screen;
 mod split;
+mod styles;
 mod symbols;
 mod term;
 mod workspace;

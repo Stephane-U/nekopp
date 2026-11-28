@@ -57,6 +57,7 @@ use crate::prompt::{Kind as PromptKind, Prompt};
 use crate::results::{Results, Step};
 use crate::screen::Grid;
 use crate::split::{self, Rect, Split};
+use crate::styles::Styles;
 use crate::symbols::Symbols;
 use crate::workspace::Workspace;
 
@@ -345,6 +346,9 @@ pub struct App {
     /// terminal started twice behave the same way: what the dialog wrote last
     /// time is already in force when the first frame is drawn.
     prefs: Prefs,
+    /// The Style Configurator, which edits the same settings file from the other
+    /// end: the window's dialog and this one write the same `style` lines.
+    styles: Styles,
     /// The find bar and its pattern, which outlives the bar so `F3` works after
     /// it closes.
     find: Find,
@@ -388,6 +392,14 @@ pub struct App {
     /// The escapes the screen is painted with, built from the theme the settings
     /// name.
     palette: Palette,
+    /// The theme those escapes were built from.
+    ///
+    /// Kept beside the palette rather than resolved again when the Style
+    /// Configurator asks: the dialog shows the sixteen colours and steps one of
+    /// them, and both are questions about this value, not about the settings it
+    /// was built from. It is resolved in one place, in `apply_theme`, so a keystroke
+    /// in the dialog and a frame of the screen can never disagree.
+    theme: nn_shared::theme::Theme,
     message: Option<Message>,
     /// Set once `Ctrl+Q` has been pressed with unsaved changes, so the second
     /// press means what the first one warned about.
@@ -452,6 +464,7 @@ impl App {
             catalog: None,
             session: Session::default(),
             prefs: Prefs::new(),
+            styles: Styles::new(),
             find: Find::new(),
             results: Results::new(),
             symbols: Symbols::new(),
@@ -463,6 +476,7 @@ impl App {
             settings: Settings::load(),
             keymap: Keymap::default(),
             palette: Palette::of(&nn_shared::theme::Theme::DARK),
+            theme: nn_shared::theme::Theme::DARK,
             message: None,
             quit_armed: false,
             quit: false,
@@ -553,6 +567,7 @@ impl App {
             &self.settings.styles,
         );
         self.palette = Palette::of(&theme);
+        self.theme = theme;
     }
 
     /// Loads the localization the settings name, and the list the dialog offers.
@@ -722,6 +737,22 @@ impl App {
                 self.settings.save();
                 self.apply_settings();
                 self.say("preferences saved", false);
+            }
+            return;
+        }
+        // The Style Configurator is the other modal box, and it is modal for the
+        // same reason: it writes the settings file, and a key that reached the
+        // document behind it would be an edit made to a document the reader cannot
+        // see. A colour it stepped has to reach the screen on the same press, which
+        // is why the theme is resolved again rather than when the box closes.
+        if self.styles.is_open() {
+            if self.styles.handle(key, &mut self.settings, &self.theme) {
+                self.apply_theme();
+            }
+            if !self.styles.is_open() {
+                self.settings.save();
+                self.apply_settings();
+                self.say("styles saved", false);
             }
             return;
         }
@@ -1063,6 +1094,7 @@ impl App {
             Action::ParamHintPrev => self.hint.step(-1),
             Action::ParamHintNext => self.hint.step(1),
             Action::Preferences => self.prefs.open(),
+            Action::StyleConfigurator => self.styles.open(),
             Action::ToggleWrap => self.toggle_wrap(),
             Action::SplitVertical => self.split_window(Split::Vertical),
             Action::SplitHorizontal => self.split_window(Split::Horizontal),
@@ -2369,6 +2401,9 @@ impl App {
         // And the preferences dialog over everything: it is the most modal thing
         // the shell has, and a dropdown cannot be open at the same time.
         self.prefs.draw(grid, &self.settings);
+        // The Style Configurator sits at the same level, and the two can never be
+        // open together: a modal box is the only thing a keystroke reaches.
+        self.styles.draw(grid, &self.theme);
     }
 
     /// The strip of open documents, along the top row.
@@ -3285,6 +3320,41 @@ mod tests {
         app.settings_mut().theme = ThemeChoice::Dark;
         app.apply_settings();
         assert_eq!(app.palette().sgr(Tone::Text), dark);
+    }
+
+    #[test]
+    fn the_style_configurator_opens_from_its_menu_row() {
+        let mut app = app("fn one() {}\n");
+        app.handle(Key::Down);
+        let before = caret(&app);
+        app.run(Action::StyleConfigurator);
+        let text = drawn(&mut app, 80, 24).join("\n");
+        assert!(text.contains("Style Configurator"), "{text}");
+        // The box is modal: a letter typed while it is up is not an edit, and an
+        // arrow walks its rows rather than the document behind it.
+        app.handle(Key::Char('x'));
+        app.handle(Key::Down);
+        assert_eq!(app.tabs[0].editor.doc.text(), "fn one() {}\n");
+        assert_eq!(caret(&app), before);
+    }
+
+    #[test]
+    fn a_colour_stepped_in_the_dialog_reaches_the_palette_on_the_same_press() {
+        let mut app = app("");
+        app.run(Action::StyleConfigurator);
+        let before = app.palette().sgr(Tone::Keyword).to_string();
+        // Down from `Default text` to `Keyword`, then one step to the right.
+        app.handle(Key::Down);
+        app.handle(Key::Right);
+        assert_eq!(app.settings.styles.len(), 1);
+        assert_ne!(
+            app.palette().sgr(Tone::Keyword),
+            before,
+            "the colour was stepped and the screen kept the old escape"
+        );
+        // Closing is not tested through the shell: it writes the settings file,
+        // and the file of whoever runs the suite is not this test's business.
+        // `Styles::handle` covers the close on its own.
     }
 
     #[test]

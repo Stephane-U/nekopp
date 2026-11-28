@@ -15064,3 +15064,108 @@ and another letter left `1 Xone` on the left and `1 Y` on the right, with `[No
 Name] [+]` on the status bar because that is where the keyboard had gone. The
 fifteenth row stacked the two panes under a full-width row of `─`, and the
 fourteenth put them back together with `[No Name]*` and `p150.txt*` in the strip.
+
+## The hundred-and-fifty-fourth pass: the colours, as cells
+
+The Style Configurator is the last dialog the window has that the terminal did not.
+Its shape is the window's: one row per colour the editor draws with, a sample
+beside each and the colour written out as a hex triplet. What the terminal has to
+answer differently is only how a colour is shown, because a terminal has no swatch
+rectangle to fill.
+
+Two things moved before the box could be drawn. The twenty-four colours the dialog
+offers and the step from one to the next were in the windowed crate, which a
+terminal does not link, so `PALETTE` and `step` are now `nn_shared::theme`'s and the
+window's `adjust` is a call to `step` and a write of what it answered. That is the
+rule the theme itself followed when `Slot` and `record` moved, and for the same
+reason: two dialogs that offer twenty-four colours have to offer the same
+twenty-four, in the same order, measured from the same place. `step` answers `None`
+at either end of the palette rather than wrapping -- a wrap would take a held arrow
+round the whole palette and land the colour nowhere in particular -- so both
+front-ends stop at the ends, and the window's four tests for stepping still pass
+against the shared rule without an edit.
+
+The box is `crates/nn-tui/src/styles.rs`, and it is the preferences dialog's shape:
+a title over the top edge, one lit row, `Up`/`Down` and the page keys to walk,
+`Left`/`Right` to step, `Escape` to close. The keys along the bottom edge are the
+window's own sentence, `Up/Down select   Left/Right change   Esc close`, because a
+user who has read one dialog has read both. Closing writes, as the other dialog
+does, and the bar says `styles saved`: both front-ends now write the same
+`style <slot> #RRGGBB` lines to the same file, and either one applies what the
+other wrote, because the list of overrides and the theme they build are shared.
+
+A terminal shows a colour by drawing with it, in one of two ways. A slot that
+paints text gets four blocks in its colour; one that paints the cells behind the
+text -- the page, the selection, the caret, the gutter -- gets four cells of it,
+which is the same distinction the window's swatch makes by filling a rectangle.
+Which of the two a row gets is decided by the slot's own meaning, which is the
+question `Tone` already answers for the document.
+
+Two of the sixteen are the window's alone, and they say so rather than offering a
+colour that would change nothing. The terminal paints plain text with the slot
+called `Text`, so `Default text` reads `follows Text`; and it does not paint the
+caret's line at all, so `Current line` reads `not painted here`. Both take the key
+and write nothing -- the rule the preferences dialog follows for the two rows a
+terminal cannot honour, for the same reason: the settings file is shared, so a
+press here must not write a colour this front-end would then ignore.
+
+The shell keeps the theme it resolved in a field beside the palette, both set in
+`apply_theme`, because the dialog's sixteen rows and the step one of them takes are
+both questions about that value rather than about the settings it came from. A step
+resolves the theme again on the same press the colour moved, so the row's hex, the
+document behind the box and the escapes the terminal is sent can never be one
+keystroke apart. A terminal shorter than the list scrolls it, keeping the lit row
+inside the box, which the preferences dialog cannot do to its own seventeen rows
+and is worth doing here because the last two slots are the ones a reader reaches
+for.
+
+No chord opens it, in either front-end: the window's menu row carries none, and
+neither does this one -- `F9` is how a terminal reaches a menu. The row itself was
+already on the shared bar, `Style Configurator...` in Settings, so this pass was
+one arm in the shell's dispatcher rather than a row to add.
+
+### Verified
+
+`cargo test --offline --release`: 2,557 tests, 0 failed -- nn-app 1,008, nn-core
+1,031, nn-mcp 100, nn-shared 202, nn-tui 216. Fifteen are new. The window's
+thousand and eight are unchanged, which is the point of moving the palette rather
+than copying it.
+
+The four in `nn-shared` are the rule itself: a step walks from wherever the colour
+sits, measured on the dark theme's keyword, which is a palette entry and so is
+neither the first nor the last; a step past either end answers nothing; a colour
+outside the palette steps to the nearer end instead of to the middle; and every one
+of the sixteen slots steps forward from the dark theme, so no row is a dead key.
+
+The nine in `styles.rs` are the box. A closed one takes no key. The arrows walk
+sixteen slots and stop at both ends, and the page keys go to the ends rather than
+by a screenful. A step to the right writes the entry the window's dialog would
+write, and a step back replaces it rather than adding a second. A colour already at
+the end of the palette reports no change. `Default text` and `Current line` take
+both arrows and leave the settings empty. Every drawable row shows its own hex
+triplet and every row shows its label, and the two undrawn rows show their reason.
+`Escape` closes and keeps what was stepped. A fourteen-row grid scrolls the list so
+the last slot is the one drawn, with the hint still on the box's last row, and a
+grid too small for a box is left alone rather than drawn in slivers.
+
+The terminal's two are the shell's: the row opens the box, and a letter typed while
+it is up is not an edit while an arrow moves its rows rather than the caret; and a
+step changes the escape `Tone::Keyword` is painted with on the same press. Closing
+is not taken through the shell, because it writes the settings file and the file of
+whoever runs the suite is not a test's business -- `Styles::handle` covers the
+close.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31 against the baseline: the window is untouched. The
+terminal's keystroke is unchanged at 13,798 bytes for the first paint and 419 for
+one keystroke.
+
+Through a pseudo terminal at 140x40 on `one`, `two`, `three`: Settings and its
+second row drew the box with sixteen rows, the eight syntax colours and the gutter
+showing blocks, `Default text` reading `follows Text` and `Current line` reading
+`not painted here`. One `Down` and one `Right` took `Keyword` from `#569CD6` to
+`#0000C8`, and the same frame carried the new escape for the keyword colour, so the
+document behind the box was repainted too. `Escape` wrote
+`style keyword #0000C8` to `~/.config/npp/settings.txt` and the bar said
+`styles saved`; a second run of the program drew `#0000C8` on that row without
+being told it again.

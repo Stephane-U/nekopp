@@ -30,7 +30,7 @@ use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
 
 use crate::quad::QuadRenderer;
-use crate::theme::{Rgb, Theme, ToGpu};
+use crate::theme::{step, Theme, ToGpu};
 
 /// The width of the dialog, in pixels.
 const WIDTH: f32 = 460.0;
@@ -44,43 +44,14 @@ const VALUE_COLUMN: usize = 22;
 /// The width of a swatch, in pixels.
 const SWATCH_WIDTH: f32 = 34.0;
 
-/// The colours the configurator offers.
-///
-/// Twenty-four, chosen to cover what a syntax theme needs: neutrals for text and
-/// backgrounds, and a saturated and a muted version of each hue for keywords,
-/// strings, and comments.
-pub const PALETTE: [Rgb; 24] = [
-    Rgb::new(0, 0, 0),
-    Rgb::new(30, 30, 30),
-    Rgb::new(60, 60, 60),
-    Rgb::new(100, 100, 100),
-    Rgb::new(140, 140, 140),
-    Rgb::new(180, 180, 180),
-    Rgb::new(212, 212, 212),
-    Rgb::new(255, 255, 255),
-    Rgb::new(163, 21, 21),
-    Rgb::new(206, 145, 120),
-    Rgb::new(214, 120, 40),
-    Rgb::new(220, 180, 60),
-    Rgb::new(181, 206, 168),
-    Rgb::new(106, 153, 85),
-    Rgb::new(0, 128, 0),
-    Rgb::new(78, 201, 176),
-    Rgb::new(38, 127, 110),
-    Rgb::new(86, 156, 214),
-    Rgb::new(0, 0, 200),
-    Rgb::new(38, 79, 120),
-    Rgb::new(197, 134, 192),
-    Rgb::new(128, 0, 128),
-    Rgb::new(220, 220, 170),
-    Rgb::new(255, 240, 160),
-];
-
 // `Slot`, the record of overrides and the theme they build moved to `nn-shared`
 // in the hundred-and-seventeenth pass: which colours a user may change, what each
 // is called and how an override is written into a theme are the same questions in
-// a terminal, and the answer is the same `Theme`. What is left in this file is the
-// dialog -- glyphs, a swatch grid, a caret -- which is the window's alone.
+// a terminal, and the answer is the same `Theme`. The palette followed in the
+// hundred-and-fifty-fourth, when the terminal's own configurator was written: two
+// dialogs offering twenty-four colours have to offer the same twenty-four. What is
+// left in this file is the dialog -- glyphs, a swatch grid, a caret -- which is the
+// window's alone.
 pub use nn_shared::theme::{effective_theme, record, Slot};
 
 /// The modal style list.
@@ -195,28 +166,15 @@ impl StyleConfigurator {
     /// disk write when the colour is already at the end of the palette.
     pub fn adjust(&mut self, delta: i32) -> bool {
         let slot = self.selected();
-        let current = slot.get(&self.theme);
-        let at = PALETTE.iter().position(|&c| c == current);
-        let next = match at {
-            Some(at) => {
-                let last = PALETTE.len() as isize - 1;
-                (at as isize + delta as isize).clamp(0, last) as usize
+        match step(slot, &self.theme, delta) {
+            Some(next) => {
+                slot.set(&mut self.theme, next);
+                true
             }
-            // A colour that is not in the palette — the theme's own default —
-            // steps to the nearest end rather than jumping to the middle.
-            None => {
-                if delta >= 0 {
-                    0
-                } else {
-                    PALETTE.len() - 1
-                }
-            }
-        };
-        if PALETTE[next] == current {
-            return false;
+            // A colour at the end of the palette has nowhere to step, which is
+            // also what `step` says when the answer would be where it started.
+            None => false,
         }
-        slot.set(&mut self.theme, PALETTE[next]);
-        true
     }
 
     /// The value drawn on the right of `slot`.
@@ -400,6 +358,7 @@ impl StyleConfigurator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theme::{Rgb, PALETTE};
 
     fn dialog() -> StyleConfigurator {
         StyleConfigurator::new(Metrics::new(15.0, 20.0), Family::Monospace, 8.0)

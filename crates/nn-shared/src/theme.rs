@@ -1183,6 +1183,64 @@ pub fn record(overrides: &mut Vec<(Slot, Rgb)>, slot: Slot, color: Rgb) {
     overrides.sort_by_key(|(s, _)| Slot::ALL.iter().position(|x| x == s).unwrap_or(0));
 }
 
+/// The colours the style configurator offers, in the order it steps them.
+///
+/// Twenty-four, chosen to cover what a syntax theme needs: neutrals for text and
+/// backgrounds, and a saturated and a muted version of each hue for keywords,
+/// strings, and comments. It lives here rather than in either front-end because
+/// both dialogs offer it: a window user stepping a colour and a terminal user
+/// stepping the same colour have to land on the same twenty-four, in the same
+/// order, or the two dialogs disagree about what a colour is.
+pub const PALETTE: [Rgb; 24] = [
+    Rgb::new(0, 0, 0),
+    Rgb::new(30, 30, 30),
+    Rgb::new(60, 60, 60),
+    Rgb::new(100, 100, 100),
+    Rgb::new(140, 140, 140),
+    Rgb::new(180, 180, 180),
+    Rgb::new(212, 212, 212),
+    Rgb::new(255, 255, 255),
+    Rgb::new(163, 21, 21),
+    Rgb::new(206, 145, 120),
+    Rgb::new(214, 120, 40),
+    Rgb::new(220, 180, 60),
+    Rgb::new(181, 206, 168),
+    Rgb::new(106, 153, 85),
+    Rgb::new(0, 128, 0),
+    Rgb::new(78, 201, 176),
+    Rgb::new(38, 127, 110),
+    Rgb::new(86, 156, 214),
+    Rgb::new(0, 0, 200),
+    Rgb::new(38, 79, 120),
+    Rgb::new(197, 134, 192),
+    Rgb::new(128, 0, 128),
+    Rgb::new(220, 220, 170),
+    Rgb::new(255, 240, 160),
+];
+
+/// The colour `slot` steps to in `theme`, or `None` when it is already at the
+/// end of the palette.
+///
+/// A step is measured from where the slot currently sits, not from an index the
+/// dialog remembers: the theme's own colour is usually in the palette, and when
+/// it is not -- a hand-written `style` line, or a theme colour the palette does
+/// not carry -- the step goes to the nearer end rather than jumping to the
+/// middle. Stepping past either end stays put, so a held arrow does not wrap a
+/// colour round to the other side of the palette under the user's finger.
+pub fn step(slot: Slot, theme: &Theme, delta: i32) -> Option<Rgb> {
+    let current = slot.get(theme);
+    let next = match PALETTE.iter().position(|&color| color == current) {
+        Some(at) => {
+            let last = PALETTE.len() as isize - 1;
+            (at as isize + delta as isize).clamp(0, last) as usize
+        }
+        None if delta >= 0 => 0,
+        None => PALETTE.len() - 1,
+    };
+    let color = PALETTE[next];
+    (color != current).then_some(color)
+}
+
 /// Builds the theme the editor should draw with.
 ///
 /// The base palette is chosen first and the user's overrides go on top, so
@@ -1272,6 +1330,56 @@ mod slot_tests {
             let theme = effective_theme(base, &overrides);
             assert_eq!(Slot::Keyword.get(&theme), Rgb::new(1, 2, 3));
             assert_eq!(theme.background, base.background);
+        }
+    }
+
+    #[test]
+    fn a_step_walks_the_palette_from_where_the_colour_sits() {
+        // The dark theme's keyword colour is itself a palette entry, so the walk
+        // is measured from wherever it sits rather than assumed to start at 0.
+        let at = PALETTE
+            .iter()
+            .position(|&color| color == Slot::Keyword.get(&Theme::DARK))
+            .expect("the dark keyword colour is in the palette");
+        assert_eq!(
+            step(Slot::Keyword, &Theme::DARK, 1),
+            Some(PALETTE[at + 1])
+        );
+        assert_eq!(
+            step(Slot::Keyword, &Theme::DARK, -1),
+            Some(PALETTE[at - 1])
+        );
+    }
+
+    #[test]
+    fn a_step_past_either_end_stays_put() {
+        let mut theme = Theme::DARK;
+        Slot::Keyword.set(&mut theme, PALETTE[0]);
+        assert_eq!(step(Slot::Keyword, &theme, -1), None);
+        Slot::Keyword.set(&mut theme, PALETTE[PALETTE.len() - 1]);
+        assert_eq!(step(Slot::Keyword, &theme, 1), None);
+    }
+
+    #[test]
+    fn a_colour_outside_the_palette_steps_to_an_end() {
+        let mut theme = Theme::DARK;
+        Slot::Keyword.set(&mut theme, Rgb::new(1, 1, 1));
+        assert_eq!(step(Slot::Keyword, &theme, 1), Some(PALETTE[0]));
+        assert_eq!(
+            step(Slot::Keyword, &theme, -1),
+            Some(PALETTE[PALETTE.len() - 1])
+        );
+    }
+
+    #[test]
+    fn every_slot_can_be_stepped_from_the_dark_theme() {
+        for slot in Slot::ALL {
+            let next = step(slot, &Theme::DARK, 1);
+            assert!(next.is_some(), "{} does not step", slot.key());
+            // And the answer is a palette colour, not the one it came from.
+            let next = next.expect("a step");
+            assert!(PALETTE.contains(&next), "{}", slot.key());
+            assert_ne!(next, slot.get(&Theme::DARK), "{}", slot.key());
         }
     }
 
