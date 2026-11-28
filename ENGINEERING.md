@@ -15251,3 +15251,64 @@ second run drew that row as `Enabled` without being told again, the Plugins menu
 listed the plugin and its five commands, and `Pretty Print` turned
 `<doc><a>one</a><b><c/></b></doc>` into six indented lines -- one `Ctrl+Z` put the
 one-liner back, which is the single undo step the design promised.
+## The hundred-and-fifty-sixth pass: the playground, in characters
+
+The first pass of the plan's last phase, and the smallest honest one: the mode
+itself, in its plain tier, with no colour of its own. The simulation was written in
+cells from the start -- an orthographic camera, one unit to a line of text, a page
+and a kitten as lists of cards and boxes -- so `nn_core::playground` needed no
+change at all, and `crates/nn-tui/src/playground.rs` is the flattening.
+
+A card becomes the character it was carrying at the cell its centre names; a card
+fainter than a third is dropped, because a third of a glyph is not a glyph. A glow
+becomes `*`, `+` or `.` by how bright it is, since a terminal cannot blend. The
+kitten is her boxes: every cell a box reaches is hers, the box nearer the front
+wins a shared cell, and she is drawn twice her size about her own middle. That
+scale is a decision rather than a detail -- two and a quarter cells of cat is a
+smudge, five is a body, a head, two ears and a nose -- and growing her about the
+page's corner instead of her own would have walked her off the top of the screen,
+which is what the first version did. Her shades are characters: `█` fur, `▓` the
+dark side, `▒` the light, `●` the nose, `o` the eyes.
+
+The clock is the other half. The mode is the whole screen, so it is drawn instead
+of everything else and it owns every key -- `Esc` gives the editor back and
+anything else is somebody being there, which is all the evidence of a user a
+terminal can offer. It is also the one screen that has to move: the loop has always
+waited two hundred milliseconds for a key, and it now asks the shell for that
+number, which is forty while the page is up and the editor's own two hundred when
+it is not. The page is stepped once per iteration from one `Instant` and a
+difference, capped at a quarter of a second so a machine that was suspended does not
+land the kitten an hour into the future.
+
+The hint line is the window's own sentence, in the window's own order: the material
+and the page on the left, `· Esc leaves` after it, and `· the kitten is asleep`
+between the two when she has given up. A dimmed page is drawn in the comment's tone
+rather than in its own colours, which is the plain tier's whole answer to the
+screensaver.
+
+### Verified
+
+`cargo test --offline --release`: 2,577 tests, 0 failed -- nn-app 1,008, nn-core
+1,031, nn-mcp 100, nn-shared 202, nn-tui 236. Six are new. Four are the mode's: the
+page draws more than a hundred characters across the whole screen with the way out
+on the last row, the kitten covers more than eight cells of fur and keeps her nose,
+`Esc` is the only key the mode answers and a letter younger than four seconds of
+no input is not an edit but a wake-up, and a grid with no room draws nothing rather
+than panicking, with a point off the page dropped rather than wrapped round.
+
+Two are the shell's: the mode replaces the screen -- the page and its way out, and
+none of the editor's status bar behind it -- a letter typed while it is up is not an
+edit, and `Esc` gives the editor back with the document as it was; and the mode asks
+for the forty-millisecond tick while the editor asks for two hundred, the mode's own
+action closing it again, with a step of the clock and the editor up doing nothing.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31: the window has not changed. The terminal's keystroke
+is unchanged at 13,798 bytes for the first paint and 419 for one keystroke -- one
+`Instant` per loop iteration is the whole cost of the clock, and the faster tick
+exists only while the page does.
+
+Through a pseudo terminal at 140x40, View and its fifth row drew a page of JSON
+under a kitten six cells tall -- `▓▓▓`, `▒▒▒`, `█●●+`, `█●●.`, `█▒▒▒`, `▒▒▒` -- with
+`json · page 1 · Esc leaves` along the bottom row; two runs a minute apart drew the
+page in different places, so it moves; and `Esc` put the document back, unchanged.

@@ -53,6 +53,7 @@ use crate::keys::Key;
 use crate::menus::Menus;
 use crate::paramhint::ParamHint;
 use crate::palette::{self, Palette, Tone};
+use crate::playground::Playground;
 use crate::plugins::Plugins;
 use crate::prefs::Prefs;
 use crate::prompt::{Kind as PromptKind, Prompt};
@@ -62,6 +63,13 @@ use crate::split::{self, Rect, Split};
 use crate::styles::Styles;
 use crate::symbols::Symbols;
 use crate::workspace::Workspace;
+
+/// How long the loop waits for a key before drawing again, at rest.
+pub const TICK_MS: i32 = 200;
+
+/// The same, while the playground is up: the page has to move, and nothing else
+/// in the shell is being read at this rate.
+const PLAY_TICK_MS: i32 = 40;
 
 /// The furniture around the text, worked out once per frame.
 ///
@@ -351,6 +359,16 @@ pub struct App {
     /// The Style Configurator, which edits the same settings file from the other
     /// end: the window's dialog and this one write the same `style` lines.
     styles: Styles,
+    /// The playground, while it is up.
+    ///
+    /// `None` is the editor: the mode replaces the whole screen rather than
+    /// sharing it, which is what the window does with it too.
+    playground: Option<Playground>,
+    /// The clock the mode is stepped by, and the screen it was last drawn on.
+    last_frame: std::time::Instant,
+    screen: [u32; 2],
+    /// How many times the mode has been opened, which is part of its seed.
+    visits: u64,
     /// The plugins, and the manager over them.
     ///
     /// The runtime is `nn_core`'s, put there so the window and the MCP server
@@ -474,6 +492,10 @@ impl App {
             prefs: Prefs::new(),
             styles: Styles::new(),
             plugins: Plugins::new(None, &[]),
+            playground: None,
+            last_frame: std::time::Instant::now(),
+            screen: [80, 24],
+            visits: 0,
             find: Find::new(),
             results: Results::new(),
             symbols: Symbols::new(),
@@ -643,6 +665,56 @@ impl App {
         menus.set_catalog(self.catalog.clone());
         menus.set_plugins(&self.plugins.inventory());
         self.menus = menus;
+    }
+
+    /// Opens the playground, or gives the editor back.
+    ///
+    /// The seed is the window's recipe: the clock, turned, and the number of times
+    /// the mode has been opened in this session, so two visits in one minute are
+    /// not the same page.
+    fn toggle_playground(&mut self) {
+        if self.playground.is_some() {
+            self.playground = None;
+            return;
+        }
+        let clock = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_secs())
+            .unwrap_or(0);
+        let seed = clock.rotate_left(17) ^ self.visits;
+        self.visits = self.visits.wrapping_add(1);
+        self.playground = Some(Playground::new(seed, self.screen));
+        self.last_frame = std::time::Instant::now();
+    }
+
+    /// How long the loop waits for a key before looking at the window again.
+    ///
+    /// Two hundred milliseconds is the resting rate: a shell that redraws five
+    /// times a second with nothing happening is a shell that has decided nobody is
+    /// reading. A page of walking text is the one thing that has to move, so the
+    /// mode asks for the faster tick, and the editor's own rate is untouched by
+    /// it being there.
+    pub fn tick_ms(&self) -> i32 {
+        if self.playground.is_some() {
+            PLAY_TICK_MS
+        } else {
+            TICK_MS
+        }
+    }
+
+    /// Steps the clock: one frame's worth of the playground, and nothing at all
+    /// when the mode is not up.
+    ///
+    /// `dt` is capped because a machine that was suspended for an hour should not
+    /// land the kitten an hour into the future on the frame it wakes up, and
+    /// because a clock that goes backwards must not step it at all.
+    pub fn advance(&mut self) {
+        let now = std::time::Instant::now();
+        let dt = now.duration_since(self.last_frame).as_secs_f32();
+        self.last_frame = now;
+        if let Some(play) = &mut self.playground {
+            play.step(dt.clamp(0.0, 0.25), self.screen);
+        }
     }
 
     /// Puts the Plugins menu back in step with what is installed.
@@ -833,6 +905,15 @@ impl App {
     /// the edit, because re-lexing starts there rather than at the top of the
     /// file.
     pub fn handle(&mut self, key: Key) {
+        // The playground owns the whole screen while it is up, so it owns every
+        // key: `Esc` gives the editor back and anything else is somebody being
+        // there, which is all the evidence of a user a terminal can offer.
+        if let Some(play) = &mut self.playground {
+            if play.handle(key) {
+                self.playground = None;
+            }
+            return;
+        }
         // The preferences dialog is modal in both front-ends: while it is up,
         // every key is either one it understands or is dropped.
         if self.prefs.is_open() {
@@ -1221,6 +1302,7 @@ impl App {
             Action::ParamHintNext => self.hint.step(1),
             Action::Preferences => self.prefs.open(),
             Action::StyleConfigurator => self.styles.open(),
+            Action::Playground => self.toggle_playground(),
             Action::ManagePlugins => self.plugins.open(),
             Action::ReloadPlugins => self.reload_plugins(),
             Action::Plugin(plugin, command) => self.run_plugin(plugin, command),
@@ -2347,6 +2429,13 @@ impl App {
 
     /// Draws the whole window.
     pub fn draw(&mut self, grid: &mut Grid) {
+        self.screen = [grid.width() as u32, grid.height() as u32];
+        // The mode is the screen rather than a box over it, so it is drawn here
+        // and nothing else is.
+        if let Some(play) = &self.playground {
+            play.draw(grid);
+            return;
+        }
         let width = grid.width();
         let height = grid.height();
         if width == 0 || height == 0 {
@@ -3534,6 +3623,36 @@ mod tests {
             "{:?}",
             app.message()
         );
+    }
+
+    #[test]
+    fn the_playground_replaces_the_screen_and_escape_gives_the_editor_back() {
+        let mut app = app("one\ntwo\n");
+        app.run(Action::Playground);
+        let text = drawn(&mut app, 80, 24).join("\n");
+        // The mode is the screen: the page and its way out, and none of the
+        // editor's furniture behind it.
+        assert!(text.contains("Esc leaves"), "{text}");
+        assert!(!text.contains("UTF-8"), "{text}");
+        // Every key is the mode's while it is up, so a letter is not an edit.
+        app.handle(Key::Char('x'));
+        assert_eq!(app.tabs[0].editor.doc.text(), "one\ntwo\n");
+        app.handle(Key::Escape);
+        assert!(drawn(&mut app, 80, 24).join("\n").contains("UTF-8"));
+        assert_eq!(app.tabs[0].editor.doc.text(), "one\ntwo\n");
+    }
+
+    #[test]
+    fn the_mode_asks_for_the_faster_tick_and_leaves_the_editor_s_alone() {
+        let mut app = app("");
+        assert_eq!(app.tick_ms(), TICK_MS);
+        app.run(Action::Playground);
+        assert_eq!(app.tick_ms(), 40);
+        // The mode's own action closes it again, which is what the menu row does.
+        app.run(Action::Playground);
+        assert_eq!(app.tick_ms(), TICK_MS);
+        // And stepping the clock with the editor up is nothing at all.
+        app.advance();
     }
 
     #[test]

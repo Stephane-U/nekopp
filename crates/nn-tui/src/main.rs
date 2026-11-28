@@ -31,6 +31,7 @@ mod find;
 mod keys;
 mod menus;
 mod palette;
+mod playground;
 mod plugins;
 mod paramhint;
 mod prefs;
@@ -49,9 +50,6 @@ use std::sync::Mutex;
 use app::App;
 use screen::Frame;
 use term::Terminal;
-
-/// How long the loop waits for a key before looking at the window again.
-const TICK_MS: i32 = 200;
 
 /// The terminal settings to put back if the program dies of a panic.
 ///
@@ -96,10 +94,14 @@ fn run(path: Option<PathBuf>) -> std::io::Result<()> {
     let (width, height) = terminal.size();
     let mut frame = Frame::new(width, height);
     loop {
+        // The playground is a clock as well as a screen, so it is stepped once per
+        // frame; the editor is not, and one `Instant` per iteration is the whole
+        // cost of asking.
+        app.advance();
         frame.set_palette(app.palette());
         app.draw(frame.grid());
         terminal.write(frame.render())?;
-        match terminal.read(TICK_MS)? {
+        match terminal.read(app.tick_ms())? {
             None => {}
             Some(bytes) if bytes.is_empty() => break,
             Some(bytes) => {
