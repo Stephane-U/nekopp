@@ -56,6 +56,7 @@ use crate::prefs::Prefs;
 use crate::prompt::{Kind as PromptKind, Prompt};
 use crate::results::{Results, Step};
 use crate::screen::Grid;
+use crate::split::{self, Rect, Split};
 use crate::symbols::Symbols;
 use crate::workspace::Workspace;
 
@@ -134,7 +135,34 @@ struct Viewport {
     scroll_seg: usize,
 }
 
+/// The columns a line number takes: the digits of the longest, and the cell the
+/// bookmark margin has.
+fn gutter_width(doc: &Document) -> usize {
+    doc.len_lines().to_string().len() + 1
+}
+
 impl Viewport {
+    /// The viewport `tab` fills inside `rect`, with its scroll read out of the
+    /// tab.
+    ///
+    /// A pane's gutter is its own: the digits a line number takes come from the
+    /// line count of the document the pane shows, so two panes on different
+    /// documents start their text at different columns. That is why the gutter
+    /// belongs to the viewport rather than to the frame.
+    fn of(tab: &Tab, rect: Rect) -> Viewport {
+        let gutter = gutter_width(&tab.editor.doc);
+        Viewport {
+            top: rect.top,
+            bottom: rect.top + rect.rows,
+            gutter: rect.left,
+            left: rect.left + gutter,
+            cols: rect.cols.saturating_sub(gutter),
+            scroll_line: tab.scroll_line,
+            scroll_col: tab.scroll_col,
+            scroll_seg: tab.scroll_seg,
+        }
+    }
+
     /// The rows the text has.
     fn rows(self) -> usize {
         self.bottom.saturating_sub(self.top)
@@ -227,12 +255,68 @@ impl Tab {
     }
 }
 
+/// The documents one pane holds, and which of them is in front.
+///
+/// The window keeps two of these and so does this: a pane is what a split
+/// divides, what `Move to Other View` moves a tab between, and what the strip
+/// names. Only the one behind the keyboard lives here -- `App`'s own `tabs` and
+/// `active` are the pane in front -- which is the window's arrangement and its
+/// reason: every command was written against `self.tabs` before a second pane
+/// existed, so a change of focus swaps the fields rather than teaching all of
+/// them to ask which pane they mean.
+struct Pane {
+    tabs: Vec<Tab>,
+    active: usize,
+}
+
+impl Pane {
+    /// A pane holding `tab`.
+    fn new(tab: Tab) -> Self {
+        Pane {
+            tabs: vec![tab],
+            active: 0,
+        }
+    }
+
+    /// The tab in front.
+    fn tab(&self) -> &Tab {
+        &self.tabs[self.active]
+    }
+
+    /// Whether this pane holds the blank page a split opens it with, untouched.
+    ///
+    /// The window's rule, and the same test: a buffer with no name, no changes
+    /// and no characters is not a document, it is the space a second pane was
+    /// made with, so unsplitting drops it rather than leaving a stray
+    /// `[No Name]` in the strip.
+    fn is_placeholder(&self) -> bool {
+        self.tabs.len() == 1
+            && self.tabs[0].editor.doc.path().is_none()
+            && !self.tabs[0].editor.doc.is_dirty()
+            && self.tabs[0].editor.doc.len_chars() == 0
+    }
+}
+
 /// The shell around the open documents, as the terminal sees it.
 pub struct App {
     /// The open documents, in the order the window would show their tabs.
     tabs: Vec<Tab>,
     /// Which of them is in front.
     active: usize,
+    /// The other pane, when the window is split.
+    ///
+    /// Made when a split is asked for and dropped when it is undone, as in the
+    /// window: a pane that existed from the start would be a document nobody
+    /// opened.
+    other: Option<Pane>,
+    /// How the window is divided.
+    split: Split,
+    /// Whether the pane in front is the right-hand (or lower) one.
+    ///
+    /// Geometry only, like the window's field of the same name: the tabs in front
+    /// are always `self.tabs`, and this says which of the two rectangles they are
+    /// drawn in.
+    focused_second: bool,
     /// The columns the text area had in the last frame.
     ///
     /// Kept because a vertical move is a move between rows while wrapping is on,
@@ -359,6 +443,9 @@ impl App {
         let mut app = App {
             tabs: vec![Tab::new(doc)],
             active: 0,
+            other: None,
+            split: Split::None,
+            focused_second: false,
             view_cols: 0,
             view_rows: 0,
             menus: Menus::new(&Keymap::default(), &[]),
@@ -425,6 +512,33 @@ impl App {
         self.apply_theme();
         self.apply_language();
         self.keymap = self.settings.keymap.clone();
+        self.bind_focus_other();
+    }
+
+    /// Binds `Focus on Another View` to `F6`, unless something else already runs
+    /// on it.
+    ///
+    /// The one chord this front-end adds, and the reason it exists is that the
+    /// window's way of moving the focus is a click: `Focus on Another View` is in
+    /// the menu, and the window has no key for it because it does not need one. A
+    /// terminal has no pointer, so the command gets a key here -- Turbo Vision's
+    /// shells have put `F6` on exactly this since DOS -- and the binding goes
+    /// through the keymap like every other, so the preferences dialog shows it and
+    /// a user who wants another key gets another key.
+    fn bind_focus_other(&mut self) {
+        if !self.keymap.display(Action::FocusOtherView).is_empty() {
+            return;
+        }
+        let chord = Chord {
+            ctrl: false,
+            shift: false,
+            alt: false,
+            key: KeyName::Function(6),
+        };
+        if self.keymap.lookup(&chord).is_some() {
+            return;
+        }
+        self.keymap.set(Action::FocusOtherView, chord);
     }
 
     /// Resolves the theme the settings name into the escapes the screen uses.
@@ -950,6 +1064,12 @@ impl App {
             Action::ParamHintNext => self.hint.step(1),
             Action::Preferences => self.prefs.open(),
             Action::ToggleWrap => self.toggle_wrap(),
+            Action::SplitVertical => self.split_window(Split::Vertical),
+            Action::SplitHorizontal => self.split_window(Split::Horizontal),
+            Action::Unsplit => self.unsplit(),
+            Action::RotateSplit => self.rotate_split(),
+            Action::MoveToOtherView => self.move_to_other(),
+            Action::FocusOtherView => self.focus_other(),
             Action::Find => self.find.open(&self.tabs[self.active].editor),
             Action::FindInFiles => self.prompt.open(PromptKind::FindInFiles),
             Action::SearchResultsWindow => self.search_results_window(),
@@ -1062,6 +1182,131 @@ impl App {
             },
             false,
         );
+    }
+
+    /// Splits the window in `split`, making the second pane the first time.
+    ///
+    /// The frame divides what it has, so a terminal too small for two panes of a
+    /// readable width is told so here rather than shown half a document: the last
+    /// frame's own numbers are what decides, and a shell that has not drawn one
+    /// yet lets the split through.
+    fn split_window(&mut self, split: Split) {
+        let room = match split {
+            Split::Vertical => self.view_cols > 2 * split::MIN_PANE_COLS,
+            _ => self.view_rows >= 3,
+        };
+        if self.view_cols > 0 && !room {
+            self.say("the terminal is too small to split", true);
+            return;
+        }
+        self.ensure_split();
+        self.split = split;
+        let what = match split {
+            Split::Vertical => "split vertically",
+            Split::Horizontal => "split horizontally",
+            Split::None => "single view",
+        };
+        self.say(what, false);
+    }
+
+    /// Creates the second pane if there is not one already.
+    ///
+    /// A blank page, which is what the window opens a second view on: the pane is
+    /// a place to put a document, and one that arrived holding a copy of something
+    /// would be a document nobody asked to open.
+    fn ensure_split(&mut self) {
+        if self.other.is_some() {
+            return;
+        }
+        self.other = Some(Pane::new(Tab::new(Document::new())));
+        if self.split == Split::None {
+            self.split = Split::Vertical;
+        }
+    }
+
+    /// Goes back to one pane, keeping both panes' documents as tabs.
+    ///
+    /// The blank page a split opened the second pane with is dropped rather than
+    /// carried back as a `[No Name]`, which is the window's rule.
+    fn unsplit(&mut self) {
+        let Some(mut other) = self.other.take() else {
+            self.say("the window is not split", true);
+            return;
+        };
+        if other.is_placeholder() {
+            other.tabs.clear();
+        }
+        self.tabs.append(&mut other.tabs);
+        if self.active >= self.tabs.len() {
+            self.active = self.tabs.len().saturating_sub(1);
+        }
+        self.split = Split::None;
+        self.focused_second = false;
+        self.say("single view", false);
+    }
+
+    /// Turns the split a quarter: side by side becomes one above the other.
+    fn rotate_split(&mut self) {
+        if !self.split.is_split() || self.other.is_none() {
+            self.say("the window is not split", true);
+            return;
+        }
+        self.split = self.split.flipped();
+    }
+
+    /// Makes the other pane the one the keyboard is talking to.
+    fn focus_other(&mut self) {
+        if self.other.is_none() {
+            self.say("the window is not split", true);
+            return;
+        }
+        self.swap_panes();
+    }
+
+    /// Exchanges the two panes, which is how the focus moves between them.
+    ///
+    /// The fields are swapped rather than every command learning to ask which
+    /// pane it means, and the geometry flips with them: what the user sees is the
+    /// same two documents in the same two places with the other one active. The
+    /// window's trick, and its reason -- the rest of this file was written when
+    /// there was one pane.
+    fn swap_panes(&mut self) {
+        let Some(mut other) = self.other.take() else {
+            return;
+        };
+        std::mem::swap(&mut self.tabs, &mut other.tabs);
+        std::mem::swap(&mut self.active, &mut other.active);
+        self.other = Some(other);
+        self.focused_second = !self.focused_second;
+    }
+
+    /// Moves the document in front into the other pane, splitting if needed.
+    ///
+    /// The focus follows it, as in the window: the point of moving a tab is to go
+    /// on working on it over there. A pane left with nothing goes away, which is
+    /// also the window's answer -- a view holding no document is not a view.
+    fn move_to_other(&mut self) {
+        self.ensure_split();
+        let Some(other) = &mut self.other else {
+            return;
+        };
+        if other.is_placeholder() {
+            other.tabs.clear();
+        }
+        let moved = self.tabs.remove(self.active);
+        other.tabs.push(moved);
+        other.active = other.tabs.len() - 1;
+        let emptied = self.tabs.is_empty();
+        if !emptied && self.active >= self.tabs.len() {
+            self.active = self.tabs.len() - 1;
+        }
+        self.swap_panes();
+        if emptied {
+            self.other = None;
+            self.split = Split::None;
+            self.focused_second = false;
+        }
+        self.say("moved to the other view", false);
     }
 
     /// Writes the document back, and says what happened.
@@ -1869,7 +2114,7 @@ impl App {
                 None => break,
             }
         }
-        let width = self.display_column(at.0, self.line_length(at.0));
+        let width = self.display_column(at.0, self.line_length_here(at.0));
         let target = (at.1 * cols + row_col).min(width);
         let position = self.editor().doc.line_to_char(at.0) + self.char_at_display(at.0, target);
         if extend {
@@ -1910,7 +2155,7 @@ impl App {
     /// and a wide glyph for two columns, which is what the drawing does and
     /// therefore what the rows are.
     fn row_count(&self, line: usize) -> usize {
-        let width = self.display_column(line, self.line_length(line));
+        let width = self.display_column(line, self.line_length_here(line));
         width.div_ceil(self.view_cols.max(1)).max(1)
     }
 
@@ -1924,13 +2169,7 @@ impl App {
             }
             display = advance(display, ch, self.settings.tab_width);
         }
-        self.line_length(line)
-    }
-
-    /// How many columns the line numbers take, with their trailing space.
-    fn gutter_width(&self) -> usize {
-        let digits = self.tab().editor.doc.len_lines().to_string().len();
-        digits + 1
+        self.line_length_here(line)
     }
 
     /// The display column of character `column` of `line`, with tabs expanded.
@@ -1963,7 +2202,6 @@ impl App {
         } else {
             0
         };
-        let gutter = (dock + self.gutter_width()).min(width);
         // The strip is drawn only when there is more than one document to name,
         // which is the window's rule, and only on a screen tall enough to spare
         // the row: two documents and two rows is a shell with nowhere to type.
@@ -1996,18 +2234,26 @@ impl App {
             status_row: height - 1,
         };
         let status_row = layout.status_row;
-        // The one pane there is, until a split says otherwise: from under the
-        // strip to the top of whatever is stacked above the bar.
-        let mut view = Viewport {
+        // The area the panes share: under the strip, above whatever is stacked
+        // over the bar, to the right of the tree. A window that is not split
+        // gives all of it to one pane; a split shares it and keeps a cell for
+        // the divider. `self.other` has to be there as well as the setting: a
+        // split that was undone leaves `Split::None` behind, but a pane is only
+        // drawn when a pane exists.
+        let area = Rect {
             top: usize::from(strip),
-            bottom: layout.bottom(),
-            gutter: dock,
-            left: gutter,
-            cols: width - gutter,
-            scroll_line: self.tab().scroll_line,
-            scroll_col: self.tab().scroll_col,
-            scroll_seg: self.tab().scroll_seg,
+            left: dock,
+            rows: layout.bottom().saturating_sub(usize::from(strip)),
+            cols: width.saturating_sub(dock),
         };
+        let divided =
+            split::panes(self.split, area).filter(|_| self.other.is_some());
+        let (front, behind) = match divided {
+            Some((first, second)) if self.focused_second => (second, Some(first)),
+            Some((first, second)) => (first, Some(second)),
+            None => (area, None),
+        };
+        let mut view = Viewport::of(self.tab(), front);
         let text_rows = view.rows();
 
         // The core moves by a screenful on Page Up and Page Down, and it takes
@@ -2058,60 +2304,33 @@ impl App {
         view.scroll_seg = self.tab().scroll_seg;
         self.view_cols = view.cols;
         self.view_rows = text_rows;
-        let caret = self.editor().caret();
-        let selection = self.editor().selection_start()..self.editor().selection_end();
-
-        for row in view.top..view.bottom {
-            // Every row is painted edge to edge, in the two tones the windowed
-            // editor uses for the same strips. Leaving the cells past the end of
-            // a line alone would let the terminal's own background through, and
-            // it would leave a menu's box behind after a dropdown closed over
-            // those cells: a frame that only writes what it has something to say
-            // about cannot erase.
-            for column in view.gutter..view.left.min(view.edge()) {
-                grid.put(row, column, ' ', Tone::Gutter);
-            }
-            for column in view.left..view.edge().min(width) {
-                grid.put(row, column, ' ', Tone::Text);
+        // The pane behind first: a box opens over the text, and what is drawn
+        // last is what it may cover. Its own scroll is what it was left at --
+        // only the pane in front follows the caret, because only it has one.
+        if let Some(rect) = behind {
+            if let Some(other) = self.other.as_ref() {
+                let behind = Viewport::of(other.tab(), rect);
+                self.draw_pane(grid, other.tab(), behind);
             }
         }
-
-        // The lines, one after another, each taking as many rows as it needs:
-        // one while wrapping is off, a screenful or more for a long line while
-        // it is on.
-        let mut row = view.top;
-        let mut line = self.tab_mut().scroll_line;
-        let mut skip = if wrap { self.tab_mut().scroll_seg } else { 0 };
         // Where the caret ended up on the screen, which is where the completion
         // list hangs from: only the line the caret is on can answer that, and
         // only once it has been drawn.
-        let mut caret_cell = None;
-        while row < view.bottom && line < self.editor().doc.len_lines() {
-            if skip == 0 {
-                // A line wears its number on its first row, and a continuation
-                // row has none: the strip reads as one line rather than as
-                // several with the same number.
-                let (start, text) = (view.gutter, view.left);
-                self.draw_gutter(grid, row, line, start, text, caret_line);
+        let (caret_cell, last_line) = self.draw_pane(grid, self.tab(), view);
+        self.tab_mut().visible_until = last_line;
+        // The divider last of the three, so neither pane can paint over it.
+        if let Some(bar) = split::divider(self.split, area) {
+            let glyph = if self.split == Split::Vertical {
+                '│'
+            } else {
+                '─'
+            };
+            for row in bar.top..bar.top + bar.rows {
+                for column in bar.left..bar.left + bar.cols {
+                    grid.put(row, column, glyph, Tone::MenuBorder);
+                }
             }
-            let drawn = self.draw_line(
-                grid,
-                row,
-                line,
-                view,
-                caret,
-                &selection,
-                skip,
-                wrap,
-            );
-            if drawn.caret.is_some() {
-                caret_cell = drawn.caret;
-            }
-            row += drawn.rows;
-            line += 1;
-            skip = 0;
         }
-        self.tab_mut().visible_until = line;
         if strip {
             self.draw_strip(grid, 0, width);
         }
@@ -2213,9 +2432,11 @@ impl App {
     }
 
     /// Puts the line number, right-aligned, at the left of `row`.
+    #[allow(clippy::too_many_arguments)]
     fn draw_gutter(
         &self,
         grid: &mut Grid,
+        tab: &Tab,
         row: usize,
         line: usize,
         left: usize,
@@ -2235,7 +2456,7 @@ impl App {
         // The one cell between the number and the text is the bookmark margin,
         // as it is in the window: a dot on the lines that carry one, and the
         // gutter's own blank everywhere else, so the numbers never shift.
-        if self.tab().editor.doc.is_bookmarked(line) {
+        if tab.editor.doc.is_bookmarked(line) {
             grid.put(row, gutter - 1, '\u{2022}', Tone::Bookmark);
         } else {
             grid.put(row, gutter - 1, ' ', tone);
@@ -2323,6 +2544,72 @@ impl App {
         }
     }
 
+    /// Draws one pane: its gutter and its text, line by line.
+    ///
+    /// Answers where the pane's caret landed on the screen -- which is where a
+    /// box hangs from, and `None` when the caret is off the screen or the pane
+    /// has no caret to show -- and the first line the frame had no room for, so
+    /// that the pane in front can follow a caret that has left the screen.
+    fn draw_pane(
+        &self,
+        grid: &mut Grid,
+        tab: &Tab,
+        view: Viewport,
+    ) -> (Option<(usize, usize)>, usize) {
+        // Every row is painted edge to edge, in the two tones the windowed
+        // editor uses for the same strips. Leaving the cells past the end of a
+        // line alone would let the terminal's own background through, and it
+        // would leave a menu's box behind after a dropdown closed over those
+        // cells: a frame that only writes what it has something to say about
+        // cannot erase.
+        for row in view.top..view.bottom {
+            for column in view.gutter..view.left.min(view.edge()) {
+                grid.put(row, column, ' ', Tone::Gutter);
+            }
+            for column in view.left..view.edge() {
+                grid.put(row, column, ' ', Tone::Text);
+            }
+        }
+        let wrap = self.settings.wrap && view.cols > 0;
+        let caret = tab.editor.caret();
+        let caret_line = tab.editor.caret_line();
+        let selection = tab.editor.selection_start()..tab.editor.selection_end();
+        // The lines, one after another, each taking as many rows as it needs:
+        // one while wrapping is off, a screenful or more for a long line while
+        // it is on.
+        let mut row = view.top;
+        let mut line = view.scroll_line;
+        let mut skip = if wrap { view.scroll_seg } else { 0 };
+        let mut caret_cell = None;
+        while row < view.bottom && line < tab.editor.doc.len_lines() {
+            if skip == 0 {
+                // A line wears its number on its first row, and a continuation
+                // row has none: the strip reads as one line rather than as
+                // several with the same number.
+                let (start, text) = (view.gutter, view.left);
+                self.draw_gutter(grid, tab, row, line, start, text, caret_line);
+            }
+            let drawn = self.draw_line(
+                grid,
+                tab,
+                row,
+                line,
+                view,
+                caret,
+                &selection,
+                skip,
+                wrap,
+            );
+            if drawn.caret.is_some() {
+                caret_cell = drawn.caret;
+            }
+            row += drawn.rows;
+            line += 1;
+            skip = 0;
+        }
+        (caret_cell, line)
+    }
+
     /// Puts the line on the screen, from its first visible row, and answers how
     /// many rows it took.
     ///
@@ -2334,6 +2621,7 @@ impl App {
     fn draw_line(
         &self,
         grid: &mut Grid,
+        tab: &Tab,
         row: usize,
         line: usize,
         view: Viewport,
@@ -2342,11 +2630,11 @@ impl App {
         skip: usize,
         wrap: bool,
     ) -> Drawn {
-        let line_start = self.tab().editor.doc.line_to_char(line);
+        let line_start = tab.editor.doc.line_to_char(line);
         let mut display = 0usize;
         let mut used = 1usize;
         let mut caret_cell = None;
-        for (index, ch) in self.tab().editor.doc.line_chars(line).enumerate() {
+        for (index, ch) in tab.editor.doc.line_chars(line).enumerate() {
             if ch == '\n' || ch == '\r' {
                 break;
             }
@@ -2360,7 +2648,7 @@ impl App {
             } else if selection.contains(&char_index) {
                 Tone::Selection
             } else {
-                palette::tone(self.tab().editor.doc.style_at(char_index))
+                palette::tone(tab.editor.doc.style_at(char_index))
             };
             // A tab is a run of cells rather than a character, and a run can
             // straddle the column a wrapped row ends on: each cell is placed on
@@ -2404,7 +2692,7 @@ impl App {
         // The caret past the last character takes a cell of its own, and a line
         // that fills its rows exactly gets one more for it: the caret is a thing
         // the line is a cell wider for, not an ornament on the last character.
-        if caret == line_start + self.line_length(line) {
+        if caret == line_start + Self::line_length(tab, line) {
             match self.cell_of(row, display, view, wrap, skip) {
                 CellAt::Put(at_row, column) => {
                     grid.put(at_row, column, ' ', Tone::Caret);
@@ -2430,9 +2718,14 @@ impl App {
         }
     }
 
-    /// How many characters `line` holds, without its terminator.
-    fn line_length(&self, line: usize) -> usize {
-        self.tab().editor.doc.line_len(line)
+    /// How many characters `line` of `tab` holds, without its terminator.
+    fn line_length(tab: &Tab, line: usize) -> usize {
+        tab.editor.doc.line_len(line)
+    }
+
+    /// The same, for the tab in front, which is all a motion ever asks about.
+    fn line_length_here(&self, line: usize) -> usize {
+        Self::line_length(self.tab(), line)
     }
 
     /// The bar at the bottom: where the file is, and where the caret is in it.
@@ -3200,6 +3493,133 @@ mod tests {
         // two ways of marking a line look alike.
         let rows = drawn(&mut app, 48, 6);
         assert!(rows[0].contains('\u{2022}'), "{:?}", rows);
+    }
+
+    #[test]
+    fn a_vertical_split_draws_two_panes_and_a_divider() {
+        let mut app = app("one\ntwo\n");
+        app.run(Action::SplitVertical);
+        let rows = drawn(&mut app, 60, 6);
+        // Sixty columns, one of them the divider: thirty either side of it, the
+        // first pane numbered from the left edge and the second from its own.
+        assert_eq!(rows[0].chars().nth(29), Some('│'), "{:?}", rows);
+        assert!(rows[0].starts_with("1 one"), "{:?}", rows);
+        let right: String = rows[0].chars().skip(30).collect();
+        assert!(right.starts_with("1"), "the second pane drew {right:?}");
+        assert!(right.trim_start_matches('1').trim().is_empty(), "{right:?}");
+        // Both panes run the whole height above the status bar.
+        assert_eq!(rows[4].chars().nth(29), Some('│'), "{:?}", rows);
+        assert!(!rows[5].contains('│'), "the bar is not divided: {:?}", rows);
+    }
+
+    #[test]
+    fn a_split_gives_each_pane_its_own_document_and_f6_moves_between_them() {
+        let mut app = app("one\n");
+        app.run(Action::SplitVertical);
+        // The keyboard is in the left pane, so a letter goes into the file that
+        // was there before the split.
+        app.handle(Key::Char('x'));
+        assert_eq!(app.tab().editor.doc.text().as_str(), "xone\n");
+        // F6 is this front-end's own chord, because the window focuses a pane
+        // with the mouse and a terminal has none.
+        app.handle(Key::Function(6));
+        assert_eq!(
+            app.tab().editor.doc.path(),
+            None,
+            "the blank page is in front after F6"
+        );
+        app.handle(Key::Char('y'));
+        assert_eq!(app.tab().editor.doc.text().as_str(), "y");
+        let rows = drawn(&mut app, 60, 6);
+        // The left pane still shows the file it had, untouched by the letter the
+        // other pane just took.
+        assert!(rows[0].starts_with("1 xone"), "{:?}", rows);
+        // The right pane holds one empty line and nothing under it, so the row
+        // below its number is the pane's own blank.
+        assert!(
+            rows[1].chars().skip(30).all(|ch| ch == ' '),
+            "{:?}",
+            rows[1]
+        );
+        // And F6 comes back to where it started.
+        app.handle(Key::Function(6));
+        assert_eq!(app.tab().editor.doc.text().as_str(), "xone\n");
+    }
+
+    #[test]
+    fn a_horizontal_split_stacks_the_panes_under_a_row_of_dividers() {
+        let mut app = app("one\ntwo\n");
+        app.run(Action::SplitHorizontal);
+        let rows = drawn(&mut app, 40, 8);
+        // Seven rows of text, one of them the divider: three above, three below.
+        assert!(rows[0].starts_with("1 one"), "{:?}", rows);
+        assert!(rows[3].trim_end().chars().all(|ch| ch == '─'), "{:?}", rows[3]);
+        assert_eq!(rows[3].chars().count(), 40, "{:?}", rows);
+        // The lower pane numbers its own document from one again.
+        assert!(rows[4].trim_end().ends_with('1'), "{:?}", rows[4]);
+        assert!(!rows[4].contains("│"), "a stacked split has no column");
+    }
+
+    #[test]
+    fn unsplitting_keeps_both_documents_as_tabs() {
+        let mut app = app("one\n");
+        app.run(Action::SplitVertical);
+        app.handle(Key::Function(6));
+        app.handle(Key::Char('y'));
+        app.run(Action::Unsplit);
+        // Two documents, the strip naming both, and no divider anywhere.
+        let rows = drawn(&mut app, 60, 8);
+        assert!(rows[0].contains("[No Name]"), "{:?}", rows);
+        assert!(!rows.join("").contains('│'), "{:?}", rows);
+        assert_eq!(app.tabs.len(), 2, "the second document was dropped");
+        // The document the split opened with and nobody typed in is dropped
+        // rather than carried back as a third tab.
+        let mut app = self::tests::app("one\n");
+        app.run(Action::SplitVertical);
+        app.run(Action::Unsplit);
+        assert_eq!(app.tabs.len(), 1);
+    }
+
+    #[test]
+    fn moving_a_document_to_the_other_view_takes_the_focus_with_it() {
+        let mut app = app("one\n");
+        app.run(Action::SplitVertical);
+        // The focused pane holds one document, so moving it empties that pane and
+        // the split goes with it: a view with nothing in it is not a view.
+        app.run(Action::MoveToOtherView);
+        assert_eq!(app.tabs.len(), 1);
+        let rows = drawn(&mut app, 60, 6);
+        assert!(!rows.join("").contains('│'), "{:?}", rows);
+        // With two documents the pane keeps one of them and the split stays, and
+        // the document that moved is the one being typed into.
+        let mut app = self::tests::app("one\n");
+        app.new_document();
+        app.run(Action::SplitVertical);
+        app.run(Action::MoveToOtherView);
+        let rows = drawn(&mut app, 60, 6);
+        assert!(rows[0].chars().nth(29) == Some('│'), "{:?}", rows);
+        assert_eq!(app.tab().editor.doc.path(), None, "the focus did not follow");
+    }
+
+    #[test]
+    fn rotating_a_split_turns_it_a_quarter_and_a_narrow_terminal_refuses_one() {
+        let mut app = app("one\n");
+        app.run(Action::SplitVertical);
+        app.run(Action::RotateSplit);
+        let rows = drawn(&mut app, 60, 8);
+        assert!(!rows.join("").contains('│'), "{:?}", rows);
+        assert!(rows[3].trim_end().chars().all(|ch| ch == '─'), "{:?}", rows);
+        // A terminal sixteen columns wide cannot hold two panes of eight, and
+        // says so rather than drawing two slivers.
+        let mut app = self::tests::app("one\n");
+        drawn(&mut app, 16, 6);
+        app.run(Action::SplitVertical);
+        assert_eq!(app.message(), Some("the terminal is too small to split"));
+        let rows = drawn(&mut app, 16, 6);
+        assert!(!rows.join("").contains('│'), "{:?}", rows);
+        // And F6 with one pane says where the split is not.
+        app.handle(Key::Function(6));
+        assert_eq!(app.message(), Some("the window is not split"));
     }
 
     #[test]

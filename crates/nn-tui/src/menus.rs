@@ -85,11 +85,48 @@ impl Menus {
         for menu in &mut menus {
             fill_shortcuts(keymap, &mut menu.items);
         }
-        Menus {
+        let mut menus = Menus {
             menus,
             open: Vec::new(),
             bar: true,
             catalog: None,
+        };
+        menus.add_split_rows();
+        menus
+    }
+
+    /// Puts the four rows of the split view into the View menu.
+    ///
+    /// The shared tree is the window's, and the window reaches these four
+    /// commands by chord -- `Ctrl+Alt+Shift+V` and its three neighbours -- and has
+    /// never offered them from a menu. A terminal cannot send that chord: a
+    /// terminal folds `Ctrl+Shift+V` and `Ctrl+V` into one byte, so the modifier
+    /// the window binds is not a key this front-end has. The rows go in beside
+    /// `Focus on Another View`, which is where a reader looking for the split
+    /// would look, and they are the only rows the terminal adds to the tree: the
+    /// chord column stays empty for them, because a chord no terminal can send
+    /// would be a promise this front-end cannot keep.
+    fn add_split_rows(&mut self) {
+        let Some(view) = self
+            .menus
+            .iter_mut()
+            .find(|menu| menu.english == "View")
+        else {
+            return;
+        };
+        let after = view
+            .items
+            .iter()
+            .position(|item| item.action == Action::FocusOtherView)
+            .map_or(view.items.len(), |index| index + 1);
+        let rows = [
+            ("Split Vertically", Action::SplitVertical),
+            ("Split Horizontally", Action::SplitHorizontal),
+            ("Single View", Action::Unsplit),
+            ("Rotate Split", Action::RotateSplit),
+        ];
+        for (offset, (label, action)) in rows.into_iter().enumerate() {
+            view.items.insert(after + offset, Item::new(label, action));
         }
     }
 

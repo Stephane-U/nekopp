@@ -14975,3 +14975,92 @@ character.
 run. The bench matrix is 31/31 and the terminal's keystroke is unchanged at
 13,798 bytes for the first paint and 419 for one keystroke: no drawing work was
 added, only a struct moved.
+
+## The hundred-and-fifty-third pass: the split view
+
+The last of the window's furniture, and the one place where the terminal's model
+of a document is thinner than the window's: a `Tab` here holds a document, its
+highlighting and its scroll together, and the window holds the tabs of a pane and
+the panes of a window as two lists. So a pane is a list of tabs and an index, the
+pane in front is `self.tabs` and `self.active` as it has been since there was one
+pane, and the pane behind the keyboard is `other`. Moving the focus swaps the
+fields rather than teaching sixty commands to ask which pane they mean -- the
+window's own arrangement, taken for the window's own reason.
+
+`split.rs` is the arithmetic: where each pane's cells are and where the divider
+is, as a pure function of the split and the area, with the window's `layout.rs`
+as its precedent. A vertical split gives the left pane the larger half when the
+count is odd, so the divider sits one cell right of centre and the two panes are
+as alike as whole cells allow; a horizontal one does the same with rows. One cell
+goes to the divider, because a terminal's divider is a character -- the window can
+have six hairline pixels, a cell cannot be half used. Below eight columns a pane
+is a margin rather than a document, so a terminal too narrow for two of those is
+told so instead of being shown two slivers.
+
+The commands are the window's five, and the menu's four rows are the terminal's
+one addition to the shared tree. The window reaches `Split Vertically` and its
+three neighbours by chord -- `Ctrl+Alt+Shift+V` and so on -- and has never offered
+them from a menu, which is fine for a keyboard that has those modifiers and
+impossible for a terminal, where `Ctrl+Shift+V`, `Ctrl+Alt+V` and `Ctrl+V` arrive
+as one byte. So `nn-tui`'s menu builder inserts the four rows beside `Focus on
+Another View`, with no chord column, and the window's tree is untouched.
+
+`Focus on Another View` had no key in either front-end: the window moves the
+focus with the mouse. A terminal has no pointer, so this front-end binds `F6` --
+Turbo Vision's key for exactly this since DOS -- and binds it through the keymap
+rather than testing the key in the handler, so it appears in the preferences
+dialog and a user who wants another key gets another key. It is the only binding
+this front-end adds.
+
+Two things the terminal gives up, both named here rather than discovered. The
+window draws a tab strip per pane; a terminal has one row for that and gives it
+to the pane with the keyboard, so the strip names that pane's documents and the
+pane behind shows its document without a name row. And `Clone to Other View` is
+still "not in the terminal yet": the window's clone is two buffers on one file
+kept in step by a group id it has and this shell has not, and a copy that diverged
+on the first save would be worse than a command that says where it is not.
+
+The furniture around the panes -- the strip, the find bar, the results and the
+function list, the prompt, the completion box, the menus and the preferences
+dialog -- spans the window's width and belongs to the pane in front, as it did
+when there was one pane. The tree down the left edge is outside both panes: it
+names folders, not documents, and a split of it would be a second tree over the
+same disk.
+
+### Verified
+
+`cargo test --offline --release`: 2,542 tests, 0 failed -- nn-app 1,008, nn-core
+1,031, nn-mcp 100, nn-shared 198, nn-tui 205. Twelve are new. `split.rs`'s six
+read the arithmetic: a vertical split's sixty-nine and seventy columns with the
+divider between them and the panes' rows equal to the area's, a horizontal one's
+nineteen and twenty with its divider row, an area that starts inside the dock
+being divided where it stands, a sixteen-column window being refused a vertical
+split while seventeen is allowed one, two rows being refused a horizontal one, and
+a quarter turn swapping the two axes.
+
+The terminal's six are the shell's. A vertical split at sixty columns draws the
+divider in column twenty-nine, the file's `1 one` on the left and the second
+pane's own `1` from column thirty, with no divider on the status row. A letter
+typed after a split goes into the pane in front and the other pane keeps its
+document; `F6` moves the keyboard, the letter after it goes into the blank page,
+the file is still drawn as it was, and `F6` comes back. A horizontal split stacks
+two panes under a row of forty `─`. Unsplitting keeps both documents as tabs and
+drops the untouched blank page, and a document moved to the other view takes the
+focus with it -- or, when it was that pane's only document, takes the split away
+with it. A quarter turn turns the columns into a row, and a sixteen-column
+terminal says `the terminal is too small to split` rather than drawing two
+slivers.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31: the window is untouched, and the four menu rows
+are the terminal's, not the shared tree's. The terminal's keystroke is unchanged
+at 13,798 bytes for the first paint and 419 for one keystroke -- an unsplit window
+draws the one pane it always did.
+
+Through a pseudo terminal at 140x40 on `one`, `two`, `three`: the View menu's
+thirteenth row drew the split as sixty-nine columns, a divider and seventy, the
+file on the left and the blank page on the right numbered from one. A letter, `F6`
+and another letter left `1 Xone` on the left and `1 Y` on the right, with `[No
+Name] [+]` on the status bar because that is where the keyboard had gone. The
+fifteenth row stacked the two panes under a full-width row of `─`, and the
+fourteenth put them back together with `[No Name]*` and `p150.txt*` in the strip.
