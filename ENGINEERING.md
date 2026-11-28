@@ -15438,12 +15438,14 @@ gain an impl of a dozen one-line delegations and lose twelve arms from their mat
 Two details were not obvious.
 
 The first is a name collision. `Host::new_document` is `App::new_document`, and
-`Host::close_document` is `App::close_document`: an impl that answered the trait
-method with `self.new_document()` would call itself, which is a stack overflow
-rather than a wrong answer, and a stack overflow in a GUI event handler is a crash
-with no message. Those two are named through the type -- `App::new_document(self)`
--- with a comment saying why, and a terminal test calls the trait methods to pin it,
-because the bug would come back silently in a later edit.
+`Host::close_document` is `App::close_document`. A method call is not ambiguous
+here -- an inherent method wins, so `self.new_document()` inside the impl would
+reach the shell's own -- but the two names sitting one line apart is exactly the
+kind of thing a reader has to stop and work out, and a later edit that turns the
+impl's own name into the caller's is a stack overflow rather than a wrong answer.
+Those two are named through the type -- `App::new_document(self)` -- with a comment
+saying which one runs, and a terminal test calls the trait methods so that the
+question is settled by a run rather than by a reading of the rules.
 
 The second is exhaustiveness, the guarantee the window's match was written for: a
 command added to the enum and not routed is a compile error, not a row that does
@@ -15485,3 +15487,55 @@ for one keystroke. Through a pseudo terminal at 140 by 40, `Ctrl+N` added
 `[No Name]` to the strip beside `p147doc.txt`, and `Ctrl+W` after it closed that
 document and said so: `closed [No Name]`, with the bar back to `Ln 1, Col 1` and one
 tab on the strip.
+
+## The hundred-and-fifty-ninth pass: the view, and two commands that are one
+
+The second group is the view: word wrap, the two splits, single view, rotate, move
+to the other pane, focus it. Seven commands and six operations, because `Split
+Vertically` and `Split Horizontally` are two rows and one thing to do, told apart by
+which way the divider goes. That is the whole argument for the trait's shape, and
+this group is where it first shows: a table with one method per command would have
+had to invent a second name for one operation, and the two would then have to be
+kept equal by hand, which is the problem the table exists to remove.
+
+`nn_shared::host::Split` is the argument. Both crates already had an enum of that
+name with these two cases, one in `nn-app`'s layout and one in the terminal's split
+frame; the table now names it once, and each shell turns it into its own in a
+two-line match at the impl. Nothing else about the two enums changed.
+
+The mapping is not left to a reading of the diff. The terminal's pane tests were
+written before this pass and drive `App::run`, so they now travel the shared table
+end to end: a horizontal split stacks its panes under a row of dividers, and were
+the two cases swapped, that test would fail on its first assertion. The window's
+split arithmetic has its own tests in `nn-app`'s layout, where it always lived; what
+this pass adds to the window is a delegation, and the pixel gate is what says it
+still draws what it drew.
+
+One thing from the last pass's note was wrong and is corrected here. It said an impl
+that answered `Host::new_document` with `self.new_document()` would call itself. It
+would not: an inherent method wins a method call, so that line reaches the shell's
+own method, and a four-line program says so (`/tmp/resolve.rs`: a struct and a trait
+with one method of the same name between them, printing `inherent`). The explicit
+`App::new_document(self)` stays, because the two names sit one line apart and a
+reader should not have to know the rule to see which one runs, and because an edit
+that renamed one of them would still be a stack overflow rather than a wrong answer
+-- but that is visibility, not self-defence. The terminal test stays for the same
+reason: "which one runs" is a fact worth settling by a run.
+
+### Verified
+
+`cargo test --offline --release`: 2,595 tests, 0 failed -- nn-app 1,006, nn-core
+1,031, nn-mcp 100, nn-shared 210, nn-tui 248. One more than the pass before, in
+`nn-shared`: one row per view command, seven of them in one loop, each checked
+against the operation it should have reached and against the call that should not
+have happened -- and the two splits landing on two different arguments of one
+operation is the row the test exists for.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31 against the pass-1 baseline. The terminal's keystroke
+is unchanged at 13,798 bytes for the first paint and 419 for one keystroke.
+
+Through a pseudo terminal at 140 by 40, the View menu's `Split Horizontally` --
+which travels `Action::SplitHorizontal` into the shared table's `split_pane` -- cut
+the screen with a divider across all 140 columns and said `split horizontally` in
+the bar, the lower pane numbering its own document from one again.

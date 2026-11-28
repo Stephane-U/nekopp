@@ -1327,13 +1327,6 @@ impl App {
             Action::ManagePlugins => self.plugins.open(),
             Action::ReloadPlugins => self.reload_plugins(),
             Action::Plugin(plugin, command) => self.run_plugin(plugin, command),
-            Action::ToggleWrap => self.toggle_wrap(),
-            Action::SplitVertical => self.split_window(Split::Vertical),
-            Action::SplitHorizontal => self.split_window(Split::Horizontal),
-            Action::Unsplit => self.unsplit(),
-            Action::RotateSplit => self.rotate_split(),
-            Action::MoveToOtherView => self.move_to_other(),
-            Action::FocusOtherView => self.focus_other(),
             Action::Find => self.find.open(&self.tabs[self.active].editor),
             Action::FindInFiles => self.prompt.open(PromptKind::FindInFiles),
             Action::SearchResultsWindow => self.search_results_window(),
@@ -3095,8 +3088,10 @@ fn lexer_for(path: Option<&Path>) -> Box<dyn Lexer> {
 /// redraw flag stay in [`App::run`].
 impl nn_shared::host::Host for App {
     fn new_document(&mut self) {
-        // Named through the type, not called as a method: this impl has a
-        // `new_document` too, and `self.new_document()` would come back here.
+        // Named through the type although a method call would also be right --
+        // an inherent method wins, so `self.new_document()` would reach the
+        // shell's own -- because this impl answers to the same name and a reader
+        // should not have to know that rule to be sure which one runs.
         App::new_document(self);
     }
 
@@ -3113,6 +3108,7 @@ impl nn_shared::host::Host for App {
     }
 
     fn close_document(&mut self) {
+        // The same, for the same reason.
         App::close_document(self);
     }
 
@@ -3142,6 +3138,34 @@ impl nn_shared::host::Host for App {
         self.session.recent.clear();
         self.rebuild_menus();
         self.say("the recent list is empty", false);
+    }
+
+    fn toggle_wrap(&mut self) {
+        self.toggle_wrap();
+    }
+
+    fn split_pane(&mut self, split: nn_shared::host::Split) {
+        let wanted = match split {
+            nn_shared::host::Split::Vertical => Split::Vertical,
+            nn_shared::host::Split::Horizontal => Split::Horizontal,
+        };
+        self.split_window(wanted);
+    }
+
+    fn unsplit_pane(&mut self) {
+        self.unsplit();
+    }
+
+    fn rotate_split(&mut self) {
+        self.rotate_split();
+    }
+
+    fn move_to_other_pane(&mut self) {
+        self.move_to_other();
+    }
+
+    fn focus_other_pane(&mut self) {
+        self.focus_other();
     }
 
     fn quit(&mut self) {
@@ -5074,9 +5098,9 @@ mod tests {
 
     #[test]
     fn the_shared_dispatcher_reaches_this_shell_own_operations() {
-        // Two of the trait's names are `App`'s as well, and an impl that reached
-        // them as methods would call itself: that is a stack overflow, not a wrong
-        // answer, so one call each way is worth a test.
+        // Two of the trait's names are `App`'s as well, which is a thing to pin:
+        // whatever the impl writes, the shell's own operation has to be the one
+        // that runs, and an open document that appears twice would say it was not.
         let mut app = app("fn main() {}\n");
         let before = app.tabs.len();
         nn_shared::host::Host::new_document(&mut app);

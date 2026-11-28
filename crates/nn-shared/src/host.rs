@@ -27,7 +27,8 @@
 //! and [`run`] is the match. It covers the document commands first -- the ones that
 //! open, save, close and walk between documents -- because both front-ends have had
 //! all twelve for a long time, and because those are the ones where the two drifting
-//! apart costs a user work rather than a moment's surprise.
+//! apart costs a user work rather than a moment's surprise. The view follows: how
+//! the text area is laid out, and how it is cut into two panes.
 //!
 //! The rest of the vocabulary follows, a group a pass, until the last arm makes a
 //! new command a compile error rather than a row that does nothing in one of the two
@@ -82,8 +83,41 @@ pub trait Host {
     /// Empties the recent list.
     fn clear_recent(&mut self);
 
+    /// Wraps long lines, or stops wrapping them, and remembers the choice.
+    fn toggle_wrap(&mut self);
+
+    /// Splits the text area in two along `split`, or turns an existing split to
+    /// it without losing the documents in the panes.
+    fn split_pane(&mut self, split: Split);
+
+    /// Puts the two panes back into one.
+    fn unsplit_pane(&mut self);
+
+    /// Turns the split a quarter turn, keeping the divider where it stands.
+    fn rotate_split(&mut self);
+
+    /// Moves the document in front to the other pane.
+    fn move_to_other_pane(&mut self);
+
+    /// Puts the keyboard on the other pane.
+    fn focus_other_pane(&mut self);
+
     /// Leaves the program, writing and asking whatever this front-end has to.
     fn quit(&mut self);
+}
+
+/// Which way a split cuts the text area.
+///
+/// Both front-ends drew this enum themselves, with these two names, before the
+/// table needed it. It is named once here so that a command does not have to
+/// carry either crate's idea of a pane, and each shell turns it into its own when
+/// the pane is made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Split {
+    /// Two panes side by side, divided by a vertical line.
+    Vertical,
+    /// Two panes, one above the other.
+    Horizontal,
 }
 
 /// Runs `action` when it is one of the commands here, and says whether it was.
@@ -104,6 +138,13 @@ pub fn run(action: Action, host: &mut impl Host) -> bool {
         Action::PrevTab => host.previous_document(),
         Action::OpenRecent(index) => host.open_recent(index),
         Action::ClearRecent => host.clear_recent(),
+        Action::ToggleWrap => host.toggle_wrap(),
+        Action::SplitVertical => host.split_pane(Split::Vertical),
+        Action::SplitHorizontal => host.split_pane(Split::Horizontal),
+        Action::Unsplit => host.unsplit_pane(),
+        Action::RotateSplit => host.rotate_split(),
+        Action::MoveToOtherView => host.move_to_other_pane(),
+        Action::FocusOtherView => host.focus_other_pane(),
         Action::Exit => host.quit(),
         _ => return false,
     }
@@ -160,6 +201,28 @@ mod tests {
         fn clear_recent(&mut self) {
             self.note("clear recent");
         }
+        fn toggle_wrap(&mut self) {
+            self.note("wrap");
+        }
+        fn split_pane(&mut self, split: Split) {
+            let name = match split {
+                Split::Vertical => "split down the middle",
+                Split::Horizontal => "split across the middle",
+            };
+            self.note(name);
+        }
+        fn unsplit_pane(&mut self) {
+            self.note("unsplit");
+        }
+        fn rotate_split(&mut self) {
+            self.note("rotate");
+        }
+        fn move_to_other_pane(&mut self) {
+            self.note("move to other pane");
+        }
+        fn focus_other_pane(&mut self) {
+            self.note("focus other pane");
+        }
         fn quit(&mut self) {
             self.note("quit");
         }
@@ -183,6 +246,28 @@ mod tests {
             (Action::OpenRecent(3), "recent 3"),
             (Action::ClearRecent, "clear recent"),
             (Action::Exit, "quit"),
+        ];
+        for (action, expected) in cases {
+            let mut host = Recorder::default();
+            assert!(run(action, &mut host), "{action:?} was not answered");
+            assert_eq!(host.calls, [expected.to_string()], "{action:?}");
+        }
+    }
+
+    #[test]
+    fn every_view_command_reaches_its_own_operation() {
+        // Two rows reach one operation on purpose: `Split Vertical` and `Split
+        // Horizontal` are two commands and one thing to do, told apart by which
+        // way the divider goes. That is the reason the trait names operations
+        // rather than commands, and this is the test that shows it.
+        let cases = [
+            (Action::ToggleWrap, "wrap"),
+            (Action::SplitVertical, "split down the middle"),
+            (Action::SplitHorizontal, "split across the middle"),
+            (Action::Unsplit, "unsplit"),
+            (Action::RotateSplit, "rotate"),
+            (Action::MoveToOtherView, "move to other pane"),
+            (Action::FocusOtherView, "focus other pane"),
         ];
         for (action, expected) in cases {
             let mut host = Recorder::default();

@@ -6308,6 +6308,13 @@ impl State {
             | Action::PrevTab
             | Action::OpenRecent(_)
             | Action::ClearRecent
+            | Action::ToggleWrap
+            | Action::SplitVertical
+            | Action::SplitHorizontal
+            | Action::Unsplit
+            | Action::RotateSplit
+            | Action::MoveToOtherView
+            | Action::FocusOtherView
             | Action::Exit => {}
             // The line commands that are a function of text are run through
             // `nn_core::ops`, which is the same table an MCP client reaches: a
@@ -6469,7 +6476,6 @@ impl State {
             }
             Action::Preferences => self.open_prefs(),
             Action::StyleConfigurator => self.open_styles(),
-            Action::ToggleWrap => self.toggle_wrap(),
             Action::ToggleTheme => self.toggle_theme(),
             Action::Theme(index) => self.choose_theme(ThemeChoice::ALL[index]),
             Action::GotoLine => self.goto_line_prompt(),
@@ -6753,11 +6759,6 @@ impl State {
             }
             Action::MarkAll => self.mark_all(),
             Action::GotoBrace => self.goto_brace(),
-            Action::SplitVertical => self.split_window(Split::Vertical),
-            Action::SplitHorizontal => self.split_window(Split::Horizontal),
-            Action::RotateSplit => self.rotate_split(),
-            Action::Unsplit => self.unsplit(),
-            Action::MoveToOtherView => self.move_to_other(),
             Action::CloneToOtherView => self.clone_to_other(),
             Action::AlwaysOnTop => self.toggle_always_on_top(),
             Action::PostIt => self.post_it(),
@@ -6797,7 +6798,6 @@ impl State {
             Action::MoveTabForward => self.move_tab_step(true),
             Action::MoveTabBackward => self.move_tab_step(false),
             Action::TabColourSet(index) => self.set_tab_colour(index),
-            Action::FocusOtherView => self.focus_other(),
             Action::HideLines => self.hide_lines(),
             Action::FoldCurrentLevel => self.fold_current_level(true),
             Action::UnfoldCurrentLevel => self.fold_current_level(false),
@@ -10062,6 +10062,34 @@ impl nn_shared::host::Host for State {
     fn clear_recent(&mut self) {
         self.session.recent.clear();
         self.sync_recent();
+    }
+
+    fn toggle_wrap(&mut self) {
+        self.toggle_wrap();
+    }
+
+    fn split_pane(&mut self, split: nn_shared::host::Split) {
+        let wanted = match split {
+            nn_shared::host::Split::Vertical => Split::Vertical,
+            nn_shared::host::Split::Horizontal => Split::Horizontal,
+        };
+        self.split_window(wanted);
+    }
+
+    fn unsplit_pane(&mut self) {
+        self.unsplit();
+    }
+
+    fn rotate_split(&mut self) {
+        self.rotate_split();
+    }
+
+    fn move_to_other_pane(&mut self) {
+        self.move_to_other();
+    }
+
+    fn focus_other_pane(&mut self) {
+        self.focus_other();
     }
 
     fn quit(&mut self) {
