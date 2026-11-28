@@ -72,6 +72,12 @@ pub enum Key {
     /// `F1` through `F12`. `F9` opens the menus, as it does in Midnight
     /// Commander, and `F10` does the same for hands trained on Notepad++.
     Function(u8),
+    /// A function key with `Shift` held, which a terminal that understands the
+    /// modifier sends as `ESC [ 12 ; 2 ~`. `Shift+F2` is the previous bookmark.
+    ShiftFunction(u8),
+    /// A function key with `Ctrl` held, `ESC [ 12 ; 5 ~`: `Ctrl+F2` puts a
+    /// bookmark on the caret's line.
+    CtrlFunction(u8),
 }
 
 /// Reads one key from the front of `bytes`, and how many bytes it took.
@@ -140,6 +146,12 @@ fn sequence(bytes: &[u8]) -> Option<(Key, usize)> {
     }
     let final_byte = *bytes.get(at)?;
     let params = std::str::from_utf8(bytes.get(2..at)?).ok()?;
+    // The function keys first, because they have two spellings and three
+    // modifiers apiece and a table row per combination would be a table of
+    // thirty-six rows saying the same thing.
+    if let Some(key) = function_key(final_byte, params) {
+        return Some((key, at + 1));
+    }
     let key = match (final_byte, params) {
         (b'A', "") => Key::Up,
         (b'B', "") => Key::Down,
@@ -162,24 +174,54 @@ fn sequence(bytes: &[u8]) -> Option<(Key, usize)> {
         (b'~', "6;5") => Key::CtrlPageDown,
         (b'~', "1") | (b'~', "7") => Key::LineStart,
         (b'~', "4") | (b'~', "8") => Key::LineEnd,
-        // The rest of the function keys, as `ESC [ N ~` with N counting from
-        // 11 for F1. F1 to F4 are numbered 11 to 14 here and exist in the other
-        // encoding above, depending on the terminal.
-        (b'~', "11") => Key::Function(1),
-        (b'~', "12") => Key::Function(2),
-        (b'~', "13") => Key::Function(3),
-        (b'~', "14") => Key::Function(4),
-        (b'~', "15") => Key::Function(5),
-        (b'~', "17") => Key::Function(6),
-        (b'~', "18") => Key::Function(7),
-        (b'~', "19") => Key::Function(8),
-        (b'~', "20") => Key::Function(9),
-        (b'~', "21") => Key::Function(10),
-        (b'~', "23") => Key::Function(11),
-        (b'~', "24") => Key::Function(12),
         _ => return None,
     };
     Some((key, at + 1))
+}
+
+/// A function key from its xterm parameters: which one, and which modifier.
+///
+/// Two spellings reach a terminal. `ESC [ 12 ~` is F2, counting 11 for F1 and
+/// skipping 16; `ESC [ 1 ; 2 P` is F1 with Shift, the first four function keys
+/// having a letter of their own. A modifier is a second parameter: 2 for Shift,
+/// 5 for Ctrl. The two that a terminal cannot send at all are worth naming --
+/// `Ctrl+Shift` and `Alt` -- so that their absence here reads as a fact rather
+/// than as an oversight.
+fn function_key(final_byte: u8, params: &str) -> Option<Key> {
+    let (base, modifier) = match params.split_once(';') {
+        Some((base, modifier)) => (base, modifier.parse::<u8>().ok()?),
+        None => (params, 1),
+    };
+    let number = match final_byte {
+        b'~' => match base {
+            "11" => 1,
+            "12" => 2,
+            "13" => 3,
+            "14" => 4,
+            "15" => 5,
+            "17" => 6,
+            "18" => 7,
+            "19" => 8,
+            "20" => 9,
+            "21" => 10,
+            "23" => 11,
+            "24" => 12,
+            _ => return None,
+        },
+        b'P' | b'Q' | b'R' | b'S' if base == "1" => match final_byte {
+            b'P' => 1,
+            b'Q' => 2,
+            b'R' => 3,
+            _ => 4,
+        },
+        _ => return None,
+    };
+    Some(match modifier {
+        1 => Key::Function(number),
+        2 => Key::ShiftFunction(number),
+        5 => Key::CtrlFunction(number),
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
@@ -216,6 +258,22 @@ mod tests {
         assert_eq!(one(b"\x1b[H"), (Key::LineStart, 3));
         assert_eq!(one(b"\x1b[F"), (Key::LineEnd, 3));
         assert_eq!(one(b"\x1bOH"), (Key::LineStart, 3));
+    }
+
+    #[test]
+    fn a_function_key_carries_the_modifier_that_was_held() {
+        assert_eq!(one(b"\x1b[12~"), (Key::Function(2), 5));
+        // Shift+F2 and Ctrl+F2 are the two bookmark chords the window binds,
+        // and a terminal that understands the modifier sends them like this.
+        assert_eq!(one(b"\x1b[12;2~"), (Key::ShiftFunction(2), 7));
+        assert_eq!(one(b"\x1b[12;5~"), (Key::CtrlFunction(2), 7));
+        // The first four have a letter of their own, and the modifier comes
+        // before it rather than after.
+        assert_eq!(one(b"\x1b[1;2P"), (Key::ShiftFunction(1), 6));
+        assert_eq!(one(b"\x1b[1;5Q"), (Key::CtrlFunction(2), 6));
+        // A modifier this shell does not act on is a key it does not know,
+        // rather than a key it guesses at.
+        assert!(parse(b"\x1b[12;3~").is_none());
     }
 
     #[test]

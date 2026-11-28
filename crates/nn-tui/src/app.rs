@@ -793,7 +793,7 @@ impl App {
             // for would be the one answer nobody wants.
             Key::Ctrl(_) => {}
             Key::CtrlPageUp | Key::CtrlPageDown => {}
-            Key::Function(_) => {}
+            Key::Function(_) | Key::ShiftFunction(_) | Key::CtrlFunction(_) => {}
         }
         // Typing the opening parenthesis of a call is the moment the signature
         // becomes useful, and it is the only moment the hint appears unasked; an
@@ -836,6 +836,21 @@ impl App {
             },
             Key::Function(number) => Chord {
                 ctrl: false,
+                shift: false,
+                alt: false,
+                key: KeyName::Function(number),
+            },
+            // The two function-key chords a terminal can send with the modifier
+            // held: `Shift+F2` is the previous bookmark and `Ctrl+F2` puts one
+            // on the caret's line, both of them the window's own bindings.
+            Key::ShiftFunction(number) => Chord {
+                ctrl: false,
+                shift: true,
+                alt: false,
+                key: KeyName::Function(number),
+            },
+            Key::CtrlFunction(number) => Chord {
+                ctrl: true,
                 shift: false,
                 alt: false,
                 key: KeyName::Function(number),
@@ -939,6 +954,16 @@ impl App {
             Action::FindPrev => {
                 self.find.step(&mut self.tabs[self.active].editor, false)
             }
+            // Bookmarks are the engine's: `Document` has kept a marker array
+            // beside the text since the window gave it one, so these four
+            // commands only have to say where the caret is and where to look.
+            Action::ToggleBookmark => {
+                let line = self.editor().caret_line();
+                self.tab_mut().editor.doc.toggle_bookmark(line);
+            }
+            Action::NextBookmark => self.step_bookmark(true),
+            Action::PrevBookmark => self.step_bookmark(false),
+            Action::ClearBookmarks => self.tab_mut().editor.doc.clear_bookmarks(),
             Action::Exit => self.ask_to_quit(),
             // The rest of the editing commands are one table over in the engine:
             // upper case, indent, sort, comment, and thirty more. They take the
@@ -1615,6 +1640,17 @@ impl App {
         });
     }
 
+    /// Jumps to the next or the previous bookmark, or says there is none.
+    ///
+    /// The window's words for the same refusal, on the bar rather than on
+    /// stderr: a terminal has a line for what it could not do, and a key that
+    /// does nothing at all is a key a reader presses twice.
+    fn step_bookmark(&mut self, forward: bool) {
+        if !self.tab_mut().editor.goto_bookmark(forward) {
+            self.say("no bookmarks", true);
+        }
+    }
+
     fn say(&mut self, text: &str, alert: bool) {
         self.message = Some(Message {
             text: text.to_string(),
@@ -2139,7 +2175,14 @@ impl App {
         };
         let number = format!("{:>width$}", line + 1, width = gutter - left - 1);
         grid.text(row, left, &number, tone);
-        grid.put(row, gutter - 1, ' ', tone);
+        // The one cell between the number and the text is the bookmark margin,
+        // as it is in the window: a dot on the lines that carry one, and the
+        // gutter's own blank everywhere else, so the numbers never shift.
+        if self.tab().editor.doc.is_bookmarked(line) {
+            grid.put(row, gutter - 1, '\u{2022}', Tone::Bookmark);
+        } else {
+            grid.put(row, gutter - 1, ' ', tone);
+        }
     }
 
     /// Where the caret has to be for the view to hold it, while wrapping is on.
@@ -3069,6 +3112,34 @@ mod tests {
         app.handle(Key::Ctrl('z'));
         let rows = drawn(&mut app, 40, 6);
         assert!(rows[0].contains("one two one"), "{:?}", rows);
+    }
+
+    #[test]
+    fn a_bookmark_puts_a_dot_in_the_margin_and_f2_walks_to_it() {
+        let mut app = app("one\ntwo\nthree\n");
+        // F2 with nothing marked says so, rather than doing nothing in silence.
+        app.handle(Key::Function(2));
+        assert_eq!(app.message(), Some("no bookmarks"));
+        // Ctrl+F2 marks the caret's line, and the margin says which one.
+        app.handle(Key::CtrlFunction(2));
+        assert!(app.tab().editor.doc.is_bookmarked(0));
+        let rows = drawn(&mut app, 30, 8);
+        assert!(rows[0].contains('\u{2022}'), "{:?}", rows);
+        assert!(!rows[1].contains('\u{2022}'), "{:?}", rows);
+        // Another line, another mark, and F2 comes back round to the first.
+        app.handle(Key::Down);
+        app.handle(Key::Down);
+        app.handle(Key::CtrlFunction(2));
+        assert!(app.tab().editor.doc.is_bookmarked(2));
+        app.handle(Key::Function(2));
+        assert_eq!(app.tab().editor.caret_line(), 0, "F2 wrapped past the end");
+        // Shift+F2 walks the other way, and Clear All empties the margin.
+        app.handle(Key::ShiftFunction(2));
+        assert_eq!(app.tab().editor.caret_line(), 2);
+        app.run(Action::ClearBookmarks);
+        assert_eq!(app.tab().editor.doc.bookmark_count(), 0);
+        let rows = drawn(&mut app, 30, 8);
+        assert!(rows.iter().all(|row| !row.contains('\u{2022}')), "{:?}", rows);
     }
 
     #[test]

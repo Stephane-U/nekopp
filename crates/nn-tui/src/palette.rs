@@ -68,6 +68,11 @@ pub enum Tone {
     MenuHover,
     /// The box drawn round a dropdown.
     MenuBorder,
+    /// The dot in the gutter that says a line carries a bookmark.
+    ///
+    /// Last in the list, because the tones are a palette written once and an
+    /// index added in the middle would repaint every tone after it.
+    Bookmark,
 }
 
 impl Tone {
@@ -143,6 +148,9 @@ impl Palette {
             (theme.menu_text, theme.menu_background),
             (theme.menu_text, theme.menu_hover),
             (theme.menu_border, theme.menu_background),
+            // The window's own bookmark colour, on the gutter's background: the
+            // dot sits in the margin beside the number, which is gutter.
+            (theme.bookmark, theme.gutter_background),
         ];
         Palette {
             escapes: pairs
@@ -223,7 +231,7 @@ mod tests {
     #[test]
     fn every_tone_gets_an_escape_that_sets_both_colours() {
         let palette = Palette::of(&Theme::DARK);
-        assert_eq!(palette.len(), 18);
+        assert_eq!(palette.len(), 19);
         for one in Tone::ALL {
             let sgr = palette.sgr(one);
             assert!(sgr.starts_with("\x1b["), "{one:?} is not an escape");

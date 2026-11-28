@@ -14787,3 +14787,76 @@ Through a pseudo terminal on a two-line file, `Ctrl+F` and `a` drew
 and with the second line selected before the bar opened, the same pattern with
 the selection mark pressed drew `0/1`; pressing the mark with no selection left it
 unlit and the status bar reading `select the text to search in`.
+
+## The hundred-and-fiftieth pass: bookmarks, and the dot in the margin
+
+`nn_core::Document` has kept a bookmark array beside the text since the window
+gave it one, and `Editor::goto_bookmark` has walked it: the terminal had no way
+to make one. Four commands were the whole gap, and the window's own chords reach
+them through the keymap: `Ctrl+F2` puts a mark on the caret's line, `F2` and
+`Shift+F2` walk the marks, and `Search > Clear All Bookmarks` empties them.
+
+Two of those three chords a terminal cannot send unless the parser reads the
+modifier, so it does now. `ESC [ 12 ; 2 ~` is `Shift+F2` and `ESC [ 12 ; 5 ~` is
+`Ctrl+F2`; the first four function keys have a letter of their own, which is
+`ESC [ 1 ; 2 P` through `ESC [ 1 ; 5 S`. `Key` gained `ShiftFunction` and
+`CtrlFunction`, one parser function reads both spellings for every key, and
+`chord_action` turns them into the same chords the window binds -- so the
+keymap stays the one place the bindings live, and a user who rebinds a bookmark
+in the preferences gets the new key in both front-ends.
+
+The margin is the cell between the line number and the text, which the gutter
+already drew as a blank: a bookmarked line puts a dot there, greyed number and
+all, so the numbers never shift by a column when a document has marks or does
+not. The tone is new and comes from the window's own bookmark colour, on the
+gutter's background -- a dot in the margin is gutter, and the window draws its
+square in the same place and the same colour. `Tone::Bookmark` went last in the
+enum, because the palette is a positional array and a tone added in the middle
+would repaint every tone after it.
+
+A step with nothing marked says `no bookmarks`, which is the window's phrase and
+the shell's line: the window puts it on stderr, and a terminal has a bar.
+
+Writing it turned up a wart in the engine that both front-ends had. Adding a
+bookmark called `touch`, which is what an edit calls, so a file whose bytes had
+not changed went off with a `*` after its name and a save prompt on quitting.
+A bookmark is the reader's mark on a view, not something a save would write, so
+`Document::remark` bumps the revision -- which is what a view watches to know it
+has something to redraw -- and leaves the document clean. `toggle_bookmark` and
+`clear_bookmarks` call it instead.
+
+### Verified
+
+`cargo test --offline --release`: 2,527 tests, 0 failed -- nn-app 1,008, nn-core
+1,031, nn-mcp 100, nn-shared 198, nn-tui 190. Three are new. `nn-tui`'s first is
+the parser's: `ESC [ 12 ~`, `ESC [ 12 ; 2 ~`, `ESC [ 12 ; 5 ~`, `ESC [ 1 ; 2 P`
+and `ESC [ 1 ; 5 Q` read as F2, Shift+F2, Ctrl+F2, Shift+F1 and Ctrl+F2 again,
+and a modifier nobody binds (`3`, Alt) is a key the parser refuses rather than
+one it guesses at. Its second is the shell's: `F2` with nothing marked saying
+`no bookmarks`, `Ctrl+F2` marking the caret's line and the margin reading `•` on
+that row and not the next, two marks and `F2` wrapping past the end,
+`Shift+F2` walking back, and Clear All leaving no dot on any row. `nn-core`'s is
+the wart: a bookmark and a clear both leave the document clean and both move the
+revision.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: bookmarks are already in
+it, and the terminal is not.
+
+`bench` over the same thirty-one flag combinations: thirty of thirty-one
+identical, and the one that moved is not a regression. `find_list` -- the case
+that runs find-in-files over `crates/nn-core/src` -- shows the line numbers of
+the hits, and this pass added lines to `document.rs`, so every hit after them
+moved by thirteen. Built from the commit before this one and run against the same
+tree, the binary gives `6f2639bc77c89e607c8efccd1c608dfb` for that case and the
+new one gives the same hash to the byte; the reference copy of that screenshot was
+refreshed, and the matrix is 31/31 against it.
+
+The terminal's keystroke is unchanged at 13,798 bytes for the first paint and 419
+for one keystroke; the margin costs one `grid.put` per drawn line, and only when
+the line carries a mark.
+
+Through a pseudo terminal on `one`, `two`, `three`: `F2` alone left the bar
+reading `no bookmarks`; `Ctrl+F2` on the second line drew `2•two` with the
+numbers where they were; two marks and `F2` walked the caret to the third line,
+and the status bar showed no `[+]` after any of it.

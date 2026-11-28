@@ -1067,7 +1067,7 @@ impl Document {
             return false;
         }
         self.markers[line] ^= BOOKMARK;
-        self.touch();
+        self.remark();
         self.markers[line] & BOOKMARK != 0
     }
 
@@ -1076,7 +1076,7 @@ impl Document {
         for marker in &mut self.markers {
             *marker &= !BOOKMARK;
         }
-        self.touch();
+        self.remark();
     }
 
     /// How many lines are bookmarked.
@@ -1315,6 +1315,18 @@ impl Document {
     /// Marks the document as changed.
     fn touch(&mut self) {
         self.dirty = true;
+        self.revision = self.revision.wrapping_add(1);
+    }
+
+    /// Records a change that is not an edit of the text: the markers moved, the
+    /// file did not.
+    ///
+    /// A bookmark is the reader's mark on a view, not something that would be
+    /// written by a save, so it bumps the revision -- which is what a view
+    /// watches to know it has something to redraw -- and leaves the document
+    /// clean. Marking a file modified because a line was bookmarked would put an
+    /// asterisk on a file whose bytes are what they were.
+    fn remark(&mut self) {
         self.revision = self.revision.wrapping_add(1);
     }
 
@@ -2301,6 +2313,18 @@ mod tests {
         assert!(doc.is_bookmarked(1));
         assert!(!doc.toggle_bookmark(1));
         assert!(!doc.is_bookmarked(1));
+    }
+
+    #[test]
+    fn a_bookmark_is_not_an_edit() {
+        let mut doc = Document::from_text("a\nb\nc");
+        assert!(!doc.is_dirty());
+        let revision = doc.revision();
+        doc.toggle_bookmark(1);
+        assert!(!doc.is_dirty(), "a bookmark made the file look changed");
+        assert!(doc.revision() > revision, "a view would not know to redraw");
+        doc.clear_bookmarks();
+        assert!(!doc.is_dirty(), "clearing the marks made the file look changed");
     }
 
     #[test]
