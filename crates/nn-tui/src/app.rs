@@ -59,22 +59,17 @@ use crate::screen::Grid;
 use crate::symbols::Symbols;
 use crate::workspace::Workspace;
 
-/// How the window is divided up, worked out once per frame.
+/// The furniture around the text, worked out once per frame.
 ///
-/// The bar is the last row, and the find bar -- when it is up -- takes the one
-/// above it. The row the text starts losing rows at is therefore one field: the
-/// number of rows of text is the row the first strip is drawn on.
+/// The text area itself is a [`Viewport`], of which a split window has two. What
+/// is left here is what they share: the tree down the left edge, the list above
+/// the status bar, and the row the prompt or the find bar takes. The bar is the
+/// last row, and the find bar -- when it is up -- takes the one above it, so the
+/// row the text stops on is one number: the highest of the three.
 #[derive(Debug, Clone, Copy)]
 struct Layout {
-    /// The first row of text: the tab strip's row plus one while the strip is
-    /// drawn, and nought the rest of the time.
-    top: usize,
-    /// Columns the line numbers take.
-    gutter: usize,
-    /// Columns left for the text.
-    text_cols: usize,
     /// Columns the workspace panel takes at the left edge, nought when it is
-    /// down. The gutter is counted after it: `gutter` is where the text starts.
+    /// down. Every pane's gutter is counted after it.
     dock: usize,
     /// The list above the status bar -- the search results, or the function
     /// list, whichever is up, and never both: the row it starts on, and how many
@@ -108,9 +103,46 @@ impl Layout {
         }
     }
 
-    /// The rows the document has, which is every row between the two.
-    fn text_rows(self) -> usize {
-        self.bottom().saturating_sub(self.top)
+}
+
+/// The text area of one pane: where it is on the screen, and what of the document
+/// it is looking at.
+///
+/// A window that is not split has one of these filling everything between the
+/// strip and the bar. The split view gives it two, side by side or stacked, each
+/// with its own scroll and its own caret -- which is why the text area is a value
+/// passed down rather than a handful of fields on the shell: nothing in the
+/// drawing code may reach for "the" scroll, because there is one per pane.
+#[derive(Debug, Clone, Copy)]
+struct Viewport {
+    /// The first row of text.
+    top: usize,
+    /// The first row below it.
+    bottom: usize,
+    /// The column the line numbers start at, which is the dock's right edge.
+    gutter: usize,
+    /// The column the text starts at: the gutter's right edge.
+    left: usize,
+    /// Columns left for the text.
+    cols: usize,
+    /// The first line on screen.
+    scroll_line: usize,
+    /// The first display column of the text area on screen.
+    scroll_col: usize,
+    /// With wrapping on, the segments of [`Viewport::scroll_line`] above the
+    /// screen.
+    scroll_seg: usize,
+}
+
+impl Viewport {
+    /// The rows the text has.
+    fn rows(self) -> usize {
+        self.bottom.saturating_sub(self.top)
+    }
+
+    /// The column after the last one the text may use.
+    fn edge(self) -> usize {
+        self.left + self.cols
     }
 }
 
@@ -1958,16 +1990,25 @@ impl App {
         };
         let block_top = height.saturating_sub(1 + find_rows + results_rows);
         let layout = Layout {
-            top: usize::from(strip),
-            gutter,
-            text_cols: width - gutter,
             dock,
             list: (results_rows > 0).then(|| (block_top + find_rows, results_rows)),
             bar_row: (find_rows > 0).then_some(block_top),
             status_row: height - 1,
         };
-        let text_rows = layout.text_rows();
         let status_row = layout.status_row;
+        // The one pane there is, until a split says otherwise: from under the
+        // strip to the top of whatever is stacked above the bar.
+        let mut view = Viewport {
+            top: usize::from(strip),
+            bottom: layout.bottom(),
+            gutter: dock,
+            left: gutter,
+            cols: width - gutter,
+            scroll_line: self.tab().scroll_line,
+            scroll_col: self.tab().scroll_col,
+            scroll_seg: self.tab().scroll_seg,
+        };
+        let text_rows = view.rows();
 
         // The core moves by a screenful on Page Up and Page Down, and it takes
         // "a screenful" from the viewport. In cells, a line is one unit high.
@@ -1975,13 +2016,13 @@ impl App {
         viewport.height = text_rows as f32;
         viewport.line_height = 1.0;
         viewport.char_width = 1.0;
-        viewport.width = layout.text_cols as f32;
+        viewport.width = view.cols as f32;
 
         let caret_line = self.editor().caret_line();
         let caret_col = self.editor().caret_column();
         let caret_display = self.display_column(caret_line, caret_col);
 
-        let wrap = self.settings.wrap && layout.text_cols > 0;
+        let wrap = self.settings.wrap && view.cols > 0;
         if !wrap {
             self.tab_mut().scroll_seg = 0;
         }
@@ -1990,7 +2031,7 @@ impl App {
             // several rows, so the question is not which column is on screen but
             // which rows the last frame had.
             self.tab_mut().scroll_col = 0;
-            self.reveal_wrapped(caret_line, caret_display, layout);
+            self.reveal_wrapped(caret_line, caret_display, view);
         } else {
             // Keep the caret on the screen, scrolling the least that will do it.
             if caret_line < self.tab_mut().scroll_line {
@@ -2002,28 +2043,35 @@ impl App {
             if caret_display < self.tab_mut().scroll_col {
                 self.tab_mut().scroll_col = caret_display;
             }
-            if layout.text_cols > 0 && caret_display >= self.tab_mut().scroll_col + layout.text_cols {
-                self.tab_mut().scroll_col = caret_display + 1 - layout.text_cols;
+            let room = self.tab().scroll_col + view.cols;
+            if view.cols > 0 && caret_display >= room {
+                self.tab_mut().scroll_col = caret_display + 1 - view.cols;
             }
             self.tab_mut().visible_until = self.tab_mut().scroll_line + text_rows;
         }
 
-        self.view_cols = layout.text_cols;
+        // The reveal has moved the scroll, so the viewport the lines are drawn
+        // through is read once more: a frame that drew through the numbers it
+        // had before the reveal would be a frame drawn a line behind.
+        view.scroll_line = self.tab().scroll_line;
+        view.scroll_col = self.tab().scroll_col;
+        view.scroll_seg = self.tab().scroll_seg;
+        self.view_cols = view.cols;
         self.view_rows = text_rows;
         let caret = self.editor().caret();
         let selection = self.editor().selection_start()..self.editor().selection_end();
 
-        for row in layout.top..layout.bottom() {
+        for row in view.top..view.bottom {
             // Every row is painted edge to edge, in the two tones the windowed
             // editor uses for the same strips. Leaving the cells past the end of
             // a line alone would let the terminal's own background through, and
             // it would leave a menu's box behind after a dropdown closed over
             // those cells: a frame that only writes what it has something to say
             // about cannot erase.
-            for column in 0..layout.gutter.min(width) {
+            for column in view.gutter..view.left.min(view.edge()) {
                 grid.put(row, column, ' ', Tone::Gutter);
             }
-            for column in layout.gutter..width {
+            for column in view.left..view.edge().min(width) {
                 grid.put(row, column, ' ', Tone::Text);
             }
         }
@@ -2031,21 +2079,31 @@ impl App {
         // The lines, one after another, each taking as many rows as it needs:
         // one while wrapping is off, a screenful or more for a long line while
         // it is on.
-        let mut row = layout.top;
+        let mut row = view.top;
         let mut line = self.tab_mut().scroll_line;
         let mut skip = if wrap { self.tab_mut().scroll_seg } else { 0 };
         // Where the caret ended up on the screen, which is where the completion
         // list hangs from: only the line the caret is on can answer that, and
         // only once it has been drawn.
         let mut caret_cell = None;
-        while row < layout.bottom() && line < self.editor().doc.len_lines() {
+        while row < view.bottom && line < self.editor().doc.len_lines() {
             if skip == 0 {
                 // A line wears its number on its first row, and a continuation
                 // row has none: the strip reads as one line rather than as
                 // several with the same number.
-                self.draw_gutter(grid, row, line, layout.dock, layout.gutter, caret_line);
+                let (start, text) = (view.gutter, view.left);
+                self.draw_gutter(grid, row, line, start, text, caret_line);
             }
-            let drawn = self.draw_line(grid, row, line, layout, caret, &selection, skip, wrap);
+            let drawn = self.draw_line(
+                grid,
+                row,
+                line,
+                view,
+                caret,
+                &selection,
+                skip,
+                wrap,
+            );
             if drawn.caret.is_some() {
                 caret_cell = drawn.caret;
             }
@@ -2058,8 +2116,7 @@ impl App {
             self.draw_strip(grid, 0, width);
         }
         if layout.dock > 0 {
-            let rows = layout.bottom().saturating_sub(layout.top);
-            self.workspace.draw(grid, layout.top, rows, layout.dock);
+            self.workspace.draw(grid, view.top, text_rows, layout.dock);
         }
         if let Some((top, rows)) = layout.list {
             if self.symbols.is_open() {
@@ -2194,9 +2251,14 @@ impl App {
     /// them at all. The near case moves the view by one line, so that a caret
     /// walked off the bottom of the screen scrolls it as it always did; the far
     /// case, a jump or a first frame, puts the caret's line at the top.
-    fn reveal_wrapped(&mut self, caret_line: usize, caret_display: usize, layout: Layout) {
-        let rows = layout.text_rows();
-        let columns = layout.text_cols.max(1);
+    fn reveal_wrapped(
+        &mut self,
+        caret_line: usize,
+        caret_display: usize,
+        view: Viewport,
+    ) {
+        let rows = view.rows();
+        let columns = view.cols.max(1);
         let segment = caret_display / columns;
         if caret_line < self.tab_mut().scroll_line {
             self.tab_mut().scroll_line = caret_line;
@@ -2231,30 +2293,30 @@ impl App {
         &self,
         row: usize,
         display: usize,
-        layout: Layout,
+        view: Viewport,
         wrap: bool,
         skip: usize,
     ) -> CellAt {
-        if layout.text_cols == 0 {
+        if view.cols == 0 {
             return CellAt::Past;
         }
         if wrap {
-            let segment = display / layout.text_cols;
+            let segment = display / view.cols;
             if segment < skip {
                 // Above the top of the screen: the caret can still be in it.
                 return CellAt::Hidden;
             }
             let at_row = row + segment - skip;
-            if at_row >= layout.bottom() {
+            if at_row >= view.bottom {
                 return CellAt::Past;
             }
-            CellAt::Put(at_row, layout.gutter + display % layout.text_cols)
+            CellAt::Put(at_row, view.left + display % view.cols)
         } else {
-            if display < self.tab().scroll_col {
+            if display < view.scroll_col {
                 return CellAt::Hidden;
             }
-            let column = layout.gutter + display - self.tab().scroll_col;
-            if column >= layout.gutter + layout.text_cols {
+            let column = view.left + display - view.scroll_col;
+            if column >= view.edge() {
                 return CellAt::Past;
             }
             CellAt::Put(row, column)
@@ -2274,7 +2336,7 @@ impl App {
         grid: &mut Grid,
         row: usize,
         line: usize,
-        layout: Layout,
+        view: Viewport,
         caret: usize,
         selection: &std::ops::Range<usize>,
         skip: usize,
@@ -2313,7 +2375,7 @@ impl App {
                 _ => (at, 1, ch),
             };
             for step in 0..cells {
-                match self.cell_of(row, from + step, layout, wrap, skip) {
+                match self.cell_of(row, from + step, view, wrap, skip) {
                     CellAt::Hidden => {}
                     CellAt::Put(at_row, column) => {
                         grid.put(at_row, column, drawn, tone);
@@ -2329,7 +2391,7 @@ impl App {
                         // the line is as tall as it ever was.
                         return Drawn {
                             rows: if wrap {
-                                layout.bottom().saturating_sub(row).max(1)
+                                view.bottom.saturating_sub(row).max(1)
                             } else {
                                 used
                             },
@@ -2343,7 +2405,7 @@ impl App {
         // that fills its rows exactly gets one more for it: the caret is a thing
         // the line is a cell wider for, not an ornament on the last character.
         if caret == line_start + self.line_length(line) {
-            match self.cell_of(row, display, layout, wrap, skip) {
+            match self.cell_of(row, display, view, wrap, skip) {
                 CellAt::Put(at_row, column) => {
                     grid.put(at_row, column, ' ', Tone::Caret);
                     used = used.max(at_row - row + 1);
@@ -2353,7 +2415,7 @@ impl App {
                 CellAt::Past => {
                     return Drawn {
                         rows: if wrap {
-                            layout.bottom().saturating_sub(row).max(1)
+                            view.bottom.saturating_sub(row).max(1)
                         } else {
                             used
                         },

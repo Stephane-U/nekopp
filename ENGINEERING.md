@@ -14924,3 +14924,54 @@ Through a pseudo terminal on `one`, `two`, `three`: `Ctrl+F`, the pattern, eight
 Tabs and a Space lit `B`, and Enter drew `1•one` with the bar reading `1/1`. Two
 `Ctrl+F2` marks on the first two lines and a search with both chips on left
 `1•one` alone -- the hand marks gone, the search's own dot in their place.
+
+## The hundred-and-fifty-second pass: one pane's text area, as a value
+
+The split view is the last of the window's furniture the terminal does not have,
+and the reason it is not there is in `App::draw`: the text area was described by
+fields of the frame's own `Layout` -- `top`, `gutter`, `text_cols` -- and the two
+functions that draw a line read `self.tab()` for the scroll and `layout` for the
+geometry. One of each is exactly right for one pane and cannot be stretched to
+two. So this pass takes the text area out of the frame and makes it a value.
+
+`Viewport` is that value: where the pane's text starts and stops on the screen,
+how many columns it has, and which line, column and segment its scroll is at. A
+window that is not split has one, filling everything between the strip and the
+bar. `Layout` keeps the furniture the panes share -- the dock's columns, the
+list, the row the prompt or the find bar takes, the status row -- and loses the
+three fields that were the text area's.
+
+Nothing on the screen changes, which is the point: `cell_of`, `draw_line`,
+`reveal_wrapped` and the gutter take the viewport they are drawing through, and
+the frame builds one from the same numbers it used before. The scroll is read out
+of the tab into the viewport twice -- once before the reveal, which is the
+geometry the reveal needs, and once after, because the reveal is what moved it,
+and a frame drawn through the numbers from before the reveal would be a frame a
+line behind.
+
+`Viewport::edge` is the column after the last one the text may use, and it
+replaces the two places that wrote `layout.gutter + layout.text_cols`: the
+right-hand edge is a pane's own now, and a split's first pane ends at a divider
+rather than at the terminal's last column.
+
+### Verified
+
+`cargo test --offline --release`: 2,530 tests, 0 failed -- nn-app 1,008, nn-core
+1,031, nn-mcp 100, nn-shared 198, nn-tui 193. None are new, and that is the
+evidence this pass wants: every one of the terminal's drawing tests already reads
+cells back out of frames -- the wrap tests, the gutter tests, the find bar's
+row, the strip -- so a refactor that changed what the frame says would have
+failed one of them.
+
+The screen itself, through a pseudo terminal at 140x40, in seven frames: a plain
+document; a long line wrapped over two rows with the continuation row carrying no
+number; two pages of scrolling; the View menu's dropdown; the find bar with a
+match walked to; a tab opened; and a page key on a document with one tab, which
+says `only one document is open`. Captured from a binary built from the commit
+before this one and from this one, the seven frames are identical to the
+character.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31 and the terminal's keystroke is unchanged at
+13,798 bytes for the first paint and 419 for one keystroke: no drawing work was
+added, only a struct moved.
