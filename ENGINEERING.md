@@ -14712,3 +14712,78 @@ match to two; and `a[` with `.*` pressed read
                           Aa \n N E .* bad regex
 
 with the counter giving up a column to the longer word rather than cutting it.
+
+## The hundred-and-forty-ninth pass: where a search is allowed to go
+
+The bar's row now carries seven marks, and they are the window's eleven chips
+minus four. `Aa` and `W` say what matches. `N`, `E` and `.*` say how the pattern
+is read. `∞` says whether walking past an end comes round to the other one,
+and `▭` says whether the search is confined to a piece of the text.
+
+The four that did not come across did not come across for reasons of their own.
+`↑` and `↓` are the direction chips, and on a terminal Up and Down
+*are* the two directions -- a mark saying which way `F3` goes would be a second
+way to say what a key already says. `B` and `P` are the marks tab: bookmark every
+line a match lands on, and clear the marks first. The shell has no bookmarks at
+all yet, so a mark that sets a flag nothing reads would be a lie; they arrive with
+the bookmarks.
+
+Wrap keeps the behaviour the bar always had as its default -- a search that comes
+round -- and turning the mark off is what is new: at the last match a step
+forward now does nothing rather than jumping to the top, because jumping would be
+the wrap it was told not to do. The count stays where the search stopped, `2/2`,
+which is the only feedback a step that does not happen can give.
+
+The selection mark needed a decision the window did not have to make. The window's
+search does not move the document's selection -- its matches are highlights -- so
+it can read the selection back on every refresh and the region follows the reader.
+On a terminal the search *is* the selection: by the second match the selection is
+the match, and reading it back would confine the search to the match that was just
+made. So the region is read once, when the mark is pressed, and kept while the
+mark is lit; the offsets are clamped to the document as it is now, so an edit
+above the region shortens what it covers rather than pointing past the end. The
+mark is a switch, and pressing it again gives the whole document back.
+
+Pressing it with nothing selected cannot be honoured, and a mark that does nothing
+when pressed looks broken. The bar has one row and no room to explain itself, so
+it hands the shell a sentence -- `select the text to search in` -- through a
+`take_notice` beside the existing `take_replaced`, and the shell puts it on the
+status bar where it already says what it could not do. The mark stays unlit.
+
+`MARKS_W` went from thirteen cells to seventeen, which leaves the pattern a
+hundred and eleven columns of a hundred-and-forty-wide terminal and fifteen of a
+forty-eight-wide one. The two new marks are drawn with the window's own glyphs.
+
+### Verified
+
+`cargo test --offline --release`: 2,524 tests, 0 failed -- nn-app 1,008, nn-core
+1,030, nn-mcp 100, nn-shared 198, nn-tui 188. Five are new. Three are the bar's:
+three Enters coming round to the first match and, with the mark off, stopping at
+the last one with the count reading `2/2`; the selection mark confining three
+matches to the one inside `two one` and giving the document back when pressed
+again; and the mark refusing to light over an empty range, saying why once and
+lighting when there is something to stand on. Two are the shell's: the refused
+mark's sentence reaching the status bar with the count still over the whole
+document, and a Down past the last match wrapping until the mark is pressed and
+stopping after. Four tests were re-baselined for the wider mark row -- the row's
+geometry, now counted in characters because two of the marks are not ASCII; the
+Tab order, now eleven stops; and the two shell tests that tab to a control, which
+had to tab twice more.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched.
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical --
+this pass touched `nn-tui` and nothing the window draws.
+
+The terminal's keystroke is unchanged at 13,798 bytes for the first paint and 419
+for one keystroke in a pty at 140x40. The region check is a `retain` over matches
+the search has already found, and it runs only while the mark is lit.
+
+Through a pseudo terminal on a two-line file, `Ctrl+F` and `a` drew
+
+    Find: a              Aa W  N E .* ∞ ▭      0/3
+
+and with the second line selected before the bar opened, the same pattern with
+the selection mark pressed drew `0/1`; pressing the mark with no selection left it
+unlit and the status bar reading `select the text to search in`.

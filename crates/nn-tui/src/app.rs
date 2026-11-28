@@ -634,6 +634,12 @@ impl App {
             if self.find.take_replaced() {
                 self.refresh_all();
             }
+            // A mark the bar could not light is said here: the bar is one row and
+            // has no room to explain itself, and the status bar is where the
+            // shell already says what it could not do.
+            if let Some(notice) = self.find.take_notice() {
+                self.say(&notice, false);
+            }
             return;
         }
         // The completion list takes the five keys that walk or take a row and
@@ -3047,8 +3053,8 @@ mod tests {
         for ch in "one".chars() {
             app.handle(Key::Char(ch));
         }
-        // Tab six times: the five marks, then the replacement field.
-        for _ in 0..6 {
+        // Tab eight times: the seven marks, then the replacement field.
+        for _ in 0..8 {
             app.handle(Key::Tab);
         }
         app.handle(Key::Char('1'));
@@ -3063,6 +3069,55 @@ mod tests {
         app.handle(Key::Ctrl('z'));
         let rows = drawn(&mut app, 40, 6);
         assert!(rows[0].contains("one two one"), "{:?}", rows);
+    }
+
+    #[test]
+    fn a_mark_that_cannot_light_says_why_on_the_shells_own_line() {
+        let mut app = app("one two one\n");
+        app.run(Action::Find);
+        for ch in "one".chars() {
+            app.handle(Key::Char(ch));
+        }
+        // Seven tabs from the field: case, word, the three readings, wrap, and
+        // the selection mark, which has nothing to stand on.
+        for _ in 0..7 {
+            app.handle(Key::Tab);
+        }
+        app.handle(Key::Char(' '));
+        assert_eq!(app.message(), Some("select the text to search in"));
+        // The bar kept the whole document: the count is still both matches.
+        let rows = drawn(&mut app, 40, 6);
+        assert!(rows[4].contains("0/2"), "{:?}", rows);
+    }
+
+    #[test]
+    fn walking_past_the_last_match_wraps_in_the_shell_until_the_mark_is_pressed() {
+        let mut app = app("one two one\n");
+        app.run(Action::Find);
+        for ch in "one".chars() {
+            app.handle(Key::Char(ch));
+        }
+        // Down three times wraps round to the first match, which is what a
+        // search does by default.
+        for _ in 0..3 {
+            app.handle(Key::Down);
+        }
+        assert_eq!(app.tab().editor.selection_start(), 0);
+        // Wrap off: the sixth tab is that mark, and pressing it stops the wrap.
+        for _ in 0..6 {
+            app.handle(Key::Tab);
+        }
+        app.handle(Key::Char(' '));
+        for _ in 0..3 {
+            app.handle(Key::Down);
+        }
+        assert_eq!(
+            app.tab().editor.selection_start(),
+            8,
+            "the search wrapped with the mark off"
+        );
+        let rows = drawn(&mut app, 40, 6);
+        assert!(rows[4].contains("2/2"), "{:?}", rows);
     }
 
     #[test]

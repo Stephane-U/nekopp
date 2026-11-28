@@ -17,10 +17,14 @@
 //!
 //! The windowed bar carries eleven chips on a row of their own, because it has
 //! the width for them. A terminal row is a much smaller thing, so this bar keeps
-//! the five marks that change what a search *finds* -- match case, whole word,
-//! and the three ways to read the pattern: `N` normal, `E` extended and `.*`
-//! regular expression -- and leaves direction, wrap, selection and the marks tab
-//! to the passes that bring them. The marks are the window's own, in the
+//! the seven marks a terminal can honour -- match case, whole word, the three
+//! ways to read the pattern (`N` normal, `E` extended, `.*` regular expression),
+//! whether walking past an end wraps (`∞`) and whether the search is confined to
+//! the text selected when the mark was pressed (`▭`) -- and
+//! leaves direction and the marks tab to the passes that bring them. Direction
+//! is the arrows: on a terminal Up and Down *are* the two directions, where the
+//! window needs a chip to say which way its button goes. The marks are the
+//! window's own, in the
 //! window's order, and the whole-word slot becomes `. matches newline` once the
 //! pattern is a regex, which is the window's trick: a whole word is not a thing
 //! a regular expression has. Tab moves between the things on the row, Space or
@@ -70,6 +74,10 @@ enum Focus {
     Extended,
     /// Regular expression.
     Regex,
+    /// Continue at the other end when an end is reached.
+    Wrap,
+    /// Confine the search to the text that was selected.
+    Selection,
     /// The replacement field, on the second row.
     Replacement,
     /// The `Replace` command.
@@ -94,6 +102,20 @@ pub struct Find {
     dot_matches_newline: bool,
     /// Why the pattern would not compile, when it would not.
     error: Option<String>,
+    /// Whether walking past the last match comes round to the first.
+    wrap: bool,
+    /// Whether the search is confined to [`Find::within`].
+    in_selection: bool,
+    /// The text `in_selection` confines to, in character indices.
+    ///
+    /// Taken once, when the mark is pressed, because on a terminal the search
+    /// *is* the document's selection: by the second match, reading the selection
+    /// back would confine the search to the match it just made. Clamped to the
+    /// document as it is now, so a delete above it shortens what it covers
+    /// rather than pointing past the end.
+    within: Option<Range<usize>>,
+    /// Something the bar cannot say itself: it has no line of its own.
+    notice: Option<String>,
     focus: Focus,
     /// Where the pattern matches, as character ranges, in document order.
     hits: Vec<Range<usize>>,
@@ -126,6 +148,10 @@ impl Find {
             mode: SearchMode::Normal,
             dot_matches_newline: false,
             error: None,
+            wrap: true,
+            in_selection: false,
+            within: None,
+            notice: None,
             focus: Focus::Query,
             hits: Vec::new(),
             current: None,
@@ -150,6 +176,15 @@ impl Find {
         } else {
             1
         }
+    }
+
+    /// What the bar wanted to say but could not, once.
+    ///
+    /// A mark that does nothing when it is pressed is a mark that looks broken,
+    /// so the one case that cannot be honoured -- searching inside a selection
+    /// there is none of -- is said on the status bar, which is the shell's.
+    pub fn take_notice(&mut self) -> Option<String> {
+        self.notice.take()
     }
 
     /// Whether the key just handled edited the document. Reading clears it.
@@ -263,6 +298,8 @@ impl Find {
                         | Focus::Normal
                         | Focus::Extended
                         | Focus::Regex
+                        | Focus::Wrap
+                        | Focus::Selection
                 ) =>
             {
                 self.flip(editor);
@@ -325,8 +362,10 @@ impl Find {
             Focus::Word => Focus::Normal,
             Focus::Normal => Focus::Extended,
             Focus::Extended => Focus::Regex,
-            Focus::Regex if self.replace => Focus::Replacement,
-            Focus::Regex => Focus::Query,
+            Focus::Regex => Focus::Wrap,
+            Focus::Wrap => Focus::Selection,
+            Focus::Selection if self.replace => Focus::Replacement,
+            Focus::Selection => Focus::Query,
             Focus::Replacement => Focus::Replace,
             Focus::Replace => Focus::ReplaceAll,
             Focus::ReplaceAll => Focus::Query,
@@ -429,10 +468,33 @@ impl Find {
             Focus::Normal => self.mode = SearchMode::Normal,
             Focus::Extended => self.mode = SearchMode::Extended,
             Focus::Regex => self.mode = SearchMode::Regex,
+            Focus::Wrap => self.wrap = !self.wrap,
+            Focus::Selection => self.flip_selection(editor),
             _ => return,
         }
         // The marks decide what matches, so the count in the bar is now wrong.
         self.retyped(editor);
+    }
+
+    /// Takes the selection as the search's region, or gives it up.
+    ///
+    /// The region is read once and kept while the mark is lit. Turning the mark
+    /// on with nothing selected is refused and said out loud, rather than lit
+    /// over an empty range that would find nothing.
+    fn flip_selection(&mut self, editor: &Editor) {
+        if self.in_selection {
+            self.in_selection = false;
+            self.within = None;
+            return;
+        }
+        let range = editor.selection_start()..editor.selection_end();
+        if range.is_empty() {
+            let notice = self.tr("select the text to search in").to_string();
+            self.notice = Some(notice);
+            return;
+        }
+        self.in_selection = true;
+        self.within = Some(range);
     }
 
     /// The pattern changed: recount, where recounting is cheap.
@@ -461,6 +523,16 @@ impl Find {
         match Search::new(&self.query, self.options()) {
             Ok(search) => {
                 self.hits = search.find_all(&editor.doc);
+                if let Some(within) = &self.within {
+                    // A match has to lie entirely inside the region: one that
+                    // starts before the selection and ends in it is not inside
+                    // anything the reader looked at, and replacing it would
+                    // write outside the text they meant to touch.
+                    let end = within.end.min(editor.doc.len_chars());
+                    let start = within.start.min(end);
+                    self.hits
+                        .retain(|hit| hit.start >= start && hit.end <= end);
+                }
                 self.hits.truncate(MAX_HITS);
                 self.stale = false;
             }
@@ -481,23 +553,29 @@ impl Find {
         if self.hits.is_empty() {
             return;
         }
-        let index = match (self.current, forward) {
-            (Some(index), true) => (index + 1) % self.hits.len(),
-            (Some(index), false) => (index + self.hits.len() - 1) % self.hits.len(),
-            (None, true) => {
+        let stepped = match self.current {
+            // From where the bar already is: one along, either way.
+            Some(index) if forward => Some(index + 1),
+            Some(index) => index.checked_sub(1),
+            // The first step starts from the selection, and falls off whichever
+            // end of the document that leaves.
+            None if forward => {
                 let from = editor.selection_end();
-                self.hits
-                    .iter()
-                    .position(|hit| hit.start >= from)
-                    .unwrap_or(0)
+                self.hits.iter().position(|hit| hit.start >= from)
             }
-            (None, false) => {
+            None => {
                 let from = editor.selection_start();
-                self.hits
-                    .iter()
-                    .rposition(|hit| hit.end <= from)
-                    .unwrap_or(self.hits.len() - 1)
+                self.hits.iter().rposition(|hit| hit.end <= from)
             }
+        };
+        let index = match stepped.filter(|&index| index < self.hits.len()) {
+            Some(index) => index,
+            // Past an end: the other end with wrap on, and with wrap off a step
+            // that does not happen -- jumping to the top would be the wrap it
+            // was told not to do.
+            None if self.wrap && forward => 0,
+            None if self.wrap => self.hits.len() - 1,
+            None => return,
         };
         self.current = Some(index);
         if let Some(hit) = self.hits.get(index) {
@@ -631,6 +709,10 @@ impl Find {
             ("N", self.mode == SearchMode::Normal, Focus::Normal),
             ("E", self.mode == SearchMode::Extended, Focus::Extended),
             (".*", regex, Focus::Regex),
+            // The window's own marks: an infinity for a search that keeps
+            // going, and the white rectangle for the shape a selection makes.
+            ("∞", self.wrap, Focus::Wrap),
+            ("▭", self.in_selection, Focus::Selection),
         ];
         for (at, (mark, on, focus)) in columns.into_iter().zip(marks) {
             self.draw_mark(grid, row, at, mark, on, self.focus == focus);
@@ -667,30 +749,33 @@ impl Find {
 /// The columns between the two commands on the replacement row.
 const BUTTON_GAP: usize = 2;
 
-/// The cells the five marks take up: `Aa W  N E .*`, and the space that
-/// separates them from the pattern.
+/// The cells the seven marks take up: `Aa W  N E .* ∞ ▭`, and
+/// the space that separates them from the pattern.
 ///
 /// The word slot keeps two columns of its own because its regex mark, `\n`, is
 /// two characters: a row whose marks moved by one when the pattern changed
 /// reading would be a row that shuffles under the reader's hand.
-const MARKS_W: usize = "Aa W  N E .*".len() + 1;
+const MARKS_W: usize = 16 + 1;
 
 /// The cells the counter keeps: the longest word it can hold, `no match`, and
 /// the column after it.
 const COUNT_W: usize = 8 + 1;
 
-/// Where the five marks start, given the column the marks begin at.
+/// Where the seven marks start, given the column the marks begin at.
 ///
-/// `Aa` and `W` say what matches; `N`, `E` and `.*` say how the pattern is read,
-/// and the wider gap between the two groups is where the word slot's second
-/// column falls in a literal reading.
-fn mark_columns(marks_at: usize) -> [usize; 5] {
+/// `Aa` and `W` say what matches; `N`, `E` and `.*` say how the pattern is read;
+/// `∞` and `▭` say where the search is allowed to go. The wider
+/// gap between the groups is where the word slot's second column falls in a
+/// literal reading.
+fn mark_columns(marks_at: usize) -> [usize; 7] {
     [
         marks_at,
         marks_at + 3,
         marks_at + 6,
         marks_at + 8,
         marks_at + 10,
+        marks_at + 13,
+        marks_at + 15,
     ]
 }
 
@@ -757,7 +842,7 @@ mod tests {
         assert_eq!(bar.hits[0].start, 4);
         // And back round to the field with Tab -- past the three mode marks --
         // where a space is a space.
-        for _ in 0..4 {
+        for _ in 0..6 {
             bar.handle(Key::Tab, &mut editor);
         }
         assert_eq!(bar.focus, Focus::Query);
@@ -817,19 +902,21 @@ mod tests {
         let mut bar = Find::new();
         bar.open(&editor);
         type_in(&mut bar, &mut editor, "one");
-        let row = drawn(&bar, 40);
+        let row = drawn(&bar, 48);
         assert!(row.starts_with("Find: one"), "{row:?}");
-        // `Aa W N E .*`, one column apart, then the counter, which ends at the
+        // `Aa W  N E .* ∞ ▭`, then the counter, which ends at the
         // last column but one so nothing is written where a terminal would wrap.
-        assert_eq!(&row[18..21], "Aa ", "{row:?}");
-        assert_eq!(&row[21..30], "W  N E .*", "{row:?}");
+        // Counted in characters: two of the marks are not ASCII.
+        let marks: String = row.chars().skip(22).take(16).collect();
+        assert_eq!(marks, "Aa W  N E .* ∞ ▭", "{row:?}");
         assert!(row.ends_with(" 0/2 "), "{row:?}");
         // A pattern longer than the room keeps its head and loses its tail, and
         // neither the marks nor the counter move to make space for it.
         type_in(&mut bar, &mut editor, " abcdefghijklmnop");
-        let row = drawn(&bar, 40);
+        let row = drawn(&bar, 48);
         assert!(row.starts_with("Find: one abc"), "{row:?}");
-        assert_eq!(&row[18..21], "Aa ", "{row:?}");
+        let marks: String = row.chars().skip(22).take(16).collect();
+        assert_eq!(marks, "Aa W  N E .* ∞ ▭", "{row:?}");
         assert!(row.ends_with(" no match "), "{row:?}");
     }
 
@@ -842,7 +929,7 @@ mod tests {
         assert_eq!(bar.rows(), 2, "the replacement is a row of its own");
         // Tab reads down the bar: the pattern's row, then the replacement's.
         let mut order = Vec::new();
-        for _ in 0..9 {
+        for _ in 0..11 {
             bar.focus = bar.next_focus();
             order.push(bar.focus);
         }
@@ -854,6 +941,8 @@ mod tests {
                 Focus::Normal,
                 Focus::Extended,
                 Focus::Regex,
+                Focus::Wrap,
+                Focus::Selection,
                 Focus::Replacement,
                 Focus::Replace,
                 Focus::ReplaceAll,
@@ -1034,17 +1123,88 @@ mod tests {
     }
 
     #[test]
+    fn walking_past_the_end_wraps_or_stops_where_the_mark_says() {
+        let mut editor = editor("one two one\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "one");
+        // Wrap is on by default: the third Enter comes round to the first match.
+        bar.handle(Key::Enter, &mut editor);
+        bar.handle(Key::Enter, &mut editor);
+        assert_eq!(editor.selection_start(), 8);
+        bar.handle(Key::Enter, &mut editor);
+        assert_eq!(editor.selection_start(), 0);
+        // With the mark off the search stops at the last match instead, because
+        // jumping to the first would be the wrap it was told not to do.
+        bar.focus = Focus::Wrap;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(!bar.wrap);
+        // The arrows walk from any focus, where Enter would press the mark the
+        // focus is still standing on.
+        for _ in 0..3 {
+            bar.handle(Key::Down, &mut editor);
+        }
+        assert_eq!(editor.selection_start(), 8, "the search wrapped anyway");
+        assert_eq!(bar.count().0, "2/2", "the count moved off the last match");
+    }
+
+    #[test]
+    fn the_selection_mark_confines_the_search_to_what_was_selected() {
+        let mut editor = editor("one two one\nthree one\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "one");
+        assert_eq!(bar.count().0, "0/3");
+        // Three matches, one of them inside `two one`.
+        editor.select_range(4..11);
+        bar.focus = Focus::Selection;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(bar.in_selection);
+        assert_eq!(bar.count().0, "0/1", "{:?}", bar.hits);
+        assert_eq!(bar.hits[0], 8..11, "{:?}", bar.hits);
+        // The mark is a switch: pressing it again gives the whole document back.
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(!bar.in_selection);
+        assert_eq!(bar.count().0, "0/3", "{:?}", bar.hits);
+    }
+
+    #[test]
+    fn the_selection_mark_refuses_to_light_over_nothing_and_says_why() {
+        let mut editor = editor("one\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "one");
+        bar.focus = Focus::Selection;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(!bar.in_selection, "the mark lit over an empty range");
+        // A mark that does nothing when it is pressed looks broken, so the bar
+        // hands the shell a sentence to put on its own line.
+        assert_eq!(
+            bar.take_notice().as_deref(),
+            Some("select the text to search in")
+        );
+        assert_eq!(bar.take_notice(), None, "the notice came twice");
+        // And pressing it again with a selection does light it.
+        editor.select_range(0..3);
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(bar.in_selection);
+    }
+
+    #[test]
     fn the_regex_reading_puts_its_own_mark_in_the_word_slot() {
         let mut editor = editor("a.b\n");
         let mut bar = Find::new();
         bar.open(&editor);
         let row = drawn(&bar, 40);
-        assert_eq!(&row[21..23], "W ", "{row:?}");
+        let word: String = row.chars().skip(17).take(2).collect();
+        assert_eq!(word, "W ", "{row:?}");
         bar.focus = Focus::Regex;
         bar.handle(Key::Char(' '), &mut editor);
         let row = drawn(&bar, 40);
-        assert_eq!(&row[21..23], "\\n", "{row:?}");
-        assert_eq!(&row[28..30], ".*", "{row:?}");
+        let word: String = row.chars().skip(17).take(2).collect();
+        assert_eq!(word, "\\n", "{row:?}");
+        let regex: String = row.chars().skip(24).take(2).collect();
+        assert_eq!(regex, ".*", "{row:?}");
     }
 
     /// The bar's row, as a string.
