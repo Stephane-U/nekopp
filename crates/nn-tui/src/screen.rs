@@ -24,19 +24,33 @@
 //!
 //! Two rules make the difference small. A row is written from column zero to the
 //! last column that has anything in it, in *either* frame, so erasing the tail
-//! of a line costs spaces rather than a blank repaint; and adjacent cells of the
-//! same [`Tone`] share one escape, because a line of code has six or seven runs
-//! in it, not eighty.
+//! of a line costs spaces rather than a blank repaint; and adjacent cells that one
+//! escape paints the same way -- the same [`Tone`], or the same colour of their
+//! own -- share it, because a line of code has six or seven runs in it, not
+//! eighty. Only the playground's colour tier gives a cell a colour of its own,
+//! which is why a page of it costs what a page of anything else costs.
+
+use std::io::Write;
 
 use unicode_width::UnicodeWidthChar;
 
+use nn_shared::color::Rgb;
+
 use crate::palette::{Palette, Tone};
 
-/// One cell: a character and the tone it is drawn in.
+/// One cell: a character, the tone it is drawn in, and the colour it carries
+/// when it has one of its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cell {
     pub ch: char,
     pub tone: Tone,
+    /// A foreground chosen for this cell alone, over the document's background.
+    ///
+    /// `None` is every cell the editor draws: a tone names both of its colours,
+    /// and the palette turns that into one escape for a whole run. A colour of its
+    /// own is what the playground's colour tier asks for, where two neighbouring
+    /// cells are rarely the same colour and a run is one cell long.
+    pub ink: Option<Rgb>,
 }
 
 impl Cell {
@@ -44,6 +58,7 @@ impl Cell {
     pub const BLANK: Cell = Cell {
         ch: ' ',
         tone: Tone::Text,
+        ink: None,
     };
 
     /// The second half of a wide character.
@@ -54,6 +69,7 @@ impl Cell {
     pub const CONT: Cell = Cell {
         ch: '\0',
         tone: Tone::Text,
+        ink: None,
     };
 
 }
@@ -98,6 +114,28 @@ impl Grid {
     /// the last column is dropped, because a wide glyph in the last column makes
     /// a terminal wrap and scroll the whole screen up by one.
     pub fn put(&mut self, row: usize, column: usize, ch: char, tone: Tone) -> usize {
+        self.write(row, column, ch, tone, None)
+    }
+
+    /// Puts `ch` at `row` and `column` in a colour of its own, and says how many
+    /// cells it took.
+    ///
+    /// The colour is the foreground, and the background stays the document's: a
+    /// coloured glyph is ink on the page rather than a chip of a dialog.
+    pub fn paint(&mut self, row: usize, column: usize, ch: char, ink: Rgb) -> usize {
+        self.write(row, column, ch, Tone::Text, Some(ink))
+    }
+
+    /// The one place a cell is written, so the wide-character rules are stated
+    /// once for both of the public ways in.
+    fn write(
+        &mut self,
+        row: usize,
+        column: usize,
+        ch: char,
+        tone: Tone,
+        ink: Option<Rgb>,
+    ) -> usize {
         if row >= self.height || column >= self.width {
             return 0;
         }
@@ -109,12 +147,12 @@ impl Grid {
                     return 0;
                 }
                 let index = row * self.width + column;
-                self.cells[index] = Cell { ch, tone };
+                self.cells[index] = Cell { ch, tone, ink };
                 self.cells[index + 1] = Cell::CONT;
                 2
             }
             _ => {
-                self.cells[row * self.width + column] = Cell { ch, tone };
+                self.cells[row * self.width + column] = Cell { ch, tone, ink };
                 1
             }
         }
@@ -136,6 +174,21 @@ impl Grid {
         }
         at
     }
+}
+
+/// Writes the escape that paints `ink` over `paper`.
+///
+/// Both colours, because a cell written after another escape inherits whatever
+/// that one left behind: half a pair is how a terminal ends up with black on
+/// black. Written straight into the frame's buffer rather than through a
+/// `String`, since a coloured screen is hundreds of these and a format per cell
+/// is an allocation per cell.
+fn ink_escape(out: &mut Vec<u8>, ink: Rgb, paper: Rgb) {
+    let _ = write!(
+        out,
+        "\x1b[38;2;{};{};{};48;2;{};{};{}m",
+        ink.0, ink.1, ink.2, paper.0, paper.1, paper.2
+    );
 }
 
 /// Two grids and the bytes between them.
@@ -244,22 +297,31 @@ impl Frame {
             // place this module translates.
             self.out
                 .extend_from_slice(format!("\x1b[{};{}H", row + 1, from + 1).as_bytes());
-            let mut tone: Option<Tone> = None;
+            let paper = self.palette.paper();
+            let mut painted: Option<(Tone, Option<Rgb>)> = None;
             for column in from..=last {
                 let cell = self.back.get(row, column);
                 if cell.ch == Cell::CONT.ch {
                     continue;
                 }
-                if tone != Some(cell.tone) {
-                    self.out
-                        .extend_from_slice(self.palette.sgr(cell.tone).as_bytes());
-                    tone = Some(cell.tone);
+                // One escape per run, as with the tones: a cell is written with
+                // another escape only when the one before it would not paint it,
+                // and a run of fur in one colour therefore costs one escape rather
+                // than one per cell.
+                if painted != Some((cell.tone, cell.ink)) {
+                    match cell.ink {
+                        Some(ink) => ink_escape(&mut self.out, ink, paper),
+                        None => self
+                            .out
+                            .extend_from_slice(self.palette.sgr(cell.tone).as_bytes()),
+                    }
+                    painted = Some((cell.tone, cell.ink));
                 }
                 let mut utf8 = [0u8; 4];
                 self.out
                     .extend_from_slice(cell.ch.encode_utf8(&mut utf8).as_bytes());
             }
-            if tone.is_some() {
+            if painted.is_some() {
                 self.out.extend_from_slice(b"\x1b[0m");
             }
         }
@@ -394,6 +456,60 @@ mod tests {
         let bytes = frame.render();
         let text = String::from_utf8_lossy(bytes);
         assert_eq!(text.matches('m').count(), 2, "{text:?}");
+    }
+
+    #[test]
+    fn a_cell_is_twelve_bytes() {
+        // The ink costs four, which is 144 kilobytes on a grid of 200 by 60 and twice
+        // that for the two frames. Worth a test, because a cell that quietly grew to
+        // twenty-four would be a decision nobody made.
+        assert_eq!(std::mem::size_of::<Cell>(), 12);
+    }
+
+    #[test]
+    fn a_cell_with_an_ink_of_its_own_names_both_of_its_colours() {
+        let mut frame = Frame::new(6, 1);
+        {
+            let grid = frame.grid();
+            grid.paint(0, 0, '█', Rgb::new(228, 172, 112));
+            // The same colour twice is one escape, and a third cell that is the
+            // page's own again is a tone escape over the background.
+            grid.paint(0, 1, '█', Rgb::new(228, 172, 112));
+            grid.paint(0, 2, '█', Rgb::new(40, 36, 46));
+        }
+        let bytes = frame.render();
+        let text = String::from_utf8_lossy(bytes);
+        assert_eq!(text.matches("\x1b[38;2;").count(), 3, "{text:?}");
+        assert!(text.contains("38;2;228;172;112"), "{text:?}");
+        assert!(text.contains("38;2;40;36;46"), "{text:?}");
+        // The background is the document's, so a coloured glyph is ink on the page
+        // and not a box around it.
+        let palette = crate::palette::Palette::of(&nn_shared::theme::Theme::DARK);
+        let paper = palette.paper();
+        let background = format!("48;2;{};{};{}m", paper.0, paper.1, paper.2);
+        assert!(text.contains(&background), "{text:?}");
+        // And the two cells of one colour share that escape.
+        assert_eq!(text.matches("38;2;228;172;112").count(), 1, "{text:?}");
+    }
+
+    #[test]
+    fn a_cell_that_only_changed_colour_is_written_again() {
+        let mut frame = Frame::new(4, 1);
+        {
+            let grid = frame.grid();
+            grid.paint(0, 0, '█', Rgb::new(228, 172, 112));
+        }
+        frame.render();
+        {
+            let grid = frame.grid();
+            grid.paint(0, 0, '█', Rgb::new(190, 134, 78));
+        }
+        let bytes = frame.render();
+        let text = String::from_utf8_lossy(bytes);
+        // The character did not move, so the only thing that can be in the stream
+        // is the new colour: the ink is part of what a cell is.
+        assert!(text.contains("38;2;190;134;78"), "{text:?}");
+        assert!(!text.contains("38;2;228;172;112"), "{text:?}");
     }
 
     #[test]

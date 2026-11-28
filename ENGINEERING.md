@@ -15312,3 +15312,90 @@ Through a pseudo terminal at 140x40, View and its fifth row drew a page of JSON
 under a kitten six cells tall -- `▓▓▓`, `▒▒▒`, `█●●+`, `█●●.`, `█▒▒▒`, `▒▒▒` -- with
 `json · page 1 · Esc leaves` along the bottom row; two runs a minute apart drew the
 page in different places, so it moves; and `Esc` put the document back, unchanged.
+
+## The hundred-and-fifty-seventh pass: the playground, in colour
+
+The last pass of the plan, and the one the plan called a preference. It is not one,
+and the reason is worth writing down: the row would go in the preference dialog
+both front-ends draw, and only one of them could honour it -- the window draws its
+playground in colour whatever a row said -- so the tier is decided by the terminal
+instead, which is the only thing that knows the answer. `COLORTERM` and `TERM` are
+read once at startup, the kernel console and the terminals that predate colour are
+refused by name, `NO_COLOR` is honoured, and `NPP_PLAYGROUND` says `colour` or
+`plain` outright, for a terminal that reports more than it can do.
+
+The screen had to learn one thing: a cell carries a tone, and now may carry a
+colour of its own as well. `Cell::ink` is `None` for every cell the editor draws,
+because a tone already names both of its colours, and `Some` for a cell of the
+page: the foreground is the card's syntax colour, the kitten's shade, or a glow's
+hue, and the background stays the document's, so a coloured glyph is ink on the
+page rather than a chip of a dialog. The renderer's run rule is unchanged and now
+covers both -- adjacent cells that one escape paints the same way share it -- so a
+line of fur is one escape rather than one per cell. The cell grew from eight bytes
+to twelve, which is 144 kilobytes instead of 96 on a grid of 200 by 60, and twice
+over for the two frames.
+
+The kitten's five colours moved into `nn_shared::theme`, with the rule that adjusts
+them for the background, because both front-ends draw her now: the window as lit
+geometry, the terminal as one cell per character, and a shade of fur cannot be one
+colour on a GPU and another in a cell. `nn_shared::color::rainbow` is the spark
+shader's hue curve written out on the CPU, for the same reason, and the drift it
+adds is the shader's two numbers: the clock, and how far from the middle the spark
+is.
+
+A faded page is the one place the tiers disagree, and writing it found a bug. The
+plain tier switched to the comment's tone at more than half a dim, and `nn_core`
+fades a page to 0.45 and no further, so that branch had never once fired: a page
+that had been quiet for an hour was drawn as brightly as one that had just been
+touched. The colour tier fades instead of switching, because a colour is a number
+and can be half way between two of them, and it mixes towards the page rather than
+multiplying by the dim as the shader does -- on a paper-white theme, multiplying
+makes the page darker than the paper it is printed on. The plain tier now switches
+at `QUIET`, the end of the fade, which is as close as a character screen can come
+to a shade.
+
+The clock is the last of it: forty milliseconds a frame in characters, twenty-five
+in colour, and two hundred still for the editor, whose rate none of this touches.
+
+### Verified
+
+`cargo test --offline --release`: 2,590 tests, 0 failed -- nn-app 1,006, nn-core
+1,031, nn-mcp 100, nn-shared 206, nn-tui 247. Thirteen more than the pass before:
+eleven in `nn-tui`, and two new ones in `nn-shared` beside the two kitten tests that
+moved there from `nn-app`, which counts two fewer.
+
+Eleven are the terminal's. Three are the screen's: a cell with an ink of its own
+names both of its colours, writes the same colour twice with one escape, and
+compares unequal when only the colour changed, so a recoloured glyph is written
+again; and a cell is still twelve bytes, which pins the four that the ink costs.
+Four are the mode's: the colour tier puts the kitten's own five colours on the screen
+and the plain one puts none, a page quiet for five minutes keeps its colours and
+fades them towards the background rather than going out, the colour tier asks for
+the shorter tick, and a second of the coloured page costs about what a second of
+the plain one does -- 9,005 bytes of first paint and 6,777 a second at 80 by 24
+against the plain tier's 9,533 and 6,133. Three are the probe's: true colour is
+recognised from `COLORTERM`, from a `TERM` that names its terminal, and from
+`-direct`; the consoles are refused even when they report colour; and `NO_COLOR`
+refuses while `NPP_PLAYGROUND` is the last word either way. One is the shell's: a
+coloured playground asks for twenty-five milliseconds where the plain one asks for
+forty, and its cells reach the grid with an ink on them.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31: the window has not moved, which is what the two
+moved tests and the one shared colour definition were for. The terminal's keystroke
+is unchanged at 13,798 bytes for the first paint and 419 for one keystroke, since
+no cell of the editor carries an ink and the diff compares what it compared before.
+
+The phase's gate was CPU per second against the window's own number. Six seconds of
+a session at 140 by 40 costs 0.02 CPU-seconds with the editor alone, 0.06 with the
+page in characters and 0.10 with it in colour -- two per cent of a core for the
+dearer of the two. The window's figure is the one this plan was agreed on: ten
+seconds of the same animated page cost 1.35 CPU-seconds on a 1080 Ti and 30.01 on
+llvmpipe, so thirteen per cent of a core with a GPU and three cores without one.
+
+Through a pseudo terminal at 140 by 40, View and Playground drew the page in 76
+distinct foregrounds where the plain tier draws 12, the kitten's fur among them 29
+times. `COLORTERM=truecolor` alone chose the colour tier with no override at all,
+and `NO_COLOR=1` refused it with `COLORTERM` still set. A second of the page through
+the same terminal costs 6,721 bytes in colour and 2,236 in characters, which is what
+fifteen more frames and the extra escapes amount to.

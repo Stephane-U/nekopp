@@ -45,10 +45,10 @@ use std::time::{Duration, Instant};
 
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 use glyphon::{TextArea, TextBounds};
-use nn_core::playground::{Frame, Input, Shade};
+use nn_core::playground::{Frame, Input};
 use nn_core::playground::Playground as Simulation;
 
-use crate::theme::{mix, Rgb, Theme, ToGpu};
+use crate::theme::{Theme, ToGpu};
 
 pub use nn_core::playground::scene::GLYPH_WIDTH;
 
@@ -112,48 +112,11 @@ fn cells(width: u32, height: u32, line_px: f32) -> [u32; 2] {
     [columns, rows]
 }
 
-/// The kitten's colours.
+/// The kitten's colours, and the rule that keeps them visible on either theme.
 ///
-/// Fixed rather than taken from the theme: a cat is ginger whatever the syntax
-/// highlighting is doing. They are adjusted for the background -- see
-/// [`readable`] -- so they stay visible on a light theme.
-const FUR: Rgb = Rgb(228, 172, 112);
-const FUR_DARK: Rgb = Rgb(190, 134, 78);
-const FUR_LIGHT: Rgb = Rgb(246, 236, 214);
-const NOSE: Rgb = Rgb(226, 136, 148);
-const EYE: Rgb = Rgb(40, 36, 46);
-
-/// A colour moved away from the window's background until it reads.
-///
-/// A ginger kitten on a paper-white theme is a pale smudge, and a cream chest on
-/// a near-black one is a bright smear. One rule covers both: darken on a light
-/// background, lighten on a dark one, by enough to see and not enough to look
-/// like a different colour.
-pub fn readable(colour: Rgb, theme: &Theme) -> Rgb {
-    let background = theme.background;
-    let luma = 0.299 * background.0 as f32
-        + 0.587 * background.1 as f32
-        + 0.114 * background.2 as f32;
-    if luma > 140.0 {
-        mix(colour, Rgb(0, 0, 0), 0.24)
-    } else {
-        mix(colour, Rgb(255, 255, 255), 0.06)
-    }
-}
-
-/// The colour a [`Shade`] plays.
-pub fn shade_colour(shade: Shade, theme: &Theme) -> Rgb {
-    readable(
-        match shade {
-            Shade::Fur => FUR,
-            Shade::FurDark => FUR_DARK,
-            Shade::FurLight => FUR_LIGHT,
-            Shade::Nose => NOSE,
-            Shade::Eye => EYE,
-        },
-        theme,
-    )
-}
+/// Both front-ends carry them, and the definition is `nn-shared`'s: a shade of
+/// fur cannot be one colour on a GPU and another in a terminal.
+pub use nn_shared::theme::{readable, shade_colour};
 
 /// The mode: a page, the GPU side of it, and how long the pointer has been still.
 pub struct Playground {
@@ -445,23 +408,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_ginger_cat_is_darkened_on_a_light_theme_and_left_alone_on_a_dark_one() {
-        let paper = Theme {
-            background: Rgb(255, 255, 255),
-            ..Theme::default()
-        };
-        let night = Theme {
-            background: Rgb(18, 18, 22),
-            ..Theme::default()
-        };
-        let on_paper = readable(FUR, &paper);
-        let on_night = readable(FUR, &night);
-        assert!(on_paper.0 < FUR.0, "{on_paper:?}");
-        assert!(on_night.0 >= FUR.0, "{on_night:?}");
-        assert!(on_paper.1 < on_night.1, "{on_paper:?} {on_night:?}");
-    }
-
-    #[test]
     fn the_page_holds_half_the_cells_at_twice_the_line_height() {
         // A dense display gets a page at twice the size, which is half as many
         // lines and half as many columns in the same window. The grid is what the
@@ -494,28 +440,5 @@ mod tests {
         assert_eq!(sane(-2.0), 1.0);
         assert_eq!(sane(f32::NAN), 1.0);
         assert_eq!(sane(1.5), 1.5);
-    }
-
-    #[test]
-    fn every_shade_has_a_colour_and_no_two_are_the_same() {
-        let theme = Theme::default();
-        let shades = [
-            Shade::Fur,
-            Shade::FurDark,
-            Shade::FurLight,
-            Shade::Nose,
-            Shade::Eye,
-        ];
-        let colours: Vec<Rgb> = shades
-            .iter()
-            .map(|shade| shade_colour(*shade, &theme))
-            .collect();
-        for (index, colour) in colours.iter().enumerate() {
-            assert!(
-                !colours[index + 1..].contains(colour),
-                "{:?} is the colour of another shade",
-                shades[index]
-            );
-        }
     }
 }

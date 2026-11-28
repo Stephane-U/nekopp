@@ -112,6 +112,9 @@ impl Tone {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Palette {
     escapes: Vec<String>,
+    /// The document's own background, which is what a cell with a colour of its
+    /// own is painted over.
+    paper: Rgb,
 }
 
 impl Palette {
@@ -163,7 +166,14 @@ impl Palette {
                     )
                 })
                 .collect(),
+            paper: theme.background,
         }
+    }
+
+    /// The colour behind everything, which a cell with a colour of its own is
+    /// drawn over.
+    pub fn paper(&self) -> Rgb {
+        self.paper
     }
 
     /// The escape that paints `tone`, foreground and background both.

@@ -58,6 +58,23 @@ pub fn mix(a: Rgb, b: Rgb, t: f32) -> Rgb {
     )
 }
 
+/// A hue to a colour: one turn of the wheel, red at zero.
+///
+/// The same curve as the window's spark shader, written out here so the two
+/// front-ends cannot disagree about it -- a glow is a number the simulation
+/// sends, and neither a shader nor a cell has a wheel of its own. The window
+/// blends its sparks additively and a cell cannot blend at all, so what the
+/// terminal takes from this is the hue alone.
+pub fn rainbow(hue: f32) -> Rgb {
+    let turn = (hue - hue.floor()) * 6.0;
+    let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+    Rgb(
+        channel((turn - 3.0).abs() - 1.0),
+        channel(2.0 - (turn - 2.0).abs()),
+        channel(2.0 - (turn - 4.0).abs()),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +93,36 @@ mod tests {
         let green = Rgb::new(0, 100, 0).luminance();
         let blue = Rgb::new(0, 0, 100).luminance();
         assert!(green > red && red > blue, "{green} {red} {blue}");
+    }
+
+    #[test]
+    fn a_hue_is_a_colour_and_the_wheel_closes() {
+        // A third of a turn apart, which is where the three primaries sit on a
+        // wheel that starts at red.
+        let red = rainbow(0.0);
+        let green = rainbow(1.0 / 3.0);
+        let blue = rainbow(2.0 / 3.0);
+        assert!(red.0 > 200 && red.1 < 40 && red.2 < 40, "{red:?}");
+        assert!(green.1 > 200 && green.0 < 40 && green.2 < 40, "{green:?}");
+        assert!(blue.2 > 200 && blue.0 < 40 && blue.1 < 40, "{blue:?}");
+        // Past one turn is the same colour again, and a negative hue too: the
+        // simulation sends whatever its clock and its distance added up to.
+        assert_eq!(rainbow(1.0 / 3.0), rainbow(4.0 + 1.0 / 3.0));
+        assert_eq!(rainbow(1.0 / 3.0), rainbow(1.0 / 3.0 - 2.0));
+        // A number that is not a number is still a colour rather than a panic.
+        assert!(rainbow(f32::NAN).0 < 255);
+    }
+
+    #[test]
+    fn a_blend_moves_one_channel_at_a_time() {
+        let black = Rgb::new(0, 0, 0);
+        let white = Rgb::new(255, 255, 255);
+        assert_eq!(mix(black, white, 0.0), black);
+        assert_eq!(mix(black, white, 1.0), white);
+        let half = mix(black, white, 0.5);
+        assert_eq!(half, Rgb::new(128, 128, 128));
+        // A blend past either end is the end rather than a wrapped channel.
+        assert_eq!(mix(black, white, -1.0), black);
+        assert_eq!(mix(black, white, 2.0), white);
     }
 }

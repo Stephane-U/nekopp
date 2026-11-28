@@ -175,9 +175,120 @@ fn is_terminal(fd: i32) -> bool {
     unsafe { libc::isatty(fd) == 1 }
 }
 
+/// Whether the playground may spend a colour on every cell here.
+///
+/// Two questions, both answered by the environment the program was started in. The
+/// first is whether the terminal has the colours to spend: a cell with a colour of
+/// its own costs an escape naming both of its colours, a true-colour one, and a
+/// terminal with sixteen of them would round each to the nearest it owns -- so the
+/// mode stays in characters there, where it looks exactly the same.
+///
+/// The second is whether the link is worth it. A coloured page is thousands of
+/// bytes a frame; a local terminal reads that out of a socket and a serial console
+/// reads it down a wire, and this cannot measure which one it is talking to, so the
+/// consoles and the terminals that predate colour are named and refused.
+///
+/// `NO_COLOR` is honoured here and nowhere else in the shell. The editor needs
+/// colour to tell a keyword from a comment; the playground does not, and spending
+/// a colour per cell on the one person who asked for no colour at all is the wrong
+/// way round.
+///
+/// `NPP_PLAYGROUND` answers both questions itself, for a terminal that reports more
+/// than it can do and for the tests: `colour` or `plain`.
+pub fn per_cell_colour() -> bool {
+    decide(
+        std::env::var("NPP_PLAYGROUND").ok().as_deref(),
+        std::env::var("COLORTERM").ok().as_deref(),
+        std::env::var("TERM").ok().as_deref(),
+        std::env::var_os("NO_COLOR").is_some_and(|value| !value.is_empty()),
+    )
+}
+
+/// [`per_cell_colour`] with the environment handed in, so the answer can be tested
+/// without a terminal of each kind.
+fn decide(
+    choice: Option<&str>,
+    colour_term: Option<&str>,
+    term: Option<&str>,
+    no_colour: bool,
+) -> bool {
+    match choice.map(str::trim) {
+        Some("colour" | "color" | "on") => return true,
+        Some("plain" | "off" | "ascii") => return false,
+        _ => {}
+    }
+    if no_colour {
+        return false;
+    }
+    let term = term.unwrap_or_default();
+    // The consoles with no colour worth the name: the kernel's own, the one a
+    // serial line gives, and the ones that predate colour entirely.
+    const PLAIN: [&str; 6] = ["linux", "dumb", "cons25", "sun", "vt100", "ansi"];
+    if PLAIN.iter().any(|plain| term.starts_with(plain)) {
+        return false;
+    }
+    // Terminals that name their own depth, and the terminfo entries that say
+    // "direct", which is true colour by definition.
+    const COLOUR: [&str; 7] = [
+        "kitty",
+        "alacritty",
+        "wezterm",
+        "foot",
+        "ghostty",
+        "contour",
+        "rio",
+    ];
+    if term.contains("direct") || COLOUR.iter().any(|name| term.contains(name)) {
+        return true;
+    }
+    let colour_term = colour_term.unwrap_or_default();
+    colour_term.contains("truecolor") || colour_term.contains("24bit")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_colour_per_cell_needs_a_terminal_that_has_the_colours() {
+        let yes = |term: &'static str, colour: Option<&'static str>| {
+            decide(None, colour, Some(term), false)
+        };
+        // The terminals that say so themselves, and the ones that say it in
+        // `COLORTERM` because their `TERM` is a plain name.
+        assert!(yes("xterm-kitty", None));
+        assert!(yes("alacritty", None));
+        assert!(yes("xterm-256color", Some("truecolor")));
+        assert!(yes("xterm-256color", Some("24bit")));
+        assert!(yes("tmux-direct", None));
+        // A terminal that reports neither is asked for no colour: sixteen colours
+        // would round every one of them to the nearest it owns.
+        assert!(!yes("xterm-256color", None));
+        assert!(!yes("screen.xterm-256color", Some("")));
+        assert!(!decide(None, None, None, false));
+    }
+
+    #[test]
+    fn the_consoles_are_refused_even_when_colour_is_reported() {
+        // The kernel console has no true colour to give, and a multiplexer that
+        // forwards `COLORTERM` over a serial line is not worth thousands of bytes a
+        // frame.
+        assert!(!decide(None, Some("truecolor"), Some("linux"), false));
+        assert!(!decide(None, Some("truecolor"), Some("dumb"), false));
+        assert!(!decide(None, Some("truecolor"), Some("vt100"), false));
+    }
+
+    #[test]
+    fn no_colour_is_refused_and_the_override_is_the_last_word() {
+        assert!(!decide(None, Some("truecolor"), Some("xterm-kitty"), true));
+        // An override answers both questions: it is what a person types when the
+        // probe is wrong, and what the tests use to pick a tier.
+        assert!(decide(Some("colour"), None, Some("dumb"), true));
+        let plain = decide(Some("plain"), Some("truecolor"), Some("xterm-kitty"), false);
+        assert!(!plain);
+        // A word this does not know is not an override.
+        assert!(decide(Some("maybe"), Some("truecolor"), Some("xterm"), false));
+    }
 
     #[test]
     fn a_plain_file_descriptor_is_not_a_terminal() {

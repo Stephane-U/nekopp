@@ -1395,3 +1395,95 @@ mod slot_tests {
         );
     }
 }
+
+/// The kitten's colours.
+///
+/// Fixed rather than taken from the theme: a cat is ginger whatever the syntax
+/// highlighting is doing. Both front-ends draw her from these five -- the window
+/// as lit geometry, the terminal as one cell per character -- so a shade cannot
+/// be one colour on a GPU and another in a cell. They are adjusted for the
+/// background by [`readable`], which is what keeps a ginger cat from being a
+/// pale smudge on a paper-white theme.
+const FUR: Rgb = Rgb::new(228, 172, 112);
+const FUR_DARK: Rgb = Rgb::new(190, 134, 78);
+const FUR_LIGHT: Rgb = Rgb::new(246, 236, 214);
+const NOSE: Rgb = Rgb::new(226, 136, 148);
+const EYE: Rgb = Rgb::new(40, 36, 46);
+
+/// A colour moved away from the theme's background until it reads.
+///
+/// A ginger kitten on a paper-white theme is a pale smudge, and a cream chest on
+/// a near-black one is a bright smear. One rule covers both: darken on a light
+/// background, lighten on a dark one, by enough to see and not enough to look
+/// like a different colour.
+pub fn readable(colour: Rgb, theme: &Theme) -> Rgb {
+    let background = theme.background;
+    let luma = 0.299 * background.0 as f32
+        + 0.587 * background.1 as f32
+        + 0.114 * background.2 as f32;
+    if luma > 140.0 {
+        mix(colour, Rgb::new(0, 0, 0), 0.24)
+    } else {
+        mix(colour, Rgb::new(255, 255, 255), 0.06)
+    }
+}
+
+/// The colour a [`nn_core::playground::Shade`] plays on `theme`.
+pub fn shade_colour(shade: nn_core::playground::Shade, theme: &Theme) -> Rgb {
+    readable(
+        match shade {
+            nn_core::playground::Shade::Fur => FUR,
+            nn_core::playground::Shade::FurDark => FUR_DARK,
+            nn_core::playground::Shade::FurLight => FUR_LIGHT,
+            nn_core::playground::Shade::Nose => NOSE,
+            nn_core::playground::Shade::Eye => EYE,
+        },
+        theme,
+    )
+}
+
+#[cfg(test)]
+mod kitten_tests {
+    use super::*;
+    use nn_core::playground::Shade;
+
+    #[test]
+    fn a_ginger_cat_is_darkened_on_a_light_theme_and_left_alone_on_a_dark_one() {
+        let paper = Theme {
+            background: Rgb::new(255, 255, 255),
+            ..Theme::default()
+        };
+        let night = Theme {
+            background: Rgb::new(18, 18, 22),
+            ..Theme::default()
+        };
+        let on_paper = readable(FUR, &paper);
+        let on_night = readable(FUR, &night);
+        assert!(on_paper.0 < FUR.0, "{on_paper:?}");
+        assert!(on_night.0 >= FUR.0, "{on_night:?}");
+        assert!(on_paper.1 < on_night.1, "{on_paper:?} {on_night:?}");
+    }
+
+    #[test]
+    fn every_shade_has_a_colour_and_no_two_are_the_same() {
+        let theme = Theme::default();
+        let shades = [
+            Shade::Fur,
+            Shade::FurDark,
+            Shade::FurLight,
+            Shade::Nose,
+            Shade::Eye,
+        ];
+        let colours: Vec<Rgb> = shades
+            .iter()
+            .map(|shade| shade_colour(*shade, &theme))
+            .collect();
+        for (index, colour) in colours.iter().enumerate() {
+            assert!(
+                !colours[index + 1..].contains(colour),
+                "{:?} is the colour of another shade",
+                shades[index]
+            );
+        }
+    }
+}

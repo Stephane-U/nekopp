@@ -67,10 +67,6 @@ use crate::workspace::Workspace;
 /// How long the loop waits for a key before drawing again, at rest.
 pub const TICK_MS: i32 = 200;
 
-/// The same, while the playground is up: the page has to move, and nothing else
-/// in the shell is being read at this rate.
-const PLAY_TICK_MS: i32 = 40;
-
 /// The furniture around the text, worked out once per frame.
 ///
 /// The text area itself is a [`Viewport`], of which a split window has two. What
@@ -359,6 +355,13 @@ pub struct App {
     /// The Style Configurator, which edits the same settings file from the other
     /// end: the window's dialog and this one write the same `style` lines.
     styles: Styles,
+    /// Whether the playground may paint a colour in every cell here.
+    ///
+    /// Asked of the terminal once, at startup: the answer is a property of the
+    /// session, and a mode that changed tier halfway through would be two modes.
+    /// A field rather than a call on the way in, so the tests can pick a tier
+    /// without a terminal of each kind.
+    playground_colour: bool,
     /// The playground, while it is up.
     ///
     /// `None` is the editor: the mode replaces the whole screen rather than
@@ -492,6 +495,7 @@ impl App {
             prefs: Prefs::new(),
             styles: Styles::new(),
             plugins: Plugins::new(None, &[]),
+            playground_colour: crate::term::per_cell_colour(),
             playground: None,
             last_frame: std::time::Instant::now(),
             screen: [80, 24],
@@ -560,6 +564,12 @@ impl App {
     pub fn set_plugins(&mut self, plugins: Plugins) {
         self.plugins = plugins;
         self.sync_plugin_menu();
+    }
+
+    /// Picks the playground's tier, for a test that has no terminal to ask.
+    #[cfg(test)]
+    pub fn set_playground_colour(&mut self, colour: bool) {
+        self.playground_colour = colour;
     }
 
     /// Puts the settings that change how the program looks into force.
@@ -683,7 +693,12 @@ impl App {
             .unwrap_or(0);
         let seed = clock.rotate_left(17) ^ self.visits;
         self.visits = self.visits.wrapping_add(1);
-        self.playground = Some(Playground::new(seed, self.screen));
+        self.playground = Some(Playground::new(
+            seed,
+            self.screen,
+            &self.theme,
+            self.playground_colour,
+        ));
         self.last_frame = std::time::Instant::now();
     }
 
@@ -692,13 +707,12 @@ impl App {
     /// Two hundred milliseconds is the resting rate: a shell that redraws five
     /// times a second with nothing happening is a shell that has decided nobody is
     /// reading. A page of walking text is the one thing that has to move, so the
-    /// mode asks for the faster tick, and the editor's own rate is untouched by
-    /// it being there.
+    /// mode asks for its own tick -- faster in colour than in characters -- and the
+    /// editor's rate is untouched by it being there.
     pub fn tick_ms(&self) -> i32 {
-        if self.playground.is_some() {
-            PLAY_TICK_MS
-        } else {
-            TICK_MS
+        match &self.playground {
+            Some(play) => play.tick_ms(),
+            None => TICK_MS,
         }
     }
 
@@ -3645,6 +3659,9 @@ mod tests {
     #[test]
     fn the_mode_asks_for_the_faster_tick_and_leaves_the_editor_s_alone() {
         let mut app = app("");
+        // The tier is the terminal's answer, so a test that counts the clock picks
+        // one rather than taking the machine's.
+        app.set_playground_colour(false);
         assert_eq!(app.tick_ms(), TICK_MS);
         app.run(Action::Playground);
         assert_eq!(app.tick_ms(), 40);
@@ -3653,6 +3670,32 @@ mod tests {
         assert_eq!(app.tick_ms(), TICK_MS);
         // And stepping the clock with the editor up is nothing at all.
         app.advance();
+    }
+
+    #[test]
+    fn a_coloured_playground_ticks_faster_and_paints_a_colour_of_its_own() {
+        // The wiring, not the cost: the mode asks its own tick, and the cells reach
+        // the grid with an ink on them. What a second of it costs is the mode's own
+        // measurement, in `playground`.
+        let inked = |colour: bool| {
+            let mut app = app("one\ntwo\n");
+            app.set_playground_colour(colour);
+            app.run(Action::Playground);
+            assert_eq!(app.tick_ms(), if colour { 25 } else { 40 });
+            let mut grid = Grid::new(80, 24);
+            app.draw(&mut grid);
+            let mut count = 0;
+            for row in 0..24 {
+                for column in 0..80 {
+                    if grid.get(row, column).ink.is_some() {
+                        count += 1;
+                    }
+                }
+            }
+            count
+        };
+        assert_eq!(inked(false), 0, "the plain tier painted a colour");
+        assert!(inked(true) > 8, "{} cells in colour", inked(true));
     }
 
     #[test]
