@@ -6315,6 +6315,14 @@ impl State {
             | Action::RotateSplit
             | Action::MoveToOtherView
             | Action::FocusOtherView
+            | Action::Find
+            | Action::Replace
+            | Action::FindNext
+            | Action::FindPrev
+            | Action::FindInFiles
+            | Action::SearchResultsWindow
+            | Action::NextSearchResult
+            | Action::PrevSearchResult
             | Action::Exit => {}
             // The line commands that are a function of text are run through
             // `nn_core::ops`, which is the same table an MCP client reaches: a
@@ -6367,10 +6375,6 @@ impl State {
             Action::Submenu => {}
             Action::ToggleRecording => self.toggle_recording(),
             Action::PlayMacro => self.play_macro(),
-            Action::FindInFiles => {
-                self.prompt.open(PromptKind::FindInFiles, "");
-                self.window.request_redraw();
-            }
             Action::FindInProjects => {
                 self.prompt.open(PromptKind::FindInProjects, "");
                 self.window.request_redraw();
@@ -6427,21 +6431,7 @@ impl State {
                 ed.delete_selection();
             }),
             Action::SelectAll => self.after_edit(|ed| ed.select_all()),
-            Action::Find => {
-                self.incremental_anchor = None;
-                self.find.open_find();
-                self.find_dialog.set_tab(nn_app::finddialog::Tab::Find);
-                self.refresh_find();
-            }
-            Action::Replace => {
-                self.incremental_anchor = None;
-                self.find.open_replace();
-                self.find_dialog.set_tab(nn_app::finddialog::Tab::Replace);
-                self.refresh_find();
-            }
             Action::IncrementalSearch => self.open_incremental_search(),
-            Action::FindNext => self.step_match(false),
-            Action::FindPrev => self.step_match(true),
             Action::FoldToggle => self.fold(FoldCommand::Toggle),
             Action::FoldAll => self.fold(FoldCommand::All),
             Action::UnfoldAll => self.fold(FoldCommand::None),
@@ -6678,9 +6668,6 @@ impl State {
             Action::SelectAndFindPrev => self.select_and_find(false),
             Action::VolatileFindNext => self.volatile_find(true),
             Action::VolatileFindPrev => self.volatile_find(false),
-            Action::SearchResultsWindow => self.search_results_window(),
-            Action::NextSearchResult => self.step_result(true),
-            Action::PrevSearchResult => self.step_result(false),
             Action::SelectBetweenBraces => self.select_between_braces(),
             Action::Mark => self.mark_dialog(),
             Action::ChangeNext => self.step_change(true),
@@ -10090,6 +10077,47 @@ impl nn_shared::host::Host for State {
 
     fn focus_other_pane(&mut self) {
         self.focus_other();
+    }
+
+    fn open_find(&mut self) {
+        self.incremental_anchor = None;
+        self.find.open_find();
+        self.find_dialog.set_tab(nn_app::finddialog::Tab::Find);
+        self.refresh_find();
+    }
+
+    fn open_replace(&mut self) {
+        self.incremental_anchor = None;
+        self.find.open_replace();
+        self.find_dialog.set_tab(nn_app::finddialog::Tab::Replace);
+        self.refresh_find();
+    }
+
+    fn find_next(&mut self) {
+        // `step_match` takes "backwards", which is the opposite of what a reader
+        // expects a `true` to mean: this is the pair of names that keeps the two
+        // shells' spellings from being confused for one another.
+        self.step_match(false);
+    }
+
+    fn find_previous(&mut self) {
+        self.step_match(true);
+    }
+
+    fn find_in_files(&mut self) {
+        self.prompt.open(PromptKind::FindInFiles, "");
+    }
+
+    fn show_search_results(&mut self) {
+        self.search_results_window();
+    }
+
+    fn next_result(&mut self) {
+        self.step_result(true);
+    }
+
+    fn previous_result(&mut self) {
+        self.step_result(false);
     }
 
     fn quit(&mut self) {

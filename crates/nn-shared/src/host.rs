@@ -28,7 +28,9 @@
 //! open, save, close and walk between documents -- because both front-ends have had
 //! all twelve for a long time, and because those are the ones where the two drifting
 //! apart costs a user work rather than a moment's surprise. The view follows: how
-//! the text area is laid out, and how it is cut into two panes.
+//! the text area is laid out, and how it is cut into two panes. The search group
+//! after that: the find bar and its replacement side, a step in either direction,
+//! and the list of what a search of a folder found.
 //!
 //! The rest of the vocabulary follows, a group a pass, until the last arm makes a
 //! new command a compile error rather than a row that does nothing in one of the two
@@ -102,6 +104,30 @@ pub trait Host {
     /// Puts the keyboard on the other pane.
     fn focus_other_pane(&mut self);
 
+    /// Shows the find bar, with the pattern it last held, ready to type in.
+    fn open_find(&mut self);
+
+    /// Shows the find bar on its replacement side.
+    fn open_replace(&mut self);
+
+    /// Puts the caret on the next match after it, wrapping at the end.
+    fn find_next(&mut self);
+
+    /// The same, the other way.
+    fn find_previous(&mut self);
+
+    /// Asks for a pattern and a folder, and searches the files in it.
+    fn find_in_files(&mut self);
+
+    /// Shows, or puts away, the list of what a folder search found.
+    fn show_search_results(&mut self);
+
+    /// Opens the next result of that list.
+    fn next_result(&mut self);
+
+    /// The same, the other way.
+    fn previous_result(&mut self);
+
     /// Leaves the program, writing and asking whatever this front-end has to.
     fn quit(&mut self);
 }
@@ -145,6 +171,14 @@ pub fn run(action: Action, host: &mut impl Host) -> bool {
         Action::RotateSplit => host.rotate_split(),
         Action::MoveToOtherView => host.move_to_other_pane(),
         Action::FocusOtherView => host.focus_other_pane(),
+        Action::Find => host.open_find(),
+        Action::Replace => host.open_replace(),
+        Action::FindNext => host.find_next(),
+        Action::FindPrev => host.find_previous(),
+        Action::FindInFiles => host.find_in_files(),
+        Action::SearchResultsWindow => host.show_search_results(),
+        Action::NextSearchResult => host.next_result(),
+        Action::PrevSearchResult => host.previous_result(),
         Action::Exit => host.quit(),
         _ => return false,
     }
@@ -223,6 +257,30 @@ mod tests {
         fn focus_other_pane(&mut self) {
             self.note("focus other pane");
         }
+        fn open_find(&mut self) {
+            self.note("find");
+        }
+        fn open_replace(&mut self) {
+            self.note("replace");
+        }
+        fn find_next(&mut self) {
+            self.note("next match");
+        }
+        fn find_previous(&mut self) {
+            self.note("previous match");
+        }
+        fn find_in_files(&mut self) {
+            self.note("find in files");
+        }
+        fn show_search_results(&mut self) {
+            self.note("search results");
+        }
+        fn next_result(&mut self) {
+            self.note("next result");
+        }
+        fn previous_result(&mut self) {
+            self.note("previous result");
+        }
         fn quit(&mut self) {
             self.note("quit");
         }
@@ -277,13 +335,37 @@ mod tests {
     }
 
     #[test]
+    fn every_search_command_reaches_its_own_operation() {
+        // The two steps are the reason this group is worth a table. A shell's own
+        // step takes a direction as a `bool`, and the two shells spell the same
+        // direction with opposite values -- the window's `step_match` is asked for
+        // "backwards", the terminal's is asked for "forwards". Naming the direction
+        // here is what stops a `false` from meaning two things.
+        let cases = [
+            (Action::Find, "find"),
+            (Action::Replace, "replace"),
+            (Action::FindNext, "next match"),
+            (Action::FindPrev, "previous match"),
+            (Action::FindInFiles, "find in files"),
+            (Action::SearchResultsWindow, "search results"),
+            (Action::NextSearchResult, "next result"),
+            (Action::PrevSearchResult, "previous result"),
+        ];
+        for (action, expected) in cases {
+            let mut host = Recorder::default();
+            assert!(run(action, &mut host), "{action:?} was not answered");
+            assert_eq!(host.calls, [expected.to_string()], "{action:?}");
+        }
+    }
+
+    #[test]
     fn a_command_from_another_group_is_left_to_the_front_end() {
         // The rest of the vocabulary is still each front-end's own match, and this
         // answers "not mine" for all of it: the alternative is a menu row that runs
         // twice.
         for action in [
             Action::Undo,
-            Action::Find,
+            Action::GotoLine,
             Action::Preferences,
             Action::Print,
             Action::Theme(0),

@@ -15539,3 +15539,57 @@ Through a pseudo terminal at 140 by 40, the View menu's `Split Horizontally` --
 which travels `Action::SplitHorizontal` into the shared table's `split_pane` -- cut
 the screen with a divider across all 140 columns and said `split horizontally` in
 the bar, the lower pane numbering its own document from one again.
+
+## The hundred-and-sixtieth pass: a `bool` that means two things
+
+The third group is search: `Find` and `Replace`, `Find Next` and `Find Previous`,
+`Find in Files`, the results list and the two commands that step through it. Eight
+commands going through one table, and the reason they are worth moving is not that
+they were hard to keep in step. It is a `bool`.
+
+Both shells step from match to match with a flag, and the flags do not agree. The
+window's `step_match(backwards)` is asked for `false` when the caret should move
+forward; the terminal's `find.step(editor, forward)` is asked for `true` for the
+same move. Both are correct where they stand, both read naturally at their own call
+site, and the two lines that call them are forty thousand lines apart in two
+programs. That is the shape of a bug nobody posts an issue about: a `false` copied
+from one program into the other, and `Find Next` that goes backwards only in the
+terminal.
+
+Naming the direction in the trait removes the flag from the shared vocabulary: the
+table says `find_next` or `find_previous`, each shell turns the name into whatever
+its own step wants, and the argument it passes is written once, beside the method
+whose parameter it satisfies. The results list had the same two commands with the
+same polarity in both shells (`step_result(forward)` and `step_hit(forward)`) and
+gets the same treatment for consistency, though nothing was wrong there yet.
+
+Two smaller things moved with them. The window's `Find` and `Replace` arms did four
+things each -- forget the incremental anchor, open the bar, set the dialog's tab,
+refresh the count -- and all four stay in one operation, because "open the find bar"
+is one thing to a person even when it is four to the window. The terminal's `Find`
+hands the bar the editor it is about, which the window's does not need: the trait
+says what happens, and what a shell needs in its hand to make it happen stays out of
+the table.
+
+Also worth a line, because it is now three groups in: the ordering of the arm in
+`run` is the only place the groups meet, and each pass appends its own at the end of
+the shared arms, so the diff of these three passes reads as one list growing rather
+than a match being rearranged.
+
+### Verified
+
+`cargo test --offline --release`: 2,596 tests, 0 failed -- nn-app 1,006, nn-core
+1,031, nn-mcp 100, nn-shared 211, nn-tui 248. One more than the pass before, in
+`nn-shared`: one row per search command, eight of them, each checked against the
+operation it should have reached. The test's own comment carries the reason -- the
+two steps name a direction that two shells spell with opposite flags -- so the next
+person to move a `bool` into the table reads why before doing it.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31 against the pass-1 baseline, and the terminal's
+keystroke is unchanged at 13,798 bytes for the first paint and 419 for one key.
+
+Through a pseudo terminal at 140 by 40: `Ctrl+F`, the pattern `line 3`, `Enter` put
+the caret on `Ln 4, Col 7` and the bar counted `1/111`; `F3` after it counted
+`2/111` and moved to `Ln 31, Col 7`. Both of those presses now go through
+`open_find` and `find_next` in the shared table rather than its own match.

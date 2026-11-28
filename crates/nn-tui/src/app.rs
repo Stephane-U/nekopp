@@ -1327,24 +1327,12 @@ impl App {
             Action::ManagePlugins => self.plugins.open(),
             Action::ReloadPlugins => self.reload_plugins(),
             Action::Plugin(plugin, command) => self.run_plugin(plugin, command),
-            Action::Find => self.find.open(&self.tabs[self.active].editor),
-            Action::FindInFiles => self.prompt.open(PromptKind::FindInFiles),
-            Action::SearchResultsWindow => self.search_results_window(),
             Action::ToggleFunctionList => self.toggle_function_list(),
             Action::FolderAsWorkspace => self.toggle_workspace(),
             Action::OpenFolderAsWorkspace => self.prompt.open(PromptKind::Workspace),
-            Action::NextSearchResult => self.step_hit(true),
-            Action::PrevSearchResult => self.step_hit(false),
-            Action::Replace => self.find.open_replace(&self.tabs[self.active].editor),
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
             // Two fields, for the reason the find bar's own handling gives: the
             // step borrows the editor while it walks the matches.
-            Action::FindNext => {
-                self.find.step(&mut self.tabs[self.active].editor, true)
-            }
-            Action::FindPrev => {
-                self.find.step(&mut self.tabs[self.active].editor, false)
-            }
             // Bookmarks are the engine's: `Document` has kept a marker array
             // beside the text since the window gave it one, so these four
             // commands only have to say where the caret is and where to look.
@@ -3166,6 +3154,38 @@ impl nn_shared::host::Host for App {
 
     fn focus_other_pane(&mut self) {
         self.focus_other();
+    }
+
+    fn open_find(&mut self) {
+        self.find.open(&self.tabs[self.active].editor);
+    }
+
+    fn open_replace(&mut self) {
+        self.find.open_replace(&self.tabs[self.active].editor);
+    }
+
+    fn find_next(&mut self) {
+        self.find.step(&mut self.tabs[self.active].editor, true);
+    }
+
+    fn find_previous(&mut self) {
+        self.find.step(&mut self.tabs[self.active].editor, false);
+    }
+
+    fn find_in_files(&mut self) {
+        self.prompt.open(PromptKind::FindInFiles);
+    }
+
+    fn show_search_results(&mut self) {
+        self.search_results_window();
+    }
+
+    fn next_result(&mut self) {
+        self.step_hit(true);
+    }
+
+    fn previous_result(&mut self) {
+        self.step_hit(false);
     }
 
     fn quit(&mut self) {
