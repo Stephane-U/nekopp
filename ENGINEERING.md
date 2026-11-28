@@ -14860,3 +14860,67 @@ Through a pseudo terminal on `one`, `two`, `three`: `F2` alone left the bar
 reading `no bookmarks`; `Ctrl+F2` on the second line drew `2•two` with the
 numbers where they were; two marks and `F2` walked the caret to the third line,
 and the status bar showed no `[+]` after any of it.
+
+## The hundred-and-fifty-first pass: the find bar's last two chips
+
+The window's find dialog has a Mark tab: two checkboxes, and a handful of buttons
+that lay a highlight on every match, clear what a previous search left, and the
+like. Two of those are switches, and a switch is the one thing a terminal row can
+carry: `B` marks the line a match lands on, `P` clears the marks the previous
+search made before this one lays its own.
+
+The buttons are the part a terminal cannot have. A highlight layer is a painting
+decision the window makes over a document that also has bookmarks, and a terminal
+has one mark per line and it is the bookmark -- the dot the margin has been
+drawing since the last pass. So the two chips are read as the thing this
+front-end can keep: `B` bookmarks the line, `P` purges the bookmarks before the
+first match of a new search, and both then show where the front-end already knows
+how to show them, which is a dot in the gutter.
+
+Purging once is the whole trick. A purge on every step would delete the mark the
+step before had just made, so `refresh` sets a `fresh` flag on a successful count
+and the first step that marks takes it. Flipping any chip recounts, so it re-arms
+the purge too: a changed rule is a new search, as it is in the window, where the
+purge runs when the search does.
+
+Two smaller rules are the window's own. A line is marked once however many
+matches it holds, so the second match on a line keeps the dot instead of toggling
+it off -- a toggle would make the margin say the opposite of what was asked. And
+the tab's buttons are not here: they act on a highlight layer, where the two
+commands a terminal does have over its marks -- walk them, and empty them -- are
+already `F2` and Clear All Bookmarks.
+
+The row is now `Aa W  N E .* ∞ ▭  B P`, twenty-one cells of marks plus the space
+before the pattern, so the field gives up five of its columns and Tab walks two
+more stops. The geometry tests moved with it, and one of them moved the width it
+draws at rather than the offsets it reads: at forty columns `Find: one` no longer
+fits beside nine marks, and forty-eight is the width the row is honest at.
+
+### Verified
+
+`cargo test --offline --release`: 2,530 tests, 0 failed -- nn-app 1,008, nn-core
+1,031, nn-mcp 100, nn-shared 198, nn-tui 193. Three are new. `nn-tui`'s first is
+the engine's: `B` off until it is pressed, then the first match bookmarking its
+line, a second match on that line keeping the dot rather than erasing it, and a
+match on the next line adding one of its own. Its second is the pair: a mark put
+down by hand before the search, purged before the first match so only the new dot
+stands, and a second step that does not purge again -- the dot the first step made
+survives it. Its third is the shell's: eight Tabs onto `B`, Space, two Tabs back
+to the field, Enter walking to the match, and the document holding a bookmark on
+line one. The tab-order test now reads thirteen stops and the drawing tests read
+the wider row.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: the window's Mark tab is
+already in it, and the terminal is not.
+
+`bench` over the same thirty-one flag combinations: thirty-one of thirty-one
+identical, the reference directory carrying the hashes the last pass left. The
+terminal's keystroke is unchanged at 13,798 bytes for the first paint and 419 for
+one keystroke: two more chips are two more `grid.put` calls on a row that was
+already being drawn.
+
+Through a pseudo terminal on `one`, `two`, `three`: `Ctrl+F`, the pattern, eight
+Tabs and a Space lit `B`, and Enter drew `1•one` with the bar reading `1/1`. Two
+`Ctrl+F2` marks on the first two lines and a search with both chips on left
+`1•one` alone -- the hand marks gone, the search's own dot in their place.

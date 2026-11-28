@@ -17,11 +17,15 @@
 //!
 //! The windowed bar carries eleven chips on a row of their own, because it has
 //! the width for them. A terminal row is a much smaller thing, so this bar keeps
-//! the seven marks a terminal can honour -- match case, whole word, the three
+//! the nine marks a terminal can honour -- match case, whole word, the three
 //! ways to read the pattern (`N` normal, `E` extended, `.*` regular expression),
-//! whether walking past an end wraps (`∞`) and whether the search is confined to
-//! the text selected when the mark was pressed (`▭`) -- and
-//! leaves direction and the marks tab to the passes that bring them. Direction
+//! whether walking past an end wraps (`∞`), whether the search is confined to
+//! the text selected when the mark was pressed (`▭`), and the window's two Mark
+//! tab settings, `B` for a bookmark on the line a match lands on and `P` for
+//! purging the previous search's marks first. The last two are the marks tab's
+//! only switch-shaped settings; the tab's buttons are a highlight layer this
+//! front-end does not have, so the two chips are read as the thing a terminal
+//! can keep, which is a bookmark. Direction
 //! is the arrows: on a terminal Up and Down *are* the two directions, where the
 //! window needs a chip to say which way its button goes. The marks are the
 //! window's own, in the
@@ -78,6 +82,10 @@ enum Focus {
     Wrap,
     /// Confine the search to the text that was selected.
     Selection,
+    /// Put a bookmark on every line a match lands on.
+    Bookmark,
+    /// Drop the previous search's bookmarks before the first of this one's.
+    Purge,
     /// The replacement field, on the second row.
     Replacement,
     /// The `Replace` command.
@@ -114,6 +122,15 @@ pub struct Find {
     /// document as it is now, so a delete above it shortens what it covers
     /// rather than pointing past the end.
     within: Option<Range<usize>>,
+    /// Whether a match bookmarks the line it lands on.
+    bookmark_lines: bool,
+    /// Whether the previous search's marks go before this one's.
+    purge_marks: bool,
+    /// Set by a fresh count, cleared by the first step that marks.
+    ///
+    /// Purging happens once per search, not once per match: a purge on every
+    /// step would delete the mark the step before had just put down.
+    fresh: bool,
     /// Something the bar cannot say itself: it has no line of its own.
     notice: Option<String>,
     focus: Focus,
@@ -151,6 +168,9 @@ impl Find {
             wrap: true,
             in_selection: false,
             within: None,
+            bookmark_lines: false,
+            purge_marks: false,
+            fresh: false,
             notice: None,
             focus: Focus::Query,
             hits: Vec::new(),
@@ -300,6 +320,8 @@ impl Find {
                         | Focus::Regex
                         | Focus::Wrap
                         | Focus::Selection
+                        | Focus::Bookmark
+                        | Focus::Purge
                 ) =>
             {
                 self.flip(editor);
@@ -353,8 +375,9 @@ impl Find {
     /// Where Tab goes next.
     ///
     /// The order is the order the controls are drawn in -- the pattern and its
-    /// five marks along the first row, then the replacement and its two commands
-    /// along the second -- so Tab reads down the bar rather than jumping about.
+    /// seven marks along the first row, then the replacement and its two
+    /// commands along the second -- so Tab reads down the bar rather than
+    /// jumping about.
     fn next_focus(&self) -> Focus {
         match self.focus {
             Focus::Query => Focus::Case,
@@ -364,8 +387,10 @@ impl Find {
             Focus::Extended => Focus::Regex,
             Focus::Regex => Focus::Wrap,
             Focus::Wrap => Focus::Selection,
-            Focus::Selection if self.replace => Focus::Replacement,
-            Focus::Selection => Focus::Query,
+            Focus::Selection => Focus::Bookmark,
+            Focus::Bookmark => Focus::Purge,
+            Focus::Purge if self.replace => Focus::Replacement,
+            Focus::Purge => Focus::Query,
             Focus::Replacement => Focus::Replace,
             Focus::Replace => Focus::ReplaceAll,
             Focus::ReplaceAll => Focus::Query,
@@ -470,6 +495,8 @@ impl Find {
             Focus::Regex => self.mode = SearchMode::Regex,
             Focus::Wrap => self.wrap = !self.wrap,
             Focus::Selection => self.flip_selection(editor),
+            Focus::Bookmark => self.bookmark_lines = !self.bookmark_lines,
+            Focus::Purge => self.purge_marks = !self.purge_marks,
             _ => return,
         }
         // The marks decide what matches, so the count in the bar is now wrong.
@@ -523,6 +550,9 @@ impl Find {
         match Search::new(&self.query, self.options()) {
             Ok(search) => {
                 self.hits = search.find_all(&editor.doc);
+                // A new count is a new search, which is what the purge chip is
+                // waiting for.
+                self.fresh = true;
                 if let Some(within) = &self.within {
                     // A match has to lie entirely inside the region: one that
                     // starts before the selection and ends in it is not inside
@@ -579,7 +609,34 @@ impl Find {
         };
         self.current = Some(index);
         if let Some(hit) = self.hits.get(index) {
+            let hit = hit.clone();
             editor.select_range(hit.clone());
+            self.mark(editor, hit.start);
+        }
+    }
+
+    /// Marks the line a match landed on, which is what `B` and `P` are about.
+    ///
+    /// The window's marks are highlights, and its Mark tab has a button that
+    /// lays them down; a terminal has no highlight layer, so the two chips are
+    /// read as the thing a terminal can keep -- a bookmark on the line, which
+    /// the gutter already draws a dot for. `P` clears the previous search's
+    /// bookmarks before the first match of a new one, so the dots left in the
+    /// margin are the ones this pattern found.
+    fn mark(&mut self, editor: &mut Editor, at: usize) {
+        let fresh = std::mem::take(&mut self.fresh);
+        if self.purge_marks && fresh {
+            editor.doc.clear_bookmarks();
+        }
+        if !self.bookmark_lines {
+            return;
+        }
+        let line = editor.doc.char_to_line(at);
+        // Only when the line carries no mark already: the window marks a line
+        // once however many matches it holds, and a toggle here would erase the
+        // dot a second match on the same line had just put down.
+        if !editor.doc.is_bookmarked(line) {
+            editor.doc.toggle_bookmark(line);
         }
     }
 
@@ -662,7 +719,7 @@ impl Find {
 
     /// Draws the pattern's row on `row`, edge to edge.
     ///
-    /// The pattern takes what is left after the five marks and the count, which
+    /// The pattern takes what is left after the seven marks and the count, which
     /// are pinned to the right: a long pattern loses its tail rather than the
     /// number that says whether the search found anything.
     fn draw_find_row(&self, grid: &mut Grid, row: usize, width: usize) {
@@ -713,6 +770,10 @@ impl Find {
             // going, and the white rectangle for the shape a selection makes.
             ("∞", self.wrap, Focus::Wrap),
             ("▭", self.in_selection, Focus::Selection),
+            // The Mark tab in two cells: `B` bookmarks the line a match lands
+            // on, `P` purges the previous search's bookmarks first.
+            ("B", self.bookmark_lines, Focus::Bookmark),
+            ("P", self.purge_marks, Focus::Purge),
         ];
         for (at, (mark, on, focus)) in columns.into_iter().zip(marks) {
             self.draw_mark(grid, row, at, mark, on, self.focus == focus);
@@ -749,25 +810,25 @@ impl Find {
 /// The columns between the two commands on the replacement row.
 const BUTTON_GAP: usize = 2;
 
-/// The cells the seven marks take up: `Aa W  N E .* ∞ ▭`, and
+/// The cells the nine marks take up: `Aa W  N E .* ∞ ▭  B P`, and
 /// the space that separates them from the pattern.
 ///
 /// The word slot keeps two columns of its own because its regex mark, `\n`, is
 /// two characters: a row whose marks moved by one when the pattern changed
 /// reading would be a row that shuffles under the reader's hand.
-const MARKS_W: usize = 16 + 1;
+const MARKS_W: usize = 21 + 1;
 
 /// The cells the counter keeps: the longest word it can hold, `no match`, and
 /// the column after it.
 const COUNT_W: usize = 8 + 1;
 
-/// Where the seven marks start, given the column the marks begin at.
+/// Where the nine marks start, given the column the marks begin at.
 ///
 /// `Aa` and `W` say what matches; `N`, `E` and `.*` say how the pattern is read;
-/// `∞` and `▭` say where the search is allowed to go. The wider
-/// gap between the groups is where the word slot's second column falls in a
-/// literal reading.
-fn mark_columns(marks_at: usize) -> [usize; 7] {
+/// `∞` and `▭` say where the search may go; `B` and `P` say what a match leaves
+/// behind. The wider gaps between the groups are where the word slot's second
+/// column falls in a literal reading.
+fn mark_columns(marks_at: usize) -> [usize; 9] {
     [
         marks_at,
         marks_at + 3,
@@ -776,6 +837,8 @@ fn mark_columns(marks_at: usize) -> [usize; 7] {
         marks_at + 10,
         marks_at + 13,
         marks_at + 15,
+        marks_at + 18,
+        marks_at + 20,
     ]
 }
 
@@ -840,9 +903,9 @@ mod tests {
         assert!(bar.whole_word);
         assert_eq!(bar.hits.len(), 1);
         assert_eq!(bar.hits[0].start, 4);
-        // And back round to the field with Tab -- past the three mode marks --
-        // where a space is a space.
-        for _ in 0..6 {
+        // And back round to the field with Tab -- past the three mode marks and
+        // the two chips of the marks tab -- where a space is a space.
+        for _ in 0..8 {
             bar.handle(Key::Tab, &mut editor);
         }
         assert_eq!(bar.focus, Focus::Query);
@@ -904,19 +967,19 @@ mod tests {
         type_in(&mut bar, &mut editor, "one");
         let row = drawn(&bar, 48);
         assert!(row.starts_with("Find: one"), "{row:?}");
-        // `Aa W  N E .* ∞ ▭`, then the counter, which ends at the
+        // `Aa W  N E .* ∞ ▭  B P`, then the counter, which ends at the
         // last column but one so nothing is written where a terminal would wrap.
-        // Counted in characters: two of the marks are not ASCII.
-        let marks: String = row.chars().skip(22).take(16).collect();
-        assert_eq!(marks, "Aa W  N E .* ∞ ▭", "{row:?}");
+        // Counted in characters: three of the marks are not ASCII.
+        let marks: String = row.chars().skip(17).take(21).collect();
+        assert_eq!(marks, "Aa W  N E .* ∞ ▭  B P", "{row:?}");
         assert!(row.ends_with(" 0/2 "), "{row:?}");
         // A pattern longer than the room keeps its head and loses its tail, and
         // neither the marks nor the counter move to make space for it.
         type_in(&mut bar, &mut editor, " abcdefghijklmnop");
         let row = drawn(&bar, 48);
         assert!(row.starts_with("Find: one abc"), "{row:?}");
-        let marks: String = row.chars().skip(22).take(16).collect();
-        assert_eq!(marks, "Aa W  N E .* ∞ ▭", "{row:?}");
+        let marks: String = row.chars().skip(17).take(21).collect();
+        assert_eq!(marks, "Aa W  N E .* ∞ ▭  B P", "{row:?}");
         assert!(row.ends_with(" no match "), "{row:?}");
     }
 
@@ -929,7 +992,7 @@ mod tests {
         assert_eq!(bar.rows(), 2, "the replacement is a row of its own");
         // Tab reads down the bar: the pattern's row, then the replacement's.
         let mut order = Vec::new();
-        for _ in 0..11 {
+        for _ in 0..13 {
             bar.focus = bar.next_focus();
             order.push(bar.focus);
         }
@@ -943,6 +1006,8 @@ mod tests {
                 Focus::Regex,
                 Focus::Wrap,
                 Focus::Selection,
+                Focus::Bookmark,
+                Focus::Purge,
                 Focus::Replacement,
                 Focus::Replace,
                 Focus::ReplaceAll,
@@ -1021,18 +1086,20 @@ mod tests {
         type_in(&mut bar, &mut editor, "one");
         bar.focus = Focus::Replacement;
         type_in(&mut bar, &mut editor, "abc");
-        let rows = drawn_rows(&bar, 40, 2);
+        // Wide enough for the pattern's field as well as the nine marks: the
+        // marks take twenty-two cells of the row's right-hand end.
+        let rows = drawn_rows(&bar, 46, 2);
         assert!(rows[0].starts_with("Find: one"), "{:?}", rows);
         assert!(rows[1].starts_with("Replace: abc"), "{:?}", rows);
         // The two commands are pinned to the right, one column from the edge,
         // and the field gives up its room to them rather than the other way
         // round.
-        assert_eq!(&rows[1][19..26], "Replace", "{:?}", rows[1]);
-        assert_eq!(&rows[1][28..39], "Replace All", "{:?}", rows[1]);
+        assert_eq!(&rows[1][25..32], "Replace", "{:?}", rows[1]);
+        assert_eq!(&rows[1][34..45], "Replace All", "{:?}", rows[1]);
         // Standing on a command lights the whole word, and nothing else moves.
         bar.focus = Focus::ReplaceAll;
-        let rows = drawn_rows(&bar, 40, 2);
-        assert_eq!(&rows[1][28..39], "Replace All", "{:?}", rows[1]);
+        let rows = drawn_rows(&bar, 46, 2);
+        assert_eq!(&rows[1][34..45], "Replace All", "{:?}", rows[1]);
         // A window too narrow for the labels keeps the field's label alone.
         let narrow = drawn_rows(&bar, 20, 2);
         assert!(narrow[1].starts_with("Replace:"), "{:?}", narrow);
@@ -1196,15 +1263,66 @@ mod tests {
         let mut bar = Find::new();
         bar.open(&editor);
         let row = drawn(&bar, 40);
-        let word: String = row.chars().skip(17).take(2).collect();
+        let word: String = row.chars().skip(12).take(2).collect();
         assert_eq!(word, "W ", "{row:?}");
         bar.focus = Focus::Regex;
         bar.handle(Key::Char(' '), &mut editor);
         let row = drawn(&bar, 40);
-        let word: String = row.chars().skip(17).take(2).collect();
+        let word: String = row.chars().skip(12).take(2).collect();
         assert_eq!(word, "\\n", "{row:?}");
-        let regex: String = row.chars().skip(24).take(2).collect();
+        let regex: String = row.chars().skip(19).take(2).collect();
         assert_eq!(regex, ".*", "{row:?}");
+    }
+
+    #[test]
+    fn the_bookmark_chip_marks_the_line_a_match_lands_on() {
+        let mut editor = editor("one one\none\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "one");
+        // Off until it is pressed, as the window's Mark tab is: a search that
+        // filled the margin without being asked would be a search tidying up
+        // after itself.
+        assert!(!bar.bookmark_lines);
+        bar.focus = Focus::Bookmark;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(bar.bookmark_lines);
+        bar.step(&mut editor, true);
+        assert!(editor.doc.is_bookmarked(0), "the first match marked nothing");
+        assert_eq!(editor.doc.bookmark_count(), 1);
+        // Two matches on one line are one dot, not a toggle that erases it.
+        bar.step(&mut editor, true);
+        assert!(editor.doc.is_bookmarked(0), "the dot was toggled off again");
+        assert_eq!(editor.doc.bookmark_count(), 1);
+        // The third match is on the line below, which gets a dot of its own.
+        bar.step(&mut editor, true);
+        assert!(editor.doc.is_bookmarked(1));
+        assert_eq!(editor.doc.bookmark_count(), 2);
+    }
+
+    #[test]
+    fn the_purge_chip_drops_the_previous_searchs_marks_before_this_one() {
+        let mut editor = editor("one\ntwo\nthree\none\n");
+        // A dot the search before this one left behind.
+        editor.doc.toggle_bookmark(2);
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "one");
+        bar.focus = Focus::Purge;
+        bar.handle(Key::Char(' '), &mut editor);
+        bar.focus = Focus::Bookmark;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(bar.purge_marks && bar.bookmark_lines);
+        bar.step(&mut editor, true);
+        // The old dot is gone and this search's first is in its place.
+        assert!(!editor.doc.is_bookmarked(2), "the old mark survived");
+        assert!(editor.doc.is_bookmarked(0));
+        assert_eq!(editor.doc.bookmark_count(), 1);
+        // And the purge does not run again: the dot the last step made stays.
+        bar.step(&mut editor, true);
+        assert!(editor.doc.is_bookmarked(0), "the purge ran a second time");
+        assert!(editor.doc.is_bookmarked(3));
+        assert_eq!(editor.doc.bookmark_count(), 2);
     }
 
     /// The bar's row, as a string.

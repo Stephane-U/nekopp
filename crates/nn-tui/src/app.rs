@@ -3017,18 +3017,19 @@ mod tests {
         }
         // Typing went into the bar, not into the document.
         assert_eq!(app.tab().editor.doc.text(), "one two one\n");
-        let rows = drawn(&mut app, 40, 5);
+        // Wide enough for the pattern to be read beside the nine marks.
+        let rows = drawn(&mut app, 48, 5);
         // The bar is the row above the status bar, and the text lost the row.
         assert!(rows[3].starts_with("Find: one"), "{:?}", rows);
         assert!(rows[3].ends_with("0/2 "), "{:?}", rows);
         assert!(rows[4].contains("Ln 1, Col 1"), "{:?}", rows);
         app.handle(Key::Enter);
-        let rows = drawn(&mut app, 40, 5);
+        let rows = drawn(&mut app, 48, 5);
         assert!(rows[3].ends_with("1/2 "), "{:?}", rows);
         // Escape closes and leaves the match selected, and the text gets its row
         // back: the row the bar was on is a line of the document again.
         app.handle(Key::Escape);
-        let rows = drawn(&mut app, 40, 5);
+        let rows = drawn(&mut app, 48, 5);
         assert!(!rows[3].contains("Find:"), "{:?}", rows);
         assert!(rows[4].contains("Ln 1, Col 4"), "{:?}", rows);
     }
@@ -3096,8 +3097,9 @@ mod tests {
         for ch in "one".chars() {
             app.handle(Key::Char(ch));
         }
-        // Tab eight times: the seven marks, then the replacement field.
-        for _ in 0..8 {
+        // Tab ten times: the seven marks, then the marks tab's two chips, then
+        // the replacement field.
+        for _ in 0..10 {
             app.handle(Key::Tab);
         }
         app.handle(Key::Char('1'));
@@ -3112,6 +3114,30 @@ mod tests {
         app.handle(Key::Ctrl('z'));
         let rows = drawn(&mut app, 40, 6);
         assert!(rows[0].contains("one two one"), "{:?}", rows);
+    }
+
+    #[test]
+    fn the_mark_chip_bookmarks_the_line_a_match_lands_on() {
+        let mut app = app("one\ntwo\n");
+        app.run(Action::Find);
+        for ch in "one".chars() {
+            app.handle(Key::Char(ch));
+        }
+        // Tab stands on the marks; the eighth is `B`, the bookmark chip that is
+        // the window's Mark tab read in a terminal.
+        for _ in 0..8 {
+            app.handle(Key::Tab);
+        }
+        app.handle(Key::Char(' '));
+        // Back to the field, where Enter walks to the match.
+        app.handle(Key::Tab);
+        app.handle(Key::Tab);
+        app.handle(Key::Enter);
+        assert!(app.tab().editor.doc.is_bookmarked(0));
+        // The dot is the one the margin already draws for a bookmark, so the
+        // two ways of marking a line look alike.
+        let rows = drawn(&mut app, 48, 6);
+        assert!(rows[0].contains('\u{2022}'), "{:?}", rows);
     }
 
     #[test]
