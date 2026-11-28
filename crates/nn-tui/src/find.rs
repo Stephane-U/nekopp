@@ -17,10 +17,14 @@
 //!
 //! The windowed bar carries eleven chips on a row of their own, because it has
 //! the width for them. A terminal row is a much smaller thing, so this bar keeps
-//! the two marks that change what a search *finds* -- match case and whole word
-//! -- and leaves the rest of the window's options to the passes that bring regex
-//! and find-in-files with them. Tab moves between the things on the row, Space or
-//! Enter flips a mark, Escape closes: a mark is a thing you stand on and press,
+//! the five marks that change what a search *finds* -- match case, whole word,
+//! and the three ways to read the pattern: `N` normal, `E` extended and `.*`
+//! regular expression -- and leaves direction, wrap, selection and the marks tab
+//! to the passes that bring them. The marks are the window's own, in the
+//! window's order, and the whole-word slot becomes `. matches newline` once the
+//! pattern is a regex, which is the window's trick: a whole word is not a thing
+//! a regular expression has. Tab moves between the things on the row, Space or
+//! Enter presses one, Escape closes: a mark is a thing you stand on and press,
 //! which is how Midnight Commander's dialogs answer the same question.
 //!
 //! `Ctrl+H` adds a second row: the replacement, and the two commands the window
@@ -36,7 +40,7 @@
 
 use std::ops::Range;
 
-use nn_core::search::{Search, SearchOptions};
+use nn_core::search::{Search, SearchMode, SearchOptions};
 use nn_core::Editor;
 use nn_shared::i18n::Catalog;
 
@@ -58,8 +62,14 @@ enum Focus {
     Query,
     /// Match case.
     Case,
-    /// Whole word.
+    /// Whole word, or `.` matching a newline once the pattern is a regex.
     Word,
+    /// Normal search: the pattern is literal text.
+    Normal,
+    /// Extended search: literal text with `\n`, `\t` and friends read.
+    Extended,
+    /// Regular expression.
+    Regex,
     /// The replacement field, on the second row.
     Replacement,
     /// The `Replace` command.
@@ -78,6 +88,12 @@ pub struct Find {
     replacement: String,
     match_case: bool,
     whole_word: bool,
+    /// How the pattern itself is read.
+    mode: SearchMode,
+    /// In [`SearchMode::Regex`], whether `.` crosses a line ending.
+    dot_matches_newline: bool,
+    /// Why the pattern would not compile, when it would not.
+    error: Option<String>,
     focus: Focus,
     /// Where the pattern matches, as character ranges, in document order.
     hits: Vec<Range<usize>>,
@@ -107,6 +123,9 @@ impl Find {
             replacement: String::new(),
             match_case: false,
             whole_word: false,
+            mode: SearchMode::Normal,
+            dot_matches_newline: false,
+            error: None,
             focus: Focus::Query,
             hits: Vec::new(),
             current: None,
@@ -236,7 +255,16 @@ impl Find {
             }
             // Standing on a mark or a command, Enter and Space are the same
             // press. A field is not one: there a space is a space.
-            Key::Enter | Key::Char(' ') if matches!(self.focus, Focus::Case | Focus::Word) => {
+            Key::Enter | Key::Char(' ')
+                if matches!(
+                    self.focus,
+                    Focus::Case
+                        | Focus::Word
+                        | Focus::Normal
+                        | Focus::Extended
+                        | Focus::Regex
+                ) =>
+            {
                 self.flip(editor);
                 return true;
             }
@@ -288,14 +316,17 @@ impl Find {
     /// Where Tab goes next.
     ///
     /// The order is the order the controls are drawn in -- the pattern and its
-    /// two marks along the first row, then the replacement and its two commands
+    /// five marks along the first row, then the replacement and its two commands
     /// along the second -- so Tab reads down the bar rather than jumping about.
     fn next_focus(&self) -> Focus {
         match self.focus {
             Focus::Query => Focus::Case,
             Focus::Case => Focus::Word,
-            Focus::Word if self.replace => Focus::Replacement,
-            Focus::Word => Focus::Query,
+            Focus::Word => Focus::Normal,
+            Focus::Normal => Focus::Extended,
+            Focus::Extended => Focus::Regex,
+            Focus::Regex if self.replace => Focus::Replacement,
+            Focus::Regex => Focus::Query,
             Focus::Replacement => Focus::Replace,
             Focus::Replace => Focus::ReplaceAll,
             Focus::ReplaceAll => Focus::Query,
@@ -359,15 +390,17 @@ impl Find {
         if self.query.is_empty() {
             return None;
         }
-        Search::new(
-            &self.query,
-            SearchOptions {
-                case_sensitive: self.match_case,
-                whole_word: self.whole_word,
-                ..SearchOptions::default()
-            },
-        )
-        .ok()
+        Search::new(&self.query, self.options()).ok()
+    }
+
+    /// The options the marks on the row stand for.
+    fn options(&self) -> SearchOptions {
+        SearchOptions {
+            case_sensitive: self.match_case,
+            whole_word: self.whole_word,
+            mode: self.mode,
+            dot_matches_newline: self.dot_matches_newline,
+        }
     }
 
     /// The text a replacement writes in place of `hit`.
@@ -382,7 +415,20 @@ impl Find {
     fn flip(&mut self, editor: &Editor) {
         match self.focus {
             Focus::Case => self.match_case = !self.match_case,
+            // The window's whole-word slot becomes `. matches newline` once the
+            // pattern is a regular expression, because a whole word is not a
+            // thing a regex has. Same slot here, same rule, and whole word keeps
+            // the value it had for the modes that use it.
+            Focus::Word if self.mode == SearchMode::Regex => {
+                self.dot_matches_newline = !self.dot_matches_newline;
+            }
             Focus::Word => self.whole_word = !self.whole_word,
+            // The three modes are radios, not switches: a pattern is read one
+            // way, and pressing the reading it already has is not a request to
+            // read it as nothing.
+            Focus::Normal => self.mode = SearchMode::Normal,
+            Focus::Extended => self.mode = SearchMode::Extended,
+            Focus::Regex => self.mode = SearchMode::Regex,
             _ => return,
         }
         // The marks decide what matches, so the count in the bar is now wrong.
@@ -403,12 +449,23 @@ impl Find {
         self.hits.clear();
         self.current = None;
         self.stale = true;
+        self.error = None;
         if self.query.is_empty() || (!force && editor.doc.is_large()) {
             return;
         }
-        self.hits =
-            editor.find_all_matching(&self.query, self.match_case, self.whole_word, MAX_HITS);
-        self.stale = false;
+        // Through `Search` rather than the editor's literal finder, because the
+        // pattern may be read three ways and the count has to be the count for
+        // the reading the row is showing. One matcher for the count and the
+        // replacement both, so what is written can never be expanded against a
+        // pattern that matched something else.
+        match Search::new(&self.query, self.options()) {
+            Ok(search) => {
+                self.hits = search.find_all(&editor.doc);
+                self.hits.truncate(MAX_HITS);
+                self.stale = false;
+            }
+            Err(err) => self.error = Some(err.to_string()),
+        }
     }
 
     /// Moves to the next hit, or the one before it, wrapping at the ends.
@@ -452,6 +509,17 @@ impl Find {
     fn count(&self) -> (String, bool) {
         if self.query.is_empty() {
             return (String::new(), false);
+        }
+        // A pattern that will not compile found nothing because it is not a
+        // pattern. The window's rule for the words: a short complaint is the
+        // compiler's own, and a long one is `bad regex`, because a count slot is
+        // not a place to read a paragraph.
+        if let Some(err) = &self.error {
+            return if err.len() > 12 {
+                (self.tr("bad regex").to_string(), true)
+            } else {
+                (err.clone(), true)
+            };
         }
         if self.stale && self.hits.is_empty() {
             // A large file has not been searched yet: saying `no match` would be
@@ -516,7 +584,7 @@ impl Find {
 
     /// Draws the pattern's row on `row`, edge to edge.
     ///
-    /// The pattern takes what is left after the two marks and the count, which
+    /// The pattern takes what is left after the five marks and the count, which
     /// are pinned to the right: a long pattern loses its tail rather than the
     /// number that says whether the search found anything.
     fn draw_find_row(&self, grid: &mut Grid, row: usize, width: usize) {
@@ -544,12 +612,27 @@ impl Find {
                 grid.put(row, column, ' ', Tone::Caret);
             }
         }
-        let (case_at, word_at) = mark_columns(marks_at);
+        let columns = mark_columns(marks_at);
+        // The window's third trick: the whole-word slot is `. matches newline`
+        // when the pattern is a regex, which is why it has two marks and one
+        // place to stand.
+        let regex = self.mode == SearchMode::Regex;
         let marks = [
-            (case_at, "Aa", self.match_case, Focus::Case),
-            (word_at, "W", self.whole_word, Focus::Word),
+            ("Aa", self.match_case, Focus::Case),
+            (
+                if regex { "\\n" } else { "W" },
+                if regex {
+                    self.dot_matches_newline
+                } else {
+                    self.whole_word
+                },
+                Focus::Word,
+            ),
+            ("N", self.mode == SearchMode::Normal, Focus::Normal),
+            ("E", self.mode == SearchMode::Extended, Focus::Extended),
+            (".*", regex, Focus::Regex),
         ];
-        for (at, mark, on, focus) in marks {
+        for (at, (mark, on, focus)) in columns.into_iter().zip(marks) {
             self.draw_mark(grid, row, at, mark, on, self.focus == focus);
         }
         let tone = if alert { Tone::Alert } else { Tone::StatusBar };
@@ -584,17 +667,31 @@ impl Find {
 /// The columns between the two commands on the replacement row.
 const BUTTON_GAP: usize = 2;
 
-/// The cells the two marks take up: `Aa`, a space, `W`, and the space that
+/// The cells the five marks take up: `Aa W  N E .*`, and the space that
 /// separates them from the pattern.
-const MARKS_W: usize = 4 + 1;
+///
+/// The word slot keeps two columns of its own because its regex mark, `\n`, is
+/// two characters: a row whose marks moved by one when the pattern changed
+/// reading would be a row that shuffles under the reader's hand.
+const MARKS_W: usize = "Aa W  N E .*".len() + 1;
 
 /// The cells the counter keeps: the longest word it can hold, `no match`, and
 /// the column after it.
 const COUNT_W: usize = 8 + 1;
 
-/// Where `Aa` and `W` start, given the column the marks begin at.
-fn mark_columns(marks_at: usize) -> (usize, usize) {
-    (marks_at, marks_at + 3)
+/// Where the five marks start, given the column the marks begin at.
+///
+/// `Aa` and `W` say what matches; `N`, `E` and `.*` say how the pattern is read,
+/// and the wider gap between the two groups is where the word slot's second
+/// column falls in a literal reading.
+fn mark_columns(marks_at: usize) -> [usize; 5] {
+    [
+        marks_at,
+        marks_at + 3,
+        marks_at + 6,
+        marks_at + 8,
+        marks_at + 10,
+    ]
 }
 
 #[cfg(test)]
@@ -658,8 +755,11 @@ mod tests {
         assert!(bar.whole_word);
         assert_eq!(bar.hits.len(), 1);
         assert_eq!(bar.hits[0].start, 4);
-        // And back round to the field with Tab, where a space is a space.
-        bar.handle(Key::Tab, &mut editor);
+        // And back round to the field with Tab -- past the three mode marks --
+        // where a space is a space.
+        for _ in 0..4 {
+            bar.handle(Key::Tab, &mut editor);
+        }
         assert_eq!(bar.focus, Focus::Query);
         bar.handle(Key::Char(' '), &mut editor);
         assert_eq!(bar.query, "foo ");
@@ -717,19 +817,19 @@ mod tests {
         let mut bar = Find::new();
         bar.open(&editor);
         type_in(&mut bar, &mut editor, "one");
-        let row = drawn(&bar, 30);
+        let row = drawn(&bar, 40);
         assert!(row.starts_with("Find: one"), "{row:?}");
-        // `Aa` and `W`, then a space, then the counter, which ends at the last
-        // column but one so nothing is written where a terminal would wrap.
-        assert_eq!(&row[16..19], "Aa ", "{row:?}");
-        assert_eq!(row.chars().nth(19), Some('W'), "{row:?}");
+        // `Aa W N E .*`, one column apart, then the counter, which ends at the
+        // last column but one so nothing is written where a terminal would wrap.
+        assert_eq!(&row[18..21], "Aa ", "{row:?}");
+        assert_eq!(&row[21..30], "W  N E .*", "{row:?}");
         assert!(row.ends_with(" 0/2 "), "{row:?}");
         // A pattern longer than the room keeps its head and loses its tail, and
         // neither the marks nor the counter move to make space for it.
         type_in(&mut bar, &mut editor, " abcdefghijklmnop");
-        let row = drawn(&bar, 30);
+        let row = drawn(&bar, 40);
         assert!(row.starts_with("Find: one abc"), "{row:?}");
-        assert_eq!(&row[16..19], "Aa ", "{row:?}");
+        assert_eq!(&row[18..21], "Aa ", "{row:?}");
         assert!(row.ends_with(" no match "), "{row:?}");
     }
 
@@ -742,7 +842,7 @@ mod tests {
         assert_eq!(bar.rows(), 2, "the replacement is a row of its own");
         // Tab reads down the bar: the pattern's row, then the replacement's.
         let mut order = Vec::new();
-        for _ in 0..6 {
+        for _ in 0..9 {
             bar.focus = bar.next_focus();
             order.push(bar.focus);
         }
@@ -751,6 +851,9 @@ mod tests {
             vec![
                 Focus::Case,
                 Focus::Word,
+                Focus::Normal,
+                Focus::Extended,
+                Focus::Regex,
                 Focus::Replacement,
                 Focus::Replace,
                 Focus::ReplaceAll,
@@ -845,6 +948,103 @@ mod tests {
         let narrow = drawn_rows(&bar, 20, 2);
         assert!(narrow[1].starts_with("Replace:"), "{:?}", narrow);
         assert!(!narrow[1].contains("Replace All"), "{:?}", narrow);
+    }
+
+    #[test]
+    fn the_three_mode_marks_change_how_the_pattern_is_read() {
+        // `a.c` is three characters to a literal search and three to a regex,
+        // but only the regex reads the dot as any one character.
+        let mut editor = editor("a.c abc\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "a.c");
+        assert_eq!(bar.count().0, "0/1", "{:?}", bar.hits);
+        // Standing on `.*` and pressing it reads the pattern as a regex.
+        bar.focus = Focus::Regex;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert_eq!(bar.mode, SearchMode::Regex);
+        assert_eq!(bar.count().0, "0/2", "{:?}", bar.hits);
+        // Pressing the mark that is already lit leaves it lit: the three are
+        // radios, not switches.
+        bar.handle(Key::Char(' '), &mut editor);
+        assert_eq!(bar.mode, SearchMode::Regex);
+        // Normal is the literal reading again.
+        bar.focus = Focus::Normal;
+        bar.handle(Key::Enter, &mut editor);
+        assert_eq!(bar.mode, SearchMode::Normal);
+        assert_eq!(bar.count().0, "0/1", "{:?}", bar.hits);
+    }
+
+    #[test]
+    fn an_extended_pattern_reads_an_escape_the_normal_one_does_not() {
+        // The document holds a tab; the pattern holds a backslash and a `t`.
+        let mut editor = editor("a\tb\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "a\\tb");
+        assert_eq!(bar.count().0, "no match", "{:?}", bar.hits);
+        bar.focus = Focus::Extended;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert_eq!(bar.mode, SearchMode::Extended);
+        assert_eq!(bar.hits.len(), 1, "{:?}", bar.hits);
+    }
+
+    #[test]
+    fn the_word_mark_becomes_dot_matches_newline_once_a_regex_is_read() {
+        let mut editor = editor("a\nb\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "a.b");
+        // In the literal readings the mark is whole word, and `a.b` is not in
+        // the document at all.
+        bar.focus = Focus::Word;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(bar.whole_word);
+        assert!(bar.hits.is_empty());
+        bar.focus = Focus::Regex;
+        bar.handle(Key::Char(' '), &mut editor);
+        // Now the same slot is `. matches newline`, still off: a dot stops at
+        // the line ending, which is what the default is for.
+        assert!(bar.whole_word, "whole word lost its value for the other modes");
+        assert!(!bar.dot_matches_newline);
+        assert!(bar.hits.is_empty(), "{:?}", bar.hits);
+        bar.focus = Focus::Word;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert!(bar.dot_matches_newline);
+        assert_eq!(bar.hits.len(), 1, "{:?}", bar.hits);
+    }
+
+    #[test]
+    fn a_pattern_that_will_not_compile_says_so_and_finds_nothing() {
+        let mut editor = editor("abc\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        type_in(&mut bar, &mut editor, "a[");
+        bar.focus = Focus::Regex;
+        bar.handle(Key::Char(' '), &mut editor);
+        assert_eq!(bar.mode, SearchMode::Regex);
+        assert!(bar.hits.is_empty());
+        // The compiler's message is long, so the count slot says the short word
+        // the window uses, and says it as bad news.
+        assert_eq!(bar.count(), ("bad regex".to_string(), true));
+        // A pattern that compiles again clears it, and counting comes back.
+        bar.focus = Focus::Query;
+        bar.handle(Key::Backspace, &mut editor);
+        assert_eq!(bar.count().0, "0/1");
+    }
+
+    #[test]
+    fn the_regex_reading_puts_its_own_mark_in_the_word_slot() {
+        let mut editor = editor("a.b\n");
+        let mut bar = Find::new();
+        bar.open(&editor);
+        let row = drawn(&bar, 40);
+        assert_eq!(&row[21..23], "W ", "{row:?}");
+        bar.focus = Focus::Regex;
+        bar.handle(Key::Char(' '), &mut editor);
+        let row = drawn(&bar, 40);
+        assert_eq!(&row[21..23], "\\n", "{row:?}");
+        assert_eq!(&row[28..30], ".*", "{row:?}");
     }
 
     /// The bar's row, as a string.

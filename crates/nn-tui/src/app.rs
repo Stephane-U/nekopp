@@ -3047,8 +3047,8 @@ mod tests {
         for ch in "one".chars() {
             app.handle(Key::Char(ch));
         }
-        // Tab three times: the two marks, then the replacement field.
-        for _ in 0..3 {
+        // Tab six times: the five marks, then the replacement field.
+        for _ in 0..6 {
             app.handle(Key::Tab);
         }
         app.handle(Key::Char('1'));
@@ -3063,6 +3063,34 @@ mod tests {
         app.handle(Key::Ctrl('z'));
         let rows = drawn(&mut app, 40, 6);
         assert!(rows[0].contains("one two one"), "{:?}", rows);
+    }
+
+    #[test]
+    fn a_regex_typed_in_the_bar_is_the_pattern_the_document_is_walked_by() {
+        let mut app = app("a.c abc\n");
+        app.run(Action::Find);
+        for ch in "a.c".chars() {
+            app.handle(Key::Char(ch));
+        }
+        // Five tabs from the field: case, word, and the three ways to read the
+        // pattern. The last one is `.*`, and Space presses it.
+        for _ in 0..5 {
+            app.handle(Key::Tab);
+        }
+        app.handle(Key::Char(' '));
+        // The bar takes the row above the status line: four rows of document,
+        // then the pattern, then the bar's own line.
+        let rows = drawn(&mut app, 40, 6);
+        assert!(rows[4].contains("0/2"), "{:?}", rows);
+        // The arrows walk the matches from any focus, and the second one is the
+        // `abc` that only a regex reads as a match.
+        app.handle(Key::Down);
+        assert_eq!(app.tab().editor.selection_start(), 0);
+        let rows = drawn(&mut app, 40, 6);
+        assert!(rows[4].contains("1/2"), "{:?}", rows);
+        app.handle(Key::Down);
+        assert_eq!(app.tab().editor.selection_start(), 4);
+        let _ = rows;
     }
 
     #[test]

@@ -14628,3 +14628,87 @@ Through a pseudo terminal on a folder holding `one.txt`, `two.txt` and
 with `one` alone in the document behind it, so no letter reached the text. One
 `Escape` cleared the line and left the dock up with every row back and `+ sub`
 reading closed again; a second took the dock down.
+
+## The hundred-and-forty-eighth pass: the three ways to read a pattern
+
+The find bar arrived in pass 127 with two marks, match case and whole word, and a
+note that the rest of the window's options were for later. Eleven chips is more
+than a terminal row wants, but the five that change what a search *finds* fit on
+one: `Aa`, `W`, `N`, `E` and `.*`. The other six -- direction, wrap, the
+selection, the two marks-tab settings -- change where a search looks rather than
+what it is looking for, and they are still a gap.
+
+The three readings are radios rather than switches. Pressing the mark that is
+already lit sets the mode it is already in, because a pattern is read one way and
+pressing "regular expression" twice is not a request to read it as nothing. That
+is the window's behaviour too, and it is why `N`, `E` and `.*` are drawn lit or
+greyed but never off-in-three-ways.
+
+The whole-word slot does what the window's does: in a regex reading it becomes
+`. matches newline`, drawn as `\n` because a regex has no whole word to match. One
+slot with two jobs and one place on the row for Tab to stand, and `whole_word`
+keeps whatever value it had for the two literal readings, so switching modes to
+look and switching back does not quietly change the search.
+
+Counting had to stop being the editor's literal finder.
+`Editor::find_all_matching` searches for a string; three of the five marks are
+about reading the pattern as something other than a string, so the bar counts
+through `nn_core::search::Search` now -- one matcher for the count, the step and
+the replacement, which is what makes the text a replacement writes impossible to
+expand against a pattern that matched something else. The ten-thousand cap on the
+count survived the move as a `truncate`.
+
+A pattern that will not compile is not a pattern that found nothing, so `Search`'s
+error is kept. In the count slot it says the compiler's own complaint when that is
+short and the window's `bad regex` when it is long -- the window's rule and its
+words -- in the alert colour, on the same row as the pattern that caused it.
+
+The row's geometry needed one decision. `\n` is two characters where `W` is one,
+so the word slot keeps two columns of its own whether it is holding `W` or `\n`:
+a row whose marks shifted by one whenever the pattern changed reading would be a
+row that shuffles under the reader's hand. `MARKS_W` went from five cells to
+thirteen, so a forty-column bar leaves the pattern eleven columns and a hundred
+and forty leaves it a hundred and eleven. Tab walks the five marks before the
+replacement row, and the arrows walk the matches from whatever the focus is
+standing on, which is what they did before.
+
+Nothing else in the shell moved. `F3` still steps, `Escape` still closes, and the
+bar still hands back every chord it does not want.
+
+### Verified
+
+`cargo test --offline --release`: 2,519 tests, 0 failed -- nn-app 1,008, nn-core
+1,030, nn-mcp 100, nn-shared 198, nn-tui 183. Six are new. Five are the bar's:
+`a.c` matching one literal occurrence and two as a regex, with the lit mark
+staying lit when pressed twice; a pattern holding `\t` matching nothing as
+literal text and the document's tab as an extended one; the whole-word slot
+turning into `. matches newline` with whole word keeping its value; `a[` saying
+`bad regex` until it compiles again; and the row drawing `W` before the reading
+changes and `\n` after. The sixth is the shell's: the five marks tabbed to, `.*`
+pressed, and Down walking to the `abc` that only a regex reads as a match. Three
+tests were re-baselined -- the two-mark row's geometry, the Tab order, and the
+replacement-row test that had to tab six times instead of three.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The feature reference and its PDF are untouched: the terminal is not in them
+yet.
+
+`bench` over the same thirty-one flag combinations: all thirty-one identical, as
+they must be -- this pass touched `nn-tui` and nothing the window draws.
+
+The terminal's keystroke is unchanged at 13,798 bytes for the first paint and 419
+for one keystroke in a pty at 140x40, because a keystroke in the text area never
+asks the bar to draw.
+
+Through a pseudo terminal on a two-line file, `Ctrl+F`, `a.c`, five Tabs and a
+Space drew
+
+                  Aa W  N E .*      0/1
+                  Aa \n N E .*      0/2
+
+on the same row, the marks holding their columns while the count went from one
+match to two; and `a[` with `.*` pressed read
+
+                          Aa \n N E .* bad regex
+
+with the counter giving up a column to the longer word rather than cutting it.
