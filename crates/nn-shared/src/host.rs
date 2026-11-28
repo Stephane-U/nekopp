@@ -31,7 +31,8 @@
 //! the text area is laid out, and how it is cut into two panes. The search group
 //! after that: the find bar and its replacement side, a step in either direction,
 //! and the list of what a search of a folder found. Then the panels -- the
-//! function list, and the folder the files are read from.
+//! function list, and the folder the files are read from -- and the completion
+//! box, whose four kinds are already one enum in [`crate::completion`].
 //!
 //! The rest of the vocabulary follows, a group a pass, until the last arm makes a
 //! new command a compile error rather than a row that does nothing in one of the two
@@ -39,6 +40,7 @@
 //! match for what is left.
 
 use crate::action::Action;
+use crate::completion::CompletionMode;
 
 /// What a front-end has to be able to do, as the commands here ask for it.
 ///
@@ -138,6 +140,18 @@ pub trait Host {
     /// Asks the person for a folder, and opens it beside the documents.
     fn open_folder_as_workspace(&mut self);
 
+    /// Opens the completion list in `mode`, or moves it to `mode` if it is up.
+    fn open_completion(&mut self, mode: CompletionMode);
+
+    /// Shows the names of the call's parameters, or puts the hint away.
+    fn toggle_parameter_hint(&mut self);
+
+    /// Lights the parameter after the one that is lit.
+    fn next_parameter(&mut self);
+
+    /// The same, the other way.
+    fn previous_parameter(&mut self);
+
     /// Leaves the program, writing and asking whatever this front-end has to.
     fn quit(&mut self);
 }
@@ -192,6 +206,13 @@ pub fn run(action: Action, host: &mut impl Host) -> bool {
         Action::ToggleFunctionList => host.toggle_function_list(),
         Action::FolderAsWorkspace => host.toggle_folder_workspace(),
         Action::OpenFolderAsWorkspace => host.open_folder_as_workspace(),
+        Action::CompleteWord => host.open_completion(CompletionMode::Word),
+        Action::CompleteDocument => host.open_completion(CompletionMode::Document),
+        Action::CompleteFunction => host.open_completion(CompletionMode::Function),
+        Action::CompletePath => host.open_completion(CompletionMode::Path),
+        Action::ParamHint => host.toggle_parameter_hint(),
+        Action::ParamHintPrev => host.previous_parameter(),
+        Action::ParamHintNext => host.next_parameter(),
         Action::Exit => host.quit(),
         _ => return false,
     }
@@ -303,6 +324,18 @@ mod tests {
         fn open_folder_as_workspace(&mut self) {
             self.note("open folder");
         }
+        fn open_completion(&mut self, mode: CompletionMode) {
+            self.note(&format!("complete {mode:?}"));
+        }
+        fn toggle_parameter_hint(&mut self) {
+            self.note("parameter hint");
+        }
+        fn next_parameter(&mut self) {
+            self.note("next parameter");
+        }
+        fn previous_parameter(&mut self) {
+            self.note("previous parameter");
+        }
         fn quit(&mut self) {
             self.note("quit");
         }
@@ -389,6 +422,28 @@ mod tests {
             (Action::ToggleFunctionList, "function list"),
             (Action::FolderAsWorkspace, "folder tree"),
             (Action::OpenFolderAsWorkspace, "open folder"),
+        ];
+        for (action, expected) in cases {
+            let mut host = Recorder::default();
+            assert!(run(action, &mut host), "{action:?} was not answered");
+            assert_eq!(host.calls, [expected.to_string()], "{action:?}");
+        }
+    }
+
+    #[test]
+    fn every_completion_command_reaches_its_own_operation() {
+        // Four rows, one operation and one argument: the mode. `nn_shared` already
+        // had the enum -- both shells drew the same four kinds -- so the only thing
+        // this table adds is that the four rows can no longer be wired to three
+        // kinds and a half.
+        let cases = [
+            (Action::CompleteWord, "complete Word"),
+            (Action::CompleteDocument, "complete Document"),
+            (Action::CompleteFunction, "complete Function"),
+            (Action::CompletePath, "complete Path"),
+            (Action::ParamHint, "parameter hint"),
+            (Action::ParamHintPrev, "previous parameter"),
+            (Action::ParamHintNext, "next parameter"),
         ];
         for (action, expected) in cases {
             let mut host = Recorder::default();

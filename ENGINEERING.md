@@ -15632,3 +15632,52 @@ Through a pseudo terminal at 140 by 40, View and then `Function List` -- the row
 twenty-nine deep in that dropdown -- reached `toggle_function_list` in the shared
 table and answered `no symbols in this document`, which is what the terminal says
 about a file of plain lines.
+
+## The hundred-and-sixty-second pass: the mode the table did not have to invent
+
+The fifth group is the completion box: its four kinds, the parameter hint, and the
+two rows that walk the hint's arguments. Seven commands over five operations, and
+the first group whose argument was already a shared type.
+
+`CompletionMode` has been in `nn_shared::completion` since the popup was written:
+four kinds, the label the status bar shows, and the rule about which characters
+refilter the list. The view's `Split` was a new name for two crates' identical
+enums; this one is the same enum the shells were already drawing from, so
+`open_completion(mode)` takes it as it stands. Both halves of that are worth saying
+out loud, because they are the two reasons an argument belongs in this table at
+all: either the two shells had each invented the same set and the table is where it
+gets one name, or the set was already shared and the table is where it finally gets
+one caller.
+
+The three hint rows are the ones that lean on the passes before them. The terminal's
+`run` returns early when the shared table answers a command, and pass 158 moved the
+hint tail into `follow_the_hint` for exactly this case: `ParamHint`, `ParamHintPrev`
+and `ParamHintNext` keep the highlight they were given rather than having it
+recomputed from the caret, which is the one place a lit argument is allowed to
+disagree with the caret. Had that tail still been written after the match, these
+three rows would have reached the shared table and quietly lost their highlight.
+
+One dead line came out with them. The window had `open_completion()` -- the word
+mode as a no-argument wrapper -- used by one arm and nothing else. The table spells
+the mode out, so the wrapper had no caller and was removed rather than left as an
+unused function with an `#[allow]` over it. That is the shape this migration leaves
+behind most often: an arm's private conveniences stop being convenient when the arm
+goes.
+
+### Verified
+
+`cargo test --offline --release`: 2,598 tests, 0 failed -- nn-app 1,006, nn-core
+1,031, nn-mcp 100, nn-shared 213, nn-tui 248. One more than the pass before, in
+`nn-shared`: seven rows against five operations, with the four completion kinds each
+carrying their own argument, so a row wired to the wrong mode is a failure rather
+than a popup that lists the wrong words.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings, and the build that
+found the window's unused wrapper is what removed it. `cargo fmt` was not run. The
+bench matrix is 31/31 against the pass-1 baseline, and the terminal's keystroke is
+unchanged at 13,798 bytes for the first paint and 419 for one key.
+
+Through a pseudo terminal at 140 by 40, `lin` followed by `Ctrl+Space` -- the chord
+the keymap gives `CompleteWord` -- opened the list under the caret with `line` and
+`linline` in it, drawn over the document, which is the shared table's
+`open_completion(Word)` reaching the terminal's own popup.

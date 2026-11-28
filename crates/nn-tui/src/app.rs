@@ -1308,19 +1308,6 @@ impl App {
             Action::MoveLineUp => self.edit(|ed| ed.move_lines(true)),
             Action::MoveLineDown => self.edit(|ed| ed.move_lines(false)),
             Action::DeleteLine => self.edit(|ed| ed.delete_lines()),
-            Action::CompleteWord => self.open_completion(CompletionMode::Word),
-            Action::CompleteDocument => self.open_completion(CompletionMode::Document),
-            Action::CompleteFunction => self.open_completion(CompletionMode::Function),
-            Action::CompletePath => self.open_completion(CompletionMode::Path),
-            Action::ParamHint => {
-                if self.hint.is_open() {
-                    self.hint.close();
-                } else {
-                    self.follow_hint();
-                }
-            }
-            Action::ParamHintPrev => self.hint.step(-1),
-            Action::ParamHintNext => self.hint.step(1),
             Action::Preferences => self.prefs.open(),
             Action::StyleConfigurator => self.styles.open(),
             Action::Playground => self.toggle_playground(),
@@ -3195,6 +3182,26 @@ impl nn_shared::host::Host for App {
 
     fn open_folder_as_workspace(&mut self) {
         self.prompt.open(PromptKind::Workspace);
+    }
+
+    fn open_completion(&mut self, mode: CompletionMode) {
+        self.open_completion(mode);
+    }
+
+    fn toggle_parameter_hint(&mut self) {
+        if self.hint.is_open() {
+            self.hint.close();
+        } else {
+            self.follow_hint();
+        }
+    }
+
+    fn next_parameter(&mut self) {
+        self.hint.step(1);
+    }
+
+    fn previous_parameter(&mut self) {
+        self.hint.step(-1);
     }
 
     fn quit(&mut self) {

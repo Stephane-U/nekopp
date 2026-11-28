@@ -4003,11 +4003,6 @@ impl State {
         self.functions.set_symbols(symbols);
     }
 
-    /// Opens the word-completion popup for the word before the caret.
-    fn open_completion(&mut self) {
-        self.open_completion_in(CompletionMode::Word);
-    }
-
     /// Opens the popup in `mode`.
     ///
     /// The index is rebuilt on every request rather than cached: a completion is
@@ -6326,6 +6321,13 @@ impl State {
             | Action::ToggleFunctionList
             | Action::FolderAsWorkspace
             | Action::OpenFolderAsWorkspace
+            | Action::CompleteWord
+            | Action::CompleteDocument
+            | Action::CompleteFunction
+            | Action::CompletePath
+            | Action::ParamHint
+            | Action::ParamHintPrev
+            | Action::ParamHintNext
             | Action::Exit => {}
             // The line commands that are a function of text are run through
             // `nn_core::ops`, which is the same table an MCP client reaches: a
@@ -6446,18 +6448,6 @@ impl State {
                 settings.toolbar = !settings.toolbar;
                 self.prefs.set_settings(settings);
                 self.apply_settings();
-            }
-            Action::CompleteWord => self.open_completion(),
-            Action::CompleteFunction => self.open_completion_in(CompletionMode::Function),
-            Action::CompleteDocument => self.open_completion_in(CompletionMode::Document),
-            Action::CompletePath => self.open_completion_in(CompletionMode::Path),
-            Action::ParamHint => {
-                if self.param_hint.is_open() {
-                    self.param_hint.close();
-                } else {
-                    self.follow_param_hint();
-                }
-                self.window.request_redraw();
             }
             Action::Run => self.open_run_prompt(),
             Action::RunSaved(index) => {
@@ -6615,8 +6605,6 @@ impl State {
             Action::CopyAllFilePaths => self.copy_all_paths(true),
             Action::InsertBlankAbove => self.insert_blank_line(true),
             Action::InsertBlankBelow => self.insert_blank_line(false),
-            Action::ParamHintPrev => self.param_hint.move_selection(-1),
-            Action::ParamHintNext => self.param_hint.move_selection(1),
             Action::OpenSelectedFile => self.open_selected(false),
             Action::OpenSelectedFolder => self.open_selected(true),
             Action::RedactSelection => self.redact_selection(),
@@ -10127,6 +10115,26 @@ impl nn_shared::host::Host for State {
 
     fn open_folder_as_workspace(&mut self) {
         self.prompt.open(PromptKind::OpenFolderAsWorkspace, "");
+    }
+
+    fn open_completion(&mut self, mode: CompletionMode) {
+        self.open_completion_in(mode);
+    }
+
+    fn toggle_parameter_hint(&mut self) {
+        if self.param_hint.is_open() {
+            self.param_hint.close();
+        } else {
+            self.follow_param_hint();
+        }
+    }
+
+    fn next_parameter(&mut self) {
+        self.param_hint.move_selection(1);
+    }
+
+    fn previous_parameter(&mut self) {
+        self.param_hint.move_selection(-1);
     }
 
     fn quit(&mut self) {
