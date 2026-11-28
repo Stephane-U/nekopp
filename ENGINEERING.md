@@ -15399,3 +15399,89 @@ times. `COLORTERM=truecolor` alone chose the colour tier with no override at all
 and `NO_COLOR=1` refused it with `COLORTERM` still set. A second of the page through
 the same terminal costs 6,721 bytes in colour and 2,236 in characters, which is what
 fifteen more frames and the extra escapes amount to.
+
+## The hundred-and-fifty-eighth pass: one match for the document commands
+
+The plan's phase 1 was still short of its last item: two hundred and forty-one
+commands, and two matches over them. Both front-ends drew the same tree from
+`nn_shared::menu`, with the same labels and the same chords, and then each answered
+a press in its own `match action` -- two hundred and seventy-five arms in the
+window, a hundred and eighty-six in the terminal, kept in step by whoever last
+touched one of them. The plan says every command must mean the same thing in both
+shells, and a match is not a place where that stays true: the divergences this
+series has already fixed -- a `Close All` that asked once here and once per tab
+there, a recent list that cleared itself in one program only -- were all the same
+accident.
+
+`nn_shared::host` is the one table. `Host` is what a shell has to be able to do for
+a command to run in it, and `run(action, host)` is the match, answering `true` when
+it answered. Both front-ends call it first and fall through to what is left of
+their own match, so the shared table grows a group a pass and neither program has
+to be rewritten for the other to shrink.
+
+The trait's names are operations rather than commands, deliberately. A command is a
+row and a chord; an operation is a thing that happens to the editor, and the two are
+not one to one: `Reopen with Encoding` and `Reload` both read a file again, and two
+arms will reach one method apiece rather than one method each. What a name may not
+be is a way of drawing -- `save_document` writes the active document, it does not
+put a message in a status bar, because the two shells word their messages
+differently and one of them has no status bar to put it in. That is also why `run`
+returns a `bool` instead of an `Option`: nothing here needs to know *which* arm
+answered, only whether the shell still has to.
+
+The document group went first. It is the twelve commands that open, save, close and
+walk between documents, both shells have had all twelve for a long time, and they
+are the ones where the two drifting apart costs a user work rather than a moment's
+surprise -- `Save As` in the wrong place overwrites a file. `App` and `State` each
+gain an impl of a dozen one-line delegations and lose twelve arms from their match.
+
+Two details were not obvious.
+
+The first is a name collision. `Host::new_document` is `App::new_document`, and
+`Host::close_document` is `App::close_document`: an impl that answered the trait
+method with `self.new_document()` would call itself, which is a stack overflow
+rather than a wrong answer, and a stack overflow in a GUI event handler is a crash
+with no message. Those two are named through the type -- `App::new_document(self)`
+-- with a comment saying why, and a terminal test calls the trait methods to pin it,
+because the bug would come back silently in a later edit.
+
+The second is exhaustiveness, the guarantee the window's match was written for: a
+command added to the enum and not routed is a compile error, not a row that does
+nothing. It still holds, and it is now bought with a dead arm. The window's match
+had no catch-all, so removing twelve arms made the compiler demand them; they are
+gathered in one arm that does nothing, above the real ones, under a comment that
+says they are answered before the match is reached. Leaving the twelve spelled out
+is not ceremony: the arm is what keeps the match total, and a match that stays total
+is what turns a new command into a compile error today. What this pass does not buy
+yet is the stronger version -- a command that is *shared* and not routed being a
+compile error because `run` must answer it -- and that arrives with the last group,
+when the front-ends' own matches have nothing left in them.
+
+The terminal's `run` had one thing to keep. Its last four lines follow the caret
+with the hint box, after every command, and an early return from the shared table
+would have skipped them: `Ctrl+N` would have opened a document and left the hint box
+pointing at where the caret used to be. Those lines are `follow_the_hint` now, and
+both paths end there.
+
+### Verified
+
+`cargo test --offline --release`: 2,594 tests, 0 failed -- nn-app 1,006, nn-core
+1,031, nn-mcp 100, nn-shared 209, nn-tui 248. Four more than the pass before: three
+in `nn-shared` and one in `nn-tui`, and the window's thousand and six are untouched,
+which is the point of moving a match rather than rewriting one. The three are
+`run`'s own: every command of the group reaches its own operation -- twelve
+observations recorded in a stub host, one per arm -- a command from any other group
+returns `false` without touching the host at all, and a recent row carries its
+index. The fourth is the terminal's, and it is the collision: `Host::new_document`
+takes the tab count from one to two and leaves the new document in front, and
+`Host::close_document` puts it back, which a recursive impl could not have done.
+
+`cargo clippy --offline --release --all-targets`: 0 warnings. `cargo fmt` was not
+run. The bench matrix is 31/31: the window still draws what it drew, since a match
+that reaches the same methods in the same order cannot move a pixel.
+
+The terminal's keystroke is unchanged at 13,798 bytes for the first paint and 419
+for one keystroke. Through a pseudo terminal at 140 by 40, `Ctrl+N` added
+`[No Name]` to the strip beside `p147doc.txt`, and `Ctrl+W` after it closed that
+document and said so: `closed [No Name]`, with the bar back to `Ln 1, Col 1` and one
+tab on the strip.

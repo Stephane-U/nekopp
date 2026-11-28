@@ -76,6 +76,7 @@ pub mod catalogue;
 pub mod color;
 pub mod completion;
 pub mod hint;
+pub mod host;
 pub mod i18n;
 pub mod keymap;
 pub mod prefs;

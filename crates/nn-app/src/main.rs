@@ -6284,7 +6284,31 @@ impl State {
 
     /// Runs a menu command.
     fn run(&mut self, action: Action) {
+        // The document commands are `nn_shared::host`'s: one match both front-ends
+        // run, so a save here and a save in the terminal cannot come to mean two
+        // things. What is left of the match below is this window's own, and shrinks
+        // a group a pass until there is nothing of it left.
+        if nn_shared::host::run(action, self) {
+            self.window.request_redraw();
+            return;
+        }
         match action {
+            // Answered by `nn_shared::host` above, before this match is reached.
+            // They are named here all the same, so the match stays total and a
+            // command added to the enum is still a compile error until it is
+            // routed somewhere rather than a row that quietly does nothing.
+            Action::New
+            | Action::Open
+            | Action::Save
+            | Action::SaveAs
+            | Action::CloseTab
+            | Action::CloseAll
+            | Action::Reload
+            | Action::NextTab
+            | Action::PrevTab
+            | Action::OpenRecent(_)
+            | Action::ClearRecent
+            | Action::Exit => {}
             // The line commands that are a function of text are run through
             // `nn_core::ops`, which is the same table an MCP client reaches: a
             // command cannot mean one thing to the menu and another to the API
@@ -6334,24 +6358,6 @@ impl State {
             // something dispatched it by mistake, and doing nothing is the right
             // answer to that.
             Action::Submenu => {}
-            Action::New => self.new_tab(),
-            Action::Open => self.choose_file(nn_app::portal::Kind::Open),
-            Action::Save => self.save_active(),
-            Action::SaveAs => self.choose_file(nn_app::portal::Kind::Save),
-            Action::CloseTab => self.close_tab(),
-            Action::Exit => {
-                self.save_session();
-                std::process::exit(0);
-            }
-            Action::OpenRecent(index) => {
-                if let Some(path) = self.session.recent.get(index).cloned() {
-                    self.open_path(&path);
-                }
-            }
-            Action::ClearRecent => {
-                self.session.recent.clear();
-                self.sync_recent();
-            }
             Action::ToggleRecording => self.toggle_recording(),
             Action::PlayMacro => self.play_macro(),
             Action::FindInFiles => {
@@ -6382,8 +6388,6 @@ impl State {
             Action::MoveLineDown => self.after_edit(|ed| {
                 ed.move_lines(false);
             }),
-            Action::NextTab => self.cycle_tab(true),
-            Action::PrevTab => self.cycle_tab(false),
             Action::DocumentPeeker => self.open_peeker(),
             Action::Undo => self.after_edit(|ed| {
                 ed.undo();
@@ -6504,7 +6508,6 @@ impl State {
             Action::SaveAll => self.save_all(),
             Action::Print => self.open_print_preview(),
             Action::PrintNow => self.print_now(),
-            Action::CloseAll => self.close_all(),
             Action::PinTab => self.pin_tab(),
             Action::TabColour => self.cycle_tab_colour(),
             Action::CloseOthers => {
@@ -6519,7 +6522,6 @@ impl State {
                 let active = self.active;
                 self.close_tabs_where(|index| index <= active);
             }
-            Action::Reload => self.reload(),
             Action::CopyPath => self.copy_path(),
             Action::OpenContainingFolder => self.open_containing_folder(),
             Action::OpenInDefaultViewer => self.open_in_default_viewer(),
@@ -10005,6 +10007,68 @@ impl State {
             self.tab_mut().editor.select_block(anchor, caret);
         }
         self.window.request_redraw();
+    }
+}
+
+/// What this window does when a document command is run.
+///
+/// The two shells answer these through their own operations rather than in the
+/// match, so the shared table stays a table of *what happens* and each program
+/// decides *where*: here a file dialog is `portal`, a save is the active tab's.
+/// Nothing here draws -- [`State::run`] asks for the redraw itself.
+impl nn_shared::host::Host for State {
+    fn new_document(&mut self) {
+        self.new_tab();
+    }
+
+    fn open_document(&mut self) {
+        self.choose_file(nn_app::portal::Kind::Open);
+    }
+
+    fn save_document(&mut self) {
+        self.save_active();
+    }
+
+    fn save_document_as(&mut self) {
+        self.choose_file(nn_app::portal::Kind::Save);
+    }
+
+    fn close_document(&mut self) {
+        self.close_tab();
+    }
+
+    fn close_all_documents(&mut self) {
+        self.close_all();
+    }
+
+    fn reload_document(&mut self) {
+        self.reload();
+    }
+
+    fn next_document(&mut self) {
+        self.cycle_tab(true);
+    }
+
+    fn previous_document(&mut self) {
+        self.cycle_tab(false);
+    }
+
+    fn open_recent(&mut self, index: usize) {
+        if let Some(path) = self.session.recent.get(index).cloned() {
+            self.open_path(&path);
+        }
+    }
+
+    fn clear_recent(&mut self) {
+        self.session.recent.clear();
+        self.sync_recent();
+    }
+
+    fn quit(&mut self) {
+        // The session is written before the process goes, as it always was: the
+        // next start reopens the tabs this one had.
+        self.save_session();
+        std::process::exit(0);
     }
 }
 

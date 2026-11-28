@@ -1271,8 +1271,15 @@ impl App {
         // or open a dialog that owns the keyboard, so the list goes first; the
         // three completion commands open a fresh one on the line after.
         self.complete.close();
+        // The document commands are `nn_shared::host`'s: one match both front-ends
+        // run, so a save here and a save in the window cannot come to mean two
+        // things. What is left of the match below is this shell's own, and shrinks
+        // a group a pass until there is nothing of it left.
+        if nn_shared::host::run(action, self) {
+            self.follow_the_hint(action);
+            return;
+        }
         match action {
-            Action::Save => self.save(),
             // The three commands the recorder has a step for are recorded where
             // the keys that type are, so a macro recorded with the chords
             // replays what happened rather than what the keys spelled.
@@ -1337,24 +1344,6 @@ impl App {
             Action::PrevSearchResult => self.step_hit(false),
             Action::Replace => self.find.open_replace(&self.tabs[self.active].editor),
             Action::GotoLine => self.prompt.open(PromptKind::GotoLine),
-            Action::Open => self.prompt.open(PromptKind::Open),
-            Action::OpenRecent(index) => {
-                if let Some(path) = self.session.recent.get(index).cloned() {
-                    self.open_path(&path.display().to_string());
-                }
-            }
-            Action::ClearRecent => {
-                self.session.recent.clear();
-                self.rebuild_menus();
-                self.say("the recent list is empty", false);
-            }
-            Action::New => self.new_document(),
-            Action::CloseTab => self.close_document(),
-            Action::CloseAll => self.close_all(),
-            Action::NextTab => self.cycle_document(true),
-            Action::PrevTab => self.cycle_document(false),
-            Action::Reload => self.reload(),
-            Action::SaveAs => self.prompt.open(PromptKind::SaveAs),
             // Two fields, for the reason the find bar's own handling gives: the
             // step borrows the editor while it walks the matches.
             Action::FindNext => {
@@ -1373,7 +1362,6 @@ impl App {
             Action::NextBookmark => self.step_bookmark(true),
             Action::PrevBookmark => self.step_bookmark(false),
             Action::ClearBookmarks => self.tab_mut().editor.doc.clear_bookmarks(),
-            Action::Exit => self.ask_to_quit(),
             // The rest of the editing commands are one table over in the engine:
             // upper case, indent, sort, comment, and thirty more. They take the
             // selected lines as text and give them back changed, so the shell
@@ -1384,11 +1372,17 @@ impl App {
                 self.say(&format!("{label}: not in the terminal yet"), true);
             }
         }
-        // An open hint follows whatever the command did to the caret; a closed
-        // one stays closed, so it never appears on its own while you are typing.
-        // The three rows that work the hint keep the highlight they were given:
-        // they are the one place the lit argument is allowed to disagree with the
-        // caret, and recomputing here would put it straight back.
+        self.follow_the_hint(action);
+    }
+
+    /// Leaves the hint box where the command left the caret.
+    ///
+    /// An open hint follows whatever the command did to the caret; a closed one
+    /// stays closed, so it never appears on its own while you are typing. The
+    /// three rows that work the hint keep the highlight they were given: they are
+    /// the one place the lit argument is allowed to disagree with the caret, and
+    /// recomputing would put it straight back.
+    fn follow_the_hint(&mut self, action: Action) {
         let stepped = matches!(
             action,
             Action::ParamHint | Action::ParamHintPrev | Action::ParamHintNext
@@ -3090,6 +3084,68 @@ fn lexer_for(path: Option<&Path>) -> Box<dyn Lexer> {
         // An unknown extension is highlighted as code, which is what the
         // windowed editor does with it too.
         None => Box::new(CLikeLexer),
+    }
+}
+
+/// What this shell does when a document command is run.
+///
+/// The two shells answer these through their own operations rather than in the
+/// match, so the shared table stays a table of *what happens* and each program
+/// decides *where*. Nothing here draws: the terminal's own drawing and its
+/// redraw flag stay in [`App::run`].
+impl nn_shared::host::Host for App {
+    fn new_document(&mut self) {
+        // Named through the type, not called as a method: this impl has a
+        // `new_document` too, and `self.new_document()` would come back here.
+        App::new_document(self);
+    }
+
+    fn open_document(&mut self) {
+        self.prompt.open(PromptKind::Open);
+    }
+
+    fn save_document(&mut self) {
+        self.save();
+    }
+
+    fn save_document_as(&mut self) {
+        self.prompt.open(PromptKind::SaveAs);
+    }
+
+    fn close_document(&mut self) {
+        App::close_document(self);
+    }
+
+    fn close_all_documents(&mut self) {
+        self.close_all();
+    }
+
+    fn reload_document(&mut self) {
+        self.reload();
+    }
+
+    fn next_document(&mut self) {
+        self.cycle_document(true);
+    }
+
+    fn previous_document(&mut self) {
+        self.cycle_document(false);
+    }
+
+    fn open_recent(&mut self, index: usize) {
+        if let Some(path) = self.session.recent.get(index).cloned() {
+            self.open_path(&path.display().to_string());
+        }
+    }
+
+    fn clear_recent(&mut self) {
+        self.session.recent.clear();
+        self.rebuild_menus();
+        self.say("the recent list is empty", false);
+    }
+
+    fn quit(&mut self) {
+        self.ask_to_quit();
     }
 }
 
@@ -5014,6 +5070,21 @@ mod tests {
         assert_eq!(session.recent, app.session.recent);
         let _ = std::fs::remove_file(&first);
         let _ = std::fs::remove_file(&second);
+    }
+
+    #[test]
+    fn the_shared_dispatcher_reaches_this_shell_own_operations() {
+        // Two of the trait's names are `App`'s as well, and an impl that reached
+        // them as methods would call itself: that is a stack overflow, not a wrong
+        // answer, so one call each way is worth a test.
+        let mut app = app("fn main() {}\n");
+        let before = app.tabs.len();
+        nn_shared::host::Host::new_document(&mut app);
+        assert_eq!(app.tabs.len(), before + 1);
+        assert_eq!(app.active, before);
+        // A document nobody typed into closes without asking.
+        nn_shared::host::Host::close_document(&mut app);
+        assert_eq!(app.tabs.len(), before);
     }
 
     #[test]
